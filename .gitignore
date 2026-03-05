@@ -1,0 +1,5 @@
+__pycache__/rag.cpython-310.pyc
+.*env
+*.*env
+*.idea
+vector_store/*

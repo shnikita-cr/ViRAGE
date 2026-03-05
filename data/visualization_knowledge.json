@@ -1,0 +1,110 @@
+[
+  {
+    "id": 1,
+    "task": "сравнение категорий",
+    "description": "Сравнение значений между разными категориями или группами",
+    "best_charts": ["столбчатая диаграмма (bar chart)", "горизонтальная столбчатая диаграмма", "столбчатая диаграмма с группировкой"],
+    "when_use": "Когда нужно сравнить количественные показатели между разными категориями (например, продажи по регионам, население по странам)",
+    "library": "matplotlib, seaborn, plotly",
+    "example_code": "plt.bar(categories, values)"
+  },
+  {
+    "id": 2,
+    "task": "доля от целого",
+    "description": "Показывает часть от целого, процентное соотношение",
+    "best_charts": ["круговая диаграмма (pie chart)", "кольцевая диаграмма (donut chart)", "treemap"],
+    "when_use": "Когда нужно показать части целого (например, распределение бюджета, доля рынка)",
+    "library": "matplotlib, plotly",
+    "example_code": "plt.pie(values, labels=categories)"
+  },
+  {
+    "id": 3,
+    "task": "временной тренд",
+    "description": "Отображение изменения показателя во времени",
+    "best_charts": ["линейный график (line chart)", "_area chart", "линейный график с областями"],
+    "when_use": "Для отображения динамики изменения показателей (цена акций, температура, продажи по месяцам)",
+    "library": "matplotlib, seaborn, plotly",
+    "example_code": "plt.plot(dates, values)"
+  },
+  {
+    "id": 4,
+    "task": "распределение",
+    "description": "Показывает как распределены данные",
+    "best_charts": ["гистограмма (histogram)", "box plot (ящик с усами)", "violin plot (скрипка)", "KDE плотность"],
+    "when_use": "Для анализа распределения данных, выявления выбросов, сравнения распределений",
+    "library": "matplotlib, seaborn, plotly",
+    "example_code": "plt.hist(data, bins=30)"
+  },
+  {
+    "id": 5,
+    "task": "корреляция",
+    "description": "Показывает взаимосвязь между двумя и более переменными",
+    "best_charts": ["точечная диаграмма (scatter plot)", "тепловая карта корреляций (heatmap)", "bubble chart"],
+    "when_use": "Для выявления зависимостей между переменными, корреляционный анализ",
+    "library": "matplotlib, seaborn, plotly",
+    "example_code": "plt.scatter(x, y)"
+  },
+  {
+    "id": 6,
+    "task": "многомерные данные",
+    "description": "Визуализация данных с большим количеством измерений",
+    "best_charts": ["параллельные координаты", "радарная диаграмма (radar chart)", "treemap", "sunburst"],
+    "when_use": "Для визуализации сложных данных с множеством переменных",
+    "library": "plotly, seaborn",
+    "example_code": "px.scatter_matrix(df)"
+  },
+  {
+    "id": 7,
+    "task": "геоданные",
+    "description": "Визуализация данных на карте",
+    "best_charts": ["choropleth map", "точечная карта (scatter geo)", "тепловая карта на карте"],
+    "when_use": "Для отображения данных по географическим регионам",
+    "library": "plotly, folium",
+    "example_code": "px.choropleth_mapbox(df, locations=...)"
+  },
+  {
+    "id": 8,
+    "task": "иерархия",
+    "description": "Визуализация иерархических структур",
+    "best_charts": ["treemap", "sunburst диаграмма", "деревянная диаграмма (tree diagram)"],
+    "when_use": "Для показа вложенных структур (организационная структура, файловая система)",
+    "library": "plotly, matplotlib",
+    "example_code": "px.treemap(df, path=[...])"
+  },
+  {
+    "id": 9,
+    "task": "сеть связей",
+    "description": "Визуализация связей между объектами",
+    "best_charts": ["сетевой граф (network graph)", "sankey диаграмма"],
+    "when_use": "Для показа связей, потоков, зависимостей между объектами",
+    "library": "networkx, plotly",
+    "example_code": "nx.draw_networkx(G)"
+  },
+  {
+    "id": 10,
+    "task": "выбросы",
+    "description": "Выявление аномальных значений в данных",
+    "best_charts": ["box plot", "scatter plot с выбросами", "violin plot"],
+    "when_use": "Для обнаружения аномалий и выбросов в данных",
+    "library": "seaborn, matplotlib",
+    "example_code": "sns.boxplot(x=data)"
+  },
+  {
+    "id": 11,
+    "task": "ранжирование",
+    "description": "Показать порядок элементов по значению",
+    "best_charts": ["горизонтальная столбчатая диаграмма", "lollipop диаграмма"],
+    "when_use": "Для показа топ-10, рейтингов, сравнения по рангу",
+    "library": "matplotlib, seaborn",
+    "example_code": "plt.barh(categories[::-1], values[::-1])"
+  },
+  {
+    "id": 12,
+    "task": "现金流",
+    "description": "Отображение притока и оттока, потоков",
+    "best_charts": ["sankey диаграмма", "waterfall диаграмма"],
+    "when_use": "Для визуализации движения ресурсов, денежных потоков",
+    "library": "plotly, matplotlib",
+    "example_code": "px.sankey(source, target, value)"
+  }
+]
