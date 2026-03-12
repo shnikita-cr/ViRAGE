@@ -12,7 +12,7 @@ class VisualizationRAG:
     def __init__(
         self,
         knowledge_path: str = "data/visualization_knowledge.json",
-        embedding_model: str = "nomic-embed-text",
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         llm_model: str = "llama3.2",
         vector_store_path: str = "vector_store"
     ):
@@ -35,6 +35,8 @@ class VisualizationRAG:
             self.index = faiss.read_index(os.path.join(self.vector_store_path, "index.faiss"))
             with open(os.path.join(self.vector_store_path, "documents.json"), "r", encoding="utf-8") as f:
                 self.documents = json.load(f)
+            print(f"Загрузка модели эмбеддингов ({self.embedding_model})...")
+            self.embeddings_model = SentenceTransformer(self.embedding_model)
         else:
             print("Создание векторного хранилища...")
             data = self.load_knowledge()
@@ -65,23 +67,19 @@ class VisualizationRAG:
             print(f"Векторное хранилище сохранено в {self.vector_store_path}")
 
     def _create_embeddings(self):
+        print(f"Создание эмбеддингов через SentenceTransformer ({self.embedding_model})...")
+        self.embeddings_model = SentenceTransformer(self.embedding_model)
         texts = [doc["content"] for doc in self.documents]
         
-        print(f"Создание эмбеддингов через Ollama ({self.embedding_model})...")
-        embeddings = []
-        for text in texts:
-            response = ollama.embeddings(model=self.embedding_model, prompt=text)
-            embeddings.append(response["embedding"])
+        embeddings = self.embeddings_model.encode(texts, convert_to_numpy=True)
         
-        embeddings = np.array(embeddings).astype("float32")
         dimension = embeddings.shape[1]
         
         self.index = faiss.IndexFlatL2(dimension)
         self.index.add(embeddings)
 
     def search(self, query: str, k: int = 3) -> List[Dict[str, Any]]:
-        response = ollama.embeddings(model=self.embedding_model, prompt=query)
-        query_embedding = np.array([response["embedding"]]).astype("float32")
+        query_embedding = self.embeddings_model.encode([query], convert_to_numpy=True)
         
         distances, indices = self.index.search(query_embedding, k)
         
