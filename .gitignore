@@ -4,3 +4,4 @@ __pycache__/rag.cpython-310.pyc
 *.idea
 vector_store/*
 /venv
+test_data
