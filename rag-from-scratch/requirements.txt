@@ -1,0 +1,9 @@
+langchain
+langchain-community
+langchain-text-splitters
+langchain-ollama
+langchain-chroma
+chromadb
+beautifulsoup4
+langchain-core
+langchain-openai
