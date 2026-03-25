@@ -10,11 +10,11 @@ from sentence_transformers import SentenceTransformer
 
 class VisualizationRAG:
     def __init__(
-        self,
-        knowledge_path: str = "data/visualization_knowledge.json",
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-        llm_model: str = "llama3.2",
-        vector_store_path: str = "vector_store"
+            self,
+            knowledge_path: str = "data/visualization_knowledge.json",
+            embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+            llm_model: str = "llama3.2",
+            vector_store_path: str = "vector_store"
     ):
         self.knowledge_path = knowledge_path
         self.embedding_model = embedding_model
@@ -40,7 +40,7 @@ class VisualizationRAG:
         else:
             print("Создание векторного хранилища...")
             data = self.load_knowledge()
-            
+
             self.documents = []
             for item in data:
                 content = f"""
@@ -59,7 +59,7 @@ class VisualizationRAG:
                 })
 
             self._create_embeddings()
-            
+
             os.makedirs(self.vector_store_path, exist_ok=True)
             faiss.write_index(self.index, os.path.join(self.vector_store_path, "index.faiss"))
             with open(os.path.join(self.vector_store_path, "documents.json"), "w", encoding="utf-8") as f:
@@ -70,19 +70,19 @@ class VisualizationRAG:
         print(f"Создание эмбеддингов через SentenceTransformer ({self.embedding_model})...")
         self.embeddings_model = SentenceTransformer(self.embedding_model)
         texts = [doc["content"] for doc in self.documents]
-        
+
         embeddings = self.embeddings_model.encode(texts, convert_to_numpy=True)
-        
+
         dimension = embeddings.shape[1]
-        
+
         self.index = faiss.IndexFlatL2(dimension)
         self.index.add(embeddings)
 
     def search(self, query: str, k: int = 3) -> List[Dict[str, Any]]:
         query_embedding = self.embeddings_model.encode([query], convert_to_numpy=True)
-        
+
         distances, indices = self.index.search(query_embedding, k)
-        
+
         results = []
         for idx in indices[0]:
             if idx < len(self.documents):
@@ -91,9 +91,9 @@ class VisualizationRAG:
 
     def ask(self, question: str) -> str:
         results = self.search(question, k=3)
-        
+
         context = "\n\n".join([r["content"] for r in results])
-        
+
         prompt = f"""Ты - эксперт по визуализации данных. Используй контекст ниже, чтобы ответить на вопрос пользователя о выборе типа графика.
 
 Контекст из базы знаний:
@@ -108,7 +108,7 @@ class VisualizationRAG:
 
 Если точного ответа нет в контексте, дай рекомендацию на основе твоих знаний.
 """
-        
+
         response = ollama.generate(model=self.llm_model, prompt=prompt)
         return response["response"]
 
