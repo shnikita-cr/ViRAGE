@@ -1,7 +1,70 @@
-__pycache__/rag.cpython-310.pyc
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.whl
+
+# PyInstaller
+# See https://pyinstaller.org
+*.manifest
+*.spec
+dist/
+build/
+
+# Unit test and coverage
+.coverage
+.coverage.*
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.hypothesis/
+.tox/
+
+# IDEs and editors
+.idea/  # for PyCharm
+.vscode/ # for VS Code
+*.swp
+*.sublime-workspace
+*.sublime-project
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Misc
+.env # Environment variables
+
 .*env
 *.*env
 *.idea
 vector_store/*
 /venv
 test_data
+artifacts_test
