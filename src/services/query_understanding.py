@@ -30,6 +30,7 @@ class QueryUnderstandingService(BaseService):
             except Exception:
                 pass
 
+        # fallback: no llm provided
         q = query.lower()
         charts: list[str] = []
         ops: list[str] = []
