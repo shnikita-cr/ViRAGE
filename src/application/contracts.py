@@ -31,15 +31,15 @@ class PipelineResult(BaseModel):
     query: str
     data_path: str
     case_type: ChartCaseType
-    query_understanding: QueryUnderstandingResult
-    planning: PlanningResult
+    query_understanding_result: QueryUnderstandingResult
+    planning_result: PlanningResult
     data_profile: DataProfile
-    data_preparation: DataPreparationResult
-    visrag: VisRAGResult
-    codegen: CodegenResult
-    execution: CodeRunResult
+    data_preparation_result: DataPreparationResult
+    visrag_result: VisRAGResult
+    codegen_result: CodegenResult
+    execution_result: CodeRunResult
     artifact_bundle: ArtifactBundle
-    chart_read: ChartReadResult
-    facts: FactExtractionResult
-    reasoning: ReasoningResult
-    verification: VerificationResult
+    chart_read_result: ChartReadResult
+    extracted_facts: FactExtractionResult
+    reasoning_result: ReasoningResult
+    verification_result: VerificationResult
