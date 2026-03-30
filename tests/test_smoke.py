@@ -11,5 +11,5 @@ def test_smoke() -> None:
     pipeline = ViRAGEPipeline(settings=settings)
     result = pipeline.invoke(PipelineRequest(query="Analyze trend of sales over time",
                                              data_path=(root / "examples" / "demo.csv").as_posix()))
-    assert result.execution_result.success is True
-    assert result.verification_result.findings
+    assert result.execution.success is True
+    assert result.verification.findings
