@@ -1,7 +1,7 @@
 from src.application.contracts import PipelineRequest, PipelineResult
 from src.application.settings import ViRAGESettings
 from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
+from src.domain.enums import PipelineStage, ChartCaseType
 from src.graph.builder import build_pipeline_graph
 from src.infrastructure.runtime import RuntimeContext
 
@@ -17,6 +17,7 @@ class ViRAGEPipeline:
             "run_id": request.run_id,
             "query": request.query,
             "data_path": request.data_path,
+            "case_type": ChartCaseType.CANONICAL,
             "user_context": request.user_context,
             "stage": PipelineStage.INITIALIZED,
             "trace": [],
