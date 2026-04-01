@@ -68,3 +68,4 @@ vector_store/*
 /venv
 test_data
 artifacts_test
+.pytest_tmp
