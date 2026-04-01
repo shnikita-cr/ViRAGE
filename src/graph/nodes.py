@@ -72,7 +72,8 @@ class PipelineNodes:
         }
 
     def data_preparation_node(self, state: PipelineState) -> dict:
-        result = self.data_preparation.invoke(state["data_path"], state["data_profile"], state["run_id"], runtime=self.runtime)
+        result = self.data_preparation.invoke(state["data_path"], state["data_profile"], state["run_id"],
+                                              runtime=self.runtime)
         return {
             "data_preparation": result,
             "stage": PipelineStage.DATA_PREPARATION,
@@ -103,7 +104,8 @@ class PipelineNodes:
         return {"execution": result, "stage": PipelineStage.CODERUN, "trace": self._trace(state, "coderun")}
 
     def artifact_store_node(self, state: PipelineState) -> dict:
-        result = self.artifact_store.invoke(state["data_preparation"], state["execution"], state["run_id"], runtime=self.runtime)
+        result = self.artifact_store.invoke(state["data_preparation"], state["execution"], state["run_id"],
+                                            runtime=self.runtime)
         return {
             "artifact_bundle": result,
             "stage": PipelineStage.ARTIFACT_STORE,

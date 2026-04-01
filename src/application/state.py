@@ -1,5 +1,7 @@
 from typing import Any
 
+from typing_extensions import NotRequired, TypedDict
+
 from src.domain.enums import ChartCaseType, PipelineStage
 from src.domain.models import (
     ArtifactBundle,
@@ -15,7 +17,6 @@ from src.domain.models import (
     VerificationResult,
     VisRAGResult,
 )
-from typing_extensions import NotRequired, TypedDict
 
 
 class PipelineState(TypedDict):

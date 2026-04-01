@@ -2,6 +2,7 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
 from src.domain.enums import ChartCaseType
 from src.domain.models import (
     ArtifactBundle,

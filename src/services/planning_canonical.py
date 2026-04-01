@@ -36,7 +36,8 @@ class CanonicalPlanningService(BaseService):
         parsed = invoke_structured(runtime.llm, prompt, _PlanningSchema)
         return PlanningResult(
             mode=ChartCaseType.CANONICAL,
-            steps=[PlanningStep(name=self._slugify(step), description=step) for step in parsed.steps or self._fallback_steps(query_understanding)],
+            steps=[PlanningStep(name=self._slugify(step), description=step) for step in
+                   parsed.steps or self._fallback_steps(query_understanding)],
             success_criteria=self._dedupe(parsed.success_criteria or self._fallback_criteria(query_understanding)),
         )
 

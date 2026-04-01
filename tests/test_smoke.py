@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -53,8 +53,13 @@ def test_non_canonical_routing_uses_non_canonical_plan(tmp_path: Path) -> None:
     ).to_csv(data_path, index=False)
 
     pipeline = ViRAGEPipeline(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts_noncanonical"))
-    result = pipeline.invoke(PipelineRequest(query="Build a network-like diagram of flows between nodes", data_path=data_path.as_posix()))
+    result = pipeline.invoke(
+        PipelineRequest(query="Build a network-like diagram of flows between nodes", data_path=data_path.as_posix()))
 
     assert result.case_type is ChartCaseType.NON_CANONICAL
     assert result.planning.mode is ChartCaseType.NON_CANONICAL
-    assert any("assumption" in step.description.lower() or "non-canonical" in step.description.lower() or "simpler" in step.description.lower() for step in result.planning.steps)
+    assert any(
+        "assumption" in step.description.lower() or
+        "non-canonical" in step.description.lower() or
+        "simpler" in step.description.lower()
+        for step in result.planning.steps)

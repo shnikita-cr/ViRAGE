@@ -30,11 +30,11 @@ class QueryUnderstandingService(BaseService):
         return self._invoke_fallback(query=query, user_context=user_context)
 
     def _invoke_llm(
-        self,
-        *,
-        query: str,
-        user_context: dict[str, Any],
-        runtime: RuntimeContext,
+            self,
+            *,
+            query: str,
+            user_context: dict[str, Any],
+            runtime: RuntimeContext,
     ) -> QueryUnderstandingResult:
         context_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(user_context.items())) or "- none"
         prompt = (
