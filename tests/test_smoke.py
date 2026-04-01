@@ -41,6 +41,9 @@ def test_smoke_pipeline_runs_end_to_end(tmp_path: Path) -> None:
     assert result.reasoning.statements
     assert result.verification.findings
 
+    from rich import print as rprint
+    rprint(result)
+
 
 def test_non_canonical_routing_uses_non_canonical_plan(tmp_path: Path) -> None:
     data_path = tmp_path / "demo.csv"
@@ -63,3 +66,6 @@ def test_non_canonical_routing_uses_non_canonical_plan(tmp_path: Path) -> None:
         "non-canonical" in step.description.lower() or
         "simpler" in step.description.lower()
         for step in result.planning.steps)
+
+    from rich import print as rprint
+    rprint(result)
