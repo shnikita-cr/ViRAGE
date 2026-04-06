@@ -11,3 +11,4 @@ langgraph>=0.2.38
 langchain-core>=0.3.0
 pydantic
 rich
+chainlit
