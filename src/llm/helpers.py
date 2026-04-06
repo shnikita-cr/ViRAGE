@@ -17,3 +17,7 @@ def invoke_structured(llm: Any, prompt_text: str, schema: type[T]) -> T:
     from langchain_core.messages import HumanMessage
     runnable = llm.with_structured_output(schema)
     return runnable.invoke([HumanMessage(content=prompt_text)])
+
+# def invoke_structured(llm: Any, prompt_text: str, schema: type[T]) -> T:
+#     raw = llm.invoke(prompt_text).content
+#     return schema(**json.loads(raw))
