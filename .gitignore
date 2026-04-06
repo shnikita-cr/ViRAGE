@@ -69,3 +69,5 @@ vector_store/*
 test_data
 artifacts_test
 .pytest_tmp
+
+examples
