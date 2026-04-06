@@ -2,4 +2,4 @@ pytest --langsmith-output
 
 pytest .\test_smoke.py -vvvs
 
-pytest --basetemp=./.pytest_tmp
+pytest --basetemp=./.pytest_tmp -vvvs
