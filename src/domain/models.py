@@ -49,16 +49,33 @@ class DataPreparationResult(BaseModel):
     col_count: int
 
 
+class VisRAGRetrievedExample(BaseModel):
+    example_id: str
+    corpus: str
+    chart_family: str
+    score: float
+    summary: str
+    code_language: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class VisRAGRecommendation(BaseModel):
     chart_family: str
     rationale: str
     priority: int
+    score: float = 0.0
+    supporting_example_ids: list[str] = Field(default_factory=list)
+    supporting_corpora: list[str] = Field(default_factory=list)
 
 
 class VisRAGResult(BaseModel):
     recommendations: list[VisRAGRecommendation] = Field(default_factory=list)
     rules: list[str] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
+    retrieved_examples: list[VisRAGRetrievedExample] = Field(default_factory=list)
+    corpus_status: list[str] = Field(default_factory=list)
+    retrieval_strategy: str = "hybrid_rule_retrieval"
 
 
 class CodegenResult(BaseModel):
