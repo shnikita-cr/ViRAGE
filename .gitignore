@@ -71,3 +71,4 @@ artifacts_test
 .pytest_tmp
 
 examples
+**tmp_folder
