@@ -18,7 +18,7 @@ class CodeRunService(BaseService):
                                  description="Generated plotting code.")]
         if not runtime.settings.allow_code_execution:
             return CodeRunResult(success=False, stderr="Code execution disabled.", artifacts=artifacts)
-        proc = subprocess.run([sys.executable, code_path.as_posix()], cwd=execution_dir.as_posix(), capture_output=True,
+        proc = subprocess.run([sys.executable, code_path.name], cwd=execution_dir.as_posix(), capture_output=True,
                               text=True)
         metrics_path = execution_dir / "metrics.json"
         metadata_path = execution_dir / "chart_metadata.json"

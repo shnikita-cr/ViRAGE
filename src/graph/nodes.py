@@ -49,44 +49,23 @@ class PipelineNodes:
 
     def planning_canonical_node(self, state: PipelineState) -> dict:
         result = self.planning_canonical.invoke(state["query_understanding"], runtime=self.runtime)
-        return {
-            "planning": result,
-            "stage": PipelineStage.PLANNING,
-            "trace": self._trace(state, "planning_canonical"),
-        }
+        return {"planning": result, "stage": PipelineStage.PLANNING, "trace": self._trace(state, "planning_canonical")}
 
     def planning_non_canonical_node(self, state: PipelineState) -> dict:
         result = self.planning_non_canonical.invoke(state["query_understanding"], runtime=self.runtime)
-        return {
-            "planning": result,
-            "stage": PipelineStage.PLANNING,
-            "trace": self._trace(state, "planning_non_canonical"),
-        }
+        return {"planning": result, "stage": PipelineStage.PLANNING, "trace": self._trace(state, "planning_non_canonical")}
 
     def data_profiler_node(self, state: PipelineState) -> dict:
         result = self.data_profiler.invoke(state["data_path"], runtime=self.runtime)
-        return {
-            "data_profile": result,
-            "stage": PipelineStage.DATA_PROFILING,
-            "trace": self._trace(state, "data_profiler"),
-        }
+        return {"data_profile": result, "stage": PipelineStage.DATA_PROFILING, "trace": self._trace(state, "data_profiler")}
 
     def data_preparation_node(self, state: PipelineState) -> dict:
-        result = self.data_preparation.invoke(state["data_path"], state["data_profile"], state["run_id"],
-                                              runtime=self.runtime)
-        return {
-            "data_preparation": result,
-            "stage": PipelineStage.DATA_PREPARATION,
-            "trace": self._trace(state, "data_preparation"),
-        }
+        result = self.data_preparation.invoke(state["data_path"], state["data_profile"], state["run_id"], runtime=self.runtime)
+        return {"data_preparation": result, "stage": PipelineStage.DATA_PREPARATION, "trace": self._trace(state, "data_preparation")}
 
     def visrag_node(self, state: PipelineState) -> dict:
-        result = self.visrag.invoke(state["query_understanding"], state["data_profile"], runtime=self.runtime)
-        return {
-            "visrag": result,
-            "stage": PipelineStage.VISRAG,
-            "trace": self._trace(state, "visrag"),
-        }
+        result = self.visrag.invoke(state["query_understanding"], state["planning"], state["data_profile"], runtime=self.runtime)
+        return {"visrag": result, "stage": PipelineStage.VISRAG, "trace": self._trace(state, "visrag")}
 
     def codegen_node(self, state: PipelineState) -> dict:
         result = self.codegen.invoke(
@@ -104,29 +83,16 @@ class PipelineNodes:
         return {"execution": result, "stage": PipelineStage.CODERUN, "trace": self._trace(state, "coderun")}
 
     def artifact_store_node(self, state: PipelineState) -> dict:
-        result = self.artifact_store.invoke(state["data_preparation"], state["execution"], state["run_id"],
-                                            runtime=self.runtime)
-        return {
-            "artifact_bundle": result,
-            "stage": PipelineStage.ARTIFACT_STORE,
-            "trace": self._trace(state, "artifact_store"),
-        }
+        result = self.artifact_store.invoke(state["data_preparation"], state["execution"], state["run_id"], runtime=self.runtime)
+        return {"artifact_bundle": result, "stage": PipelineStage.ARTIFACT_STORE, "trace": self._trace(state, "artifact_store")}
 
     def chart_reader_node(self, state: PipelineState) -> dict:
         result = self.chart_reader.invoke(state["execution"], runtime=self.runtime)
-        return {
-            "chart_read": result,
-            "stage": PipelineStage.CHART_READING,
-            "trace": self._trace(state, "chart_reader"),
-        }
+        return {"chart_read": result, "stage": PipelineStage.CHART_READING, "trace": self._trace(state, "chart_reader")}
 
     def fact_extractor_node(self, state: PipelineState) -> dict:
         result = self.fact_extractor.invoke(state["execution"], state["chart_read"], runtime=self.runtime)
-        return {
-            "facts": result,
-            "stage": PipelineStage.FACT_EXTRACTION,
-            "trace": self._trace(state, "fact_extractor"),
-        }
+        return {"facts": result, "stage": PipelineStage.FACT_EXTRACTION, "trace": self._trace(state, "fact_extractor")}
 
     def reasoner_node(self, state: PipelineState) -> dict:
         result = self.reasoner.invoke(state["facts"], runtime=self.runtime)
@@ -134,8 +100,4 @@ class PipelineNodes:
 
     def verifier_node(self, state: PipelineState) -> dict:
         result = self.verifier.invoke(state["reasoning"], runtime=self.runtime)
-        return {
-            "verification": result,
-            "stage": PipelineStage.VERIFICATION,
-            "trace": self._trace(state, "verifier"),
-        }
+        return {"verification": result, "stage": PipelineStage.VERIFICATION, "trace": self._trace(state, "verifier")}
