@@ -1,41 +1,71 @@
 from __future__ import annotations
 
+from src.application.settings import ViRAGESettings
 from src.domain.enums import ChartCaseType
 from src.domain.models import DataProfile, QueryUnderstandingResult, VisRAGRecommendation, VisRAGResult
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
-from src.services.visrag_retrieval import VisRAGRetriever
+from src.services.visrag_retrieval import (
+    canonicalize_chart_type,
+    retrieve_examples,
+    summarize_chart_support,
+)
+
+_SUPPORTED_PIPELINE_CHARTS = {"line", "bar", "scatter", "histogram", "boxplot"}
+_FALLBACK_CHART_MAP = {
+    "area": "line",
+    "heatmap": "bar",
+}
 
 
 class VisRAGService(BaseService):
-    def __init__(self) -> None:
-        self.retriever = VisRAGRetriever()
-
     def invoke(
             self,
             query_understanding: QueryUnderstandingResult,
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGResult:
-        retrieved_examples, corpus_status = self.retriever.retrieve(
-            corpus_root=runtime.settings.visrag_corpus_root,
-            query_understanding=query_understanding,
-            data_profile=data_profile,
+        candidate_charts, normalization_notes = self._normalize_candidate_charts(query_understanding.candidate_charts)
+        if not candidate_charts:
+            candidate_charts = ["bar", "line"]
+
+        retrieval_query = self._build_retrieval_query(query_understanding, data_profile)
+        retrieved = retrieve_examples(
+            runtime.settings.visrag_corpus_root,
+            query_text=retrieval_query,
+            preferred_chart_types=candidate_charts,
             top_k=runtime.settings.visrag_top_k_examples,
+            min_score=runtime.settings.visrag_min_example_score,
         )
+        support = summarize_chart_support(retrieved.examples)
+
         recommendations = self._build_recommendations(
             query_understanding=query_understanding,
             data_profile=data_profile,
-            retrieved_examples=retrieved_examples,
-            top_k=runtime.settings.visrag_top_k_recommendations,
+            candidate_charts=candidate_charts,
+            support=support,
+            settings=runtime.settings,
         )
+
+        caveats = list(query_understanding.constraints)
+        caveats.extend(normalization_notes)
+        if query_understanding.case_type is ChartCaseType.NON_CANONICAL:
+            caveats.append("Non-canonical case requires conservative interpretation.")
+        if not retrieved.examples:
+            caveats.append("No matching local corpus examples were retrieved; heuristic ranking was used.")
+
         return VisRAGResult(
             recommendations=recommendations,
-            rules=self._build_rules(query_understanding),
-            caveats=self._build_caveats(query_understanding, data_profile, corpus_status),
-            retrieved_examples=retrieved_examples,
-            corpus_status=corpus_status,
-            retrieval_strategy="hybrid_rule_retrieval",
+            rules=[
+                "Use clear titles and axis labels.",
+                "Avoid overcrowded visuals.",
+                "Prefer readable defaults.",
+                "Prefer examples retrieved from the local corpus when they agree with the data shape.",
+            ],
+            caveats=caveats,
+            retrieved_examples=[item.to_model() for item in retrieved.examples],
+            corpus_status=retrieved.corpus_status,
+            retrieval_strategy="hybrid_plot2code_plus_heuristics" if retrieved.examples else "heuristic_only",
         )
 
     def _build_recommendations(
@@ -43,133 +73,140 @@ class VisRAGService(BaseService):
             *,
             query_understanding: QueryUnderstandingResult,
             data_profile: DataProfile,
-            retrieved_examples,
-            top_k: int,
+            candidate_charts: list[str],
+            support: dict[str, list],
+            settings: ViRAGESettings,
     ) -> list[VisRAGRecommendation]:
-        candidate_families = self._ordered_candidate_families(query_understanding, retrieved_examples)
-        scored = []
-        for family in candidate_families:
-            support = [item for item in retrieved_examples if item.chart_family == family]
-            score = self._heuristic_fit(family, data_profile)
-            score += self._candidate_priority_bonus(family, query_understanding.candidate_charts)
-            score += sum(item.score for item in support[:2])
-            rationale_parts = []
-            fit_reason = self._fit_reason(family, data_profile, query_understanding)
-            if fit_reason:
-                rationale_parts.append(fit_reason)
-            if support:
-                corpora = ", ".join(self._dedupe([item.corpus for item in support[:2]]))
-                rationale_parts.append(f"Retrieved similar examples from {corpora}.")
-            if not rationale_parts:
+        chart_pool = list(candidate_charts)
+        for chart_type in support.keys():
+            if chart_type not in chart_pool and chart_type in _SUPPORTED_PIPELINE_CHARTS:
+                chart_pool.append(chart_type)
+
+        scored: list[tuple[str, float, str, list[str]]] = []
+        for index, chart_type in enumerate(chart_pool):
+            heuristic_score, heuristic_reason = self._heuristic_score(
+                chart_type=chart_type,
+                index=index,
+                query_understanding=query_understanding,
+                data_profile=data_profile,
+            )
+            evidence = support.get(chart_type, [])
+            retrieval_score = self._retrieval_score(evidence)
+            total_score = round(heuristic_score + retrieval_score, 4)
+
+            rationale_parts = [heuristic_reason]
+            if evidence:
                 rationale_parts.append(
-                    f"Suggested for {', '.join(query_understanding.requested_operations) or 'exploratory analysis'}."
+                    f"{len(evidence)} local corpus match(es) from Plot2Code support this chart family."
                 )
-            scored.append(
+            rationale = " ".join(part for part in rationale_parts if part)
+            support_examples = [item.example_id for item in evidence[:3]]
+
+            scored.append((chart_type, total_score, rationale, support_examples))
+
+        scored.sort(key=lambda item: (-item[1], item[0]))
+
+        recommendations: list[VisRAGRecommendation] = []
+        for priority, (chart_type, score, rationale, support_examples) in enumerate(
+                scored[: settings.visrag_top_k_recommendations],
+                start=1,
+        ):
+            recommendations.append(
                 VisRAGRecommendation(
-                    chart_family=family,
-                    rationale=" ".join(rationale_parts),
-                    priority=0,
-                    score=round(score, 4),
-                    supporting_example_ids=[item.example_id for item in support[:2]],
-                    supporting_corpora=self._dedupe([item.corpus for item in support[:2]]),
+                    chart_family=chart_type,
+                    rationale=rationale,
+                    priority=priority,
+                    score=score,
+                    support_examples=support_examples,
                 )
             )
+        return recommendations
 
-        ranked = sorted(scored, key=lambda item: (-item.score, item.chart_family))[:top_k]
-        for idx, item in enumerate(ranked, start=1):
-            item.priority = idx
-        return ranked
+    def _heuristic_score(
+            self,
+            *,
+            chart_type: str,
+            index: int,
+            query_understanding: QueryUnderstandingResult,
+            data_profile: DataProfile,
+    ) -> tuple[float, str]:
+        base = max(0.10, 0.40 - index * 0.05)
+        ops_text = " ".join(query_understanding.requested_operations).lower()
+
+        if chart_type == "line":
+            if data_profile.likely_time_columns and data_profile.likely_numeric_columns:
+                return base + 0.60, "Time-like field and numeric field detected; line chart suits trend analysis."
+            return base + 0.15, "Line chart kept as a general-purpose fallback for trend-like queries."
+
+        if chart_type == "scatter":
+            if len(data_profile.likely_numeric_columns) >= 2:
+                return base + 0.55, "Two numeric fields detected; scatter suits relationship analysis."
+            return base + 0.10, "Scatter kept as a weak fallback for relationship-style requests."
+
+        if chart_type == "histogram":
+            if data_profile.likely_numeric_columns:
+                return base + 0.45, "Numeric field detected; histogram suits distribution analysis."
+            return base + 0.05, "Histogram retained, but numeric evidence is weak."
+
+        if chart_type == "boxplot":
+            if data_profile.likely_categorical_columns and data_profile.likely_numeric_columns:
+                return base + 0.45, "Categorical and numeric fields detected; boxplot suits grouped spread analysis."
+            return base + 0.08, "Boxplot retained, but grouping evidence is weak."
+
+        if chart_type == "bar":
+            if data_profile.likely_categorical_columns and data_profile.likely_numeric_columns:
+                return base + 0.45, "Categorical and numeric fields detected; bar chart suits comparison analysis."
+            if "comparison" in ops_text or "ranking" in ops_text:
+                return base + 0.25, "Bar chart suits comparison or ranking requests."
+            return base + 0.15, "Bar chart kept as the safest default for the current pipeline."
+
+        return base, f"{chart_type} retained as a low-priority fallback."
 
     @staticmethod
-    def _ordered_candidate_families(query_understanding: QueryUnderstandingResult, retrieved_examples) -> list[str]:
-        families = list(query_understanding.candidate_charts)
-        families.extend(example.chart_family for example in retrieved_examples if example.chart_family != "unknown")
-        if not families:
-            families = ["bar", "line"]
-        return VisRAGService._dedupe([family.lower() for family in families if family])
-
-    @staticmethod
-    def _candidate_priority_bonus(family: str, candidates: list[str]) -> float:
-        normalized = [item.lower() for item in candidates]
-        if family not in normalized:
+    def _retrieval_score(evidence: list) -> float:
+        if not evidence:
             return 0.0
-        return max(0.0, 1.2 - (normalized.index(family) * 0.2))
+        top_scores = [item.score for item in evidence[:3]]
+        return round(sum(top_scores) / len(top_scores), 4)
 
     @staticmethod
-    def _heuristic_fit(family: str, data_profile: DataProfile) -> float:
-        numeric = len(data_profile.likely_numeric_columns)
-        categorical = len(data_profile.likely_categorical_columns)
-        time_like = len(data_profile.likely_time_columns)
-        if family == "line":
-            return 1.2 if time_like and numeric else 0.25
-        if family == "scatter":
-            return 1.1 if numeric >= 2 else 0.1
-        if family == "histogram":
-            return 0.9 if numeric >= 1 else 0.1
-        if family == "boxplot":
-            return 0.95 if numeric >= 1 and categorical >= 1 else 0.15
-        if family == "bar":
-            return 0.85 if numeric >= 1 and (categorical >= 1 or time_like >= 1) else 0.2
-        if family == "heatmap":
-            return 0.7 if numeric >= 2 else 0.1
-        return 0.2
-
-    @staticmethod
-    def _fit_reason(
-            family: str,
-            data_profile: DataProfile,
-            query_understanding: QueryUnderstandingResult,
-    ) -> str:
-        operations = ", ".join(query_understanding.requested_operations) or "the request"
-        if family == "line" and data_profile.likely_time_columns and data_profile.likely_numeric_columns:
-            return "Time-like and numeric fields are available; line chart fits trend analysis well."
-        if family == "scatter" and len(data_profile.likely_numeric_columns) >= 2:
-            return "At least two numeric fields are available; scatter suits relationship analysis."
-        if family == "histogram" and data_profile.likely_numeric_columns:
-            return "Numeric fields are available; histogram is suitable for distribution analysis."
-        if family == "boxplot" and data_profile.likely_numeric_columns and data_profile.likely_categorical_columns:
-            return "Numeric and categorical fields are available; boxplot supports grouped spread analysis."
-        if family == "bar" and data_profile.likely_numeric_columns:
-            return f"Bar chart remains a readable default for {operations}."
-        return "Selected as a conservative fallback based on the request and available data shape."
-
-    @staticmethod
-    def _build_rules(query_understanding: QueryUnderstandingResult) -> list[str]:
-        rules = [
-            "Use clear titles and axis labels.",
-            "Avoid overcrowded visuals.",
-            "Prefer readable defaults.",
-            "Prefer chart families supported by both the data profile and retrieved reference examples.",
+    def _build_retrieval_query(query_understanding: QueryUnderstandingResult, data_profile: DataProfile) -> str:
+        parts: list[str] = [
+            query_understanding.intent,
+            " ".join(query_understanding.requested_operations),
+            " ".join(query_understanding.constraints),
         ]
-        if query_understanding.case_type is ChartCaseType.NON_CANONICAL:
-            rules.append("Validate whether a simpler canonical chart can communicate the same message.")
-        return rules
+        if data_profile.likely_time_columns:
+            parts.append("time series temporal trend")
+        if len(data_profile.likely_numeric_columns) >= 2:
+            parts.append("numeric relationship comparison")
+        elif data_profile.likely_numeric_columns:
+            parts.append("single numeric measure")
+        if data_profile.likely_categorical_columns:
+            parts.append("categorical grouping")
+        return " ".join(part for part in parts if part).strip()
 
     @staticmethod
-    def _build_caveats(
-            query_understanding: QueryUnderstandingResult,
-            data_profile: DataProfile,
-            corpus_status: list[str],
-    ) -> list[str]:
-        caveats = list(query_understanding.constraints)
-        if query_understanding.case_type is ChartCaseType.NON_CANONICAL:
-            caveats.append("Non-canonical case requires conservative interpretation.")
-        if not data_profile.likely_numeric_columns:
-            caveats.append("No numeric columns detected; chart choices may be limited.")
-        if not data_profile.likely_time_columns and "line" in [item.lower() for item in
-                                                               query_understanding.candidate_charts]:
-            caveats.append("Line chart was requested without a detected time-like field.")
-        caveats.extend(status for status in corpus_status if "no local normalized corpus" in status.lower())
-        return VisRAGService._dedupe(caveats)
-
-    @staticmethod
-    def _dedupe(values: list[str]) -> list[str]:
+    def _normalize_candidate_charts(candidate_charts: list[str]) -> tuple[list[str], list[str]]:
+        normalized: list[str] = []
+        notes: list[str] = []
         seen: set[str] = set()
-        result: list[str] = []
-        for value in values:
-            normalized = value.strip()
-            key = normalized.lower()
-            if normalized and key not in seen:
-                seen.add(key)
-                result.append(normalized)
-        return result
+
+        for raw_chart in candidate_charts:
+            raw = raw_chart.strip().lower()
+            chart = canonicalize_chart_type(raw)
+            if not chart and raw in _FALLBACK_CHART_MAP:
+                chart = _FALLBACK_CHART_MAP[raw]
+            elif not chart:
+                chart = raw if raw in _SUPPORTED_PIPELINE_CHARTS else ""
+
+            if raw in _FALLBACK_CHART_MAP:
+                notes.append(
+                    f"Chart family '{raw}' is not directly supported by the current renderer; using '{chart}' fallback."
+                )
+
+            if chart and chart in _SUPPORTED_PIPELINE_CHARTS and chart not in seen:
+                seen.add(chart)
+                normalized.append(chart)
+
+        return normalized, notes
