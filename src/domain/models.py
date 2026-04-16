@@ -141,6 +141,9 @@ class CodegenResult(BaseModel):
     chart_type: str
     code: str
     entrypoint: str = "main"
+    prompt_path: str | None = None
+    raw_response_path: str | None = None
+    generated_logic_path: str | None = None
 
 
 class ExecutionMetric(BaseModel):

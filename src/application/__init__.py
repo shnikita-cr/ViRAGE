@@ -4,5 +4,4 @@ def __getattr__(name: str):
         return ViRAGEPipeline
     raise AttributeError(name)
 
-
 __all__ = ["ViRAGEPipeline"]

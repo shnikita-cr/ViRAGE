@@ -28,3 +28,6 @@ class ViRAGESettings(BaseModel):
 
     # LLM-assisted synthesis inside VisRAG
     visrag_enable_llm_synthesis: bool = Field(default=True)
+
+    # Code generation
+    codegen_store_trace_artifacts: bool = Field(default=True)

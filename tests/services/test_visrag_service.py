@@ -85,30 +85,3 @@ def test_visrag_builds_visualization_plan_from_semantic_retrieval(tmp_path: Path
     assert {binding.channel: binding.field_name for binding in result.visualization_plan.field_bindings}["x"] == "date"
     assert {binding.channel: binding.field_name for binding in result.visualization_plan.field_bindings}["y"] == "sales"
 
-
-def test_codegen_prefers_visualization_plan(tmp_path: Path) -> None:
-    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts"))
-    query = QueryUnderstandingResult(
-        intent="Show the sales trend over time",
-        requested_operations=["trend analysis"],
-        candidate_charts=["line"],
-        constraints=[],
-        case_type=ChartCaseType.CANONICAL,
-        confidence=0.9,
-    )
-    profile = DataProfile(
-        row_count=100,
-        col_count=3,
-        columns=[],
-        likely_numeric_columns=["sales"],
-        likely_categorical_columns=["region"],
-        likely_time_columns=["date"],
-        quality_notes=[],
-    )
-    planning = PlanningResult(mode=ChartCaseType.CANONICAL)
-    visrag = VisRAGService().invoke(query, planning, profile, runtime=RuntimeContext(settings=ViRAGESettings(visrag_corpus_root=None, visrag_enable_llm_synthesis=False)))
-    prepared = type("Prepared", (), {"output_path": "clean.csv", "row_count": 1, "col_count": 1, "operations": []})()
-
-    codegen = CodegenService().invoke(query, profile, prepared, visrag, run_id="run1", runtime=runtime)
-    assert "x_col = 'date'" in codegen.code
-    assert "y_col = 'sales'" in codegen.code

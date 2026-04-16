@@ -23,6 +23,9 @@ from src.domain.models import (
     QueryUnderstandingResult,
     ReasoningResult,
     ReasoningStatement,
+    VisualizationAxisInstruction,
+    VisualizationFieldBinding,
+    VisualizationPlan,
     VisRAGRecommendation,
     VisRAGResult,
 )
@@ -93,6 +96,26 @@ def visrag_result() -> VisRAGResult:
                 priority=1,
             )
         ],
+        visualization_plan=VisualizationPlan(
+            chart_family="line",
+            visual_task="trend_analysis",
+            goal="Show sales trend over time",
+            title="Show sales trend over time",
+            field_bindings=[
+                VisualizationFieldBinding(channel="x", field_name="date", field_role="temporal", title="Date"),
+                VisualizationFieldBinding(channel="y", field_name="sales", field_role="quantitative", title="Sales", aggregate="mean"),
+            ],
+            axes=[
+                VisualizationAxisInstruction(channel="x", field_name="date", title="Date", scale_type="temporal", rotate_labels=True),
+                VisualizationAxisInstruction(channel="y", field_name="sales", title="Sales", scale_type="linear"),
+            ],
+            build_instructions=[
+                "Use the temporal field on the x-axis.",
+                "Use the sales measure on the y-axis.",
+            ],
+            renderer_hints=["Prefer readable defaults."],
+            confidence=0.9,
+        ),
         rules=["Use clear titles and axis labels."],
         caveats=[],
     )
