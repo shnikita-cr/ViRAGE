@@ -1,5 +1,5 @@
-source,target,weight
-A,B,1
-A,C,2
-B,C,1
-C,D,3
+date,sales,region
+2024-01-01,10,A
+2024-01-02,14,A
+2024-01-03,13,B
+2024-01-04,18,B
