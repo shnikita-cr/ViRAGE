@@ -15,6 +15,7 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
+    StepLog,
     ExecutionPolicy,
     InsightReasoningResult,
     InsightVerificationResult,
@@ -88,3 +89,4 @@ class PipelineResult(BaseModel):
     structural_spec_metric: StructuralSpecMetric | None = None
     visual_quality_metric: VisualQualityMetric | None = None
     evaluation_summary: EvaluationSummaryResult | None = None
+    step_logs: list[StepLog] = Field(default_factory=list)

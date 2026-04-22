@@ -14,6 +14,7 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
+    StepLog,
     ExecutionPolicy,
     InsightReasoningResult,
     InsightVerificationResult,
@@ -69,6 +70,7 @@ class PipelineState(TypedDict):
     structural_spec_metric: NotRequired[StructuralSpecMetric]
     visual_quality_metric: NotRequired[VisualQualityMetric]
     evaluation_summary: NotRequired[EvaluationSummaryResult]
+    step_logs: NotRequired[list[StepLog]]
     codegen: NotRequired[CodegenResult]
     execution: NotRequired[CodeRunResult]
     artifact_bundle: NotRequired[ArtifactBundle]

@@ -1,32 +1,59 @@
+from __future__ import annotations
+
+from src.application.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest, PipelineResult
+from src.application.project_config import ProjectConfig
 from src.application.settings import ViRAGESettings
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
 from src.graph.builder import build_pipeline_graph
 from src.infrastructure.runtime import RuntimeContext
+from src.llm.factory import build_chat_model
+from src.observability import traceable
 
 
 class ViRAGEPipeline:
     def __init__(
-            self,
-            settings: ViRAGESettings | None = None,
-            reasoning_llm: object | None = None,
-            codegen_llm: object | None = None,
-            spec_llm: object | None = None,
-            vlm: object | None = None,
-            vision_judge_llm: object | None = None,
+        self,
+        settings: ViRAGESettings | None = None,
+        reasoning_llm: object | None = None,
+        spec_llm: object | None = None,
+        vlm: object | None = None,
+        vision_judge_llm: object | None = None,
+        codegen_llm: object | None = None,
     ) -> None:
+        bootstrap_project_environment()
         self.settings = settings or ViRAGESettings()
         self.runtime = RuntimeContext(
             settings=self.settings,
             reasoning_llm=reasoning_llm,
-            codegen_llm=codegen_llm,
             spec_llm=spec_llm,
             vlm=vlm,
             vision_judge_llm=vision_judge_llm,
+            codegen_llm=codegen_llm,
         )
         self.graph = build_pipeline_graph(self.runtime)
 
+    @classmethod
+    def from_project_config(cls, config: ProjectConfig) -> "ViRAGEPipeline":
+        settings = config.settings.model_copy(deep=True)
+        if config.mode == "streamlit" and not config.streamlit.compute_metrics:
+            settings.enable_spec_score = False
+            settings.enable_vision_score = False
+            settings.enable_evaluation_summary = False
+            settings.streamlit_compute_metrics = False
+        else:
+            settings.streamlit_compute_metrics = config.streamlit.compute_metrics
+        settings.streamlit_show_step_logs = config.streamlit.show_step_logs
+        return cls(
+            settings=settings,
+            reasoning_llm=build_chat_model(config.reasoning_model),
+            spec_llm=build_chat_model(config.spec_model),
+            vlm=build_chat_model(config.vlm_model),
+            vision_judge_llm=build_chat_model(config.vision_judge_model),
+        )
+
+    @traceable(name="virage.pipeline.invoke")
     def invoke(self, request: PipelineRequest) -> PipelineResult:
         initial_state: PipelineState = {
             "run_id": request.run_id,
@@ -37,6 +64,7 @@ class ViRAGEPipeline:
             "stage": PipelineStage.INITIALIZED,
             "trace": [],
             "errors": [],
+            "step_logs": [],
         }
         final_state: PipelineState = self.graph.invoke(initial_state)
         final_state["stage"] = PipelineStage.COMPLETED
@@ -70,4 +98,12 @@ class ViRAGEPipeline:
             structural_spec_metric=final_state.get("structural_spec_metric"),
             visual_quality_metric=final_state.get("visual_quality_metric"),
             evaluation_summary=final_state.get("evaluation_summary"),
+            step_logs=final_state.get("step_logs", []),
+            codegen=final_state.get("codegen"),
+            execution=final_state.get("execution"),
+            artifact_bundle=final_state.get("artifact_bundle"),
+            chart_read=final_state.get("chart_read"),
+            facts=final_state.get("facts"),
+            reasoning=final_state.get("reasoning"),
+            verification=final_state.get("verification"),
         )

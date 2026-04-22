@@ -5,6 +5,15 @@ from pydantic import BaseModel, Field
 from .enums import ArtifactType, ChartCaseType
 
 
+
+class StepLog(BaseModel):
+    stage: str
+    title: str
+    summary: str
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+
+
 class QueryVariant(BaseModel):
     kind: str
     text: str

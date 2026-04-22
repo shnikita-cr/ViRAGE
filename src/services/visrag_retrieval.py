@@ -321,10 +321,7 @@ def _build_backend(*, backend_name: str, model: str, ollama_base_url: str,
         return _OllamaEmbeddingBackend(model=model, base_url=ollama_base_url, timeout_seconds=ollama_timeout_seconds)
     if choice == "local_tfidf":
         return _LocalTfidfBackend()
-    try:
-        return _OllamaEmbeddingBackend(model=model, base_url=ollama_base_url, timeout_seconds=ollama_timeout_seconds)
-    except Exception:
-        return _LocalTfidfBackend()
+    raise ValueError(f"Unsupported embedding backend: {backend_name}")
 
 
 class _PersistentSemanticIndex:
