@@ -52,6 +52,7 @@ Reasoner --> Verifier : insight_candidates, reasoning_chain
 Verifier --> Insights : verified_insights, rejected_claims
 
 VegaLiteSpec --> SpecScore : spec_json
+SpecValidator --> SpecScore : spec_json
 PlotImage --> VisionScore : chart_image
 SpecScore --> EvaluationSummary : structural_spec_metric
 VisionScore --> EvaluationSummary : visual_quality_metric
