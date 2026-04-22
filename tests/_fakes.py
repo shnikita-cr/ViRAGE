@@ -58,6 +58,7 @@ class FakeReasoningLLM:
         def _resolver(schema_type: type, prompt_text: str) -> dict[str, Any]:
             self.last_prompt = prompt_text
             return self.resolver(schema_type, prompt_text)
+
         return _FakeStructuredRunnable(schema, _resolver)
 
 

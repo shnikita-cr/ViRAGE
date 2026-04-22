@@ -14,13 +14,13 @@ from src.observability import traceable
 
 class ViRAGEPipeline:
     def __init__(
-        self,
-        settings: ViRAGESettings | None = None,
-        reasoning_llm: object | None = None,
-        spec_llm: object | None = None,
-        vlm: object | None = None,
-        vision_judge_llm: object | None = None,
-        codegen_llm: object | None = None,
+            self,
+            settings: ViRAGESettings | None = None,
+            reasoning_llm: object | None = None,
+            spec_llm: object | None = None,
+            vlm: object | None = None,
+            vision_judge_llm: object | None = None,
+            codegen_llm: object | None = None,
     ) -> None:
         bootstrap_project_environment()
         self.settings = settings or ViRAGESettings()

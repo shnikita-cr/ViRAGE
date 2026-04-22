@@ -12,11 +12,11 @@ from tests._fakes import FakeCodegenLLM, LINE_PLOT_LOGIC
 
 
 def test_codegen_requires_codegen_llm(
-    runtime: RuntimeContext,
-    canonical_query_understanding: QueryUnderstandingResult,
-    sample_data_profile,
-    prepared_result,
-    visrag_result,
+        runtime: RuntimeContext,
+        canonical_query_understanding: QueryUnderstandingResult,
+        sample_data_profile,
+        prepared_result,
+        visrag_result,
 ) -> None:
     planning = PlanningResult(mode=None, steps=[PlanningStep(name="build_chart", description="Build a simple chart.")])
     with pytest.raises(RuntimeError, match="codegen_llm"):
@@ -32,11 +32,11 @@ def test_codegen_requires_codegen_llm(
 
 
 def test_codegen_generates_executable_wrapper_and_trace_artifacts(
-    tmp_path: Path,
-    canonical_query_understanding: QueryUnderstandingResult,
-    sample_data_profile,
-    prepared_result,
-    visrag_result,
+        tmp_path: Path,
+        canonical_query_understanding: QueryUnderstandingResult,
+        sample_data_profile,
+        prepared_result,
+        visrag_result,
 ) -> None:
     fake_llm = FakeCodegenLLM(f"```python\n{LINE_PLOT_LOGIC}\n```")
     runtime = RuntimeContext(

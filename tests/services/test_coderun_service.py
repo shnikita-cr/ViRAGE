@@ -11,11 +11,11 @@ from tests._fakes import FakeCodegenLLM, LINE_PLOT_LOGIC
 
 
 def test_coderun_executes_llm_generated_wrapper(
-    tmp_path: Path,
-    canonical_query_understanding: QueryUnderstandingResult,
-    sample_data_profile,
-    prepared_result,
-    visrag_result,
+        tmp_path: Path,
+        canonical_query_understanding: QueryUnderstandingResult,
+        sample_data_profile,
+        prepared_result,
+        visrag_result,
 ) -> None:
     runtime = RuntimeContext(
         settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", codegen_store_trace_artifacts=True),

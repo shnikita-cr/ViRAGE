@@ -9,11 +9,15 @@ from src.services.vegalite_plot_drawing import VegaLitePlotDrawingService
 from src.services.visrag import VisRAGService
 
 
-def test_rendering_flow_builds_non_empty_plot(canonical_query_understanding, request_analysis, sample_data_profile, prepared_result, runtime) -> None:
-    visrag = VisRAGService().invoke(canonical_query_understanding, request_analysis, sample_data_profile, runtime=runtime)
-    planning = PlanningService().invoke(canonical_query_understanding, request_analysis, sample_data_profile, visrag, runtime=runtime)
+def test_rendering_flow_builds_non_empty_plot(canonical_query_understanding, request_analysis, sample_data_profile,
+                                              prepared_result, runtime) -> None:
+    visrag = VisRAGService().invoke(canonical_query_understanding, request_analysis, sample_data_profile,
+                                    runtime=runtime)
+    planning = PlanningService().invoke(canonical_query_understanding, request_analysis, sample_data_profile, visrag,
+                                        runtime=runtime)
     generator = ChartGeneratorService()
-    vega_spec = generator.invoke(prepared_result, visrag.candidate_spec_set, planning.execution_policy, planning.validation_policy, runtime=runtime)
+    vega_spec = generator.invoke(prepared_result, visrag.candidate_spec_set, planning.execution_policy,
+                                 planning.validation_policy, runtime=runtime)
     validation = SpecValidatorService().invoke(vega_spec)
     rendering = VegaLitePlotDrawingService().invoke(validation, run_id="render-test", runtime=runtime)
     scenegraph = ScenegraphCheckService().invoke(rendering)

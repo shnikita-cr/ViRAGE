@@ -242,8 +242,8 @@ def normalize_single_row(row: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
     example_id = (
-        first_text(row, "id", "example_id", "sample_id", "uid", "plot_id")
-        or build_fallback_id(row)
+            first_text(row, "id", "example_id", "sample_id", "uid", "plot_id")
+            or build_fallback_id(row)
     )
 
     code_language = infer_code_language(code=code, source_file=str(row.get("_source_file", "")))
@@ -289,11 +289,11 @@ def canonicalize_chart_type(value: str | None) -> str:
 
 
 def infer_chart_type(
-    *,
-    instruction: str | None,
-    description: str | None,
-    code: str | None,
-    source_file: str,
+        *,
+        instruction: str | None,
+        description: str | None,
+        code: str | None,
+        source_file: str,
 ) -> str:
     text = " ".join(part for part in [instruction, description, code, source_file] if part).lower()
 
@@ -320,11 +320,11 @@ def infer_code_language(*, code: str | None, source_file: str) -> str | None:
 
 
 def extract_tags(
-    row: dict[str, Any],
-    *,
-    instruction: str | None,
-    description: str | None,
-    chart_type: str,
+        row: dict[str, Any],
+        *,
+        instruction: str | None,
+        description: str | None,
+        chart_type: str,
 ) -> list[str]:
     explicit = row.get("tags") or row.get("keywords")
     if isinstance(explicit, list):

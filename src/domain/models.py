@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 from .enums import ArtifactType, ChartCaseType
 
 
-
 class StepLog(BaseModel):
     stage: str
     title: str

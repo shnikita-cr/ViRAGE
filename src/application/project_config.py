@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from src.application.bootstrap import bootstrap_project_environment
-
 import tomllib
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.application.bootstrap import bootstrap_project_environment
 from src.application.settings import ViRAGESettings
 
 

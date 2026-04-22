@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from src.application.bootstrap import bootstrap_project_environment
-
 import os
 
+from src.application.bootstrap import bootstrap_project_environment
 from src.application.project_config import ModelRoleConfig
 
 

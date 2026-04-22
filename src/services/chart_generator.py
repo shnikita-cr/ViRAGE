@@ -142,7 +142,7 @@ class ChartGeneratorService(BaseService):
 
     @staticmethod
     def _merge_with_plan(parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> \
-    dict[str, Any]:
+            dict[str, Any]:
         title = parsed.title or plan.title
         spec_json: dict[str, Any] = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",

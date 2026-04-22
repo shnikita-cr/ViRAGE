@@ -4,7 +4,9 @@ from src.services.chart_generator import ChartGeneratorService
 from src.services.planning import PlanningService
 
 
-def test_chart_generator_service_builds_vega_lite_spec(canonical_query_understanding, request_analysis, sample_data_profile, visrag_result, prepared_result, runtime) -> None:
+def test_chart_generator_service_builds_vega_lite_spec(canonical_query_understanding, request_analysis,
+                                                       sample_data_profile, visrag_result, prepared_result,
+                                                       runtime) -> None:
     planning = PlanningService().invoke(
         query_understanding=canonical_query_understanding,
         request_analysis=request_analysis,
