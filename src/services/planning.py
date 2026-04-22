@@ -50,12 +50,12 @@ class _PlanningSchema(BaseModel):
 
 class PlanningService(BaseService):
     def invoke(
-        self,
-        query_understanding: QueryUnderstandingResult,
-        request_analysis: RequestAnalysisResult,
-        data_profile: DataProfile,
-        visrag: VisRAGResult,
-        runtime: RuntimeContext,
+            self,
+            query_understanding: QueryUnderstandingResult,
+            request_analysis: RequestAnalysisResult,
+            data_profile: DataProfile,
+            visrag: VisRAGResult,
+            runtime: RuntimeContext,
     ) -> PlanningResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:

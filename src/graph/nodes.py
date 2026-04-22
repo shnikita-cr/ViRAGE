@@ -62,7 +62,8 @@ class PipelineNodes:
 
     def data_profiler_node(self, state: PipelineState) -> dict:
         result = self.data_profiler.invoke(state["data_path"], runtime=self.runtime)
-        return {"data_profile": result, "stage": PipelineStage.DATA_PROFILING, "trace": self._trace(state, "data_profiler")}
+        return {"data_profile": result, "stage": PipelineStage.DATA_PROFILING,
+                "trace": self._trace(state, "data_profiler")}
 
     def request_analyzer_node(self, state: PipelineState) -> dict:
         result = self.request_analyzer.invoke(
@@ -71,7 +72,8 @@ class PipelineNodes:
             data_profile=state["data_profile"],
             runtime=self.runtime,
         )
-        return {"request_analysis": result, "stage": PipelineStage.REQUEST_ANALYSIS, "trace": self._trace(state, "request_analyzer")}
+        return {"request_analysis": result, "stage": PipelineStage.REQUEST_ANALYSIS,
+                "trace": self._trace(state, "request_analyzer")}
 
     def data_preparation_node(self, state: PipelineState) -> dict:
         result = self.data_preparation.invoke(
@@ -81,10 +83,12 @@ class PipelineNodes:
             state["run_id"],
             runtime=self.runtime,
         )
-        return {"data_preparation": result, "stage": PipelineStage.DATA_PREPARATION, "trace": self._trace(state, "data_preparation")}
+        return {"data_preparation": result, "stage": PipelineStage.DATA_PREPARATION,
+                "trace": self._trace(state, "data_preparation")}
 
     def visrag_node(self, state: PipelineState) -> dict:
-        result = self.visrag.invoke(state["query_understanding"], state["request_analysis"], state["data_profile"], runtime=self.runtime)
+        result = self.visrag.invoke(state["query_understanding"], state["request_analysis"], state["data_profile"],
+                                    runtime=self.runtime)
         return {
             "visrag": result,
             "candidate_spec_set": result.candidate_spec_set,
@@ -117,7 +121,8 @@ class PipelineNodes:
             state["validation_policy"],
             runtime=self.runtime,
         )
-        return {"vega_spec": result, "stage": PipelineStage.CHART_GENERATION, "trace": self._trace(state, "chart_generator")}
+        return {"vega_spec": result, "stage": PipelineStage.CHART_GENERATION,
+                "trace": self._trace(state, "chart_generator")}
 
     def spec_validator_node(self, state: PipelineState) -> dict:
         max_retries = state.get("execution_policy").max_retries if state.get("execution_policy") else 0
@@ -154,7 +159,8 @@ class PipelineNodes:
 
     def scenegraph_check_node(self, state: PipelineState) -> dict:
         result = self.scenegraph_check.invoke(state["plot_rendering"])
-        return {"scenegraph_check": result, "stage": PipelineStage.SCENEGRAPH_CHECK, "trace": self._trace(state, "scenegraph_check")}
+        return {"scenegraph_check": result, "stage": PipelineStage.SCENEGRAPH_CHECK,
+                "trace": self._trace(state, "scenegraph_check")}
 
     def empty_chart_check_node(self, state: PipelineState) -> dict:
         result = self.empty_chart_check.invoke(state["scenegraph_check"])
@@ -194,7 +200,8 @@ class PipelineNodes:
             current_validation = self.spec_validator.invoke(current_spec)
             if not current_validation.is_valid:
                 continue
-            current_rendering = self.vegalite_plot_drawing.invoke(current_validation, state["run_id"], runtime=self.runtime)
+            current_rendering = self.vegalite_plot_drawing.invoke(current_validation, state["run_id"],
+                                                                  runtime=self.runtime)
             current_scenegraph = self.scenegraph_check.invoke(current_rendering)
             result = self.empty_chart_check.invoke(current_scenegraph)
 
@@ -218,11 +225,13 @@ class PipelineNodes:
         from src.domain.models import PlotImageArtifact
         plot_image = PlotImageArtifact(**state["plot_image"])
         result = self.vlm_analysis.invoke(plot_image, state["analysis_rubric"], runtime=self.runtime)
-        return {"vlm_analysis": result, "stage": PipelineStage.VLM_ANALYSIS, "trace": self._trace(state, "vlm_analysis")}
+        return {"vlm_analysis": result, "stage": PipelineStage.VLM_ANALYSIS,
+                "trace": self._trace(state, "vlm_analysis")}
 
     def fact_extractor_node(self, state: PipelineState) -> dict:
         result = self.fact_extractor.invoke(state["vlm_analysis"], runtime=self.runtime)
-        return {"visual_facts": result, "stage": PipelineStage.FACT_EXTRACTION, "trace": self._trace(state, "fact_extractor")}
+        return {"visual_facts": result, "stage": PipelineStage.FACT_EXTRACTION,
+                "trace": self._trace(state, "fact_extractor")}
 
     def reasoner_node(self, state: PipelineState) -> dict:
         result = self.reasoner.invoke(state["visual_facts"], state["analysis_rubric"], runtime=self.runtime)
@@ -230,7 +239,8 @@ class PipelineNodes:
 
     def verifier_node(self, state: PipelineState) -> dict:
         result = self.verifier.invoke(state["insight_reasoning"], runtime=self.runtime)
-        return {"insight_verification": result, "stage": PipelineStage.VERIFICATION, "trace": self._trace(state, "verifier")}
+        return {"insight_verification": result, "stage": PipelineStage.VERIFICATION,
+                "trace": self._trace(state, "verifier")}
 
     def insights_node(self, state: PipelineState) -> dict:
         result = self.insights.invoke(state["insight_verification"])
@@ -238,13 +248,15 @@ class PipelineNodes:
 
     def spec_score_node(self, state: PipelineState) -> dict:
         result = self.spec_score.invoke(state["spec_validation"])
-        return {"structural_spec_metric": result, "stage": PipelineStage.EVALUATION, "trace": self._trace(state, "spec_score")}
+        return {"structural_spec_metric": result, "stage": PipelineStage.EVALUATION,
+                "trace": self._trace(state, "spec_score")}
 
     def vision_score_node(self, state: PipelineState) -> dict:
         from src.domain.models import PlotImageArtifact
         plot_image = PlotImageArtifact(**state["plot_image"])
         result = self.vision_score.invoke(plot_image, runtime=self.runtime)
-        return {"visual_quality_metric": result, "stage": PipelineStage.EVALUATION, "trace": self._trace(state, "vision_score")}
+        return {"visual_quality_metric": result, "stage": PipelineStage.EVALUATION,
+                "trace": self._trace(state, "vision_score")}
 
     def evaluation_summary_node(self, state: PipelineState) -> dict:
         result = self.evaluation_summary.invoke(
@@ -253,4 +265,5 @@ class PipelineNodes:
             state["empty_chart_check"],
             state["insight_verification"],
         )
-        return {"evaluation_summary": result, "stage": PipelineStage.EVALUATION, "trace": self._trace(state, "evaluation_summary")}
+        return {"evaluation_summary": result, "stage": PipelineStage.EVALUATION,
+                "trace": self._trace(state, "evaluation_summary")}

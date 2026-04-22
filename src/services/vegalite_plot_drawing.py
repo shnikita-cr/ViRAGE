@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -14,7 +14,8 @@ from src.services.base import BaseService
 
 
 class VegaLitePlotDrawingService(BaseService):
-    def invoke(self, spec_validation: SpecValidationResult, run_id: str, runtime: RuntimeContext) -> PlotRenderingResult:
+    def invoke(self, spec_validation: SpecValidationResult, run_id: str,
+               runtime: RuntimeContext) -> PlotRenderingResult:
         if not spec_validation.is_valid:
             raise RuntimeError("Cannot draw a Vega-Lite plot from an invalid specification.")
         spec = spec_validation.validated_spec
@@ -26,7 +27,9 @@ class VegaLitePlotDrawingService(BaseService):
 
         width = int(spec.get("width", 8 * runtime.settings.default_figure_dpi))
         height = int(spec.get("height", 5 * runtime.settings.default_figure_dpi))
-        fig, ax = plt.subplots(figsize=(max(width, 320) / runtime.settings.default_figure_dpi, max(height, 240) / runtime.settings.default_figure_dpi), dpi=runtime.settings.default_figure_dpi)
+        fig, ax = plt.subplots(figsize=(
+        max(width, 320) / runtime.settings.default_figure_dpi, max(height, 240) / runtime.settings.default_figure_dpi),
+                               dpi=runtime.settings.default_figure_dpi)
         mark = spec.get("mark")
         mark_type = mark.get("type") if isinstance(mark, dict) else mark
         encoding = spec.get("encoding", {})
@@ -48,7 +51,8 @@ class VegaLitePlotDrawingService(BaseService):
             df[color_field] = pd.to_numeric(df[color_field], errors="coerce")
 
         if mark_type in {"line", "area"}:
-            plot_df = df[[col for col in [x_field, y_field, color_field] if col in df.columns]].dropna(subset=[c for c in [x_field, y_field] if c]).copy()
+            plot_df = df[[col for col in [x_field, y_field, color_field] if col in df.columns]].dropna(
+                subset=[c for c in [x_field, y_field] if c]).copy()
             if aggregate and x_field:
                 grouping = [x_field] + ([color_field] if color_field and color_field in plot_df.columns else [])
                 plot_df = plot_df.groupby(grouping, dropna=False)[y_field].agg(aggregate).reset_index()
@@ -66,7 +70,8 @@ class VegaLitePlotDrawingService(BaseService):
                     ax.fill_between(plot_df[x_field], plot_df[y_field], alpha=0.2)
                 marks_count = int(len(plot_df))
         elif mark_type == "bar":
-            plot_df = df[[col for col in [x_field, y_field, color_field] if col in df.columns]].dropna(subset=[c for c in [x_field, y_field] if c]).copy()
+            plot_df = df[[col for col in [x_field, y_field, color_field] if col in df.columns]].dropna(
+                subset=[c for c in [x_field, y_field] if c]).copy()
             if aggregate and x_field:
                 grouping = [x_field] + ([color_field] if color_field and color_field in plot_df.columns else [])
                 plot_df = plot_df.groupby(grouping, dropna=False)[y_field].agg(aggregate).reset_index()
@@ -78,7 +83,8 @@ class VegaLitePlotDrawingService(BaseService):
                 ax.bar(plot_df[x_field].astype(str), plot_df[y_field])
                 marks_count = int(len(plot_df))
         elif mark_type in {"point", "circle", "tick"}:
-            plot_df = df[[col for col in [x_field, y_field, color_field] if col in df.columns]].dropna(subset=[c for c in [x_field, y_field] if c]).copy()
+            plot_df = df[[col for col in [x_field, y_field, color_field] if col in df.columns]].dropna(
+                subset=[c for c in [x_field, y_field] if c]).copy()
             if color_field and color_field in plot_df.columns:
                 for label, frame in plot_df.groupby(color_field, dropna=False):
                     ax.scatter(frame[x_field], frame[y_field], label=str(label))

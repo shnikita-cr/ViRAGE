@@ -161,14 +161,14 @@ if __name__ == "__main__":
 
 class CodegenService(BaseService):
     def invoke(
-        self,
-        query_understanding: QueryUnderstandingResult,
-        planning: PlanningResult,
-        data_profile: DataProfile,
-        prepared: DataPreparationResult,
-        visrag: VisRAGResult,
-        run_id: str,
-        runtime: RuntimeContext,
+            self,
+            query_understanding: QueryUnderstandingResult,
+            planning: PlanningResult,
+            data_profile: DataProfile,
+            prepared: DataPreparationResult,
+            visrag: VisRAGResult,
+            run_id: str,
+            runtime: RuntimeContext,
     ) -> CodegenResult:
         if runtime.codegen_llm is None:
             raise RuntimeError("Code generation requires runtime.codegen_llm. No codegen model was provided.")
@@ -223,14 +223,14 @@ class CodegenService(BaseService):
         )
 
     def _build_prompt(
-        self,
-        *,
-        query_understanding: QueryUnderstandingResult,
-        planning: PlanningResult,
-        data_profile: DataProfile,
-        prepared: DataPreparationResult,
-        visrag: VisRAGResult,
-        plan: VisualizationPlan,
+            self,
+            *,
+            query_understanding: QueryUnderstandingResult,
+            planning: PlanningResult,
+            data_profile: DataProfile,
+            prepared: DataPreparationResult,
+            visrag: VisRAGResult,
+            plan: VisualizationPlan,
     ) -> str:
         examples = [item.model_dump() for item in visrag.retrieved_examples[:2]]
         return (
@@ -302,17 +302,17 @@ class CodegenService(BaseService):
             raise RuntimeError("Generated plotting logic must draw on matplotlib axes.")
 
     def _compose_script(
-        self,
-        *,
-        prepared: DataPreparationResult,
-        query_understanding: QueryUnderstandingResult,
-        planning: PlanningResult,
-        data_profile: DataProfile,
-        visrag: VisRAGResult,
-        plan: VisualizationPlan,
-        generated_logic: str,
-        runtime: RuntimeContext,
-        run_id: str,
+            self,
+            *,
+            prepared: DataPreparationResult,
+            query_understanding: QueryUnderstandingResult,
+            planning: PlanningResult,
+            data_profile: DataProfile,
+            visrag: VisRAGResult,
+            plan: VisualizationPlan,
+            generated_logic: str,
+            runtime: RuntimeContext,
+            run_id: str,
     ) -> str:
         return _WRAPPER_TEMPLATE.format(
             output_dir=(runtime.ensure_run_dir(run_id) / "execution").resolve().as_posix(),
@@ -322,7 +322,8 @@ class CodegenService(BaseService):
             query_json=query_understanding.model_dump_json(indent=2),
             planning_json=planning.model_dump_json(indent=2),
             profile_json=data_profile.model_dump_json(indent=2),
-            retrieved_json=json.dumps([item.model_dump() for item in visrag.retrieved_examples[:3]], ensure_ascii=False, indent=2),
+            retrieved_json=json.dumps([item.model_dump() for item in visrag.retrieved_examples[:3]], ensure_ascii=False,
+                                      indent=2),
             generated_logic=textwrap.indent(generated_logic.strip(), "    "),
             dpi=runtime.settings.default_figure_dpi,
         )

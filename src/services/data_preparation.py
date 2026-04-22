@@ -9,12 +9,12 @@ from src.services.base import BaseService
 
 class DataPreparationService(BaseService):
     def invoke(
-        self,
-        data_path: str,
-        data_profile: DataProfile,
-        request_analysis: RequestAnalysisResult,
-        run_id: str,
-        runtime: RuntimeContext,
+            self,
+            data_path: str,
+            data_profile: DataProfile,
+            request_analysis: RequestAnalysisResult,
+            run_id: str,
+            runtime: RuntimeContext,
     ) -> DataPreparationResult:
         path = Path(data_path)
         df = pd.read_parquet(path) if path.suffix.lower() == ".parquet" else pd.read_csv(path)

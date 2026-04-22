@@ -15,7 +15,8 @@ class _VLMAnalysisSchema(BaseModel):
 
 
 class VLMAnalysisService(BaseService):
-    def invoke(self, plot_image: PlotImageArtifact, analysis_rubric: AnalysisRubric, runtime: RuntimeContext) -> VLMAnalysisResult:
+    def invoke(self, plot_image: PlotImageArtifact, analysis_rubric: AnalysisRubric,
+               runtime: RuntimeContext) -> VLMAnalysisResult:
         if runtime.vlm is None:
             raise RuntimeError("Visual analysis requires runtime.vlm. No multimodal analysis model was provided.")
         prompt = (

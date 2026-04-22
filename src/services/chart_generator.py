@@ -32,12 +32,12 @@ class _GeneratedSpecSchema(BaseModel):
 
 class ChartGeneratorService(BaseService):
     def invoke(
-        self,
-        prepared: DataPreparationResult,
-        candidate_spec_set: CandidateSpecSet,
-        execution_policy: ExecutionPolicy,
-        validation_policy: ValidationPolicy,
-        runtime: RuntimeContext,
+            self,
+            prepared: DataPreparationResult,
+            candidate_spec_set: CandidateSpecSet,
+            execution_policy: ExecutionPolicy,
+            validation_policy: ValidationPolicy,
+            runtime: RuntimeContext,
     ) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
             raise RuntimeError("Chart generation requires runtime.spec_llm. No specification model was provided.")
@@ -53,12 +53,12 @@ class ChartGeneratorService(BaseService):
         return VegaLiteSpecArtifact(spec_json=spec_json, version="v1")
 
     def repair(
-        self,
-        prepared: DataPreparationResult,
-        current_spec: VegaLiteSpecArtifact,
-        validation_errors: list[str],
-        repair_hints: list[str],
-        runtime: RuntimeContext,
+            self,
+            prepared: DataPreparationResult,
+            current_spec: VegaLiteSpecArtifact,
+            validation_errors: list[str],
+            repair_hints: list[str],
+            runtime: RuntimeContext,
     ) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
             raise RuntimeError("Spec repair requires runtime.spec_llm. No specification model was provided.")
@@ -87,13 +87,13 @@ class ChartGeneratorService(BaseService):
         return VegaLiteSpecArtifact(spec_json=spec_json, version=current_spec.version)
 
     def build_from_candidate(
-        self,
-        prepared: DataPreparationResult,
-        candidate_spec_set: CandidateSpecSet,
-        candidate_index: int,
-        execution_policy: ExecutionPolicy,
-        validation_policy: ValidationPolicy,
-        runtime: RuntimeContext,
+            self,
+            prepared: DataPreparationResult,
+            candidate_spec_set: CandidateSpecSet,
+            candidate_index: int,
+            execution_policy: ExecutionPolicy,
+            validation_policy: ValidationPolicy,
+            runtime: RuntimeContext,
     ) -> VegaLiteSpecArtifact:
         if candidate_index < 0 or candidate_index >= len(candidate_spec_set.candidate_specs):
             raise IndexError("Candidate index is out of range.")
@@ -116,13 +116,13 @@ class ChartGeneratorService(BaseService):
         return df.to_dict(orient="records")
 
     def _build_prompt(
-        self,
-        prepared: DataPreparationResult,
-        selected_candidate,
-        plan: VisualizationPlan,
-        execution_policy: ExecutionPolicy,
-        validation_policy: ValidationPolicy,
-        preview: list[dict[str, Any]],
+            self,
+            prepared: DataPreparationResult,
+            selected_candidate,
+            plan: VisualizationPlan,
+            execution_policy: ExecutionPolicy,
+            validation_policy: ValidationPolicy,
+            preview: list[dict[str, Any]],
     ) -> str:
         return (
             "You generate a concise Vega-Lite specification for downstream validation and rendering.\n"
@@ -141,7 +141,8 @@ class ChartGeneratorService(BaseService):
         )
 
     @staticmethod
-    def _merge_with_plan(parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> dict[str, Any]:
+    def _merge_with_plan(parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> \
+    dict[str, Any]:
         title = parsed.title or plan.title
         spec_json: dict[str, Any] = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",

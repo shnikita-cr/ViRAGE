@@ -44,7 +44,8 @@ class SpecValidatorService(BaseService):
                 "Keep encodings explicit and use valid Vega-Lite field types.",
                 "Use only simple transforms: aggregate, filter, calculate, bin.",
             ])
-            return SpecValidationResult(validated_spec={}, validation_errors=errors, repair_hints=repair_hints, is_valid=False)
+            return SpecValidationResult(validated_spec={}, validation_errors=errors, repair_hints=repair_hints,
+                                        is_valid=False)
 
         normalized = self._normalize_spec(spec)
         return SpecValidationResult(validated_spec=normalized, validation_errors=[], repair_hints=[], is_valid=True)
@@ -85,7 +86,8 @@ class SpecValidatorService(BaseService):
         return mark_type
 
     @staticmethod
-    def _validate_encoding(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[str, dict[str, Any]]:
+    def _validate_encoding(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[
+        str, dict[str, Any]]:
         encoding = spec.get("encoding", {})
         if not isinstance(encoding, dict) or not encoding:
             errors.append("Specification encoding must be a non-empty object.")
@@ -145,7 +147,8 @@ class SpecValidatorService(BaseService):
                 errors.append(f"Transform at index {index} uses unsupported aggregate: {aggregate}.")
 
     @staticmethod
-    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]], errors: list[str]) -> None:
+    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]],
+                                             errors: list[str]) -> None:
         x = encoding.get("x") if isinstance(encoding, dict) else None
         y = encoding.get("y") if isinstance(encoding, dict) else None
         if mark_type in {"line", "area", "bar", "point", "circle", "tick"}:

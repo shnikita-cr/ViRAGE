@@ -40,7 +40,8 @@ class VisionScoreService(BaseService):
             "Also return is_blank=true if the image is effectively blank or useless.\n"
             "Return structured output only."
         )
-        parsed = invoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path, _VisionScoreSchema)
+        parsed = invoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path,
+                                              _VisionScoreSchema)
         if parsed.is_blank:
             return VisualQualityMetric(score=0.0, details=[*parsed.details, "blank chart penalty"])
 

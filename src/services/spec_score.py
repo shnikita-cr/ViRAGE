@@ -7,7 +7,7 @@ from src.services.base import BaseService
 class SpecScoreService(BaseService):
     def invoke(self, spec_validation: SpecValidationResult) -> StructuralSpecMetric:
         if not spec_validation.is_valid:
-            return StructuralSpecMetric(score=0.0, details=["invalid spec"]) 
+            return StructuralSpecMetric(score=0.0, details=["invalid spec"])
 
         spec = spec_validation.validated_spec
         score = 0.0

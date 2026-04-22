@@ -266,8 +266,6 @@ class EmptyChartCheckResult(BaseModel):
     empty_chart_status: str = "unknown"
 
 
-
-
 class PlotImageArtifact(BaseModel):
     image_path: str
     width: int = 0
@@ -306,8 +304,6 @@ class InsightCandidate(BaseModel):
 class InsightReasoningResult(BaseModel):
     insight_candidates: list[InsightCandidate] = Field(default_factory=list)
     reasoning_chain: list[str] = Field(default_factory=list)
-
-
 
 
 class InsightVerificationResult(BaseModel):

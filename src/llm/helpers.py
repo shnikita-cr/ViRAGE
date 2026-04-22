@@ -60,7 +60,6 @@ def invoke_text(llm: Any, prompt_text: str) -> str:
     raise TypeError("LLM response could not be normalized to plain text.")
 
 
-
 def extract_json_block(raw_text: str) -> str:
     text = raw_text.strip()
     if text.startswith("```"):

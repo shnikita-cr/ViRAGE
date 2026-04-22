@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from src.domain.models import EmptyChartCheckResult, EvaluationSummaryResult, InsightVerificationResult, StructuralSpecMetric, VisualQualityMetric
+from src.domain.models import EmptyChartCheckResult, EvaluationSummaryResult, InsightVerificationResult, \
+    StructuralSpecMetric, VisualQualityMetric
 from src.services.base import BaseService
 
 
 class EvaluationSummaryService(BaseService):
     def invoke(
-        self,
-        structural_spec_metric: StructuralSpecMetric,
-        visual_quality_metric: VisualQualityMetric,
-        empty_chart_check: EmptyChartCheckResult,
-        insight_verification: InsightVerificationResult,
+            self,
+            structural_spec_metric: StructuralSpecMetric,
+            visual_quality_metric: VisualQualityMetric,
+            empty_chart_check: EmptyChartCheckResult,
+            insight_verification: InsightVerificationResult,
     ) -> EvaluationSummaryResult:
         report = {
             "spec_score": structural_spec_metric.score,

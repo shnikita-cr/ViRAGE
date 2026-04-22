@@ -11,11 +11,11 @@ class CanonicalPlanningService(BaseService):
         self._delegate = PlanningService()
 
     def invoke(
-        self,
-        query_understanding: QueryUnderstandingResult,
-        request_analysis: RequestAnalysisResult,
-        data_profile: DataProfile,
-        visrag: VisRAGResult,
-        runtime: RuntimeContext,
+            self,
+            query_understanding: QueryUnderstandingResult,
+            request_analysis: RequestAnalysisResult,
+            data_profile: DataProfile,
+            visrag: VisRAGResult,
+            runtime: RuntimeContext,
     ) -> PlanningResult:
         return self._delegate.invoke(query_understanding, request_analysis, data_profile, visrag, runtime)

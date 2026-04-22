@@ -27,7 +27,8 @@ class QueryUnderstandingService(BaseService):
     def invoke(self, query: str, user_context: dict[str, Any], runtime: RuntimeContext) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
-            raise RuntimeError("QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
+            raise RuntimeError(
+                "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
 
         context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
         prompt = (

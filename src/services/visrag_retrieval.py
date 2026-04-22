@@ -127,8 +127,10 @@ class RetrievalBundle:
 
 _CORPUS_REGISTRY: tuple[CorpusSpec, ...] = (
     CorpusSpec(name="plot2code", role="reference", filenames=("plot2code.jsonl", "plot2code.json"), weight=1.0),
-    CorpusSpec(name="chartmimic", role="high_quality_selection", filenames=("chartmimic.jsonl", "chartmimic.json"), weight=1.2),
-    CorpusSpec(name="chart2code_160k", role="implementation", filenames=("chart2code_160k.jsonl", "chart2code_160k.json"), weight=0.9),
+    CorpusSpec(name="chartmimic", role="high_quality_selection", filenames=("chartmimic.jsonl", "chartmimic.json"),
+               weight=1.2),
+    CorpusSpec(name="chart2code_160k", role="implementation",
+               filenames=("chart2code_160k.jsonl", "chart2code_160k.json"), weight=0.9),
     CorpusSpec(name="chartx", role="multimodal_support", filenames=("chartx.jsonl", "chartx.json"), weight=1.05),
 )
 
@@ -143,26 +145,27 @@ def canonicalize_chart_type(value: str | None) -> str:
 
 
 def retrieve_examples(
-    corpus_root: Path | None,
-    *,
-    index_root: Path,
-    query_text: str,
-    preferred_chart_types: list[str],
-    top_k: int,
-    fetch_k: int,
-    similarity_threshold: float,
-    embedding_backend: str,
-    embedding_model: str,
-    ollama_base_url: str,
-    ollama_timeout_seconds: float,
-    force_rebuild: bool,
+        corpus_root: Path | None,
+        *,
+        index_root: Path,
+        query_text: str,
+        preferred_chart_types: list[str],
+        top_k: int,
+        fetch_k: int,
+        similarity_threshold: float,
+        embedding_backend: str,
+        embedding_model: str,
+        ollama_base_url: str,
+        ollama_timeout_seconds: float,
+        force_rebuild: bool,
 ) -> RetrievalBundle:
     if corpus_root is None:
         return RetrievalBundle(examples=[], corpus_status={"corpora": "not_configured"}, backend_name="none")
 
     available = _resolve_available_corpora(corpus_root)
     if not available:
-        return RetrievalBundle(examples=[], corpus_status={"corpora": f"missing_under:{corpus_root.as_posix()}"}, backend_name="none")
+        return RetrievalBundle(examples=[], corpus_status={"corpora": f"missing_under:{corpus_root.as_posix()}"},
+                               backend_name="none")
 
     backend = _build_backend(
         backend_name=embedding_backend,
@@ -220,20 +223,19 @@ def retrieve_examples(
     return RetrievalBundle(examples=all_hits[:top_k], corpus_status=corpus_status, backend_name=active_backend.name)
 
 
-
 def _search_corpus(
-    *,
-    spec: CorpusSpec,
-    path: Path,
-    records: list[CorpusRecord],
-    index_root: Path,
-    backend: _EmbeddingBackend,
-    query_text: str,
-    top_k: int,
-    fetch_k: int,
-    similarity_threshold: float,
-    preferred_chart_types: list[str],
-    force_rebuild: bool,
+        *,
+        spec: CorpusSpec,
+        path: Path,
+        records: list[CorpusRecord],
+        index_root: Path,
+        backend: _EmbeddingBackend,
+        query_text: str,
+        top_k: int,
+        fetch_k: int,
+        similarity_threshold: float,
+        preferred_chart_types: list[str],
+        force_rebuild: bool,
 ) -> list[CorpusExample]:
     index = _PersistentSemanticIndex(index_root=index_root, corpus=spec.name, backend=backend)
     index.ensure(records=records, force_rebuild=force_rebuild)
@@ -249,6 +251,7 @@ def _search_corpus(
         item.rationale = f"semantic_similarity={weighted:.3f}; corpus={spec.name}; role={spec.role}"
         result.append(item)
     return result
+
 
 def summarize_chart_support(examples: Iterable[CorpusExample]) -> dict[str, list[CorpusExample]]:
     buckets: dict[str, list[CorpusExample]] = {}
@@ -311,7 +314,8 @@ class _LocalTfidfBackend(_EmbeddingBackend):
         return state["vectorizer"].transform([query_text])
 
 
-def _build_backend(*, backend_name: str, model: str, ollama_base_url: str, ollama_timeout_seconds: float) -> _EmbeddingBackend:
+def _build_backend(*, backend_name: str, model: str, ollama_base_url: str,
+                   ollama_timeout_seconds: float) -> _EmbeddingBackend:
     choice = backend_name.lower().strip()
     if choice == "ollama":
         return _OllamaEmbeddingBackend(model=model, base_url=ollama_base_url, timeout_seconds=ollama_timeout_seconds)
@@ -346,7 +350,9 @@ class _PersistentSemanticIndex:
         if self.state is None or self.matrix is None:
             return []
         query_vec = self.backend.embed_query(query_text, self.state)
-        similarities = cosine_similarity(query_vec, self.matrix).ravel() if self.backend.name == "local_tfidf" else _cosine_similarity_dense(query_vec, self.matrix)
+        similarities = cosine_similarity(query_vec,
+                                         self.matrix).ravel() if self.backend.name == "local_tfidf" else _cosine_similarity_dense(
+            query_vec, self.matrix)
         ranked_idx = np.argsort(similarities)[::-1][:limit]
         results: list[CorpusExample] = []
         for idx in ranked_idx:
@@ -381,7 +387,9 @@ class _PersistentSemanticIndex:
         if metadata.get("backend") != self.backend.name:
             return False
         cached_records = [CorpusRecord(**row) for row in json.loads(records_path.read_text(encoding="utf-8"))]
-        if len(cached_records) != len(expected_records) or [r.example_id for r in cached_records] != [r.example_id for r in expected_records]:
+        if len(cached_records) != len(expected_records) or [r.example_id for r in cached_records] != [r.example_id for r
+                                                                                                      in
+                                                                                                      expected_records]:
             return False
         self.records = cached_records
         self.state = metadata.get("state")
@@ -399,7 +407,8 @@ class _PersistentSemanticIndex:
 
     def _persist(self) -> None:
         records_path = self.index_dir / "records.json"
-        records_path.write_text(json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2), encoding="utf-8")
+        records_path.write_text(json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2),
+                                encoding="utf-8")
         if self.backend.name == "local_tfidf":
             payload = {"vectorizer": self.state["vectorizer"], "matrix": self.matrix}
             (self.index_dir / "tfidf.pkl").write_bytes(pickle.dumps(payload))
@@ -477,7 +486,8 @@ def _mmr_filter(examples: list[CorpusExample], *, top_k: int, lambda_mult: float
         return examples
     selected: list[CorpusExample] = []
     candidates = list(examples)
-    token_cache = {item.example_id: tokenize(f"{item.instruction} {item.description or ''} {' '.join(item.tags)}") for item in candidates}
+    token_cache = {item.example_id: tokenize(f"{item.instruction} {item.description or ''} {' '.join(item.tags)}") for
+                   item in candidates}
     while candidates and len(selected) < top_k:
         if not selected:
             selected.append(candidates.pop(0))
@@ -486,7 +496,8 @@ def _mmr_filter(examples: list[CorpusExample], *, top_k: int, lambda_mult: float
         best_score = float("-inf")
         for index, candidate in enumerate(candidates):
             relevance = candidate.score
-            novelty = max(_token_jaccard(token_cache[candidate.example_id], token_cache[item.example_id]) for item in selected)
+            novelty = max(
+                _token_jaccard(token_cache[candidate.example_id], token_cache[item.example_id]) for item in selected)
             mmr_score = lambda_mult * relevance - (1 - lambda_mult) * novelty
             if mmr_score > best_score:
                 best_score = mmr_score

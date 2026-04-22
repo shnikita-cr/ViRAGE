@@ -27,15 +27,16 @@ class _RequestAnalysisSchema(BaseModel):
 
 class RequestAnalyzerService(BaseService):
     def invoke(
-        self,
-        query: str,
-        query_understanding: QueryUnderstandingResult,
-        data_profile: DataProfile,
-        runtime: RuntimeContext,
+            self,
+            query: str,
+            query_understanding: QueryUnderstandingResult,
+            data_profile: DataProfile,
+            runtime: RuntimeContext,
     ) -> RequestAnalysisResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
-            raise RuntimeError("RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
+            raise RuntimeError(
+                "RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
 
         column_lines = []
         for column in data_profile.columns:
