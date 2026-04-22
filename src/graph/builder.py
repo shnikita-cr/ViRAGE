@@ -3,7 +3,6 @@ from typing import Any
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
 from src.graph.nodes import PipelineNodes
-from src.graph.routing import route_case
 from src.infrastructure.runtime import RuntimeContext
 
 
@@ -13,15 +12,13 @@ class SequentialCompiledGraph:
 
     def invoke(self, state: PipelineState, config: dict[str, Any] | None = None) -> PipelineState:
         current = dict(state)
-        current.update(self.nodes.query_understanding_node(current))
-        if route_case(current) == "planning_non_canonical":
-            current.update(self.nodes.planning_non_canonical_node(current))
-        else:
-            current.update(self.nodes.planning_canonical_node(current))
         for fn in [
+            self.nodes.query_understanding_node,
             self.nodes.data_profiler_node,
+            self.nodes.request_analyzer_node,
             self.nodes.data_preparation_node,
             self.nodes.visrag_node,
+            self.nodes.planning_node,
             self.nodes.codegen_node,
             self.nodes.coderun_node,
             self.nodes.artifact_store_node,
@@ -44,11 +41,11 @@ def build_pipeline_graph(runtime: RuntimeContext) -> Any:
 
     graph = StateGraph(PipelineState)
     graph.add_node("query_understanding", nodes.query_understanding_node)
-    graph.add_node("planning_canonical", nodes.planning_canonical_node)
-    graph.add_node("planning_non_canonical", nodes.planning_non_canonical_node)
     graph.add_node("data_profiler", nodes.data_profiler_node)
+    graph.add_node("request_analyzer", nodes.request_analyzer_node)
     graph.add_node("data_preparation", nodes.data_preparation_node)
     graph.add_node("visrag", nodes.visrag_node)
+    graph.add_node("planning", nodes.planning_node)
     graph.add_node("codegen", nodes.codegen_node)
     graph.add_node("coderun", nodes.coderun_node)
     graph.add_node("artifact_store", nodes.artifact_store_node)
@@ -58,19 +55,12 @@ def build_pipeline_graph(runtime: RuntimeContext) -> Any:
     graph.add_node("verifier", nodes.verifier_node)
 
     graph.add_edge(START, "query_understanding")
-    graph.add_conditional_edges(
-        "query_understanding",
-        route_case,
-        {
-            "planning_canonical": "planning_canonical",
-            "planning_non_canonical": "planning_non_canonical",
-        },
-    )
-    graph.add_edge("planning_canonical", "data_profiler")
-    graph.add_edge("planning_non_canonical", "data_profiler")
-    graph.add_edge("data_profiler", "data_preparation")
+    graph.add_edge("query_understanding", "data_profiler")
+    graph.add_edge("data_profiler", "request_analyzer")
+    graph.add_edge("request_analyzer", "data_preparation")
     graph.add_edge("data_preparation", "visrag")
-    graph.add_edge("visrag", "codegen")
+    graph.add_edge("visrag", "planning")
+    graph.add_edge("planning", "codegen")
     graph.add_edge("codegen", "coderun")
     graph.add_edge("coderun", "artifact_store")
     graph.add_edge("artifact_store", "chart_reader")

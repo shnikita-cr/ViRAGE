@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from src.domain.enums import ChartCaseType
+from src.domain.models import RequestAnalysisResult
 from src.services.planning_canonical import CanonicalPlanningService
 
 
-def test_canonical_planning_service_builds_fallback_plan(
-    canonical_query_understanding,
-    runtime,
-) -> None:
+def test_canonical_planning_service_delegates_to_unified_planning(canonical_query_understanding, sample_data_profile, visrag_result, runtime) -> None:
     service = CanonicalPlanningService()
-
-    result = service.invoke(
-        query_understanding=canonical_query_understanding,
-        runtime=runtime,
+    request_analysis = RequestAnalysisResult(
+        grounded_fields=["date", "sales"],
+        selected_fields=["date", "sales"],
+        confidence=0.9,
     )
 
-    assert result.mode is ChartCaseType.CANONICAL
-    assert result.steps
-    assert any("chart" in step.description.lower() for step in result.steps)
+    result = service.invoke(canonical_query_understanding, request_analysis, sample_data_profile, visrag_result, runtime)
+
+    assert result.execution_policy is not None
+    assert result.validation_policy is not None

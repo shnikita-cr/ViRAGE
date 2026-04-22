@@ -1,23 +1,20 @@
 from __future__ import annotations
 
-from src.domain.enums import ChartCaseType
 from src.services.query_understanding import QueryUnderstandingService
 
 
-def test_query_understanding_service_routes_queries_without_llm(runtime) -> None:
+def test_query_understanding_service_uses_reasoning_llm_and_returns_intent_bundle(runtime) -> None:
     service = QueryUnderstandingService()
 
-    canonical = service.invoke(
+    result = service.invoke(
         query="Show the sales trend over time",
         user_context={"max_charts": 1},
         runtime=runtime,
     )
-    non_canonical = service.invoke(
-        query="Build a network diagram of flows between nodes",
-        user_context={},
-        runtime=runtime,
-    )
 
-    assert canonical.case_type is ChartCaseType.CANONICAL
-    assert "line" in canonical.candidate_charts
-    assert non_canonical.case_type is ChartCaseType.NON_CANONICAL
+    assert result.case_type is None
+    assert result.task_type == "trend_analysis"
+    assert result.user_goal == "understand sales movement over time"
+    assert result.analysis_goal == "find trend shifts and peaks"
+    assert "line" in result.candidate_charts
+    assert result.query_variants

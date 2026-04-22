@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.domain.models import DataProfile
+from src.domain.models import DataProfile, RequestAnalysisResult
 from src.services.data_preparation import DataPreparationService
 
 
@@ -29,6 +29,7 @@ def test_data_preparation_service_creates_cleaned_csv(tmp_path, runtime) -> None
     result = service.invoke(
         data_path=data_path.as_posix(),
         data_profile=profile,
+        request_analysis=RequestAnalysisResult(selected_fields=["date", "sales", "region"]),
         run_id="prepare-data",
         runtime=runtime,
     )

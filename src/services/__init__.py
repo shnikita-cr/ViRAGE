@@ -10,6 +10,7 @@ from .planning_canonical import CanonicalPlanningService
 from .planning_non_canonical import NonCanonicalPlanningService
 from .query_understanding import QueryUnderstandingService
 from .reasoner import ReasonerService
+from .request_analyzer import RequestAnalyzerService
 from .verifier import VerifierService
 from .visrag import VisRAGService
 
@@ -26,6 +27,7 @@ __all__ = [
     "PlanningService",
     "QueryUnderstandingService",
     "ReasonerService",
+    "RequestAnalyzerService",
     "VerifierService",
     "VisRAGService",
 ]
