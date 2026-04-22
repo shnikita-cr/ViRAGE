@@ -19,13 +19,19 @@ class SequentialCompiledGraph:
             self.nodes.data_preparation_node,
             self.nodes.visrag_node,
             self.nodes.planning_node,
-            self.nodes.codegen_node,
-            self.nodes.coderun_node,
-            self.nodes.artifact_store_node,
-            self.nodes.chart_reader_node,
+            self.nodes.chart_generator_node,
+            self.nodes.spec_validator_node,
+            self.nodes.vegalite_plot_drawing_node,
+            self.nodes.scenegraph_check_node,
+            self.nodes.empty_chart_check_node,
+            self.nodes.spec_score_node,
+            self.nodes.vlm_analysis_node,
             self.nodes.fact_extractor_node,
             self.nodes.reasoner_node,
             self.nodes.verifier_node,
+            self.nodes.insights_node,
+            self.nodes.vision_score_node,
+            self.nodes.evaluation_summary_node,
         ]:
             current.update(fn(current))
         current["stage"] = PipelineStage.COMPLETED
@@ -46,13 +52,19 @@ def build_pipeline_graph(runtime: RuntimeContext) -> Any:
     graph.add_node("data_preparation", nodes.data_preparation_node)
     graph.add_node("visrag", nodes.visrag_node)
     graph.add_node("planning", nodes.planning_node)
-    graph.add_node("codegen", nodes.codegen_node)
-    graph.add_node("coderun", nodes.coderun_node)
-    graph.add_node("artifact_store", nodes.artifact_store_node)
-    graph.add_node("chart_reader", nodes.chart_reader_node)
+    graph.add_node("chart_generator", nodes.chart_generator_node)
+    graph.add_node("spec_validator", nodes.spec_validator_node)
+    graph.add_node("vegalite_plot_drawing", nodes.vegalite_plot_drawing_node)
+    graph.add_node("scenegraph_check", nodes.scenegraph_check_node)
+    graph.add_node("empty_chart_check", nodes.empty_chart_check_node)
+    graph.add_node("vlm_analysis", nodes.vlm_analysis_node)
     graph.add_node("fact_extractor", nodes.fact_extractor_node)
     graph.add_node("reasoner", nodes.reasoner_node)
     graph.add_node("verifier", nodes.verifier_node)
+    graph.add_node("insights", nodes.insights_node)
+    graph.add_node("spec_score", nodes.spec_score_node)
+    graph.add_node("vision_score", nodes.vision_score_node)
+    graph.add_node("evaluation_summary", nodes.evaluation_summary_node)
 
     graph.add_edge(START, "query_understanding")
     graph.add_edge("query_understanding", "data_profiler")
@@ -60,12 +72,18 @@ def build_pipeline_graph(runtime: RuntimeContext) -> Any:
     graph.add_edge("request_analyzer", "data_preparation")
     graph.add_edge("data_preparation", "visrag")
     graph.add_edge("visrag", "planning")
-    graph.add_edge("planning", "codegen")
-    graph.add_edge("codegen", "coderun")
-    graph.add_edge("coderun", "artifact_store")
-    graph.add_edge("artifact_store", "chart_reader")
-    graph.add_edge("chart_reader", "fact_extractor")
+    graph.add_edge("planning", "chart_generator")
+    graph.add_edge("chart_generator", "spec_validator")
+    graph.add_edge("spec_validator", "vegalite_plot_drawing")
+    graph.add_edge("vegalite_plot_drawing", "scenegraph_check")
+    graph.add_edge("scenegraph_check", "empty_chart_check")
+    graph.add_edge("empty_chart_check", "spec_score")
+    graph.add_edge("spec_score", "vlm_analysis")
+    graph.add_edge("vlm_analysis", "fact_extractor")
     graph.add_edge("fact_extractor", "reasoner")
     graph.add_edge("reasoner", "verifier")
-    graph.add_edge("verifier", END)
+    graph.add_edge("verifier", "insights")
+    graph.add_edge("insights", "vision_score")
+    graph.add_edge("vision_score", "evaluation_summary")
+    graph.add_edge("evaluation_summary", END)
     return graph.compile()

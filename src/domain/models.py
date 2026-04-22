@@ -266,6 +266,20 @@ class EmptyChartCheckResult(BaseModel):
     empty_chart_status: str = "unknown"
 
 
+
+
+class PlotImageArtifact(BaseModel):
+    image_path: str
+    width: int = 0
+    height: int = 0
+
+
+class PlotRenderingResult(BaseModel):
+    plot_image: PlotImageArtifact
+    rendered_scenegraph: dict[str, Any] = Field(default_factory=dict)
+    render_notes: list[str] = Field(default_factory=list)
+
+
 class VLMAnalysisResult(BaseModel):
     visual_observations: list[str] = Field(default_factory=list)
     extracted_visual_facts: list[str] = Field(default_factory=list)
@@ -292,6 +306,19 @@ class InsightCandidate(BaseModel):
 class InsightReasoningResult(BaseModel):
     insight_candidates: list[InsightCandidate] = Field(default_factory=list)
     reasoning_chain: list[str] = Field(default_factory=list)
+
+
+
+
+class InsightVerificationResult(BaseModel):
+    verified_insights: list[str] = Field(default_factory=list)
+    rejected_claims: list[str] = Field(default_factory=list)
+    insight_verification_summary: str = ""
+    all_verified: bool = False
+
+
+class InsightsResult(BaseModel):
+    final_insights: list[str] = Field(default_factory=list)
 
 
 class StructuralSpecMetric(BaseModel):

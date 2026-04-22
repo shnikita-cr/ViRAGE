@@ -21,6 +21,7 @@ class PipelineStage(str, Enum):
     EMPTY_CHART_CHECK = "empty_chart_check"
     PLOT_RENDERING = "plot_rendering"
     VLM_ANALYSIS = "vlm_analysis"
+    INSIGHTS = "insights"
     EVALUATION = "evaluation"
     CODEGEN = "codegen"
     CODERUN = "coderun"

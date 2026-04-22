@@ -217,7 +217,7 @@ class VisRAGService(BaseService):
                 summary=rec.rationale,
                 score=rec.score,
                 rationale=rec.rationale,
-                visualization_plan=plan if rec.priority == 1 else None,
+                visualization_plan=(plan.model_copy(update={"chart_family": rec.chart_family}) if rec.chart_family != plan.chart_family else plan),
             )
             for rec in recommendations
         ]

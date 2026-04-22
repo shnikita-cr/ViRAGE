@@ -30,6 +30,16 @@ class _FakeStructuredRunnable:
                 content = getattr(item, "content", item)
                 if isinstance(content, str):
                     parts.append(content)
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict):
+                            text = block.get("text")
+                            if isinstance(text, str):
+                                parts.append(text)
+                            else:
+                                parts.append(str(block))
+                        else:
+                            parts.append(str(block))
                 else:
                     parts.append(str(content))
             prompt_text = "\n".join(parts)
@@ -51,26 +61,22 @@ class FakeReasoningLLM:
         return _FakeStructuredRunnable(schema, _resolver)
 
 
+class FakeSpecLLM(FakeReasoningLLM):
+    pass
+
+
+class FakeVLM(FakeReasoningLLM):
+    pass
+
+
+class FakeVisionJudgeLLM(FakeReasoningLLM):
+    pass
+
+
 def default_reasoning_payload(schema: type, prompt: str) -> dict[str, Any]:
     schema_name = schema.__name__
     lower = prompt.lower()
     if schema_name == "_QueryUnderstandingSchema":
-        if "network" in lower or "flows between nodes" in lower:
-            return {
-                "intent": "Build a network diagram of flows",
-                "requested_operations": ["relationship analysis"],
-                "candidate_charts": ["scatter", "bar"],
-                "constraints": ["prefer concise visuals"],
-                "task_type": "relationship_analysis",
-                "user_goal": "understand flow structure",
-                "analysis_goal": "identify dominant relationships",
-                "confidence": 0.66,
-                "query_variants": [
-                    {"kind": "canonical", "text": "visualize flows between nodes", "confidence": 0.7, "source": "fake"},
-                    {"kind": "analysis", "text": "find dominant and weak connections", "confidence": 0.6, "source": "fake"},
-                ],
-                "ambiguity_notes": ["network layout is underspecified"],
-            }
         return {
             "intent": "Show the sales trend over time",
             "requested_operations": ["trend analysis"],
@@ -87,18 +93,6 @@ def default_reasoning_payload(schema: type, prompt: str) -> dict[str, Any]:
             "ambiguity_notes": [],
         }
     if schema_name == "_RequestAnalysisSchema":
-        if "flows" in lower or "network" in lower:
-            return {
-                "grounded_fields": ["source", "target", "flow_value"],
-                "ambiguity_report": ["node identifiers may require explicit source/target columns"],
-                "selected_fields": ["source", "target", "flow_value"],
-                "normalization_hints": ["normalize node labels"],
-                "mappings": [
-                    {"query_term": "flows", "column_name": "flow_value", "confidence": 0.72, "rationale": "numeric edge weight"},
-                ],
-                "missing_fields": [],
-                "confidence": 0.7,
-            }
         return {
             "grounded_fields": ["date", "sales"],
             "ambiguity_report": [],
@@ -150,6 +144,63 @@ def default_reasoning_payload(schema: type, prompt: str) -> dict[str, Any]:
             "mark_hints": ["Use a clean visual mark."],
             "renderer_hints": ["Prefer readable defaults."],
             "extra_caveats": [],
+        }
+    if schema_name == "_GeneratedSpecSchema":
+        return {
+            "mark": "line",
+            "title": "Sales trend over time",
+            "description": "A simple line chart showing the sales trend over time.",
+            "encoding": {
+                "x": {"field": "date", "type": "temporal"},
+                "y": {"field": "sales", "type": "quantitative", "aggregate": "mean"},
+            },
+            "transform": [],
+        }
+    if schema_name == "_VLMAnalysisSchema":
+        return {
+            "visual_observations": [
+                "The line trends upward over time.",
+                "There is a local peak near the end of the series.",
+            ],
+            "extracted_visual_facts": [
+                "The chart shows an increasing temporal trend.",
+                "A peak appears near the final portion of the line.",
+            ],
+            "confidence": 0.85,
+        }
+    if schema_name == "_ReasoningSchema":
+        return {
+            "insight_candidates": [
+                {
+                    "statement": "Sales increase over time with a late peak.",
+                    "confidence": 0.87,
+                    "reasoning_chain": [
+                        "The line rises from left to right.",
+                        "A noticeable high point appears near the end.",
+                    ],
+                }
+            ],
+            "reasoning_chain": [
+                "Observation 1 indicates upward movement.",
+                "Observation 2 indicates a late peak.",
+            ],
+        }
+    if schema_name == "_VerificationSchema":
+        return {
+            "verified_insights": ["Sales increase over time with a late peak."],
+            "rejected_claims": [],
+            "insight_verification_summary": "One strong visual insight remains after verification.",
+            "all_verified": True,
+        }
+    if schema_name == "_VisionScoreSchema":
+        return {
+            "visualization_type": 2,
+            "data_encoding": 2,
+            "data_transformation": 1,
+            "aesthetics": 2,
+            "prompt_compliance": 2,
+            "is_blank": False,
+            "details": ["clear line mark", "temporal axis readable", "trend is visually apparent"],
         }
     raise KeyError(f"No fake payload configured for schema: {schema_name}")
 

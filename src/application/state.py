@@ -15,6 +15,9 @@ from src.domain.models import (
     EmptyChartCheckResult,
     EvaluationSummaryResult,
     ExecutionPolicy,
+    InsightReasoningResult,
+    InsightVerificationResult,
+    InsightsResult,
     FactExtractionResult,
     PlanningResult,
     QueryIntentBundle,
@@ -31,6 +34,7 @@ from src.domain.models import (
     VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
+    PlotRenderingResult,
 )
 
 
@@ -56,8 +60,10 @@ class PipelineState(TypedDict):
     candidate_spec_set: NotRequired[CandidateSpecSet]
     vega_spec: NotRequired[VegaLiteSpecArtifact]
     spec_validation: NotRequired[SpecValidationResult]
+    plot_rendering: NotRequired[PlotRenderingResult]
     scenegraph_check: NotRequired[ScenegraphCheckResult]
     empty_chart_check: NotRequired[EmptyChartCheckResult]
+    plot_image: NotRequired[dict[str, Any]]
     vlm_analysis: NotRequired[VLMAnalysisResult]
     visual_facts: NotRequired[VisualFactExtractionResult]
     structural_spec_metric: NotRequired[StructuralSpecMetric]
@@ -70,3 +76,6 @@ class PipelineState(TypedDict):
     facts: NotRequired[FactExtractionResult]
     reasoning: NotRequired[ReasoningResult]
     verification: NotRequired[VerificationResult]
+    insight_reasoning: NotRequired[InsightReasoningResult]
+    insight_verification: NotRequired[InsightVerificationResult]
+    insights: NotRequired[InsightsResult]
