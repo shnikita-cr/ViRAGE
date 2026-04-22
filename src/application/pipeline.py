@@ -7,9 +7,9 @@ from src.infrastructure.runtime import RuntimeContext
 
 
 class ViRAGEPipeline:
-    def __init__(self, settings: ViRAGESettings | None = None, llm: object | None = None, codegen_llm: object | None = None) -> None:
+    def __init__(self, settings: ViRAGESettings | None = None, llm: object | None = None) -> None:
         self.settings = settings or ViRAGESettings()
-        self.runtime = RuntimeContext(settings=self.settings, llm=llm, codegen_llm=codegen_llm)
+        self.runtime = RuntimeContext(settings=self.settings, llm=llm)
         self.graph = build_pipeline_graph(self.runtime)
 
     def invoke(self, request: PipelineRequest) -> PipelineResult:

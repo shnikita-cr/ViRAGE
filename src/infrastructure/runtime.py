@@ -9,7 +9,6 @@ from src.application.settings import ViRAGESettings
 class RuntimeContext:
     settings: ViRAGESettings
     llm: Any | None = None
-    codegen_llm: Any | None = None
 
     def ensure_run_dir(self, run_id: str) -> Path:
         path = self.settings.artifact_root / run_id
