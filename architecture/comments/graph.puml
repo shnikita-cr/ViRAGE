@@ -1,0 +1,246 @@
+@startuml
+title Новый рекомендуемый план для NL2VIS + analysis / insights
+
+hide empty description
+
+[*] --> Query
+
+Query --> DataProfile
+Query --> Understanding
+
+Understanding --> RequestAnalyzer
+DataProfile --> RequestAnalyzer
+
+Understanding --> VisRAG
+DataProfile --> VisRAG
+RequestAnalyzer --> VisRAG
+
+VisRAG --> Planning
+Planning --> ChartSpec
+
+ChartSpec --> SpecValidator
+SpecValidator --> VisRAG : refine / repair
+SpecValidator --> VegaLitePlotDrawing
+
+VegaLitePlotDrawing --> PlotImage
+PlotImage --> VLMAnalysis
+
+ChartSpec --> FactExtraction
+DataProfile --> FactExtraction
+PlotImage --> FactExtraction
+VLMAnalysis --> FactExtraction
+
+FactExtraction --> InsightReasoning
+InsightReasoning --> Insights
+
+ChartSpec --> StructuralSpecMetric
+PlotImage --> VisualMetric
+
+Insights --> [*]
+
+note right of Query
+Задача:
+- принять запрос пользователя
+
+Вход:
+- user_query
+
+Выход:
+- raw query
+end note
+
+note right of DataProfile
+Задача:
+- понять данные, доступные для визуализации
+
+Вход:
+- dataset / dataframe
+
+Выход:
+- data schema
+- typed columns
+- quality notes
+end note
+
+note right of Understanding
+Задача:
+- понять аналитическую постановку
+- выделить intent и ограничения
+
+Вход:
+- raw query
+
+Выход:
+- understanding result
+- visual task hints
+- constraints
+end note
+
+note right of RequestAnalyzer
+Задача:
+- связать query с конкретными полями таблицы
+
+Вход:
+- understanding
+- data profile
+
+Выход:
+- grounded field mapping
+- ambiguity / confidence report
+end note
+
+note right of VisRAG
+Задача:
+- retrieval-based recommendation layer
+- подобрать candidate specs и лучшие visual patterns
+
+Вход:
+- understanding
+- data profile
+- request analysis
+- spec/chart corpus
+
+Выход:
+- recommended chart specs
+- retrieved examples
+- visualization plan
+end note
+
+note right of Planning
+Задача:
+- упорядочить построение спецификации и анализа
+- зафиксировать шаги исполнения
+
+Вход:
+- visrag output
+
+Выход:
+- execution plan
+- analysis plan
+end note
+
+note right of ChartSpec
+Задача:
+- финальная структурированная спецификация графика
+
+Вход:
+- planning
+- visrag recommendations
+
+Выход:
+- structured chart spec
+end note
+
+note right of SpecValidator
+Задача:
+- проверить корректность spec и найти structural issues
+
+Вход:
+- chart spec
+
+Выход:
+- validated spec
+- repair report
+end note
+
+note right of VegaLitePlotDrawing
+Задача:
+- отрисовать график по спецификации
+
+Вход:
+- validated chart spec
+
+Выход:
+- plot image
+- renderer metadata
+end note
+
+note right of PlotImage
+Задача:
+- итоговая картинка графика
+
+Вход:
+- rendered output
+
+Выход:
+- image artifact
+end note
+
+note right of VLMAnalysis
+Задача:
+- multimodal анализ полученного графика
+
+Вход:
+- plot image
+- optional query context
+
+Выход:
+- visual observations
+- detected patterns
+end note
+
+note right of FactExtraction
+Задача:
+- извлечь факты и зависимости из spec, профиля данных, изображения и VLM output
+
+Вход:
+- chart spec
+- data profile
+- plot image
+- VLM observations
+
+Выход:
+- facts
+- evidence
+- candidate hidden dependencies
+end note
+
+note right of InsightReasoning
+Задача:
+- собрать факты в связные аналитические выводы
+
+Вход:
+- extracted facts
+
+Выход:
+- insights draft
+- reasoning chains
+end note
+
+note right of Insights
+Задача:
+- отдать итоговые выводы пользователю
+
+Вход:
+- insight reasoning result
+
+Выход:
+- final insights
+- conclusions
+end note
+
+note right of StructuralSpecMetric
+Задача:
+- измерить качество и полноту промежуточной спецификации
+
+Вход:
+- chart spec
+- optional reference spec
+
+Выход:
+- structural metric
+end note
+
+note right of VisualMetric
+Задача:
+- измерить визуальное качество графика
+
+Вход:
+- plot image
+- optional reference / judge prompt
+
+Выход:
+- visual metric
+end note
+
+@enduml

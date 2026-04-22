@@ -1,0 +1,32 @@
+@startuml
+title Моя исходная архитектура без canonical / non_canonical
+
+hide empty description
+
+[*] --> Query
+
+Query --> QueryUnderstanding
+Query --> DataProfiler
+
+DataProfiler --> DataPreparation
+
+QueryUnderstanding --> Planning
+QueryUnderstanding --> VisRAG
+
+DataProfiler --> VisRAG
+DataPreparation --> VisRAG
+Planning --> VisRAG
+
+VisRAG --> Codegen
+Codegen --> CodeRun
+
+CodeRun --> ArtifactStore
+CodeRun --> ChartReader
+
+ChartReader --> FactExtractor
+FactExtractor --> Reasoner
+Reasoner --> Verifier
+
+Verifier --> [*]
+
+@enduml

@@ -1,0 +1,403 @@
+@startuml
+title Финальная архитектура NL2VIS + RAG + Image-only Insights
+
+hide empty description
+
+[*] --> Query
+[*] --> DatasetLoaded
+
+Query --> QueryUnderstanding : raw_query
+Query --> RequestAnalyzer : raw_query
+
+DatasetLoaded --> HeaderDataProfileAnalysis : dataset
+
+QueryUnderstanding --> RequestAnalyzer : intent, operations, constraints
+QueryUnderstanding --> VisRAG : query_intent_bundle
+QueryUnderstanding --> Planning : task_type, user_goal
+
+HeaderDataProfileAnalysis --> RequestAnalyzer : schema_hints, typed_columns
+HeaderDataProfileAnalysis --> VisRAG : data_profile, field_roles
+HeaderDataProfileAnalysis --> DataPreparation : cleaning_hints, type_hints
+HeaderDataProfileAnalysis --> Planning : complexity_hints, quality_notes
+
+RequestAnalyzer --> VisRAG : grounded_fields, ambiguity_report
+RequestAnalyzer --> DataPreparation : selected_fields, normalization_hints
+
+VisRAG --> CandidateSpecSet : retrieved_examples, candidate_specs, visualization_plan
+
+CandidateSpecSet --> Planning : candidate_specs, ranking_hints
+HeaderDataProfileAnalysis --> Planning : data_complexity
+QueryUnderstanding --> Planning : analysis_goal
+
+DataPreparation --> ChartGenerator : prepared_dataset, prepared_path
+Planning --> ChartGenerator : execution_policy, validation_policy, analysis_rubric
+CandidateSpecSet --> ChartGenerator : selected_candidate_spec, visualization_plan
+
+ChartGenerator --> VegaLiteSpec : generated_spec
+
+VegaLiteSpec --> SpecValidator : spec_json
+SpecValidator --> VegaLitePlotDrawing : validated_spec
+SpecValidator --> ChartGenerator : validation_errors, repair_hints
+
+VegaLitePlotDrawing --> ScenegraphCheck : rendered_scenegraph
+ScenegraphCheck --> EmptyChartCheck : scenegraph_status
+EmptyChartCheck --> ChartGenerator : empty_chart_signal, fallback_request
+EmptyChartCheck --> PlotImage : non_empty_render
+
+PlotImage --> VLMAnalysis : chart_image
+VLMAnalysis --> FactExtractor : visual_observations, extracted_visual_facts
+
+FactExtractor --> Reasoner : visual_facts, evidence_refs
+Reasoner --> Verifier : insight_candidates, reasoning_chain
+Verifier --> Insights : verified_insights, rejected_claims
+
+VegaLiteSpec --> SpecScore : spec_json
+PlotImage --> VisionScore : chart_image
+SpecScore --> EvaluationSummary : structural_spec_metric
+VisionScore --> EvaluationSummary : visual_quality_metric
+EmptyChartCheck --> EvaluationSummary : empty_chart_status
+Verifier --> EvaluationSummary : insight_verification_summary
+
+Insights --> [*]
+
+note right of Query
+Задача:
+- принять пользовательский запрос
+
+Вход:
+- user_query
+
+Выход:
+- raw_query
+end note
+
+note right of DatasetLoaded
+Задача:
+- загрузить таблицу / датасет
+
+Вход:
+- csv / xlsx / dataframe
+
+Выход:
+- dataset
+end note
+
+note right of QueryUnderstanding
+Задача:
+- понять аналитическое намерение пользователя
+- выделить тип аналитической задачи
+- определить ограничения и общую цель визуализации
+
+Вход:
+- raw_query
+
+Выход:
+- intent
+- requested_operations
+- constraints
+- query_intent_bundle
+- task_type / user_goal
+end note
+
+note right of HeaderDataProfileAnalysis
+Задача:
+- проанализировать схему и структуру данных
+- определить типы полей и возможные роли колонок
+- выявить проблемы качества данных
+
+Вход:
+- dataset
+
+Выход:
+- data_profile
+- typed_columns
+- schema_hints
+- field_roles
+- quality_notes
+- cleaning_hints
+end note
+
+note right of RequestAnalyzer
+Задача:
+- приземлить смысл запроса на реальные поля таблицы
+- разрешить неоднозначность в названиях
+- указать missing / ambiguous fields
+
+Вход:
+- raw_query
+- intent / operations / constraints
+- schema_hints / typed_columns
+
+Выход:
+- grounded_fields
+- ambiguity_report
+- selected_fields
+- normalization_hints
+end note
+
+note right of VisRAG
+Задача:
+- retrieval + recommendation слой
+- подобрать релевантные шаблоны визуализаций и спецификаций
+- подготовить visualization plan для генерации spec
+
+Вход:
+- query_intent_bundle
+- data_profile
+- field_roles
+- grounded_fields
+- ambiguity_report
+
+Выход:
+- retrieved_examples
+- candidate_specs
+- visualization_plan
+end note
+
+note right of CandidateSpecSet
+Задача:
+- хранить промежуточные candidate specs
+- быть центральным артефактом между retrieval и генерацией
+
+Вход:
+- VisRAG output
+
+Выход:
+- ranked candidate_specs
+- selected_candidate_spec
+- visualization_plan
+end note
+
+note right of Planning
+Задача:
+- не выбирать график заново, а управлять исполнением
+- определить execution policy, validation policy и analysis rubric
+- задать правила fallback / retry / refine
+
+Вход:
+- candidate_specs
+- ranking_hints
+- data_complexity
+- task_type / analysis_goal
+
+Выход:
+- execution_policy
+- validation_policy
+- analysis_rubric
+end note
+
+note right of DataPreparation
+Задача:
+- подготовить данные для построения графика
+- очистить, привести типы, нормализовать нужные поля
+
+Вход:
+- dataset
+- cleaning_hints
+- normalization_hints
+- selected_fields
+
+Выход:
+- prepared_dataset
+- prepared_path
+end note
+
+note right of ChartGenerator
+Задача:
+- превратить candidate spec / visualization plan в финальную Vega-Lite spec
+- учитывать execution policy и fallback hints
+
+Вход:
+- prepared_dataset / prepared_path
+- selected_candidate_spec
+- visualization_plan
+- execution_policy / validation_policy
+
+Выход:
+- generated_spec
+- repair-ready updated spec
+end note
+
+note right of VegaLiteSpec
+Задача:
+- центральная декларативная спецификация графика
+
+Вход:
+- generated_spec
+
+Выход:
+- spec_json
+end note
+
+note right of SpecValidator
+Задача:
+- проверить корректность Vega-Lite spec
+- выявить ошибки схемы, полей, encodings и transforms
+- отдать repair hints при ошибках
+
+Вход:
+- spec_json
+
+Выход:
+- validated_spec
+- validation_errors
+- repair_hints
+end note
+
+note right of VegaLitePlotDrawing
+Задача:
+- отрисовать валидную Vega-Lite спецификацию
+
+Вход:
+- validated_spec
+
+Выход:
+- rendered_scenegraph
+- render_result
+end note
+
+note right of ScenegraphCheck
+Задача:
+- технически проверить результат рендера
+- убедиться, что есть реальные visual marks
+
+Вход:
+- rendered_scenegraph
+
+Выход:
+- scenegraph_status
+end note
+
+note right of EmptyChartCheck
+Задача:
+- определить, не привела ли спецификация к пустому / бесполезному графику
+- если нужно, инициировать fallback или repair
+
+Вход:
+- scenegraph_status
+
+Выход:
+- empty_chart_signal
+- fallback_request
+- non_empty_render
+- empty_chart_status
+end note
+
+note right of PlotImage
+Задача:
+- итоговый графический артефакт для анализа
+
+Вход:
+- non_empty_render
+
+Выход:
+- chart_image
+end note
+
+note right of VLMAnalysis
+Задача:
+- выполнить multimodal visual analysis только по изображению
+- извлечь визуальные наблюдения и первичные сигналы
+
+Вход:
+- chart_image
+
+Выход:
+- visual_observations
+- extracted_visual_facts
+end note
+
+note right of FactExtractor
+Задача:
+- превратить визуальные наблюдения в структурированные факты
+- не использовать табличные данные и профили, чтобы избежать утечки
+
+Вход:
+- visual_observations
+- extracted_visual_facts
+
+Выход:
+- visual_facts
+- evidence_refs
+end note
+
+note right of Reasoner
+Задача:
+- собрать факты в интерпретируемые выводы и гипотезы
+- описать зависимости, паттерны, аномалии и тренды
+
+Вход:
+- visual_facts
+- evidence_refs
+
+Выход:
+- insight_candidates
+- reasoning_chain
+end note
+
+note right of Verifier
+Задача:
+- проверить внутреннюю согласованность инсайтов
+- отделить подтверждённые визуально выводы от слабых гипотез
+
+Вход:
+- insight_candidates
+- reasoning_chain
+
+Выход:
+- verified_insights
+- rejected_claims
+- insight_verification_summary
+end note
+
+note right of Insights
+Задача:
+- вернуть пользователю финальные инсайты по графику
+
+Вход:
+- verified_insights
+- rejected_claims
+
+Выход:
+- final insights
+end note
+
+note right of SpecScore
+Задача:
+- измерить качество промежуточной спецификации
+- использовать как structural benchmark metric
+
+Вход:
+- spec_json
+
+Выход:
+- structural_spec_metric
+end note
+
+note right of VisionScore
+Задача:
+- измерить качество и информативность итогового графика визуально
+
+Вход:
+- chart_image
+
+Выход:
+- visual_quality_metric
+end note
+
+note right of EvaluationSummary
+Задача:
+- агрегировать benchmark-результаты и quality metrics
+
+Вход:
+- structural_spec_metric
+- visual_quality_metric
+- empty_chart_status
+- insight_verification_summary
+
+Выход:
+- evaluation_summary
+- benchmark_report
+end note
+
+@enduml

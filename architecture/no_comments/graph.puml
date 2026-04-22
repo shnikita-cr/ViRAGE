@@ -1,0 +1,43 @@
+@startuml
+title Новый рекомендуемый план для NL2VIS + analysis / insights
+
+hide empty description
+
+[*] --> Query
+
+Query --> DataProfile
+Query --> Understanding
+
+Understanding --> RequestAnalyzer
+DataProfile --> RequestAnalyzer
+
+Understanding --> VisRAG
+DataProfile --> VisRAG
+RequestAnalyzer --> VisRAG
+
+VisRAG --> Planning
+Planning --> ChartSpec
+
+ChartSpec --> SpecValidator
+SpecValidator --> VisRAG : refine / repair
+SpecValidator --> VegaLitePlotDrawing
+
+VegaLitePlotDrawing --> PlotImage
+PlotImage --> VLMAnalysis
+
+ChartSpec --> FactExtraction
+DataProfile --> FactExtraction
+PlotImage --> FactExtraction
+VLMAnalysis --> FactExtraction
+
+FactExtraction --> InsightReasoning
+InsightReasoning --> Insights
+
+ChartSpec --> StructuralSpecMetric
+PlotImage --> VisualMetric
+
+Insights --> [*]
+
+
+
+@enduml
