@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from src.domain.models import AnalysisRubric, PlotImageArtifact, VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
-from src.llm.helpers import invoke_structured_multimodal
+from src.llm.helpers import ainvoke_structured_multimodal, invoke_structured_multimodal
 from src.services.base import BaseService
 
 
@@ -15,8 +15,7 @@ class _VLMAnalysisSchema(BaseModel):
 
 
 class VLMAnalysisService(BaseService):
-    def invoke(self, plot_image: PlotImageArtifact, analysis_rubric: AnalysisRubric,
-               runtime: RuntimeContext) -> VLMAnalysisResult:
+    def invoke(self, plot_image: PlotImageArtifact, analysis_rubric: AnalysisRubric, runtime: RuntimeContext) -> VLMAnalysisResult:
         if runtime.vlm is None:
             raise RuntimeError("Visual analysis requires runtime.vlm. No multimodal analysis model was provided.")
         prompt = (
@@ -24,5 +23,44 @@ class VLMAnalysisService(BaseService):
             f"Analysis rubric JSON:\n{analysis_rubric.model_dump_json(indent=2)}\n\n"
             "Return concise visual observations and extracted visual facts grounded in the image only."
         )
-        parsed = invoke_structured_multimodal(runtime.vlm, prompt, plot_image.image_path, _VLMAnalysisSchema)
+        parsed = invoke_structured_multimodal(
+            runtime.vlm,
+            prompt,
+            plot_image.image_path,
+            _VLMAnalysisSchema,
+            runtime=runtime,
+            stage="vlm_analysis",
+            role="vlm",
+            examples=[{
+                "visual_observations": ["The line rises over time."],
+                "extracted_visual_facts": ["The chart shows an upward trend."],
+                "confidence": 0.8,
+            }],
+            max_attempts=2,
+        )
+        return VLMAnalysisResult(**parsed.model_dump())
+
+    async def ainvoke(self, plot_image: PlotImageArtifact, analysis_rubric: AnalysisRubric, runtime: RuntimeContext) -> VLMAnalysisResult:
+        if runtime.vlm is None:
+            raise RuntimeError("Visual analysis requires runtime.vlm. No multimodal analysis model was provided.")
+        prompt = (
+            "You analyze only the chart image. Do not assume access to the source table.\n"
+            f"Analysis rubric JSON:\n{analysis_rubric.model_dump_json(indent=2)}\n\n"
+            "Return concise visual observations and extracted visual facts grounded in the image only."
+        )
+        parsed = await ainvoke_structured_multimodal(
+            runtime.vlm,
+            prompt,
+            plot_image.image_path,
+            _VLMAnalysisSchema,
+            runtime=runtime,
+            stage="vlm_analysis",
+            role="vlm",
+            examples=[{
+                "visual_observations": ["The line rises over time."],
+                "extracted_visual_facts": ["The chart shows an upward trend."],
+                "confidence": 0.8,
+            }],
+            max_attempts=2,
+        )
         return VLMAnalysisResult(**parsed.model_dump())

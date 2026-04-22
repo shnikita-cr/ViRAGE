@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from src.domain.models import PlotImageArtifact, VisualQualityMetric
+from src.domain.models import PlotImageArtifact, QueryUnderstandingResult, VisualQualityMetric
 from src.infrastructure.runtime import RuntimeContext
-from src.llm.helpers import invoke_structured_multimodal
+from src.llm.helpers import ainvoke_structured_multimodal, invoke_structured_multimodal
 from src.services.base import BaseService
 
 
@@ -27,24 +27,71 @@ class VisionScoreService(BaseService):
         "prompt_compliance": 1.5,
     }
 
-    def invoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext) -> VisualQualityMetric:
+    def invoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext, query_understanding: QueryUnderstandingResult | None = None) -> VisualQualityMetric:
         if runtime.vision_judge_llm is None:
             raise RuntimeError("Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.")
         prompt = (
-            "Judge the chart image using these criteria on a discrete 0,1,2 scale:\n"
-            "- visualization_type: is the chart type visually coherent for the displayed content?\n"
-            "- data_encoding: are axes/marks/encodings visually interpretable?\n"
-            "- data_transformation: do aggregation/binning/grouping effects look coherent?\n"
-            "- aesthetics: is the chart readable and uncluttered?\n"
-            "- prompt_compliance: does the chart appear aligned with a typical analytical request?\n"
-            "Also return is_blank=true if the image is effectively blank or useless.\n"
-            "Return structured output only."
+            "Judge the chart image using criteria on a discrete 0,1,2 scale.\n"
+            f"User intent: {query_understanding.intent if query_understanding else 'unknown'}\n"
+            f"Analysis goal: {query_understanding.analysis_goal if query_understanding else 'unknown'}\n"
+            "- visualization_type\n- data_encoding\n- data_transformation\n- aesthetics\n- prompt_compliance\n"
+            "Also return is_blank=true if the image is effectively blank or useless."
         )
-        parsed = invoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path,
-                                              _VisionScoreSchema)
+        parsed = invoke_structured_multimodal(
+            runtime.vision_judge_llm,
+            prompt,
+            plot_image.image_path,
+            _VisionScoreSchema,
+            runtime=runtime,
+            stage="vision_score",
+            role="vision_judge",
+            examples=[{
+                "visualization_type": 2,
+                "data_encoding": 2,
+                "data_transformation": 1,
+                "aesthetics": 2,
+                "prompt_compliance": 2,
+                "is_blank": False,
+                "details": ["clear trend chart"],
+            }],
+            max_attempts=2,
+        )
+        return self._to_metric(parsed)
+
+    async def ainvoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext, query_understanding: QueryUnderstandingResult | None = None) -> VisualQualityMetric:
+        if runtime.vision_judge_llm is None:
+            raise RuntimeError("Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.")
+        prompt = (
+            "Judge the chart image using criteria on a discrete 0,1,2 scale.\n"
+            f"User intent: {query_understanding.intent if query_understanding else 'unknown'}\n"
+            f"Analysis goal: {query_understanding.analysis_goal if query_understanding else 'unknown'}\n"
+            "- visualization_type\n- data_encoding\n- data_transformation\n- aesthetics\n- prompt_compliance\n"
+            "Also return is_blank=true if the image is effectively blank or useless."
+        )
+        parsed = await ainvoke_structured_multimodal(
+            runtime.vision_judge_llm,
+            prompt,
+            plot_image.image_path,
+            _VisionScoreSchema,
+            runtime=runtime,
+            stage="vision_score",
+            role="vision_judge",
+            examples=[{
+                "visualization_type": 2,
+                "data_encoding": 2,
+                "data_transformation": 1,
+                "aesthetics": 2,
+                "prompt_compliance": 2,
+                "is_blank": False,
+                "details": ["clear trend chart"],
+            }],
+            max_attempts=2,
+        )
+        return self._to_metric(parsed)
+
+    def _to_metric(self, parsed: _VisionScoreSchema) -> VisualQualityMetric:
         if parsed.is_blank:
             return VisualQualityMetric(score=0.0, details=[*parsed.details, "blank chart penalty"])
-
         weighted_sum = 0.0
         max_sum = 0.0
         details = list(parsed.details)

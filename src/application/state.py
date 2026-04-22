@@ -1,5 +1,4 @@
 from typing import Any
-
 from typing_extensions import NotRequired, TypedDict
 
 from src.domain.enums import ChartCaseType, PipelineStage
@@ -14,19 +13,21 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    StepLog,
     ExecutionPolicy,
+    FactExtractionResult,
     InsightReasoningResult,
     InsightVerificationResult,
     InsightsResult,
-    FactExtractionResult,
+    ModelCallLog,
     PlanningResult,
+    PlotRenderingResult,
     QueryIntentBundle,
     QueryUnderstandingResult,
     ReasoningResult,
     RequestAnalysisResult,
     ScenegraphCheckResult,
     SpecValidationResult,
+    StepLog,
     StructuralSpecMetric,
     ValidationPolicy,
     VegaLiteSpecArtifact,
@@ -35,11 +36,11 @@ from src.domain.models import (
     VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
-    PlotRenderingResult,
+    TokenUsage,
 )
 
 
-class PipelineState(TypedDict):
+class PipelineState(TypedDict, total=False):
     run_id: str
     query: str
     data_path: str
@@ -71,6 +72,8 @@ class PipelineState(TypedDict):
     visual_quality_metric: NotRequired[VisualQualityMetric]
     evaluation_summary: NotRequired[EvaluationSummaryResult]
     step_logs: NotRequired[list[StepLog]]
+    model_call_logs: NotRequired[list[ModelCallLog]]
+    token_usage_summary: NotRequired[TokenUsage]
     codegen: NotRequired[CodegenResult]
     execution: NotRequired[CodeRunResult]
     artifact_bundle: NotRequired[ArtifactBundle]

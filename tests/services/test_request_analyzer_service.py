@@ -3,8 +3,7 @@ from __future__ import annotations
 from src.services.request_analyzer import RequestAnalyzerService
 
 
-def test_request_analyzer_service_maps_query_to_fields(runtime, canonical_query_understanding,
-                                                       sample_data_profile) -> None:
+def test_request_analyzer_service_maps_query_to_fields(runtime, canonical_query_understanding, sample_data_profile) -> None:
     service = RequestAnalyzerService()
 
     result = service.invoke(

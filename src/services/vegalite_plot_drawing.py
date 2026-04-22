@@ -28,9 +28,8 @@ class VegaLitePlotDrawingService(BaseService):
         width = int(spec.get("width", 8 * runtime.settings.default_figure_dpi))
         height = int(spec.get("height", 5 * runtime.settings.default_figure_dpi))
         fig, ax = plt.subplots(figsize=(
-            max(width, 320) / runtime.settings.default_figure_dpi,
-            max(height, 240) / runtime.settings.default_figure_dpi),
-            dpi=runtime.settings.default_figure_dpi)
+        max(width, 320) / runtime.settings.default_figure_dpi, max(height, 240) / runtime.settings.default_figure_dpi),
+                               dpi=runtime.settings.default_figure_dpi)
         mark = spec.get("mark")
         mark_type = mark.get("type") if isinstance(mark, dict) else mark
         encoding = spec.get("encoding", {})

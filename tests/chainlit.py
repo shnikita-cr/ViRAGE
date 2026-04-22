@@ -1,6 +1,7 @@
 # app.py
-import chainlit as cl
 import ollama  # pip install ollama
+
+import chainlit as cl
 
 
 @cl.on_chat_start

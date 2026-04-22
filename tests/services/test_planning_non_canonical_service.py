@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from src.domain.models import QueryUnderstandingResult
 from src.domain.models import RequestAnalysisResult
 from src.services.planning_non_canonical import NonCanonicalPlanningService
+from src.domain.models import QueryUnderstandingResult
 
 
-def test_non_canonical_planning_service_delegates_to_unified_planning(sample_data_profile, visrag_result,
-                                                                      runtime) -> None:
+def test_non_canonical_planning_service_delegates_to_unified_planning(sample_data_profile, visrag_result, runtime) -> None:
     service = NonCanonicalPlanningService()
     query_understanding = QueryUnderstandingResult(
         intent="Build a network diagram of flows",

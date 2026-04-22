@@ -7,9 +7,9 @@ from src.services.artifact_store import ArtifactStoreService
 
 
 def test_artifact_store_service_creates_manifest(
-        runtime,
-        prepared_result,
-        code_run_result,
+    runtime,
+    prepared_result,
+    code_run_result,
 ) -> None:
     service = ArtifactStoreService()
 

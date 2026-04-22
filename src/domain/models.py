@@ -5,12 +5,32 @@ from pydantic import BaseModel, Field
 from .enums import ArtifactType, ChartCaseType
 
 
+class TokenUsage(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+class ModelCallLog(BaseModel):
+    stage: str
+    model_role: str
+    model_name: str
+    provider: str | None = None
+    prompt: str = ""
+    raw_response: str = ""
+    parsed_preview: dict[str, Any] | None = None
+    attempts: int = 1
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    parser_errors: list[str] = Field(default_factory=list)
+
+
 class StepLog(BaseModel):
     stage: str
     title: str
     summary: str
     inputs: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class QueryVariant(BaseModel):
@@ -37,7 +57,6 @@ class QueryUnderstandingResult(BaseModel):
     requested_operations: list[str] = Field(default_factory=list)
     candidate_charts: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
-    # Deprecated compatibility field. New architecture should avoid branching on case type.
     case_type: ChartCaseType | None = None
     confidence: float = 0.0
     task_type: str | None = None
@@ -87,7 +106,6 @@ class AnalysisRubric(BaseModel):
 
 
 class PlanningResult(BaseModel):
-    # Deprecated compatibility field. New architecture should use policies/rubrics.
     mode: ChartCaseType | None = None
     steps: list[PlanningStep] = Field(default_factory=list)
     success_criteria: list[str] = Field(default_factory=list)

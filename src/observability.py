@@ -8,7 +8,6 @@ except Exception:  # pragma: no cover
     def traceable(*args: Any, **kwargs: Any):
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             return func
-
         return decorator
 else:
     def traceable(*args: Any, **kwargs: Any):

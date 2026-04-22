@@ -4,9 +4,7 @@ from src.domain.models import RequestAnalysisResult
 from src.services.planning import PlanningService
 
 
-def test_planning_service_returns_execution_validation_and_analysis_policies(canonical_query_understanding,
-                                                                             sample_data_profile, visrag_result,
-                                                                             runtime) -> None:
+def test_planning_service_returns_execution_validation_and_analysis_policies(canonical_query_understanding, sample_data_profile, visrag_result, runtime) -> None:
     service = PlanningService()
     request_analysis = RequestAnalysisResult(
         grounded_fields=["date", "sales"],

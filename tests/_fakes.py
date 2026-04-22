@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Callable
 
 
 class FakeLLMResponse:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str, *, prompt_tokens: int = 10, completion_tokens: int = 5) -> None:
         self.content = content
+        self.usage_metadata = {
+            "input_tokens": prompt_tokens,
+            "output_tokens": completion_tokens,
+        }
 
 
 class FakeCodegenLLM:
+    model = "fake-codegen"
+
     def __init__(self, content: str) -> None:
         self._content = content
         self.last_prompt: str | None = None
@@ -24,32 +31,34 @@ class _FakeStructuredRunnable:
         self.resolver = resolver
 
     def invoke(self, prompt):
-        if isinstance(prompt, list):
-            parts: list[str] = []
-            for item in prompt:
-                content = getattr(item, "content", item)
-                if isinstance(content, str):
-                    parts.append(content)
-                elif isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict):
-                            text = block.get("text")
-                            if isinstance(text, str):
-                                parts.append(text)
-                            else:
-                                parts.append(str(block))
-                        else:
-                            parts.append(str(block))
-                else:
-                    parts.append(str(content))
-            prompt_text = "\n".join(parts)
-        else:
-            prompt_text = prompt if isinstance(prompt, str) else str(prompt)
+        prompt_text = _normalize_prompt(prompt)
         payload = self.resolver(self.schema, prompt_text)
         return self.schema(**payload)
 
 
+def _normalize_prompt(prompt: Any) -> str:
+    if isinstance(prompt, list):
+        parts: list[str] = []
+        for item in prompt:
+            content = getattr(item, "content", item)
+            if isinstance(content, str):
+                parts.append(content)
+            elif isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        text = block.get("text")
+                        parts.append(text if isinstance(text, str) else str(block))
+                    else:
+                        parts.append(str(block))
+            else:
+                parts.append(str(content))
+        return "\n".join(parts)
+    return prompt if isinstance(prompt, str) else str(prompt)
+
+
 class FakeReasoningLLM:
+    model = "fake-reasoning"
+
     def __init__(self, resolver: Callable[[type, str], dict[str, Any]] | None = None) -> None:
         self.resolver = resolver or default_reasoning_payload
         self.last_prompt: str | None = None
@@ -61,17 +70,35 @@ class FakeReasoningLLM:
 
         return _FakeStructuredRunnable(schema, _resolver)
 
+    def invoke(self, prompt):
+        prompt_text = _normalize_prompt(prompt)
+        self.last_prompt = prompt_text
+        schema_name = _schema_name_from_prompt(prompt_text)
+        if schema_name:
+            payload = self.resolver(type(schema_name, (), {"__name__": schema_name}), prompt_text)
+        else:
+            payload = {"message": "ok"}
+        return FakeLLMResponse(json.dumps(payload, ensure_ascii=False))
+
 
 class FakeSpecLLM(FakeReasoningLLM):
-    pass
+    model = "fake-spec"
 
 
 class FakeVLM(FakeReasoningLLM):
-    pass
+    model = "fake-vlm"
 
 
 class FakeVisionJudgeLLM(FakeReasoningLLM):
-    pass
+    model = "fake-vision-judge"
+
+
+def _schema_name_from_prompt(prompt: str) -> str | None:
+    marker = "Target schema name:"
+    if marker in prompt:
+        tail = prompt.split(marker, 1)[1].strip()
+        return tail.splitlines()[0].strip().rstrip(".")
+    return None
 
 
 def default_reasoning_payload(schema: type, prompt: str) -> dict[str, Any]:
@@ -79,7 +106,7 @@ def default_reasoning_payload(schema: type, prompt: str) -> dict[str, Any]:
     lower = prompt.lower()
     if schema_name == "_QueryUnderstandingSchema":
         return {
-            "intent": "Show the sales trend over time",
+            "intent": "Show sales trend over time",
             "requested_operations": ["trend analysis"],
             "candidate_charts": ["line", "bar"],
             "constraints": ["max_charts=1"] if "max_charts" in lower else [],

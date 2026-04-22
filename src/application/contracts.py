@@ -15,20 +15,23 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    StepLog,
     ExecutionPolicy,
+    FactExtractionResult,
     InsightReasoningResult,
     InsightVerificationResult,
     InsightsResult,
-    FactExtractionResult,
+    ModelCallLog,
     PlanningResult,
+    PlotRenderingResult,
     QueryIntentBundle,
     QueryUnderstandingResult,
     ReasoningResult,
     RequestAnalysisResult,
     ScenegraphCheckResult,
     SpecValidationResult,
+    StepLog,
     StructuralSpecMetric,
+    TokenUsage,
     ValidationPolicy,
     VegaLiteSpecArtifact,
     VerificationResult,
@@ -36,7 +39,6 @@ from src.domain.models import (
     VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
-    PlotRenderingResult,
 )
 
 
@@ -59,7 +61,6 @@ class PipelineResult(BaseModel):
     data_preparation: DataPreparationResult | None = None
     visrag: VisRAGResult | None = None
 
-    # Legacy optional outputs
     codegen: CodegenResult | None = None
     execution: CodeRunResult | None = None
     artifact_bundle: ArtifactBundle | None = None
@@ -68,7 +69,6 @@ class PipelineResult(BaseModel):
     reasoning: ReasoningResult | None = None
     verification: VerificationResult | None = None
 
-    # Iteration-friendly optional fields for the new architecture.
     query_intent_bundle: QueryIntentBundle | None = None
     request_analysis: RequestAnalysisResult | None = None
     execution_policy: ExecutionPolicy | None = None
@@ -90,3 +90,5 @@ class PipelineResult(BaseModel):
     visual_quality_metric: VisualQualityMetric | None = None
     evaluation_summary: EvaluationSummaryResult | None = None
     step_logs: list[StepLog] = Field(default_factory=list)
+    model_call_logs: list[ModelCallLog] = Field(default_factory=list)
+    token_usage_summary: TokenUsage = Field(default_factory=TokenUsage)

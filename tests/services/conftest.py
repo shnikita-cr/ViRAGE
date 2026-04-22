@@ -108,12 +108,10 @@ def visrag_result() -> VisRAGResult:
         title="Show sales trend over time",
         field_bindings=[
             VisualizationFieldBinding(channel="x", field_name="date", field_role="temporal", title="Date"),
-            VisualizationFieldBinding(channel="y", field_name="sales", field_role="quantitative", title="Sales",
-                                      aggregate="mean"),
+            VisualizationFieldBinding(channel="y", field_name="sales", field_role="quantitative", title="Sales", aggregate="mean"),
         ],
         axes=[
-            VisualizationAxisInstruction(channel="x", field_name="date", title="Date", scale_type="temporal",
-                                         rotate_labels=True),
+            VisualizationAxisInstruction(channel="x", field_name="date", title="Date", scale_type="temporal", rotate_labels=True),
             VisualizationAxisInstruction(channel="y", field_name="sales", title="Sales", scale_type="linear"),
         ],
         build_instructions=[
@@ -123,8 +121,7 @@ def visrag_result() -> VisRAGResult:
         renderer_hints=["Prefer readable defaults."],
         confidence=0.9,
     )
-    selected = CandidateSpec(spec_id="candidate_1_line", chart_family="line", summary="Top candidate", score=0.9,
-                             rationale="Top candidate", visualization_plan=plan)
+    selected = CandidateSpec(spec_id="candidate_1_line", chart_family="line", summary="Top candidate", score=0.9, rationale="Top candidate", visualization_plan=plan)
     return VisRAGResult(
         recommendations=[
             VisRAGRecommendation(
@@ -147,8 +144,7 @@ def visrag_result() -> VisRAGResult:
 
 @pytest.fixture
 def analysis_rubric() -> AnalysisRubric:
-    return AnalysisRubric(focus_areas=["trend", "peaks", "anomalies"], output_format="bullet_points",
-                          strict_visual_only=True, emphasize_anomalies=True)
+    return AnalysisRubric(focus_areas=["trend", "peaks", "anomalies"], output_format="bullet_points", strict_visual_only=True, emphasize_anomalies=True)
 
 
 @pytest.fixture
@@ -166,8 +162,7 @@ def plot_image(tmp_path: Path) -> PlotImageArtifact:
 def vlm_analysis_result() -> VLMAnalysisResult:
     return VLMAnalysisResult(
         visual_observations=["The line trends upward.", "There is a local peak near the end."],
-        extracted_visual_facts=["The chart shows an increasing temporal trend.",
-                                "A peak appears near the final portion of the line."],
+        extracted_visual_facts=["The chart shows an increasing temporal trend.", "A peak appears near the final portion of the line."],
         confidence=0.85,
     )
 
@@ -176,10 +171,8 @@ def vlm_analysis_result() -> VLMAnalysisResult:
 def visual_facts_result() -> VisualFactExtractionResult:
     return VisualFactExtractionResult(
         visual_facts=[
-            VisualFact(name="visual_fact_1", value="The chart shows an increasing temporal trend.",
-                       evidence_refs=["observation:1"]),
-            VisualFact(name="visual_fact_2", value="A peak appears near the final portion of the line.",
-                       evidence_refs=["observation:2"]),
+            VisualFact(name="visual_fact_1", value="The chart shows an increasing temporal trend.", evidence_refs=["observation:1"]),
+            VisualFact(name="visual_fact_2", value="A peak appears near the final portion of the line.", evidence_refs=["observation:2"]),
         ],
         evidence_refs=["observation:1", "observation:2"],
     )
@@ -189,9 +182,7 @@ def visual_facts_result() -> VisualFactExtractionResult:
 def insight_reasoning_result() -> InsightReasoningResult:
     return InsightReasoningResult(
         insight_candidates=[
-            InsightCandidate(statement="Sales increase over time with a late peak.", confidence=0.87,
-                             reasoning_chain=["The line rises from left to right.",
-                                              "A noticeable high point appears near the end."])
+            InsightCandidate(statement="Sales increase over time with a late peak.", confidence=0.87, reasoning_chain=["The line rises from left to right.", "A noticeable high point appears near the end."])
         ],
         reasoning_chain=["Observation 1 indicates upward movement.", "Observation 2 indicates a late peak."],
     )
@@ -223,12 +214,9 @@ def code_run_result(tmp_path: Path):
             ExecutionMetric(name="y_mean", value=13.75),
         ],
         artifacts=[
-            ArtifactRef(artifact_type=ArtifactType.PLOT, path=plot_path.as_posix(),
-                        description="Generated chart image."),
-            ArtifactRef(artifact_type=ArtifactType.METRICS, path=metrics_path.as_posix(),
-                        description="Execution metrics."),
-            ArtifactRef(artifact_type=ArtifactType.CHART_METADATA, path=metadata_path.as_posix(),
-                        description="Chart metadata."),
+            ArtifactRef(artifact_type=ArtifactType.PLOT, path=plot_path.as_posix(), description="Generated chart image."),
+            ArtifactRef(artifact_type=ArtifactType.METRICS, path=metrics_path.as_posix(), description="Execution metrics."),
+            ArtifactRef(artifact_type=ArtifactType.CHART_METADATA, path=metadata_path.as_posix(), description="Chart metadata."),
         ],
         chart_metadata={"chart_type": "line", "title": "Sales trend", "x_column": "date", "y_column": "sales"},
     )
@@ -240,5 +228,4 @@ def chart_read_result(tmp_path: Path):
 
     plot_path = tmp_path / "plot.png"
     plot_path.write_bytes(b"png")
-    return ChartReadResult(chart_type="line", title="Sales trend", axes={"x": "date", "y": "sales"}, series=["sales"],
-                           source_artifact=plot_path.as_posix())
+    return ChartReadResult(chart_type="line", title="Sales trend", axes={"x": "date", "y": "sales"}, series=["sales"], source_artifact=plot_path.as_posix())
