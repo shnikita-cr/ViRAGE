@@ -110,7 +110,6 @@ class PlanningService(BaseService):
 
     def _build_result(self, parsed: _PlanningSchema) -> PlanningResult:
         return PlanningResult(
-            mode=None,
             steps=[PlanningStep(name=self._slugify(step), description=step) for step in self._dedupe(parsed.steps)],
             success_criteria=self._dedupe(parsed.success_criteria),
             execution_policy=ExecutionPolicy(**parsed.execution_policy.model_dump()),

@@ -1,63 +1,90 @@
 from __future__ import annotations
 
-from src.domain.models import SpecValidationResult, StructuralSpecMetric
+from src.domain.models import QueryUnderstandingResult, SpecValidationResult, StructuralSpecMetric
 from src.services.base import BaseService
 
 
 class SpecScoreService(BaseService):
-    def invoke(self, spec_validation: SpecValidationResult) -> StructuralSpecMetric:
+    def invoke(self, spec_validation: SpecValidationResult, query_understanding: QueryUnderstandingResult | None = None) -> StructuralSpecMetric:
         if not spec_validation.is_valid:
-            return StructuralSpecMetric(score=0.0, details=["invalid spec"])
+            return StructuralSpecMetric(score=0.0, details=['invalid spec'])
 
         spec = spec_validation.validated_spec
-        score = 0.0
         details: list[str] = []
+        mark_score = 0.0
+        encoding_score = 0.0
+        transform_score = 0.0
+        task_alignment_score = 0.0
+        hygiene_score = 0.0
 
-        # Small bonuses for structural hygiene.
-        if spec.get("$schema"):
-            score += 0.05
-            details.append("schema present")
-        if spec.get("data", {}).get("url"):
-            score += 0.05
-            details.append("data url present")
-        if spec.get("title"):
-            score += 0.05
-            details.append("title present")
+        if spec.get('$schema'):
+            hygiene_score += 0.34
+            details.append('schema present')
+        if spec.get('data', {}).get('url'):
+            hygiene_score += 0.33
+            details.append('data url present')
+        if spec.get('title'):
+            hygiene_score += 0.33
+            details.append('title present')
 
-        # Mark correctness is important, but below encoding.
-        mark = spec.get("mark")
-        mark_type = mark.get("type") if isinstance(mark, dict) else mark
+        mark = spec.get('mark')
+        mark_type = mark.get('type') if isinstance(mark, dict) else mark
         if isinstance(mark_type, str) and mark_type.strip():
-            score += 0.15
-            details.append(f"mark={mark_type}")
+            mark_score = 1.0
+            details.append(f'mark={mark_type}')
 
-        # Encoding is the most important part, inspired by VegaChat weighting.
-        encoding = spec.get("encoding", {})
+        encoding = spec.get('encoding', {})
         if isinstance(encoding, dict) and encoding:
-            score += 0.20
-            details.append("encoding present")
-            if isinstance(encoding.get("x"), dict) and encoding["x"].get("field"):
-                score += 0.15
-                details.append("x encoding present")
-                if encoding["x"].get("type"):
-                    score += 0.05
-                    details.append("x type present")
-            if isinstance(encoding.get("y"), dict) and encoding["y"].get("field"):
-                score += 0.15
-                details.append("y encoding present")
-                if encoding["y"].get("type"):
-                    score += 0.05
-                    details.append("y type present")
-            if isinstance(encoding.get("color"), dict) and encoding["color"].get("field"):
-                score += 0.05
-                details.append("color encoding present")
+            sub = 0.0
+            if isinstance(encoding.get('x'), dict) and encoding['x'].get('field'):
+                sub += 0.4
+            if isinstance(encoding.get('y'), dict) and encoding['y'].get('field'):
+                sub += 0.4
+            if isinstance(encoding.get('color'), dict) and encoding['color'].get('field'):
+                sub += 0.2
+            encoding_score = min(sub, 1.0)
+            details.append('encoding present')
+            details.append(f'encoding_score={encoding_score:.2f}')
 
-        transforms = spec.get("transform", [])
+        transforms = spec.get('transform', [])
         if isinstance(transforms, list):
             if transforms:
-                score += 0.10
-                details.append(f"transform_count={len(transforms)}")
+                transform_score = 1.0
+                details.append(f'transform_count={len(transforms)}')
             else:
-                details.append("no transforms")
+                transform_score = 0.5
+                details.append('no transforms')
 
-        return StructuralSpecMetric(score=round(min(score, 1.0), 4), details=details)
+        if query_understanding is not None:
+            requested = set(query_understanding.requested_operations)
+            intent_text = f"{query_understanding.intent} {' '.join(requested)}".lower()
+            aligned = 0.0
+            if 'trend' in intent_text and mark_type in {'line', 'area'}:
+                aligned = 1.0
+            elif ('compare' in intent_text or 'distribution' in intent_text) and mark_type in {'bar', 'boxplot', 'histogram'}:
+                aligned = 1.0
+            elif ('relationship' in intent_text or 'correlation' in intent_text) and mark_type in {'point', 'circle'}:
+                aligned = 1.0
+            else:
+                aligned = 0.5 if mark_type else 0.0
+            task_alignment_score = aligned
+            details.append(f'task_alignment={task_alignment_score:.2f}')
+        else:
+            task_alignment_score = 0.5
+
+        score = min(
+            1.0,
+            (0.15 * mark_score)
+            + (0.4 * encoding_score)
+            + (0.15 * transform_score)
+            + (0.2 * task_alignment_score)
+            + (0.1 * hygiene_score),
+        )
+        return StructuralSpecMetric(
+            score=round(score, 4),
+            mark_score=round(mark_score, 4),
+            encoding_score=round(encoding_score, 4),
+            transform_score=round(transform_score, 4),
+            task_alignment_score=round(task_alignment_score, 4),
+            details=details,
+        )

@@ -10,6 +10,7 @@ from src.application.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
 from src.application.project_config import DEFAULT_CONFIG_PATH, load_project_config
+from src.domain.models import ModelCallLog, StepLog
 
 bootstrap_project_environment()
 st.set_page_config(page_title='ViRAGE', layout='wide')
@@ -46,24 +47,80 @@ if run_clicked:
     data_path = temp_dir / f'uploaded{suffix}'
     data_path.write_bytes(uploaded_file.read())
 
+    top_left, top_right = st.columns([1.2, 1])
+    chart_slot = top_left.empty()
+    insights_slot = top_left.empty()
+    progress_slot = st.container()
+    model_calls_slot = st.container()
+    artifacts_slot = st.container()
+    status_slot = st.empty()
+
+    live_steps: list[StepLog] = []
+    live_model_calls: list[ModelCallLog] = []
+
+    def render_live() -> None:
+        with progress_slot:
+            st.subheader('Intermediate thinking-like steps')
+            if not live_steps:
+                st.info('Waiting for the first completed step...')
+            for log in live_steps:
+                with st.expander(f"{log.stage}: {log.title}", expanded=False):
+                    st.write(log.summary)
+                    if log.inputs:
+                        st.caption('Inputs')
+                        st.write(log.inputs)
+                    if log.outputs:
+                        st.caption('Outputs')
+                        st.write(log.outputs)
+                    if log.details:
+                        st.caption('Details')
+                        st.json(log.details)
+        with model_calls_slot:
+            st.subheader('Model calls')
+            if not live_model_calls:
+                st.info('No model calls completed yet.')
+            for idx, call in enumerate(live_model_calls, start=1):
+                with st.expander(f"{idx}. {call.stage} | {call.model_role} | {call.model_name}", expanded=False):
+                    st.caption('Token usage')
+                    st.json(call.token_usage.model_dump())
+                    st.caption('Prompt')
+                    st.code(call.prompt)
+                    st.caption('Raw response')
+                    st.code(call.raw_response)
+                    if call.parsed_preview is not None:
+                        st.caption('Parsed preview')
+                        st.json(call.parsed_preview)
+                    if call.parser_errors:
+                        st.caption('Parser errors')
+                        st.write(call.parser_errors)
+
+    def on_step(step: StepLog) -> None:
+        live_steps.append(step)
+        status_slot.info(f"Current step: {step.stage} — {step.title}")
+        render_live()
+
+    def on_model_call(call: ModelCallLog) -> None:
+        live_model_calls.append(call)
+        render_live()
+
     try:
-        result = pipeline.invoke(PipelineRequest(query=query, data_path=data_path.as_posix()))
+        result = pipeline.invoke(PipelineRequest(query=query, data_path=data_path.as_posix()), step_callback=on_step, model_call_callback=on_model_call)
     except Exception as exc:
+        render_live()
         st.exception(exc)
         shutil.rmtree(temp_dir, ignore_errors=True)
         st.stop()
 
-    top_left, top_right = st.columns([1.2, 1])
-    with top_left:
-        st.subheader('Rendered chart')
-        image_path = None
-        if result.plot_image:
-            image_path = result.plot_image.get('image_path') if isinstance(result.plot_image, dict) else result.plot_image.image_path
-        if image_path:
+    status_slot.success('Pipeline completed successfully.')
+    image_path = result.plot_image.get('image_path') if result.plot_image else None
+    if image_path:
+        with chart_slot.container():
+            st.subheader('Rendered chart')
             st.image(image_path, use_container_width=True)
-        else:
-            st.warning('No plot image was produced.')
+    else:
+        chart_slot.warning('No plot image was produced.')
 
+    with insights_slot.container():
         st.subheader('Insights')
         if result.insights and result.insights.final_insights:
             for item in result.insights.final_insights:
@@ -74,35 +131,10 @@ if run_clicked:
     with top_right:
         st.subheader('Token usage summary')
         st.json(result.token_usage_summary.model_dump())
-        st.subheader('Model call log')
-        for idx, call in enumerate(result.model_call_logs, start=1):
-            with st.expander(f"{idx}. {call.stage} | {call.model_role} | {call.model_name}", expanded=False):
-                st.caption('Token usage')
-                st.json(call.token_usage.model_dump())
-                st.caption('Prompt')
-                st.code(call.prompt)
-                st.caption('Raw response')
-                st.code(call.raw_response)
-                if call.parsed_preview is not None:
-                    st.caption('Parsed preview')
-                    st.json(call.parsed_preview)
-                if call.parser_errors:
-                    st.caption('Parser errors')
-                    st.write(call.parser_errors)
-
-    st.subheader('Intermediate thinking-like steps')
-    for log in result.step_logs:
-        with st.expander(f"{log.stage}: {log.title}", expanded=False):
-            st.write(log.summary)
-            if log.inputs:
-                st.caption('Inputs')
-                st.write(log.inputs)
-            if log.outputs:
-                st.caption('Outputs')
-                st.write(log.outputs)
-            if log.details:
-                st.caption('Details')
-                st.json(log.details)
+        if result.artifact_paths:
+            with artifacts_slot:
+                st.subheader('Artifact paths')
+                st.json(result.artifact_paths)
 
     tabs = st.tabs(['Full result', 'Artifacts', 'Metrics'])
     with tabs[0]:

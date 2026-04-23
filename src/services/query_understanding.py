@@ -114,7 +114,6 @@ class QueryUnderstandingService(BaseService):
             requested_operations=self._dedupe(parsed.requested_operations),
             candidate_charts=self._normalize_chart_names(parsed.candidate_charts),
             constraints=self._dedupe(parsed.constraints),
-            case_type=None,
             confidence=parsed.confidence,
             task_type=parsed.task_type.strip(),
             user_goal=parsed.user_goal.strip(),

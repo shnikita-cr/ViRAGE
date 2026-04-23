@@ -1,20 +1,15 @@
 from typing import Any
 from typing_extensions import NotRequired, TypedDict
 
-from src.domain.enums import ChartCaseType, PipelineStage
+from src.domain.enums import PipelineStage
 from src.domain.models import (
     AnalysisRubric,
-    ArtifactBundle,
     CandidateSpecSet,
-    ChartReadResult,
-    CodeRunResult,
-    CodegenResult,
     DataPreparationResult,
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
     ExecutionPolicy,
-    FactExtractionResult,
     InsightReasoningResult,
     InsightVerificationResult,
     InsightsResult,
@@ -23,20 +18,18 @@ from src.domain.models import (
     PlotRenderingResult,
     QueryIntentBundle,
     QueryUnderstandingResult,
-    ReasoningResult,
     RequestAnalysisResult,
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
     StructuralSpecMetric,
+    TokenUsage,
     ValidationPolicy,
     VegaLiteSpecArtifact,
-    VerificationResult,
     VisualFactExtractionResult,
     VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
-    TokenUsage,
 )
 
 
@@ -46,9 +39,10 @@ class PipelineState(TypedDict, total=False):
     data_path: str
     user_context: dict[str, Any]
     stage: PipelineStage
-    case_type: ChartCaseType | None
     trace: list[str]
     errors: list[str]
+    artifact_paths: dict[str, str]
+
     query_understanding: NotRequired[QueryUnderstandingResult]
     query_intent_bundle: NotRequired[QueryIntentBundle]
     request_analysis: NotRequired[RequestAnalysisResult]
@@ -68,19 +62,13 @@ class PipelineState(TypedDict, total=False):
     plot_image: NotRequired[dict[str, Any]]
     vlm_analysis: NotRequired[VLMAnalysisResult]
     visual_facts: NotRequired[VisualFactExtractionResult]
-    structural_spec_metric: NotRequired[StructuralSpecMetric]
-    visual_quality_metric: NotRequired[VisualQualityMetric]
-    evaluation_summary: NotRequired[EvaluationSummaryResult]
-    step_logs: NotRequired[list[StepLog]]
-    model_call_logs: NotRequired[list[ModelCallLog]]
-    token_usage_summary: NotRequired[TokenUsage]
-    codegen: NotRequired[CodegenResult]
-    execution: NotRequired[CodeRunResult]
-    artifact_bundle: NotRequired[ArtifactBundle]
-    chart_read: NotRequired[ChartReadResult]
-    facts: NotRequired[FactExtractionResult]
-    reasoning: NotRequired[ReasoningResult]
-    verification: NotRequired[VerificationResult]
     insight_reasoning: NotRequired[InsightReasoningResult]
     insight_verification: NotRequired[InsightVerificationResult]
     insights: NotRequired[InsightsResult]
+    structural_spec_metric: NotRequired[StructuralSpecMetric]
+    visual_quality_metric: NotRequired[VisualQualityMetric]
+    evaluation_summary: NotRequired[EvaluationSummaryResult]
+
+    step_logs: NotRequired[list[StepLog]]
+    model_call_logs: NotRequired[list[ModelCallLog]]
+    token_usage_summary: NotRequired[TokenUsage]

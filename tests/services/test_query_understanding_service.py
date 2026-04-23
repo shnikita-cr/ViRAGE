@@ -12,7 +12,6 @@ def test_query_understanding_service_uses_reasoning_llm_and_returns_intent_bundl
         runtime=runtime,
     )
 
-    assert result.case_type is None
     assert result.task_type == "trend_analysis"
     assert result.user_goal == "understand sales movement over time"
     assert result.analysis_goal == "find trend shifts and peaks"

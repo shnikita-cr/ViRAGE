@@ -42,7 +42,7 @@ class ChartGeneratorService(BaseService):
             examples=[self._example_payload(plan)],
             max_attempts=2,
         )
-        return VegaLiteSpecArtifact(spec_json=self._merge_with_plan(parsed, prepared, plan), version="v1")
+        return VegaLiteSpecArtifact(spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan), version="v1")
 
     async def ainvoke(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet, execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy, runtime: RuntimeContext) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
@@ -62,7 +62,7 @@ class ChartGeneratorService(BaseService):
             examples=[self._example_payload(plan)],
             max_attempts=2,
         )
-        return VegaLiteSpecArtifact(spec_json=self._merge_with_plan(parsed, prepared, plan), version="v1")
+        return VegaLiteSpecArtifact(spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan), version="v1")
 
     def repair(self, prepared: DataPreparationResult, current_spec: VegaLiteSpecArtifact, validation_errors: list[str], repair_hints: list[str], runtime: RuntimeContext) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
@@ -153,6 +153,35 @@ class ChartGeneratorService(BaseService):
         if plan.subtitle:
             spec_json["usermeta"] = {"subtitle": plan.subtitle}
         return spec_json
+
+
+    @classmethod
+    def _postprocess_spec(cls, spec_json: dict[str, Any], prepared: DataPreparationResult, plan: VisualizationPlan) -> dict[str, Any]:
+        normalized = deepcopy(spec_json)
+        encoding = normalized.get("encoding", {})
+        if not isinstance(encoding, dict):
+            return normalized
+        x = encoding.get("x") if isinstance(encoding.get("x"), dict) else {}
+        y = encoding.get("y") if isinstance(encoding.get("y"), dict) else {}
+        x_field = x.get("field")
+        y_field = y.get("field")
+        aggregate = y.get("aggregate")
+        category_like = {"nominal", "ordinal"}
+        if aggregate == "count":
+            # Canonical Vega-Lite count-by-category shape: y has aggregate=count and can omit field.
+            if isinstance(y, dict):
+                y.pop("field", None)
+                y.setdefault("type", "quantitative")
+                y.setdefault("title", "Count")
+                encoding["y"] = y
+            if isinstance(x, dict) and x.get("type") in category_like and not x_field and plan.field_bindings:
+                first = next((item for item in plan.field_bindings if item.channel == "x"), None)
+                if first is not None:
+                    x["field"] = first.field_name
+                    x.setdefault("type", first.field_role)
+                    encoding["x"] = x
+        normalized["encoding"] = encoding
+        return normalized
 
     @staticmethod
     def _example_payload(plan: VisualizationPlan) -> dict[str, Any]:

@@ -10,8 +10,6 @@ class ViRAGESettings(BaseModel):
     project_name: str = Field(default="ViRAGE")
     default_figure_dpi: int = Field(default=144)
 
-    allow_code_execution: bool = Field(default=True)
-    codegen_store_trace_artifacts: bool = Field(default=True)
 
     visrag_corpus_root: Path | None = Field(default=None)
     visrag_index_root: Path = Field(default=Path("./artifacts/visrag_index"))

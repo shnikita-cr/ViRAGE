@@ -53,7 +53,6 @@ def canonical_query_understanding() -> QueryUnderstandingResult:
         requested_operations=["trend analysis"],
         candidate_charts=["line", "bar"],
         constraints=[],
-        case_type=None,
         confidence=0.9,
         task_type="trend_analysis",
         user_goal="understand sales movement over time",
@@ -191,41 +190,3 @@ def insight_reasoning_result() -> InsightReasoningResult:
 @pytest.fixture
 def scenegraph_status() -> ScenegraphCheckResult:
     return ScenegraphCheckResult(has_marks=True, has_axes=True, has_legends=False, notes=[])
-
-
-@pytest.fixture
-def code_run_result(tmp_path: Path):
-    from src.domain.enums import ArtifactType
-    from src.domain.models import ArtifactRef, CodeRunResult, ExecutionMetric
-
-    plot_path = tmp_path / "plot.png"
-    plot_path.write_bytes(b"png")
-    metrics_path = tmp_path / "metrics.json"
-    metrics_path.write_text("{}", encoding="utf-8")
-    metadata_path = tmp_path / "chart_metadata.json"
-    metadata_path.write_text("{}", encoding="utf-8")
-    return CodeRunResult(
-        success=True,
-        metrics=[
-            ExecutionMetric(name="row_count", value=4),
-            ExecutionMetric(name="column_count", value=3),
-            ExecutionMetric(name="y_min", value=10),
-            ExecutionMetric(name="y_max", value=18),
-            ExecutionMetric(name="y_mean", value=13.75),
-        ],
-        artifacts=[
-            ArtifactRef(artifact_type=ArtifactType.PLOT, path=plot_path.as_posix(), description="Generated chart image."),
-            ArtifactRef(artifact_type=ArtifactType.METRICS, path=metrics_path.as_posix(), description="Execution metrics."),
-            ArtifactRef(artifact_type=ArtifactType.CHART_METADATA, path=metadata_path.as_posix(), description="Chart metadata."),
-        ],
-        chart_metadata={"chart_type": "line", "title": "Sales trend", "x_column": "date", "y_column": "sales"},
-    )
-
-
-@pytest.fixture
-def chart_read_result(tmp_path: Path):
-    from src.domain.models import ChartReadResult
-
-    plot_path = tmp_path / "plot.png"
-    plot_path.write_bytes(b"png")
-    return ChartReadResult(chart_type="line", title="Sales trend", axes={"x": "date", "y": "sales"}, series=["sales"], source_artifact=plot_path.as_posix())

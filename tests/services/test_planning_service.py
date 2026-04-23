@@ -22,7 +22,6 @@ def test_planning_service_returns_execution_validation_and_analysis_policies(can
         runtime=runtime,
     )
 
-    assert result.mode is None
     assert result.execution_policy is not None
     assert result.validation_policy is not None
     assert result.analysis_rubric is not None

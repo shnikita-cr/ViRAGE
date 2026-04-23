@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .enums import ArtifactType, ChartCaseType
+from .enums import ArtifactType
 
 
 class TokenUsage(BaseModel):
@@ -57,7 +57,6 @@ class QueryUnderstandingResult(BaseModel):
     requested_operations: list[str] = Field(default_factory=list)
     candidate_charts: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
-    case_type: ChartCaseType | None = None
     confidence: float = 0.0
     task_type: str | None = None
     user_goal: str | None = None
@@ -106,7 +105,6 @@ class AnalysisRubric(BaseModel):
 
 
 class PlanningResult(BaseModel):
-    mode: ChartCaseType | None = None
     steps: list[PlanningStep] = Field(default_factory=list)
     success_criteria: list[str] = Field(default_factory=list)
     execution_policy: ExecutionPolicy | None = None
@@ -345,11 +343,18 @@ class InsightsResult(BaseModel):
 
 class StructuralSpecMetric(BaseModel):
     score: float = 0.0
+    mark_score: float = 0.0
+    encoding_score: float = 0.0
+    transform_score: float = 0.0
+    task_alignment_score: float = 0.0
     details: list[str] = Field(default_factory=list)
 
 
 class VisualQualityMetric(BaseModel):
     score: float = 0.0
+    prompt_compliance: float = 0.0
+    readability: float = 0.0
+    insight_supportiveness: float = 0.0
     details: list[str] = Field(default_factory=list)
 
 
@@ -359,87 +364,3 @@ class EvaluationSummaryResult(BaseModel):
     empty_chart_status: str = "unknown"
     insight_verification_summary: str = ""
     benchmark_report: dict[str, Any] = Field(default_factory=dict)
-
-
-class CodegenResult(BaseModel):
-    language: str = "python"
-    chart_type: str
-    code: str
-    entrypoint: str = "main"
-    prompt_path: str | None = None
-    raw_response_path: str | None = None
-    generated_logic_path: str | None = None
-
-
-class ExecutionMetric(BaseModel):
-    name: str
-    value: float | int | str
-    unit: str = ""
-
-
-class ArtifactRef(BaseModel):
-    artifact_type: ArtifactType
-    path: str
-    description: str
-
-
-class ArtifactBundle(BaseModel):
-    artifacts: list[ArtifactRef] = Field(default_factory=list)
-    manifest_path: str | None = None
-
-
-class CodeRunResult(BaseModel):
-    success: bool
-    stdout: str = ""
-    stderr: str = ""
-    metrics: list[ExecutionMetric] = Field(default_factory=list)
-    artifacts: list[ArtifactRef] = Field(default_factory=list)
-    chart_metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ChartElement(BaseModel):
-    kind: str
-    label: str | None = None
-    value: float | int | str | None = None
-    extra: dict[str, Any] = Field(default_factory=dict)
-
-
-class ChartReadResult(BaseModel):
-    chart_type: str
-    title: str | None = None
-    axes: dict[str, str] = Field(default_factory=dict)
-    series: list[str] = Field(default_factory=list)
-    elements: list[ChartElement] = Field(default_factory=list)
-    source_artifact: str | None = None
-
-
-class Fact(BaseModel):
-    name: str
-    value: str
-    evidence: list[str] = Field(default_factory=list)
-
-
-class FactExtractionResult(BaseModel):
-    facts: list[Fact] = Field(default_factory=list)
-
-
-class ReasoningStatement(BaseModel):
-    text: str
-    evidence: list[str] = Field(default_factory=list)
-
-
-class ReasoningResult(BaseModel):
-    summary: str
-    statements: list[ReasoningStatement] = Field(default_factory=list)
-
-
-class VerificationFinding(BaseModel):
-    statement: str
-    status: str
-    evidence: list[str] = Field(default_factory=list)
-    notes: str = ""
-
-
-class VerificationResult(BaseModel):
-    all_verified: bool
-    findings: list[VerificationFinding] = Field(default_factory=list)

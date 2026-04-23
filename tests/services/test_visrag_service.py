@@ -56,7 +56,6 @@ def test_visrag_builds_visualization_plan_from_semantic_retrieval(tmp_path: Path
         requested_operations=["trend analysis"],
         candidate_charts=["line", "bar"],
         constraints=[],
-        case_type=None,
         confidence=0.9,
         task_type="trend_analysis",
         user_goal="understand sales movement over time",
