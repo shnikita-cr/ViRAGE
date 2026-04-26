@@ -7,4 +7,5 @@ def __getattr__(name: str):
         return load_project_config
     raise AttributeError(name)
 
+
 __all__ = ["ViRAGEPipeline", "load_project_config"]

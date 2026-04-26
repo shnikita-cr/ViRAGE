@@ -22,7 +22,9 @@ class SpecValidatorService(BaseService):
         repair_hints: list[str] = []
 
         if not isinstance(spec, dict):
-            return SpecValidationResult(validated_spec={}, validation_errors=['Specification must be a JSON object.'], repair_hints=['Return a Vega-Lite JSON object, not free-form text.'], is_valid=False)
+            return SpecValidationResult(validated_spec={}, validation_errors=['Specification must be a JSON object.'],
+                                        repair_hints=['Return a Vega-Lite JSON object, not free-form text.'],
+                                        is_valid=False)
 
         self._validate_required_keys(spec, errors)
         dataset_path, dataset_columns = self._load_columns(spec, errors)
@@ -50,7 +52,8 @@ class SpecValidatorService(BaseService):
                 'Keep encodings explicit and use valid Vega-Lite field types.',
                 'Use only simple transforms: aggregate, filter, calculate, bin.',
             ])
-            return SpecValidationResult(validated_spec=normalized, validation_errors=self._dedupe(errors), repair_hints=self._dedupe(repair_hints), is_valid=False)
+            return SpecValidationResult(validated_spec=normalized, validation_errors=self._dedupe(errors),
+                                        repair_hints=self._dedupe(repair_hints), is_valid=False)
 
         return SpecValidationResult(validated_spec=normalized, validation_errors=[], repair_hints=[], is_valid=True)
 
@@ -90,7 +93,8 @@ class SpecValidatorService(BaseService):
         return mark_type
 
     @staticmethod
-    def _validate_encoding(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[str, dict[str, Any]]:
+    def _validate_encoding(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[
+        str, dict[str, Any]]:
         encoding = spec.get('encoding', {})
         if not isinstance(encoding, dict) or not encoding:
             errors.append('Specification encoding must be a non-empty object.')
@@ -153,7 +157,8 @@ class SpecValidatorService(BaseService):
                 errors.append(f'Transform at index {index} uses unsupported aggregate: {aggregate}.')
 
     @staticmethod
-    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]], errors: list[str]) -> None:
+    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]],
+                                             errors: list[str]) -> None:
         x = encoding.get('x') if isinstance(encoding, dict) else None
         y = encoding.get('y') if isinstance(encoding, dict) else None
         if mark_type in {'line', 'area', 'bar', 'point', 'circle', 'tick'}:
@@ -192,7 +197,9 @@ class SpecValidatorService(BaseService):
         try:
             df = pd.read_csv(dataset_path)
         except Exception as exc:
-            return {'is_valid_schema': False, 'is_valid_scenegraph': False, 'is_empty_scenegraph': True, 'schema_error': f'Could not read dataset: {exc}', 'scenegraph_error': f'Could not read dataset: {exc}'}
+            return {'is_valid_schema': False, 'is_valid_scenegraph': False, 'is_empty_scenegraph': True,
+                    'schema_error': f'Could not read dataset: {exc}',
+                    'scenegraph_error': f'Could not read dataset: {exc}'}
 
         scenegraph_error = None
         schema_error = None
@@ -219,7 +226,9 @@ class SpecValidatorService(BaseService):
                 schema_error = str(exc)
         else:
             is_valid_schema = True
-        return {'is_valid_schema': is_valid_schema, 'is_valid_scenegraph': is_valid_scenegraph, 'is_empty_scenegraph': is_empty_scenegraph, 'schema_error': schema_error, 'scenegraph_error': scenegraph_error}
+        return {'is_valid_schema': is_valid_schema, 'is_valid_scenegraph': is_valid_scenegraph,
+                'is_empty_scenegraph': is_empty_scenegraph, 'schema_error': schema_error,
+                'scenegraph_error': scenegraph_error}
 
     @staticmethod
     def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
@@ -230,6 +239,7 @@ class SpecValidatorService(BaseService):
     @staticmethod
     def _get_scenegraph_field(scenegraph: dict, key: str, value: str) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
+
         def walk(node: Any) -> None:
             if isinstance(node, dict):
                 if node.get(key) == value:
@@ -239,6 +249,7 @@ class SpecValidatorService(BaseService):
             elif isinstance(node, list):
                 for item in node:
                     walk(item)
+
         walk(scenegraph)
         return results
 
@@ -258,6 +269,7 @@ class SpecValidatorService(BaseService):
             if marktype == 'rect':
                 return all(item.get('height', 1) == 0 or item.get('width', 1) == 0 for item in items)
             return False
+
         mark_roles = cls._get_scenegraph_field(scenegraph, 'role', 'mark')
         if not mark_roles:
             return True

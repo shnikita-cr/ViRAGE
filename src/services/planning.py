@@ -49,7 +49,8 @@ class _PlanningSchema(BaseModel):
 
 
 class PlanningService(BaseService):
-    def invoke(self, query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult, data_profile: DataProfile, visrag: VisRAGResult, runtime: RuntimeContext) -> PlanningResult:
+    def invoke(self, query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult,
+               data_profile: DataProfile, visrag: VisRAGResult, runtime: RuntimeContext) -> PlanningResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
             raise RuntimeError("PlanningService requires runtime.reasoning_llm. No reasoning model was provided.")
@@ -71,7 +72,8 @@ class PlanningService(BaseService):
         )
         return self._build_result(parsed)
 
-    async def ainvoke(self, query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult, data_profile: DataProfile, visrag: VisRAGResult, runtime: RuntimeContext) -> PlanningResult:
+    async def ainvoke(self, query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult,
+                      data_profile: DataProfile, visrag: VisRAGResult, runtime: RuntimeContext) -> PlanningResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
             raise RuntimeError("PlanningService requires runtime.reasoning_llm. No reasoning model was provided.")
@@ -93,7 +95,8 @@ class PlanningService(BaseService):
         )
         return self._build_result(parsed)
 
-    def _prompt(self, query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult, data_profile: DataProfile, visrag: VisRAGResult, candidate_spec_set: CandidateSpecSet) -> str:
+    def _prompt(self, query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult,
+                data_profile: DataProfile, visrag: VisRAGResult, candidate_spec_set: CandidateSpecSet) -> str:
         return (
             "You create execution and analysis policies for an NL2VIS pipeline.\n"
             "Do not choose a new chart type. Use the supplied candidate specs and visualization plan.\n"

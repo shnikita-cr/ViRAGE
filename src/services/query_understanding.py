@@ -36,7 +36,8 @@ class _QueryVariantSchema(BaseModel):
 class _QueryUnderstandingSchema(BaseModel):
     intent: str = Field(min_length=1, validation_alias=AliasChoices("intent", "analytic_intent"))
     requested_operations: list[str] = Field(default_factory=list)
-    candidate_charts: list[str] = Field(default_factory=list, validation_alias=AliasChoices("candidate_charts", "likely_chart_families"))
+    candidate_charts: list[str] = Field(default_factory=list,
+                                        validation_alias=AliasChoices("candidate_charts", "likely_chart_families"))
     constraints: list[str] = Field(default_factory=list)
     task_type: str = Field(default="descriptive_analytics")
     user_goal: str = Field(default="understand the data visually")
@@ -68,7 +69,8 @@ class QueryUnderstandingService(BaseService):
     def invoke(self, query: str, user_context: dict[str, Any], runtime: RuntimeContext) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
-            raise RuntimeError("QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
+            raise RuntimeError(
+                "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = invoke_structured(
             reasoning_llm,
             self._build_prompt(query, user_context),
@@ -81,10 +83,12 @@ class QueryUnderstandingService(BaseService):
         )
         return self._build_result(parsed, query)
 
-    async def ainvoke(self, query: str, user_context: dict[str, Any], runtime: RuntimeContext) -> QueryUnderstandingResult:
+    async def ainvoke(self, query: str, user_context: dict[str, Any],
+                      runtime: RuntimeContext) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
-            raise RuntimeError("QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
+            raise RuntimeError(
+                "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = await ainvoke_structured(
             reasoning_llm,
             self._build_prompt(query, user_context),

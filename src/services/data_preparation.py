@@ -74,7 +74,7 @@ class DataPreparationService(BaseService):
             if counts[name] == 1:
                 new_columns.append(name)
             else:
-                new_columns.append(f"{name}__dup{counts[name]-1}")
+                new_columns.append(f"{name}__dup{counts[name] - 1}")
         copy = df.copy()
         copy.columns = new_columns
         return copy

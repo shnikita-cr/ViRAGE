@@ -38,10 +38,12 @@ class _RequestAnalysisSchema(BaseModel):
 
 
 class RequestAnalyzerService(BaseService):
-    def invoke(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile, runtime: RuntimeContext) -> RequestAnalysisResult:
+    def invoke(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile,
+               runtime: RuntimeContext) -> RequestAnalysisResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
-            raise RuntimeError("RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
+            raise RuntimeError(
+                "RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = invoke_structured(
             reasoning_llm,
             self._prompt(query, query_understanding, data_profile),
@@ -54,10 +56,12 @@ class RequestAnalyzerService(BaseService):
         )
         return self._build_result(parsed)
 
-    async def ainvoke(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile, runtime: RuntimeContext) -> RequestAnalysisResult:
+    async def ainvoke(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile,
+                      runtime: RuntimeContext) -> RequestAnalysisResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
-            raise RuntimeError("RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
+            raise RuntimeError(
+                "RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = await ainvoke_structured(
             reasoning_llm,
             self._prompt(query, query_understanding, data_profile),
@@ -78,7 +82,8 @@ class RequestAnalyzerService(BaseService):
                 f"- {column.name} | dtype={column.dtype} | role={role} | missing_ratio={column.missing_ratio:.3f}"
             )
         profile_lines = "\n".join(column_lines) or "- none"
-        variants = "\n".join(f"- {variant.kind}: {variant.text}" for variant in query_understanding.query_variants) or "- none"
+        variants = "\n".join(
+            f"- {variant.kind}: {variant.text}" for variant in query_understanding.query_variants) or "- none"
         return (
             "You ground a visualization request to real dataset fields.\n"
             "Use the exact schema field names required by the output schema.\n"

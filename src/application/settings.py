@@ -10,7 +10,6 @@ class ViRAGESettings(BaseModel):
     project_name: str = Field(default="ViRAGE")
     default_figure_dpi: int = Field(default=144)
 
-
     visrag_corpus_root: Path | None = Field(default=None)
     visrag_index_root: Path = Field(default=Path("./artifacts/visrag_index"))
     visrag_force_rebuild_index: bool = Field(default=False)

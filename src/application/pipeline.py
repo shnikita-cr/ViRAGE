@@ -18,12 +18,12 @@ from src.observability import traceable
 
 class ViRAGEPipeline:
     def __init__(
-        self,
-        settings: ViRAGESettings | None = None,
-        reasoning_llm: object | None = None,
-        spec_llm: object | None = None,
-        vlm: object | None = None,
-        vision_judge_llm: object | None = None,
+            self,
+            settings: ViRAGESettings | None = None,
+            reasoning_llm: object | None = None,
+            spec_llm: object | None = None,
+            vlm: object | None = None,
+            vision_judge_llm: object | None = None,
     ) -> None:
         bootstrap_project_environment()
         self.settings = settings or ViRAGESettings()
@@ -55,11 +55,11 @@ class ViRAGEPipeline:
 
     @traceable(name='virage.pipeline.invoke')
     def invoke(
-        self,
-        request: PipelineRequest,
-        *,
-        step_callback: Callable[[StepLog], None] | None = None,
-        model_call_callback: Callable[[ModelCallLog], None] | None = None,
+            self,
+            request: PipelineRequest,
+            *,
+            step_callback: Callable[[StepLog], None] | None = None,
+            model_call_callback: Callable[[ModelCallLog], None] | None = None,
     ) -> PipelineResult:
         self.runtime.reset_model_logs()
         self.runtime.current_run_id = request.run_id
@@ -92,8 +92,11 @@ class ViRAGEPipeline:
             self.runtime.model_call_callback = None
         final_state['model_call_logs'] = list(self.runtime.model_call_logs)
         final_state['token_usage_summary'] = self.runtime.token_usage_summary()
-        self.runtime.save_json_artifact('artifacts/model_call_logs.json', [item.model_dump() for item in self.runtime.model_call_logs], run_id=request.run_id)
-        self.runtime.save_json_artifact('artifacts/token_usage_summary.json', final_state['token_usage_summary'].model_dump(), run_id=request.run_id)
+        self.runtime.save_json_artifact('artifacts/model_call_logs.json',
+                                        [item.model_dump() for item in self.runtime.model_call_logs],
+                                        run_id=request.run_id)
+        self.runtime.save_json_artifact('artifacts/token_usage_summary.json',
+                                        final_state['token_usage_summary'].model_dump(), run_id=request.run_id)
         return PipelineResult(
             run_id=final_state['run_id'],
             query=final_state['query'],

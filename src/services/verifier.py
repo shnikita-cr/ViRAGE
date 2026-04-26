@@ -41,7 +41,8 @@ class VerifierService(BaseService):
         )
         return InsightVerificationResult(**parsed.model_dump())
 
-    async def ainvoke(self, insight_reasoning: InsightReasoningResult, runtime: RuntimeContext) -> InsightVerificationResult:
+    async def ainvoke(self, insight_reasoning: InsightReasoningResult,
+                      runtime: RuntimeContext) -> InsightVerificationResult:
         if runtime.reasoning_llm is None:
             raise RuntimeError("Verification requires runtime.reasoning_llm. No reasoning model was provided.")
         prompt = (

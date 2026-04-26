@@ -14,7 +14,8 @@ class _ReasoningSchema(BaseModel):
 
 
 class ReasonerService(BaseService):
-    def invoke(self, visual_facts: VisualFactExtractionResult, analysis_rubric: AnalysisRubric, runtime: RuntimeContext) -> InsightReasoningResult:
+    def invoke(self, visual_facts: VisualFactExtractionResult, analysis_rubric: AnalysisRubric,
+               runtime: RuntimeContext) -> InsightReasoningResult:
         if runtime.reasoning_llm is None:
             raise RuntimeError("Reasoning requires runtime.reasoning_llm. No reasoning model was provided.")
         prompt = (
@@ -41,7 +42,8 @@ class ReasonerService(BaseService):
         )
         return InsightReasoningResult(**parsed.model_dump())
 
-    async def ainvoke(self, visual_facts: VisualFactExtractionResult, analysis_rubric: AnalysisRubric, runtime: RuntimeContext) -> InsightReasoningResult:
+    async def ainvoke(self, visual_facts: VisualFactExtractionResult, analysis_rubric: AnalysisRubric,
+                      runtime: RuntimeContext) -> InsightReasoningResult:
         if runtime.reasoning_llm is None:
             raise RuntimeError("Reasoning requires runtime.reasoning_llm. No reasoning model was provided.")
         prompt = (

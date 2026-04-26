@@ -2,8 +2,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .enums import ArtifactType
-
 
 class TokenUsage(BaseModel):
     prompt_tokens: int = 0

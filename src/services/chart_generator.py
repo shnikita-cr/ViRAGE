@@ -7,7 +7,8 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from src.domain.models import CandidateSpecSet, DataPreparationResult, ExecutionPolicy, ValidationPolicy, VegaLiteSpecArtifact, VisualizationPlan
+from src.domain.models import CandidateSpecSet, DataPreparationResult, ExecutionPolicy, ValidationPolicy, \
+    VegaLiteSpecArtifact, VisualizationPlan
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import ainvoke_structured, invoke_structured
 from src.services.base import BaseService
@@ -24,7 +25,9 @@ class _GeneratedSpecSchema(BaseModel):
 
 
 class ChartGeneratorService(BaseService):
-    def invoke(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet, execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy, runtime: RuntimeContext) -> VegaLiteSpecArtifact:
+    def invoke(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet,
+               execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy,
+               runtime: RuntimeContext) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
             raise RuntimeError("Chart generation requires runtime.spec_llm. No specification model was provided.")
         selected = candidate_spec_set.selected_candidate_spec
@@ -42,9 +45,13 @@ class ChartGeneratorService(BaseService):
             examples=[self._example_payload(plan)],
             max_attempts=2,
         )
-        return VegaLiteSpecArtifact(spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan), version="v1")
+        return VegaLiteSpecArtifact(
+            spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan),
+            version="v1")
 
-    async def ainvoke(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet, execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy, runtime: RuntimeContext) -> VegaLiteSpecArtifact:
+    async def ainvoke(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet,
+                      execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy,
+                      runtime: RuntimeContext) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
             raise RuntimeError("Chart generation requires runtime.spec_llm. No specification model was provided.")
         selected = candidate_spec_set.selected_candidate_spec
@@ -62,9 +69,12 @@ class ChartGeneratorService(BaseService):
             examples=[self._example_payload(plan)],
             max_attempts=2,
         )
-        return VegaLiteSpecArtifact(spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan), version="v1")
+        return VegaLiteSpecArtifact(
+            spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan),
+            version="v1")
 
-    def repair(self, prepared: DataPreparationResult, current_spec: VegaLiteSpecArtifact, validation_errors: list[str], repair_hints: list[str], runtime: RuntimeContext) -> VegaLiteSpecArtifact:
+    def repair(self, prepared: DataPreparationResult, current_spec: VegaLiteSpecArtifact, validation_errors: list[str],
+               repair_hints: list[str], runtime: RuntimeContext) -> VegaLiteSpecArtifact:
         if runtime.spec_llm is None:
             raise RuntimeError("Spec repair requires runtime.spec_llm. No specification model was provided.")
         preview = self._read_preview(prepared.output_path)
@@ -102,7 +112,9 @@ class ChartGeneratorService(BaseService):
             spec_json["height"] = parsed.height
         return VegaLiteSpecArtifact(spec_json=spec_json, version=current_spec.version)
 
-    def build_from_candidate(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet, candidate_index: int, execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy, runtime: RuntimeContext) -> VegaLiteSpecArtifact:
+    def build_from_candidate(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet,
+                             candidate_index: int, execution_policy: ExecutionPolicy,
+                             validation_policy: ValidationPolicy, runtime: RuntimeContext) -> VegaLiteSpecArtifact:
         if candidate_index < 0 or candidate_index >= len(candidate_spec_set.candidate_specs):
             raise IndexError("Candidate index is out of range.")
         adjusted_set = deepcopy(candidate_spec_set)
@@ -121,7 +133,9 @@ class ChartGeneratorService(BaseService):
     def _read_preview(data_path: str) -> list[dict[str, Any]]:
         return pd.read_csv(Path(data_path)).head(5).to_dict(orient="records")
 
-    def _build_prompt(self, prepared: DataPreparationResult, selected_candidate, plan: VisualizationPlan, execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy, preview: list[dict[str, Any]]) -> str:
+    def _build_prompt(self, prepared: DataPreparationResult, selected_candidate, plan: VisualizationPlan,
+                      execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy,
+                      preview: list[dict[str, Any]]) -> str:
         return (
             "You generate a concise Vega-Lite specification for downstream validation and rendering.\n"
             "Use only fields present in the visualization plan.\n"
@@ -135,7 +149,8 @@ class ChartGeneratorService(BaseService):
         )
 
     @staticmethod
-    def _merge_with_plan(parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> dict[str, Any]:
+    def _merge_with_plan(parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> \
+    dict[str, Any]:
         spec_json: dict[str, Any] = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
             "description": parsed.description or plan.description or plan.goal,
@@ -154,9 +169,9 @@ class ChartGeneratorService(BaseService):
             spec_json["usermeta"] = {"subtitle": plan.subtitle}
         return spec_json
 
-
     @classmethod
-    def _postprocess_spec(cls, spec_json: dict[str, Any], prepared: DataPreparationResult, plan: VisualizationPlan) -> dict[str, Any]:
+    def _postprocess_spec(cls, spec_json: dict[str, Any], prepared: DataPreparationResult, plan: VisualizationPlan) -> \
+    dict[str, Any]:
         normalized = deepcopy(spec_json)
         encoding = normalized.get("encoding", {})
         if not isinstance(encoding, dict):

@@ -5,7 +5,8 @@ from src.services.base import BaseService
 
 
 class SpecScoreService(BaseService):
-    def invoke(self, spec_validation: SpecValidationResult, query_understanding: QueryUnderstandingResult | None = None) -> StructuralSpecMetric:
+    def invoke(self, spec_validation: SpecValidationResult,
+               query_understanding: QueryUnderstandingResult | None = None) -> StructuralSpecMetric:
         if not spec_validation.is_valid:
             return StructuralSpecMetric(score=0.0, details=['invalid spec'])
 
@@ -61,7 +62,8 @@ class SpecScoreService(BaseService):
             aligned = 0.0
             if 'trend' in intent_text and mark_type in {'line', 'area'}:
                 aligned = 1.0
-            elif ('compare' in intent_text or 'distribution' in intent_text) and mark_type in {'bar', 'boxplot', 'histogram'}:
+            elif ('compare' in intent_text or 'distribution' in intent_text) and mark_type in {'bar', 'boxplot',
+                                                                                               'histogram'}:
                 aligned = 1.0
             elif ('relationship' in intent_text or 'correlation' in intent_text) and mark_type in {'point', 'circle'}:
                 aligned = 1.0

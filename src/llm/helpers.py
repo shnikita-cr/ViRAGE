@@ -68,16 +68,16 @@ def _extract_usage(result: Any, prompt_text: str, raw_text: str) -> TokenUsage:
 
 
 def _record(
-    runtime: Any,
-    stage: str | None,
-    role: str | None,
-    llm: Any,
-    prompt_text: str,
-    raw_text: str,
-    parsed_preview: dict[str, Any] | None,
-    attempts: int,
-    parser_errors: list[str],
-    usage: TokenUsage,
+        runtime: Any,
+        stage: str | None,
+        role: str | None,
+        llm: Any,
+        prompt_text: str,
+        raw_text: str,
+        parsed_preview: dict[str, Any] | None,
+        attempts: int,
+        parser_errors: list[str],
+        usage: TokenUsage,
 ) -> None:
     if runtime is None or stage is None or role is None:
         return
@@ -120,7 +120,8 @@ def _coerce_result_text(result: Any) -> str:
     return str(result).strip()
 
 
-def invoke_text(llm: Any, prompt_text: str, *, runtime: Any | None = None, stage: str | None = None, role: str | None = None) -> str:
+def invoke_text(llm: Any, prompt_text: str, *, runtime: Any | None = None, stage: str | None = None,
+                role: str | None = None) -> str:
     result = llm.invoke(_normalize_prompt_input(prompt_text))
     raw_text = _coerce_result_text(result)
     usage = _extract_usage(result, prompt_text, raw_text)
@@ -128,7 +129,8 @@ def invoke_text(llm: Any, prompt_text: str, *, runtime: Any | None = None, stage
     return raw_text
 
 
-async def ainvoke_text(llm: Any, prompt_text: str, *, runtime: Any | None = None, stage: str | None = None, role: str | None = None) -> str:
+async def ainvoke_text(llm: Any, prompt_text: str, *, runtime: Any | None = None, stage: str | None = None,
+                       role: str | None = None) -> str:
     if hasattr(llm, "ainvoke"):
         result = await llm.ainvoke(_normalize_prompt_input(prompt_text))
     else:
@@ -174,15 +176,15 @@ def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any
 
 
 def invoke_structured(
-    llm: Any,
-    prompt_text: str,
-    schema: type[T],
-    *,
-    runtime: Any | None = None,
-    stage: str | None = None,
-    role: str | None = None,
-    examples: list[dict[str, Any]] | None = None,
-    max_attempts: int = 2,
+        llm: Any,
+        prompt_text: str,
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
 ) -> T:
     parser_errors: list[str] = []
     attempts = 0
@@ -198,22 +200,24 @@ def invoke_structured(
             try:
                 payload = json.loads(extract_json_block(last_raw))
                 parsed = schema.model_validate(payload)
-                _record(runtime, stage, role, llm, current_prompt, last_raw, parsed.model_dump(), attempts, parser_errors, last_usage)
+                _record(runtime, stage, role, llm, current_prompt, last_raw, parsed.model_dump(), attempts,
+                        parser_errors, last_usage)
                 return parsed
             except (json.JSONDecodeError, ValidationError) as exc:
                 parser_errors.append(str(exc))
                 current_prompt = (
-                    _json_prompt(prompt_text, schema, examples)
-                    + "\nThe previous response was invalid. Fix it.\n"
-                    + f"Validation / parsing error:\n{exc}\n"
-                    + f"Previous response:\n{last_raw}\n"
+                        _json_prompt(prompt_text, schema, examples)
+                        + "\nThe previous response was invalid. Fix it.\n"
+                        + f"Validation / parsing error:\n{exc}\n"
+                        + f"Previous response:\n{last_raw}\n"
                 )
                 continue
         if hasattr(llm, "with_structured_output"):
             try:
                 runnable = llm.with_structured_output(schema)
                 parsed = runnable.invoke(_normalize_prompt_input(current_prompt))
-                _record(runtime, stage, role, llm, current_prompt, parsed.model_dump_json(), parsed.model_dump(), attempts, parser_errors, TokenUsage())
+                _record(runtime, stage, role, llm, current_prompt, parsed.model_dump_json(), parsed.model_dump(),
+                        attempts, parser_errors, TokenUsage())
                 return parsed
             except Exception as exc:  # pragma: no cover - compatibility path
                 parser_errors.append(str(exc))
@@ -227,15 +231,15 @@ def invoke_structured(
 
 
 async def ainvoke_structured(
-    llm: Any,
-    prompt_text: str,
-    schema: type[T],
-    *,
-    runtime: Any | None = None,
-    stage: str | None = None,
-    role: str | None = None,
-    examples: list[dict[str, Any]] | None = None,
-    max_attempts: int = 2,
+        llm: Any,
+        prompt_text: str,
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
 ) -> T:
     return await asyncio.to_thread(
         invoke_structured,
@@ -251,16 +255,16 @@ async def ainvoke_structured(
 
 
 def invoke_structured_multimodal(
-    llm: Any,
-    prompt_text: str,
-    image_path: str,
-    schema: type[T],
-    *,
-    runtime: Any | None = None,
-    stage: str | None = None,
-    role: str | None = None,
-    examples: list[dict[str, Any]] | None = None,
-    max_attempts: int = 2,
+        llm: Any,
+        prompt_text: str,
+        image_path: str,
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
 ) -> T:
     full_prompt = _json_prompt(prompt_text + f"\nIMAGE_PATH: {image_path}", schema, examples)
     return invoke_structured(
@@ -276,16 +280,16 @@ def invoke_structured_multimodal(
 
 
 async def ainvoke_structured_multimodal(
-    llm: Any,
-    prompt_text: str,
-    image_path: str,
-    schema: type[T],
-    *,
-    runtime: Any | None = None,
-    stage: str | None = None,
-    role: str | None = None,
-    examples: list[dict[str, Any]] | None = None,
-    max_attempts: int = 2,
+        llm: Any,
+        prompt_text: str,
+        image_path: str,
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
 ) -> T:
     return await asyncio.to_thread(
         invoke_structured_multimodal,

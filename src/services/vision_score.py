@@ -29,18 +29,30 @@ class VisionScoreService(BaseService):
         'insight_supportiveness': 1.0,
     }
 
-    def invoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext, query_understanding: QueryUnderstandingResult | None = None) -> VisualQualityMetric:
+    def invoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext,
+               query_understanding: QueryUnderstandingResult | None = None) -> VisualQualityMetric:
         if runtime.vision_judge_llm is None:
             raise RuntimeError('Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.')
         prompt = self._build_prompt(query_understanding)
-        parsed = invoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path, _VisionScoreSchema, runtime=runtime, stage='vision_score', role='vision_judge', examples=[{'visualization_type': 2, 'data_encoding': 2, 'data_transformation': 1, 'aesthetics': 2, 'prompt_compliance': 2, 'insight_supportiveness': 2, 'is_blank': False, 'details': ['clear trend chart']}], max_attempts=2)
+        parsed = invoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path,
+                                              _VisionScoreSchema, runtime=runtime, stage='vision_score',
+                                              role='vision_judge', examples=[
+                {'visualization_type': 2, 'data_encoding': 2, 'data_transformation': 1, 'aesthetics': 2,
+                 'prompt_compliance': 2, 'insight_supportiveness': 2, 'is_blank': False,
+                 'details': ['clear trend chart']}], max_attempts=2)
         return self._to_metric(parsed)
 
-    async def ainvoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext, query_understanding: QueryUnderstandingResult | None = None) -> VisualQualityMetric:
+    async def ainvoke(self, plot_image: PlotImageArtifact, runtime: RuntimeContext,
+                      query_understanding: QueryUnderstandingResult | None = None) -> VisualQualityMetric:
         if runtime.vision_judge_llm is None:
             raise RuntimeError('Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.')
         prompt = self._build_prompt(query_understanding)
-        parsed = await ainvoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path, _VisionScoreSchema, runtime=runtime, stage='vision_score', role='vision_judge', examples=[{'visualization_type': 2, 'data_encoding': 2, 'data_transformation': 1, 'aesthetics': 2, 'prompt_compliance': 2, 'insight_supportiveness': 2, 'is_blank': False, 'details': ['clear trend chart']}], max_attempts=2)
+        parsed = await ainvoke_structured_multimodal(runtime.vision_judge_llm, prompt, plot_image.image_path,
+                                                     _VisionScoreSchema, runtime=runtime, stage='vision_score',
+                                                     role='vision_judge', examples=[
+                {'visualization_type': 2, 'data_encoding': 2, 'data_transformation': 1, 'aesthetics': 2,
+                 'prompt_compliance': 2, 'insight_supportiveness': 2, 'is_blank': False,
+                 'details': ['clear trend chart']}], max_attempts=2)
         return self._to_metric(parsed)
 
     @staticmethod
@@ -55,7 +67,8 @@ class VisionScoreService(BaseService):
 
     def _to_metric(self, parsed: _VisionScoreSchema) -> VisualQualityMetric:
         if parsed.is_blank:
-            return VisualQualityMetric(score=0.0, prompt_compliance=0.0, readability=0.0, insight_supportiveness=0.0, details=[*parsed.details, 'blank chart penalty'])
+            return VisualQualityMetric(score=0.0, prompt_compliance=0.0, readability=0.0, insight_supportiveness=0.0,
+                                       details=[*parsed.details, 'blank chart penalty'])
         weighted_sum = 0.0
         max_sum = 0.0
         details = list(parsed.details)
@@ -65,4 +78,8 @@ class VisionScoreService(BaseService):
             max_sum += weight
             details.append(f'{name}={value}/2')
         score = weighted_sum / max_sum if max_sum else 0.0
-        return VisualQualityMetric(score=round(max(0.0, min(1.0, score)), 4), prompt_compliance=round(parsed.prompt_compliance / 2.0,4), readability=round(parsed.aesthetics/2.0,4), insight_supportiveness=round(parsed.insight_supportiveness/2.0,4), details=details)
+        return VisualQualityMetric(score=round(max(0.0, min(1.0, score)), 4),
+                                   prompt_compliance=round(parsed.prompt_compliance / 2.0, 4),
+                                   readability=round(parsed.aesthetics / 2.0, 4),
+                                   insight_supportiveness=round(parsed.insight_supportiveness / 2.0, 4),
+                                   details=details)
