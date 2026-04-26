@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -38,7 +39,7 @@ class PipelineRequest(BaseModel):
     query: str
     data_path: str
     user_context: dict[str, Any] = Field(default_factory=dict)
-    run_id: str = Field(default_factory=lambda: uuid4().hex)
+    run_id: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%dT%H-%M-%S") + "_" + uuid4().hex)
 
 
 class PipelineResult(BaseModel):
