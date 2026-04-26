@@ -9,6 +9,9 @@ pandas
 matplotlib>=3.8
 langgraph>=0.2.38
 langchain-core>=0.3.0
+langchain-openai
 pydantic
 rich
-chainlit
+streamlit
+dotenv
+langchain_ollama
