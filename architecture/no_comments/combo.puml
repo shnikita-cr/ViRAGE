@@ -1,0 +1,62 @@
+@startuml
+title Финальная архитектура
+hide empty description
+
+[*] --> Query
+[*] --> DatasetLoaded
+
+Query --> QueryUnderstanding
+Query --> RequestAnalyzer
+
+DatasetLoaded --> HeaderDataProfileAnalysis
+
+QueryUnderstanding --> RequestAnalyzer
+QueryUnderstanding --> VisRAG
+
+HeaderDataProfileAnalysis --> RequestAnalyzer
+HeaderDataProfileAnalysis --> VisRAG
+HeaderDataProfileAnalysis --> DataPreparation
+
+RequestAnalyzer --> DataPreparation
+
+ChartGenerator --> VegaLiteSpec
+
+RequestAnalyzer --> VisRAG
+
+DataPreparation --> ChartGenerator
+
+Planning --> ChartGenerator
+
+VisRAG --> Planning
+HeaderDataProfileAnalysis --> Planning
+QueryUnderstanding --> Planning
+
+FactExtractor --> Reasoner
+
+Insights --> [*]
+
+PlotImage --> VLMAnalysis
+PlotImage --> VisionScore
+
+Reasoner --> Verifier
+
+'ScenegraphCheck ?
+
+VegaLiteSpec --> EvaluationSummary
+VegaLiteSpec --> EmptyChartCheck
+
+VLMAnalysis --> FactExtractor
+
+EmptyChartCheck --> VegaLitePlotDrawing
+SpecValidator --> VegaLitePlotDrawing
+
+
+VegaLitePlotDrawing --> PlotImage
+
+VegaLiteSpec --> SpecValidator
+
+Verifier --> Insights
+
+VisionScore --> EvaluationSummary
+
+@enduml

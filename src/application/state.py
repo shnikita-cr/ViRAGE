@@ -1,0 +1,75 @@
+from typing import Any
+
+from typing_extensions import NotRequired, TypedDict
+
+from src.domain.enums import PipelineStage
+from src.domain.models import (
+    AnalysisRubric,
+    CandidateSpecSet,
+    DataPreparationResult,
+    DataProfile,
+    EmptyChartCheckResult,
+    EvaluationSummaryResult,
+    ExecutionPolicy,
+    InsightReasoningResult,
+    InsightVerificationResult,
+    InsightsResult,
+    ModelCallLog,
+    PlanningResult,
+    PlotRenderingResult,
+    QueryIntentBundle,
+    QueryUnderstandingResult,
+    RequestAnalysisResult,
+    ScenegraphCheckResult,
+    SpecValidationResult,
+    StepLog,
+    StructuralSpecMetric,
+    TokenUsage,
+    ValidationPolicy,
+    VegaLiteSpecArtifact,
+    VisualFactExtractionResult,
+    VisualQualityMetric,
+    VisRAGResult,
+    VLMAnalysisResult,
+)
+
+
+class PipelineState(TypedDict, total=False):
+    run_id: str
+    query: str
+    data_path: str
+    user_context: dict[str, Any]
+    stage: PipelineStage
+    trace: list[str]
+    errors: list[str]
+    artifact_paths: dict[str, str]
+
+    query_understanding: NotRequired[QueryUnderstandingResult]
+    query_intent_bundle: NotRequired[QueryIntentBundle]
+    request_analysis: NotRequired[RequestAnalysisResult]
+    planning: NotRequired[PlanningResult]
+    execution_policy: NotRequired[ExecutionPolicy]
+    validation_policy: NotRequired[ValidationPolicy]
+    analysis_rubric: NotRequired[AnalysisRubric]
+    data_profile: NotRequired[DataProfile]
+    data_preparation: NotRequired[DataPreparationResult]
+    visrag: NotRequired[VisRAGResult]
+    candidate_spec_set: NotRequired[CandidateSpecSet]
+    vega_spec: NotRequired[VegaLiteSpecArtifact]
+    spec_validation: NotRequired[SpecValidationResult]
+    plot_rendering: NotRequired[PlotRenderingResult]
+    scenegraph_check: NotRequired[ScenegraphCheckResult]
+    empty_chart_check: NotRequired[EmptyChartCheckResult]
+    plot_image: NotRequired[dict[str, Any]]
+    vlm_analysis: NotRequired[VLMAnalysisResult]
+    visual_facts: NotRequired[VisualFactExtractionResult]
+    insight_reasoning: NotRequired[InsightReasoningResult]
+    insight_verification: NotRequired[InsightVerificationResult]
+    insights: NotRequired[InsightsResult]
+    structural_spec_metric: NotRequired[StructuralSpecMetric]
+    visual_quality_metric: NotRequired[VisualQualityMetric]
+    evaluation_summary: NotRequired[EvaluationSummaryResult]
+
+    step_logs: NotRequired[list[StepLog]]
+    model_call_logs: NotRequired[list[ModelCallLog]]
+    token_usage_summary: NotRequired[TokenUsage]

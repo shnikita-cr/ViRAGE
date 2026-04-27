@@ -1,0 +1,66 @@
+@startuml
+title Финальная архитектура NL2VIS + RAG + Image-only Insights
+
+hide empty description
+
+[*] --> Query
+[*] --> DatasetLoaded
+
+Query --> QueryUnderstanding : raw_query
+Query --> RequestAnalyzer : raw_query
+
+DatasetLoaded --> HeaderDataProfileAnalysis : dataset
+
+QueryUnderstanding --> RequestAnalyzer : intent, operations, constraints
+QueryUnderstanding --> VisRAG : query_intent_bundle
+QueryUnderstanding --> Planning : task_type, user_goal
+
+HeaderDataProfileAnalysis --> RequestAnalyzer : schema_hints, typed_columns
+HeaderDataProfileAnalysis --> VisRAG : data_profile, field_roles
+HeaderDataProfileAnalysis --> DataPreparation : cleaning_hints, type_hints
+HeaderDataProfileAnalysis --> Planning : complexity_hints, quality_notes
+
+RequestAnalyzer --> VisRAG : grounded_fields, ambiguity_report
+RequestAnalyzer --> DataPreparation : selected_fields, normalization_hints
+
+VisRAG --> CandidateSpecSet : retrieved_examples, candidate_specs, visualization_plan
+
+CandidateSpecSet --> Planning : candidate_specs, ranking_hints
+HeaderDataProfileAnalysis --> Planning : data_complexity
+QueryUnderstanding --> Planning : analysis_goal
+
+DataPreparation --> ChartGenerator : prepared_dataset, prepared_path
+Planning --> ChartGenerator : execution_policy, validation_policy, analysis_rubric
+CandidateSpecSet --> ChartGenerator : selected_candidate_spec, visualization_plan
+
+ChartGenerator --> VegaLiteSpec : generated_spec
+
+VegaLiteSpec --> SpecValidator : spec_json
+SpecValidator --> VegaLitePlotDrawing : validated_spec
+SpecValidator --> ChartGenerator : validation_errors, repair_hints
+
+VegaLitePlotDrawing --> ScenegraphCheck : rendered_scenegraph
+ScenegraphCheck --> EmptyChartCheck : scenegraph_status
+EmptyChartCheck --> ChartGenerator : empty_chart_signal, fallback_request
+EmptyChartCheck --> PlotImage : non_empty_render
+
+PlotImage --> VLMAnalysis : chart_image
+VLMAnalysis --> FactExtractor : visual_observations, extracted_visual_facts
+
+FactExtractor --> Reasoner : visual_facts, evidence_refs
+Reasoner --> Verifier : insight_candidates, reasoning_chain
+Verifier --> Insights : verified_insights, rejected_claims
+
+VegaLiteSpec --> SpecScore : spec_json
+SpecValidator --> SpecScore : spec_json
+PlotImage --> VisionScore : chart_image
+SpecScore --> EvaluationSummary : structural_spec_metric
+VisionScore --> EvaluationSummary : visual_quality_metric
+EmptyChartCheck --> EvaluationSummary : empty_chart_status
+Verifier --> EvaluationSummary : insight_verification_summary
+
+Insights --> [*]
+
+
+
+@enduml

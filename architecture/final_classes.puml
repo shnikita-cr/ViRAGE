@@ -1,0 +1,377 @@
+@startuml
+title Final_NL2VIS_RAG_ImageOnly_Insights_Class_Diagram
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+package "inputs" {
+  class QueryInput {
+    +user_query: str
+  }
+
+  class DatasetInput {
+    +source_path: str
+    +format: str
+  }
+}
+
+package "artifacts" {
+  class RawQuery {
+    +text: str
+  }
+
+  class Dataset {
+    +source_path: str
+    +row_count: int
+    +col_count: int
+  }
+
+  class QueryIntentBundle {
+    +intent: str
+    +requested_operations: list[str]
+    +constraints: list[str]
+    +task_type: str
+    +user_goal: str
+    +confidence: float
+  }
+
+  class DataProfile {
+    +typed_columns: list[str]
+    +field_roles: list[str]
+    +quality_notes: list[str]
+    +data_complexity: str
+  }
+
+  class SchemaHints {
+    +type_hints: list[str]
+    +cleaning_hints: list[str]
+    +complexity_hints: list[str]
+  }
+
+  class GroundedFields {
+    +selected_fields: list[str]
+    +grounded_fields: list[str]
+    +ambiguity_report: list[str]
+    +normalization_hints: list[str]
+  }
+
+  class RetrievedExample {
+    +example_id: str
+    +source: str
+    +chart_type: str
+    +instruction: str
+    +score: float
+  }
+
+  class CandidateSpec {
+    +spec_id: str
+    +chart_family: str
+    +score: float
+    +rationale: str
+  }
+
+  class VisualizationPlan {
+    +chart_family: str
+    +visual_task: str
+    +goal: str
+    +title: str
+    +field_bindings: list[str]
+    +transforms: list[str]
+    +renderer_hints: list[str]
+    +confidence: float
+  }
+
+  class CandidateSpecSet {
+    +candidate_specs: list[CandidateSpec]
+    +retrieved_examples: list[RetrievedExample]
+    +visualization_plan: VisualizationPlan
+    +ranking_hints: list[str]
+    +selected_candidate_spec: CandidateSpec
+  }
+
+  class ExecutionPolicy {
+    +max_retries: int
+    +fallback_enabled: bool
+    +retry_strategy: str
+  }
+
+  class ValidationPolicy {
+    +use_spec_validator: bool
+    +use_scenegraph_check: bool
+    +use_empty_chart_check: bool
+  }
+
+  class AnalysisRubric {
+    +focus_areas: list[str]
+    +output_format: str
+    +strict_visual_only: bool
+  }
+
+  class PreparedDataset {
+    +prepared_path: str
+    +selected_fields: list[str]
+    +operations_log: list[str]
+  }
+
+  class VegaLiteSpec {
+    +spec_json: str
+    +version: str
+  }
+
+  class ValidationErrors {
+    +items: list[str]
+  }
+
+  class RepairHints {
+    +items: list[str]
+  }
+
+  class ValidatedSpec {
+    +spec_json: str
+    +is_valid: bool
+  }
+
+  class RenderedScenegraph {
+    +scenegraph_json: str
+    +render_status: str
+  }
+
+  class ScenegraphStatus {
+    +has_marks: bool
+    +has_axes: bool
+    +has_legends: bool
+  }
+
+  class EmptyChartStatus {
+    +is_empty: bool
+    +fallback_request: str
+  }
+
+  class PlotImage {
+    +image_path: str
+    +width: int
+    +height: int
+  }
+
+  class VisualObservations {
+    +items: list[str]
+  }
+
+  class VisualFacts {
+    +items: list[str]
+    +evidence_refs: list[str]
+  }
+
+  class InsightCandidates {
+    +items: list[str]
+    +reasoning_chain: list[str]
+  }
+
+  class VerificationSummary {
+    +verified_insights: list[str]
+    +rejected_claims: list[str]
+    +consistency_notes: list[str]
+  }
+
+  class FinalInsights {
+    +items: list[str]
+  }
+
+  class StructuralSpecMetric {
+    +score: float
+    +details: list[str]
+  }
+
+  class VisualQualityMetric {
+    +score: float
+    +details: list[str]
+  }
+
+  class EvaluationSummary {
+    +structural_spec_metric: float
+    +visual_quality_metric: float
+    +empty_chart_status: bool
+    +insight_verification_summary: str
+    +benchmark_report: str
+  }
+}
+
+package "services" {
+  class QueryUnderstandingService {
+    +process(raw_query: RawQuery): QueryIntentBundle
+  }
+
+  class HeaderDataProfileAnalysisService {
+    +process(dataset: Dataset): DataProfile
+    +build_schema_hints(dataset: Dataset): SchemaHints
+  }
+
+  class RequestAnalyzerService {
+    +process(raw_query: RawQuery, bundle: QueryIntentBundle, profile: DataProfile, hints: SchemaHints): GroundedFields
+  }
+
+  class VisRAGService {
+    +process(bundle: QueryIntentBundle, profile: DataProfile, hints: SchemaHints, grounded: GroundedFields): CandidateSpecSet
+  }
+
+  class PlanningService {
+    +process(specs: CandidateSpecSet, bundle: QueryIntentBundle, profile: DataProfile): ExecutionPolicy
+    +build_validation_policy(specs: CandidateSpecSet, profile: DataProfile): ValidationPolicy
+    +build_analysis_rubric(bundle: QueryIntentBundle): AnalysisRubric
+  }
+
+  class DataPreparationService {
+    +process(dataset: Dataset, profile: DataProfile, grounded: GroundedFields, hints: SchemaHints): PreparedDataset
+  }
+
+  class ChartGeneratorService {
+    +process(prepared: PreparedDataset, specs: CandidateSpecSet, exec: ExecutionPolicy, validation: ValidationPolicy): VegaLiteSpec
+    +repair(spec: VegaLiteSpec, errors: ValidationErrors, hints: RepairHints): VegaLiteSpec
+  }
+
+  class SpecValidatorService {
+    +process(spec: VegaLiteSpec): ValidatedSpec
+    +extract_errors(spec: VegaLiteSpec): ValidationErrors
+    +build_repair_hints(errors: ValidationErrors): RepairHints
+  }
+
+  class VegaLitePlotDrawingService {
+    +render(spec: ValidatedSpec): RenderedScenegraph
+    +export_image(scenegraph: RenderedScenegraph): PlotImage
+  }
+
+  class ScenegraphCheckService {
+    +process(scenegraph: RenderedScenegraph): ScenegraphStatus
+  }
+
+  class EmptyChartCheckService {
+    +process(status: ScenegraphStatus): EmptyChartStatus
+  }
+
+  class VLMAnalysisService {
+    +process(image: PlotImage): VisualObservations
+  }
+
+  class FactExtractorService {
+    +process(observations: VisualObservations): VisualFacts
+  }
+
+  class ReasonerService {
+    +process(facts: VisualFacts, rubric: AnalysisRubric): InsightCandidates
+  }
+
+  class VerifierService {
+    +process(candidates: InsightCandidates): VerificationSummary
+  }
+
+  class InsightsService {
+    +build(summary: VerificationSummary): FinalInsights
+  }
+
+  class SpecScoreService {
+    +process(spec: VegaLiteSpec): StructuralSpecMetric
+  }
+
+  class VisionScoreService {
+    +process(image: PlotImage): VisualQualityMetric
+  }
+
+  class EvaluationSummaryService {
+    +aggregate(spec_metric: StructuralSpecMetric, vision_metric: VisualQualityMetric, empty_status: EmptyChartStatus, verification: VerificationSummary): EvaluationSummary
+  }
+}
+
+QueryInput --> RawQuery : creates
+DatasetInput --> Dataset : loads
+
+QueryUnderstandingService ..> RawQuery
+QueryUnderstandingService ..> QueryIntentBundle
+
+HeaderDataProfileAnalysisService ..> Dataset
+HeaderDataProfileAnalysisService ..> DataProfile
+HeaderDataProfileAnalysisService ..> SchemaHints
+
+RequestAnalyzerService ..> RawQuery
+RequestAnalyzerService ..> QueryIntentBundle
+RequestAnalyzerService ..> DataProfile
+RequestAnalyzerService ..> SchemaHints
+RequestAnalyzerService ..> GroundedFields
+
+VisRAGService ..> QueryIntentBundle
+VisRAGService ..> DataProfile
+VisRAGService ..> SchemaHints
+VisRAGService ..> GroundedFields
+VisRAGService ..> CandidateSpecSet
+VisRAGService ..> RetrievedExample
+VisRAGService ..> CandidateSpec
+VisRAGService ..> VisualizationPlan
+
+PlanningService ..> CandidateSpecSet
+PlanningService ..> QueryIntentBundle
+PlanningService ..> DataProfile
+PlanningService ..> ExecutionPolicy
+PlanningService ..> ValidationPolicy
+PlanningService ..> AnalysisRubric
+
+DataPreparationService ..> Dataset
+DataPreparationService ..> DataProfile
+DataPreparationService ..> GroundedFields
+DataPreparationService ..> SchemaHints
+DataPreparationService ..> PreparedDataset
+
+ChartGeneratorService ..> PreparedDataset
+ChartGeneratorService ..> CandidateSpecSet
+ChartGeneratorService ..> ExecutionPolicy
+ChartGeneratorService ..> ValidationPolicy
+ChartGeneratorService ..> VegaLiteSpec
+ChartGeneratorService ..> ValidationErrors
+ChartGeneratorService ..> RepairHints
+
+SpecValidatorService ..> VegaLiteSpec
+SpecValidatorService ..> ValidatedSpec
+SpecValidatorService ..> ValidationErrors
+SpecValidatorService ..> RepairHints
+
+VegaLitePlotDrawingService ..> ValidatedSpec
+VegaLitePlotDrawingService ..> RenderedScenegraph
+VegaLitePlotDrawingService ..> PlotImage
+
+ScenegraphCheckService ..> RenderedScenegraph
+ScenegraphCheckService ..> ScenegraphStatus
+
+EmptyChartCheckService ..> ScenegraphStatus
+EmptyChartCheckService ..> EmptyChartStatus
+
+VLMAnalysisService ..> PlotImage
+VLMAnalysisService ..> VisualObservations
+
+FactExtractorService ..> VisualObservations
+FactExtractorService ..> VisualFacts
+
+ReasonerService ..> VisualFacts
+ReasonerService ..> AnalysisRubric
+ReasonerService ..> InsightCandidates
+
+VerifierService ..> InsightCandidates
+VerifierService ..> VerificationSummary
+
+InsightsService ..> VerificationSummary
+InsightsService ..> FinalInsights
+
+SpecScoreService ..> VegaLiteSpec
+SpecScoreService ..> StructuralSpecMetric
+
+VisionScoreService ..> PlotImage
+VisionScoreService ..> VisualQualityMetric
+
+EvaluationSummaryService ..> StructuralSpecMetric
+EvaluationSummaryService ..> VisualQualityMetric
+EvaluationSummaryService ..> EmptyChartStatus
+EvaluationSummaryService ..> VerificationSummary
+EvaluationSummaryService ..> EvaluationSummary
+
+CandidateSpecSet *-- "many" CandidateSpec
+CandidateSpecSet *-- "many" RetrievedExample
+CandidateSpecSet *-- "1" VisualizationPlan
+
+@enduml
