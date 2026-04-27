@@ -61,8 +61,8 @@ class ViRAGEPipeline:
             step_callback: Callable[[StepLog], None] | None = None,
             model_call_callback: Callable[[ModelCallLog], None] | None = None,
     ) -> PipelineResult:
-        self.runtime.reset_model_logs()
         self.runtime.current_run_id = request.run_id
+        self.runtime.reset_model_logs()
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
@@ -86,17 +86,14 @@ class ViRAGEPipeline:
         except Exception as exc:
             tb = traceback.format_exc()
             self.runtime.save_text_artifact('errors/fatal_error.txt', tb, run_id=request.run_id)
+            self.runtime.save_model_log_artifacts(run_id=request.run_id)
             raise
         finally:
             self.runtime.step_callback = None
             self.runtime.model_call_callback = None
         final_state['model_call_logs'] = list(self.runtime.model_call_logs)
         final_state['token_usage_summary'] = self.runtime.token_usage_summary()
-        self.runtime.save_json_artifact('artifacts/model_call_logs.json',
-                                        [item.model_dump() for item in self.runtime.model_call_logs],
-                                        run_id=request.run_id)
-        self.runtime.save_json_artifact('artifacts/token_usage_summary.json',
-                                        final_state['token_usage_summary'].model_dump(), run_id=request.run_id)
+        self.runtime.save_model_log_artifacts(run_id=request.run_id)
         return PipelineResult(
             run_id=final_state['run_id'],
             query=final_state['query'],
