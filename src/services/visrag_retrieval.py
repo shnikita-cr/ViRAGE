@@ -15,7 +15,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from src.domain.models import VisRAGRetrievedExample
 
 _TOKEN_RE = re.compile(r"[a-zA-Zа-яА-Я0-9_]+")
-_SUPPORTED_CHARTS = {"line", "bar", "scatter", "histogram", "boxplot"}
+_SUPPORTED_CHARTS = {"line", "bar", "point", "histogram", "boxplot"}
 _CHART_ALIASES = {
     "line": "line",
     "linechart": "line",
@@ -30,9 +30,9 @@ _CHART_ALIASES = {
     "column_chart": "bar",
     "grouped_bar": "bar",
     "stacked_bar": "bar",
-    "scatter": "scatter",
-    "scatterplot": "scatter",
-    "scatter_plot": "scatter",
+    "scatter": "point",
+    "scatterplot": "point",
+    "scatter_plot": "point",
     "hist": "histogram",
     "histogram": "histogram",
     "distribution": "histogram",

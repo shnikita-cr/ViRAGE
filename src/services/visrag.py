@@ -22,8 +22,8 @@ from src.llm.helpers import invoke_structured
 from src.services.base import BaseService
 from src.services.visrag_retrieval import canonicalize_chart_type, retrieve_examples, summarize_chart_support
 
-_SUPPORTED_PIPELINE_CHARTS = {"line", "bar", "scatter", "histogram", "boxplot", "area", "point", "circle", "tick"}
-_FALLBACK_CHART_MAP = {"heatmap": "bar"}
+_SUPPORTED_PIPELINE_CHARTS = {"line", "bar", "histogram", "boxplot", "area", "point", "circle", "tick"}
+_FALLBACK_CHART_MAP = {"heatmap": "bar", "scatter": "point", "scatterplot": "point", "scatter plot": "point"}
 
 
 class _PlanRefinementSchema(BaseModel):
@@ -216,7 +216,7 @@ class VisRAGService(BaseService):
             color_field = next((field for field in selected if field in categorical_columns),
                                categorical_columns[0] if categorical_columns else None)
             return time_columns[0], "temporal", numeric_columns[0], "quantitative", color_field, "nominal"
-        if chart_family == "scatter" and len(numeric_columns) >= 2:
+        if chart_family == "point" and len(numeric_columns) >= 2:
             return numeric_columns[0], "quantitative", numeric_columns[1], "quantitative", None, "nominal"
         if chart_family in {"bar", "boxplot", "tick"} and categorical_columns and numeric_columns:
             return categorical_columns[0], "nominal", numeric_columns[0], "quantitative", None, "nominal"
@@ -236,7 +236,7 @@ class VisRAGService(BaseService):
         base = max(0.05, 0.2 - index * 0.02)
         if chart_type in {"line", "area"} and data_profile.likely_time_columns and data_profile.likely_numeric_columns:
             return base + 0.75, "Time-like field and numeric measure detected; trend chart is a strong fit."
-        if chart_type == "scatter" and len(data_profile.likely_numeric_columns) >= 2:
+        if chart_type == "point" and len(data_profile.likely_numeric_columns) >= 2:
             return base + 0.70, "Two numeric fields detected; scatter fits relationship analysis."
         if chart_type in {"bar", "boxplot",
                           "tick"} and data_profile.likely_categorical_columns and data_profile.likely_numeric_columns:
@@ -265,7 +265,7 @@ class VisRAGService(BaseService):
             if data_profile.likely_categorical_columns:
                 hints.append(f"Use {data_profile.likely_categorical_columns[0]} as an optional color grouping.")
             return hints
-        if chart_type == "scatter" and len(data_profile.likely_numeric_columns) >= 2:
+        if chart_type == "point" and len(data_profile.likely_numeric_columns) >= 2:
             x, y = data_profile.likely_numeric_columns[:2]
             return [f"Plot {x} against {y} using point marks."]
         if chart_type == "histogram":
