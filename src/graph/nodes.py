@@ -26,7 +26,7 @@ from src.services.visrag import VisRAGService
 from src.services.vlm_analysis import VLMAnalysisService
 
 
-class PipelineNodes:
+class PipelineNodes:  # fixme
     def __init__(self, runtime: RuntimeContext) -> None:
         self.runtime = runtime
         self.query_understanding = QueryUnderstandingService()

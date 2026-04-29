@@ -179,7 +179,7 @@ class VisRAGRetrievedExample(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class VisualizationFieldBinding(BaseModel):
+class VisualizationFieldBinding(BaseModel):  # fixme visrag
     channel: str
     field_name: str
     field_role: str
@@ -190,7 +190,7 @@ class VisualizationFieldBinding(BaseModel):
     required: bool = True
 
 
-class VisualizationTransform(BaseModel):
+class VisualizationTransform(BaseModel):  # fixme
     kind: str
     field_name: str | None = None
     expression: str | None = None
@@ -201,7 +201,7 @@ class VisualizationTransform(BaseModel):
     description: str = ""
 
 
-class VisualizationAxisInstruction(BaseModel):
+class VisualizationAxisInstruction(BaseModel):  # fixme
     channel: str
     field_name: str
     title: str
@@ -210,7 +210,7 @@ class VisualizationAxisInstruction(BaseModel):
     rotate_labels: bool = False
 
 
-class VisualizationPlan(BaseModel):
+class VisualizationPlan(BaseModel):  # fixme
     chart_family: str
     visual_task: str
     goal: str
@@ -229,7 +229,7 @@ class VisualizationPlan(BaseModel):
     vega_lite_ready: bool = True
 
 
-class CandidateSpec(BaseModel):
+class CandidateSpec(BaseModel):  # fixme
     spec_id: str
     chart_family: str
     summary: str
@@ -238,7 +238,7 @@ class CandidateSpec(BaseModel):
     visualization_plan: VisualizationPlan | None = None
 
 
-class CandidateSpecSet(BaseModel):
+class CandidateSpecSet(BaseModel):  # fixme
     candidate_specs: list[CandidateSpec] = Field(default_factory=list)
     retrieved_examples: list[VisRAGRetrievedExample] = Field(default_factory=list)
     visualization_plan: VisualizationPlan | None = None
@@ -246,7 +246,7 @@ class CandidateSpecSet(BaseModel):
     selected_candidate_spec: CandidateSpec | None = None
 
 
-class VisRAGRecommendation(BaseModel):
+class VisRAGRecommendation(BaseModel):  # fixme
     chart_family: str
     rationale: str
     priority: int
@@ -255,7 +255,7 @@ class VisRAGRecommendation(BaseModel):
     instruction_highlights: list[str] = Field(default_factory=list)
 
 
-class VisRAGResult(BaseModel):
+class VisRAGResult(BaseModel):  # fixme
     recommendations: list[VisRAGRecommendation] = Field(default_factory=list)
     visualization_plan: VisualizationPlan | None = None
     rules: list[str] = Field(default_factory=list)
@@ -268,26 +268,26 @@ class VisRAGResult(BaseModel):
     candidate_spec_set: CandidateSpecSet | None = None
 
 
-class VegaLiteSpecArtifact(BaseModel):
+class VegaLiteSpecArtifact(BaseModel):  # fixme
     spec_json: dict[str, Any] = Field(default_factory=dict)
     version: str | None = None
 
 
-class SpecValidationResult(BaseModel):
+class SpecValidationResult(BaseModel):  # fixme
     validated_spec: dict[str, Any] = Field(default_factory=dict)
     validation_errors: list[str] = Field(default_factory=list)
     repair_hints: list[str] = Field(default_factory=list)
     is_valid: bool = False
 
 
-class ScenegraphCheckResult(BaseModel):
+class ScenegraphCheckResult(BaseModel):  # fixme
     has_marks: bool = False
     has_axes: bool = False
     has_legends: bool = False
     notes: list[str] = Field(default_factory=list)
 
 
-class EmptyChartCheckResult(BaseModel):
+class EmptyChartCheckResult(BaseModel):  # fixme
     empty_chart_signal: bool = False
     fallback_request: str | None = None
     non_empty_render: bool = False
@@ -302,50 +302,50 @@ class PlotImageArtifact(BaseModel):
 
 class PlotRenderingResult(BaseModel):
     plot_image: PlotImageArtifact
-    rendered_scenegraph: dict[str, Any] = Field(default_factory=dict)
-    render_notes: list[str] = Field(default_factory=list)
+    rendered_scenegraph: dict[str, Any] = Field(default_factory=dict)  # fixme
+    render_notes: list[str] = Field(default_factory=list)  # fixme
 
 
-class VLMAnalysisResult(BaseModel):
+class VLMAnalysisResult(BaseModel):  # fixme
     visual_observations: list[str] = Field(default_factory=list)
     extracted_visual_facts: list[str] = Field(default_factory=list)
     confidence: float = 0.0
 
 
-class VisualFact(BaseModel):
+class VisualFact(BaseModel):  # fixme
     name: str
     value: str
     evidence_refs: list[str] = Field(default_factory=list)
 
 
-class VisualFactExtractionResult(BaseModel):
+class VisualFactExtractionResult(BaseModel):  # fixme
     visual_facts: list[VisualFact] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
 
 
-class InsightCandidate(BaseModel):
+class InsightCandidate(BaseModel):  # fixme
     statement: str
     confidence: float = 0.0
     reasoning_chain: list[str] = Field(default_factory=list)
 
 
-class InsightReasoningResult(BaseModel):
+class InsightReasoningResult(BaseModel):  # fixme
     insight_candidates: list[InsightCandidate] = Field(default_factory=list)
     reasoning_chain: list[str] = Field(default_factory=list)
 
 
-class InsightVerificationResult(BaseModel):
+class InsightVerificationResult(BaseModel):  # fixme
     verified_insights: list[str] = Field(default_factory=list)
     rejected_claims: list[str] = Field(default_factory=list)
     insight_verification_summary: str = ""
     all_verified: bool = False
 
 
-class InsightsResult(BaseModel):
+class InsightsResult(BaseModel):  # fixme
     final_insights: list[str] = Field(default_factory=list)
 
 
-class StructuralSpecMetric(BaseModel):
+class StructuralSpecMetric(BaseModel):  # fixme
     score: float = 0.0
     mark_score: float = 0.0
     encoding_score: float = 0.0
@@ -354,7 +354,7 @@ class StructuralSpecMetric(BaseModel):
     details: list[str] = Field(default_factory=list)
 
 
-class VisualQualityMetric(BaseModel):
+class VisualQualityMetric(BaseModel):  # fixme
     score: float = 0.0
     prompt_compliance: float = 0.0
     readability: float = 0.0
@@ -362,7 +362,7 @@ class VisualQualityMetric(BaseModel):
     details: list[str] = Field(default_factory=list)
 
 
-class EvaluationSummaryResult(BaseModel):
+class EvaluationSummaryResult(BaseModel):  # fixme
     structural_spec_metric: float = 0.0
     visual_quality_metric: float = 0.0
     empty_chart_status: str = "unknown"
