@@ -5,6 +5,7 @@ from pathlib import Path
 from src.domain.models import (
     CandidateSpec,
     CandidateSpecSet,
+    DataColumnProfile,
     DataProfile,
     QueryUnderstandingResult,
     RequestAnalysisResult,
@@ -20,12 +21,13 @@ from src.visrag_core import (
     VisRAGDataProfile,
     VisRAGRequest,
     canonicalize_chart_type,
+    semantic_type_from_role_or_dtype,
 )
 from src.visrag_core.models import VisRAGCandidate as CoreCandidate
 
 
 class VisRAGService(BaseService):
-    """Thin ViRAGE adapter around the portable VisRAG core."""
+    """ViRAGE adapter around the portable VisRAG core."""
 
     def invoke(
             self,
@@ -35,19 +37,22 @@ class VisRAGService(BaseService):
             runtime: RuntimeContext,
     ) -> VisRAGResult:
         request = self._to_core_request(query_understanding, request_analysis, data_profile, runtime)
-        core = VisRAGCoreService(VisRAGConfig(corpus_root=self._corpus_root(runtime)))
+        core = VisRAGCoreService(
+            VisRAGConfig(
+                corpus_root=self._corpus_root(runtime),
+                retriever_backend=getattr(runtime.settings, "visrag_retriever_backend", "bm25"),
+            )
+        )
         result = core.search(request)
         examples = [self._to_domain_example(candidate) for candidate in result.candidates]
-        candidate_set = CandidateSpecSet(
-            candidate_specs=[self._to_candidate_spec(candidate) for candidate in result.candidates],
-            retrieved_examples=examples,
-        )
-        candidate_set.selected_candidate_spec = candidate_set.candidate_specs[
-            0] if candidate_set.candidate_specs else None
+        candidate_specs = [self._to_candidate_spec(candidate) for candidate in result.candidates]
+        candidate_set = CandidateSpecSet(candidate_specs=candidate_specs, retrieved_examples=examples)
+        candidate_set.selected_candidate_spec = candidate_specs[0] if candidate_specs else None
         return VisRAGResult(
+            caveats=list(result.caveats),
             retrieved_examples=examples,
             corpus_status={"root": result.corpus_root, "examples": str(len(examples))},
-            retrieval_strategy="prepared_corpus",
+            retrieval_strategy=f"prepared_corpus:{getattr(runtime.settings, 'visrag_retriever_backend', 'bm25')}",
             retrieval_query=request.query,
             candidate_spec_set=candidate_set,
         )
@@ -59,6 +64,17 @@ class VisRAGService(BaseService):
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGRequest:
+        return VisRAGRequest(
+            query=self._search_query(query_understanding, request_analysis),
+            data_profile=VisRAGDataProfile(
+                columns=[self._to_core_column(column, data_profile) for column in data_profile.columns]),
+            preferred_chart_types=[canonicalize_chart_type(item) for item in query_understanding.candidate_charts],
+            selected_fields=list(request_analysis.selected_fields),
+            top_k=runtime.settings.visrag_top_k_examples,
+        )
+
+    @staticmethod
+    def _search_query(query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult) -> str:
         query_parts = [
             query_understanding.intent,
             query_understanding.user_goal or "",
@@ -66,21 +82,17 @@ class VisRAGService(BaseService):
             *[variant.text for variant in query_understanding.query_variants],
             *request_analysis.selected_fields,
         ]
-        return VisRAGRequest(
-            query=" ".join(part for part in query_parts if part).strip(),
-            data_profile=VisRAGDataProfile(
-                columns=[
-                    VisRAGColumnProfile(
-                        name=column.name,
-                        semantic_type=column.dtype,
-                        role=data_profile.field_roles.get(column.name),
-                    )
-                    for column in data_profile.columns
-                ]
-            ),
-            preferred_chart_types=[canonicalize_chart_type(item) for item in query_understanding.candidate_charts],
-            selected_fields=list(request_analysis.selected_fields),
-            top_k=runtime.settings.visrag_top_k_examples,
+        return " ".join(part for part in query_parts if part).strip()
+
+    @staticmethod
+    def _to_core_column(column: DataColumnProfile, data_profile: DataProfile) -> VisRAGColumnProfile:
+        role = data_profile.field_roles.get(column.name)
+        semantic_type = semantic_type_from_role_or_dtype(role, column.dtype, column.dtype)
+        return VisRAGColumnProfile(
+            name=column.name,
+            semantic_type=semantic_type,
+            role=role,
+            raw_dtype=column.dtype,
         )
 
     @staticmethod
@@ -100,7 +112,12 @@ class VisRAGService(BaseService):
             tags=example.keywords,
             score=candidate.score,
             rationale="prepared corpus match",
-            metadata={"field_mapping": candidate.field_mapping, **example.metadata},
+            metadata={
+                "confidence": candidate.confidence,
+                "field_mapping": candidate.field_mapping,
+                "score_breakdown": candidate.score_breakdown,
+                **example.metadata,
+            },
         )
 
     @staticmethod

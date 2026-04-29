@@ -3,13 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
 
 
 class VisRAGColumnProfile(BaseModel):
     name: str
     semantic_type: str
     role: str | None = None
+    raw_dtype: str | None = None
 
 
 class VisRAGDataProfile(BaseModel):
@@ -26,6 +31,7 @@ class VisRAGRequest(BaseModel):
 
 class VisRAGConfig(BaseModel):
     corpus_root: Path = Path("rag_corpus/data")
+    retriever_backend: str = "bm25"
 
 
 class VisRAGExample(BaseModel):
@@ -45,11 +51,19 @@ class VisRAGExample(BaseModel):
 class VisRAGCandidate(BaseModel):
     example: VisRAGExample
     score: float
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    score_breakdown: dict[str, Any] = Field(default_factory=dict)
     field_mapping: dict[str, str] = Field(default_factory=dict)
     spec_template: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _validate_confidence(cls, value: float) -> float:
+        return _clamp(value)
 
 
 class VisRAGResult(BaseModel):
     query: str
     candidates: list[VisRAGCandidate]
     corpus_root: str
+    caveats: list[str] = Field(default_factory=list)

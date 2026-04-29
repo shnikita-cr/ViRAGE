@@ -15,7 +15,11 @@ SUPPORTED_CHART_TYPES = {"bar", "line", "area", "point", "circle", "tick", "hist
 
 
 def canonicalize_chart_type(value: str | None) -> str:
-    text = (value or "bar").strip().lower().replace("-", "_")
+    if value is None:
+        return ""
+    text = str(value).strip().lower().replace("-", "_")
+    if not text:
+        return ""
     return _CHART_ALIASES.get(text, text)
 
 
@@ -29,5 +33,5 @@ def require_supported_chart_type(value: str | None) -> str:
 def normalize_aggregate(value: str | None) -> str | None:
     if value is None:
         return None
-    text = value.strip().lower()
+    text = str(value).strip().lower()
     return "mean" if text in {"avg", "average"} else text

@@ -42,6 +42,7 @@ class CandidateSpecSet(BaseModel):
 
 
 class VisRAGResult(BaseModel):
+    caveats: list[str] = Field(default_factory=list)
     retrieved_examples: list[VisRAGRetrievedExample] = Field(default_factory=list)
     corpus_status: dict[str, str] = Field(default_factory=dict)
     retrieval_strategy: str = "prepared_corpus"

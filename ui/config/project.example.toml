@@ -4,6 +4,7 @@ mode = "streamlit"
 artifact_root = "./artifacts"
 visrag_corpus_root = "./rag_corpus/data"
 visrag_top_k_examples = 5
+visrag_retriever_backend = "bm25"
 vega_output_format = "png"
 enable_scenegraph_check = true
 enable_empty_chart_check = true
