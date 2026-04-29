@@ -3,6 +3,11 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
 
@@ -19,7 +24,7 @@ st.title('ViRAGE — NL2VIS + RAG + Image-only Insights')
 with st.sidebar:
     st.header('Project configuration')
     config_path = st.text_input('Config path', value=str(DEFAULT_CONFIG_PATH))
-    st.caption('Copy config/project.example.toml to config/project.toml and edit model roles there.')
+    st.caption('Copy ui/config/project.example.toml to ui/config/project.toml and edit model roles there.')
     st.markdown('---')
     st.caption('Metrics in Streamlit are computed only if enabled in the config.')
 

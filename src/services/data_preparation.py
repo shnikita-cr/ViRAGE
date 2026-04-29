@@ -20,7 +20,7 @@ class DataPreparationService(BaseService):
             query_understanding: QueryUnderstandingResult | None = None,
     ) -> DataPreparationResult:
         path = Path(data_path)
-        df = pd.read_parquet(path) if path.suffix.lower() == ".parquet" else pd.read_csv(path)
+        df = self._read_frame(path)
         df = self._ensure_unique_columns(df)
         operations: list[str] = []
 
@@ -41,7 +41,7 @@ class DataPreparationService(BaseService):
 
         for column in [col for col in data_profile.likely_time_columns if col in df.columns]:
             try:
-                df[column] = pd.to_datetime(df[column], errors="coerce")
+                df[column] = self._parse_temporal_column(column, df[column])
                 operations.append(f"to_datetime:{column}")
             except Exception:
                 pass
@@ -62,6 +62,38 @@ class DataPreparationService(BaseService):
             row_count=int(len(df)),
             col_count=int(len(df.columns)),
         )
+
+    @staticmethod
+    def _read_frame(path: Path) -> pd.DataFrame:
+        suffix = path.suffix.lower()
+        if suffix == ".parquet":
+            return pd.read_parquet(path)
+        if suffix in {".csv", ".txt"}:
+            return pd.read_csv(path)
+        if suffix in {".xlsx", ".xls"}:
+            return pd.read_excel(path)
+        raise ValueError(f"Unsupported data format: {suffix}")
+
+    @staticmethod
+    def _parse_temporal_column(column: str, series: pd.Series) -> pd.Series:
+        if "year" in str(column).lower():
+            numeric = pd.to_numeric(series, errors="coerce")
+            if numeric.notna().mean() >= 0.8:
+                years = numeric.round().astype("Int64")
+
+                def expand_year(value):
+                    if pd.isna(value):
+                        return pd.NA
+                    value = int(value)
+                    if 0 <= value <= 29:
+                        return 2000 + value
+                    if 30 <= value <= 99:
+                        return 1900 + value
+                    return value
+
+                expanded = years.map(expand_year)
+                return pd.to_datetime(expanded.astype("string") + "-01-01", errors="coerce")
+        return pd.to_datetime(series, errors="coerce")
 
     @staticmethod
     def _ensure_unique_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -97,6 +129,7 @@ class DataPreparationService(BaseService):
             request_analysis: RequestAnalysisResult,
             query_understanding: QueryUnderstandingResult | None,
     ) -> bool:
+        """Preserve row multiplicity unless duplicate removal is explicitly requested."""
         task_text_parts: list[str] = []
         if query_understanding is not None:
             task_text_parts.extend([
@@ -109,31 +142,13 @@ class DataPreparationService(BaseService):
         task_text_parts.extend(request_analysis.grounded_fields)
         task_text_parts.extend(request_analysis.normalization_hints)
         task_text = " ".join(task_text_parts).lower()
-
-        distribution_markers = {
-            "distribution", "count", "frequency", "proportion", "percentage",
-            "composition", "class balance", "imbalance", "category", "breakdown",
-            "histogram", "group by", "grouped count",
+        explicit_markers = {
+            "deduplicate",
+            "deduplication",
+            "remove duplicates",
+            "drop duplicates",
+            "unique rows",
+            "without duplicates",
+            "distinct rows",
         }
-        if any(marker in task_text for marker in distribution_markers):
-            return False
-
-        selected_fields = [field for field in request_analysis.selected_fields if field in df.columns]
-        if len(selected_fields) <= 1:
-            if selected_fields:
-                only_field = selected_fields[0]
-                if only_field in set(data_profile.likely_categorical_columns):
-                    return False
-            return False
-
-        categorical = set(data_profile.likely_categorical_columns)
-        temporal = set(data_profile.likely_time_columns)
-        numeric = set(data_profile.likely_numeric_columns)
-
-        selected_set = set(selected_fields)
-        if selected_set and selected_set.issubset(categorical):
-            return False
-        if selected_set and selected_set.issubset(categorical | temporal) and not (selected_set & numeric):
-            return False
-
-        return True
+        return any(marker in task_text for marker in explicit_markers)

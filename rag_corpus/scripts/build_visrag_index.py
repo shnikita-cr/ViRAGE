@@ -10,7 +10,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build or refresh VisRAG semantic indexes from normalized corpora.")
     parser.add_argument("--corpus-root", required=True)
     parser.add_argument("--index-root", required=True)
-    parser.add_argument("--embedding-backend", default="auto")
+    parser.add_argument("--embedding-backend", default="local_tfidf")
     parser.add_argument("--embedding-model", default="embeddinggemma")
     parser.add_argument("--ollama-base-url", default="http://localhost:11434/api")
     parser.add_argument("--force", action="store_true")

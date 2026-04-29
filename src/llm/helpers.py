@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+import mimetypes
 import re
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -28,6 +31,35 @@ def _normalize_prompt_input(prompt_text: str) -> Any:
         return prompt_text
     from langchain_core.messages import HumanMessage
     return [HumanMessage(content=prompt_text)]
+
+
+def _image_to_data_url(image_path: str) -> str:
+    path = Path(image_path)
+    mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _normalize_multimodal_prompt_input(prompt_text: str, image_path: str) -> Any:
+    """Build a LangChain-compatible multimodal message with image bytes.
+
+    ChatOpenAI and many LangChain chat models accept HumanMessage content as a
+    list of typed blocks. If LangChain is unavailable, the text fallback is kept
+    explicit rather than pretending that the model can access a local path.
+    """
+    if not is_langchain_available():
+        return f"{prompt_text}\n\n[Image file attached at runtime: {image_path}]"
+    from langchain_core.messages import HumanMessage
+
+    data_url = _image_to_data_url(image_path)
+    return [
+        HumanMessage(
+            content=[
+                {"type": "text", "text": prompt_text},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ]
+        )
+    ]
 
 
 def _model_name(llm: Any) -> str:
@@ -177,27 +209,7 @@ async def ainvoke_text(
         stage: str | None = None,
         role: str | None = None,
 ) -> str:
-    started_at = _utc_now_iso()
-    started_monotonic = time.perf_counter()
-    try:
-        if hasattr(llm, "ainvoke"):
-            result = await llm.ainvoke(_normalize_prompt_input(prompt_text))
-        else:
-            result = await asyncio.to_thread(llm.invoke, _normalize_prompt_input(prompt_text))
-    except Exception as exc:
-        finished_at = _utc_now_iso()
-        duration_ms = _elapsed_ms(started_monotonic)
-        usage = _extract_usage(None, prompt_text, "")
-        _record(runtime, stage, role, llm, prompt_text, "", None, 1, [str(exc)], usage,
-                attempt_number=1, duration_ms=duration_ms, started_at=started_at, finished_at=finished_at)
-        raise
-    finished_at = _utc_now_iso()
-    duration_ms = _elapsed_ms(started_monotonic)
-    raw_text = _coerce_result_text(result)
-    usage = _extract_usage(result, prompt_text, raw_text)
-    _record(runtime, stage, role, llm, prompt_text, raw_text, None, 1, [], usage,
-            attempt_number=1, duration_ms=duration_ms, started_at=started_at, finished_at=finished_at)
-    return raw_text
+    return await asyncio.to_thread(invoke_text, llm, prompt_text, runtime=runtime, stage=stage, role=role)
 
 
 def extract_json_block(raw_text: str) -> str:
@@ -234,11 +246,13 @@ def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any
     )
 
 
-def invoke_structured(
+def _invoke_structured_with_message_builder(
         llm: Any,
         prompt_text: str,
         schema: type[T],
         *,
+        message_builder,
+        log_prompt_text: str | None = None,
         runtime: Any | None = None,
         stage: str | None = None,
         role: str | None = None,
@@ -250,42 +264,43 @@ def invoke_structured(
     current_prompt = _json_prompt(prompt_text, schema, examples)
     while attempts < max_attempts:
         attempts += 1
+        prompt_for_log = log_prompt_text or current_prompt
         if hasattr(llm, "invoke"):
             started_at = _utc_now_iso()
             started_monotonic = time.perf_counter()
             try:
-                result = llm.invoke(_normalize_prompt_input(current_prompt))
+                result = llm.invoke(message_builder(current_prompt))
             except Exception as exc:
                 finished_at = _utc_now_iso()
                 duration_ms = _elapsed_ms(started_monotonic)
                 current_errors = [*parser_errors, str(exc)]
-                usage = _extract_usage(None, current_prompt, "")
-                _record(runtime, stage, role, llm, current_prompt, "", None, attempts, current_errors, usage,
+                usage = _extract_usage(None, prompt_for_log, "")
+                _record(runtime, stage, role, llm, prompt_for_log, "", None, attempts, current_errors, usage,
                         attempt_number=attempts, duration_ms=duration_ms,
                         started_at=started_at, finished_at=finished_at)
                 raise
             finished_at = _utc_now_iso()
             duration_ms = _elapsed_ms(started_monotonic)
             raw_text = _coerce_result_text(result)
-            usage = _extract_usage(result, current_prompt, raw_text)
+            usage = _extract_usage(result, prompt_for_log, raw_text)
             try:
                 payload = json.loads(extract_json_block(raw_text))
                 parsed = schema.model_validate(payload)
-                _record(runtime, stage, role, llm, current_prompt, raw_text, parsed.model_dump(), attempts,
+                _record(runtime, stage, role, llm, prompt_for_log, raw_text, parsed.model_dump(), attempts,
                         parser_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
                         started_at=started_at, finished_at=finished_at)
                 return parsed
             except (json.JSONDecodeError, ValidationError) as exc:
                 current_errors = [*parser_errors, str(exc)]
-                _record(runtime, stage, role, llm, current_prompt, raw_text, None, attempts,
+                _record(runtime, stage, role, llm, prompt_for_log, raw_text, None, attempts,
                         current_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
                         started_at=started_at, finished_at=finished_at)
                 parser_errors.append(str(exc))
                 current_prompt = (
-                        _json_prompt(prompt_text, schema, examples)
-                        + "\nThe previous response was invalid. Fix it.\n"
-                        + f"Validation / parsing error:\n{exc}\n"
-                        + f"Previous response:\n{raw_text}\n"
+                    _json_prompt(prompt_text, schema, examples)
+                    + "\nThe previous response was invalid. Fix it.\n"
+                    + f"Validation / parsing error:\n{exc}\n"
+                    + f"Previous response:\n{raw_text}\n"
                 )
                 continue
         if hasattr(llm, "with_structured_output"):
@@ -293,13 +308,13 @@ def invoke_structured(
             started_monotonic = time.perf_counter()
             try:
                 runnable = llm.with_structured_output(schema)
-                parsed = runnable.invoke(_normalize_prompt_input(current_prompt))
-            except Exception as exc:  # pragma: no cover - compatibility path
+                parsed = runnable.invoke(message_builder(current_prompt))
+            except Exception as exc:
                 finished_at = _utc_now_iso()
                 duration_ms = _elapsed_ms(started_monotonic)
                 current_errors = [*parser_errors, str(exc)]
-                usage = _extract_usage(None, current_prompt, "")
-                _record(runtime, stage, role, llm, current_prompt, "", None, attempts,
+                usage = _extract_usage(None, prompt_for_log, "")
+                _record(runtime, stage, role, llm, prompt_for_log, "", None, attempts,
                         current_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
                         started_at=started_at, finished_at=finished_at)
                 parser_errors.append(str(exc))
@@ -308,8 +323,8 @@ def invoke_structured(
             finished_at = _utc_now_iso()
             duration_ms = _elapsed_ms(started_monotonic)
             raw_text = parsed.model_dump_json()
-            usage = _extract_usage(parsed, current_prompt, raw_text)
-            _record(runtime, stage, role, llm, current_prompt, raw_text, parsed.model_dump(), attempts,
+            usage = _extract_usage(parsed, prompt_for_log, raw_text)
+            _record(runtime, stage, role, llm, prompt_for_log, raw_text, parsed.model_dump(), attempts,
                     parser_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
                     started_at=started_at, finished_at=finished_at)
             return parsed
@@ -317,6 +332,30 @@ def invoke_structured(
     raise RuntimeError(
         f"Failed to parse {schema.__name__} after {attempts} attempts. "
         f"Last error: {parser_errors[-1] if parser_errors else 'unknown'}"
+    )
+
+
+def invoke_structured(
+        llm: Any,
+        prompt_text: str,
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
+) -> T:
+    return _invoke_structured_with_message_builder(
+        llm,
+        prompt_text,
+        schema,
+        message_builder=_normalize_prompt_input,
+        runtime=runtime,
+        stage=stage,
+        role=role,
+        examples=examples,
+        max_attempts=max_attempts,
     )
 
 
@@ -356,10 +395,16 @@ def invoke_structured_multimodal(
         examples: list[dict[str, Any]] | None = None,
         max_attempts: int = 2,
 ) -> T:
-    return invoke_structured(
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Image path does not exist: {image_path}")
+    log_prompt = f"{prompt_text}\n\n[Image attached: {path.name}, {path.stat().st_size} bytes]"
+    return _invoke_structured_with_message_builder(
         llm,
-        prompt_text + f"\nIMAGE_PATH: {image_path}",
+        prompt_text,
         schema,
+        message_builder=lambda current_prompt: _normalize_multimodal_prompt_input(current_prompt, image_path),
+        log_prompt_text=log_prompt,
         runtime=runtime,
         stage=stage,
         role=role,

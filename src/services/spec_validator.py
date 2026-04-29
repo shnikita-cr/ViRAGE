@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -8,16 +9,17 @@ import pandas as pd
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.services.base import BaseService
 
-_ALLOWED_MARKS = {'line', 'area', 'bar', 'point', 'circle', 'boxplot', 'histogram', 'tick'}
-_ALLOWED_CHANNELS = {'x', 'y', 'color', 'tooltip', 'detail'}
-_ALLOWED_TYPES = {'quantitative', 'temporal', 'nominal', 'ordinal'}
-_ALLOWED_AGGREGATES = {'mean', 'sum', 'count', 'min', 'max', 'median'}
-_ALLOWED_TRANSFORMS = {'aggregate', 'filter', 'calculate', 'bin'}
+_ALLOWED_MARKS = {'line', 'area', 'bar', 'point', 'circle', 'square', 'boxplot', 'histogram', 'tick', 'rect', 'rule', 'text'}
+_ALLOWED_CHANNELS = {'x', 'y', 'color', 'tooltip', 'detail', 'size', 'shape', 'opacity', 'row', 'column', 'theta', 'radius'}
+_ALLOWED_TYPES = {'quantitative', 'temporal', 'nominal', 'ordinal', 'geojson'}
+_ALLOWED_AGGREGATES = {'mean', 'average', 'sum', 'count', 'min', 'max', 'median'}
+_ALLOWED_TRANSFORMS = {'aggregate', 'joinaggregate', 'filter', 'calculate', 'bin', 'timeUnit', 'window'}
+_MARK_REQUIRING_XY = {'line', 'area', 'bar', 'point', 'circle', 'square', 'tick', 'rect', 'rule'}
 
 
 class SpecValidatorService(BaseService):
     def invoke(self, vega_spec: VegaLiteSpecArtifact) -> SpecValidationResult:
-        spec = dict(vega_spec.spec_json)
+        spec = deepcopy(vega_spec.spec_json)
         errors: list[str] = []
         repair_hints: list[str] = []
 
@@ -47,10 +49,10 @@ class SpecValidatorService(BaseService):
         if errors:
             repair_hints.extend([
                 'Ensure the spec contains $schema, data.url, mark and encoding.',
-                'Use only columns that exist in the prepared dataset.',
-                f'Restrict mark.type to supported values: {sorted(_ALLOWED_MARKS)}.',
+                'Use only columns that exist in the prepared dataset or fields derived by transform.as.',
+                f'Restrict mark.type to supported values: {sorted(_ALLOWED_MARKS)}; use point for scatter plots.',
                 'Keep encodings explicit and use valid Vega-Lite field types.',
-                'Use only simple transforms: aggregate, filter, calculate, bin.',
+                'Use Vega-Lite transforms with standard keys such as aggregate/filter/calculate/bin/timeUnit.',
             ])
             return SpecValidationResult(validated_spec=normalized, validation_errors=self._dedupe(errors),
                                         repair_hints=self._dedupe(repair_hints), is_valid=False)
@@ -75,54 +77,106 @@ class SpecValidatorService(BaseService):
             errors.append(f'Prepared dataset path does not exist: {data_url}')
             return None, set()
         try:
-            df = pd.read_csv(path, nrows=5)
+            df = SpecValidatorService._read_frame(path, nrows=5)
         except Exception as exc:
             errors.append(f'Prepared dataset could not be read: {exc}')
             return None, set()
         return path, set(df.columns)
 
     @staticmethod
+    def _read_frame(path: Path, nrows: int | None = None) -> pd.DataFrame:
+        suffix = path.suffix.lower()
+        if suffix in {'.xlsx', '.xls'}:
+            return pd.read_excel(path, nrows=nrows)
+        if suffix == '.parquet':
+            df = pd.read_parquet(path)
+            return df.head(nrows) if nrows else df
+        return pd.read_csv(path, nrows=nrows)
+
+    @staticmethod
     def _validate_mark(spec: dict[str, Any], errors: list[str]) -> str:
         mark = spec.get('mark')
         mark_type = mark.get('type') if isinstance(mark, dict) else mark
+        if isinstance(mark_type, str) and mark_type.strip().lower() == 'scatter':
+            mark_type = 'point'
+            if isinstance(mark, dict):
+                mark['type'] = 'point'
+            else:
+                spec['mark'] = 'point'
         if not isinstance(mark_type, str) or not mark_type.strip():
             errors.append('Specification mark must be a non-empty string or a mark object with a type.')
             return ''
+        mark_type = mark_type.strip()
         if mark_type not in _ALLOWED_MARKS:
             errors.append(f'Unsupported mark type: {mark_type}.')
         return mark_type
 
     @staticmethod
-    def _validate_encoding(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[
-        str, dict[str, Any]]:
+    def _derived_fields_from_transforms(spec: dict[str, Any]) -> set[str]:
+        fields: set[str] = set()
+        transforms = spec.get('transform', [])
+        if not isinstance(transforms, list):
+            return fields
+        for transform in transforms:
+            if not isinstance(transform, dict):
+                continue
+            as_value = transform.get('as')
+            if isinstance(as_value, str):
+                fields.add(as_value)
+            elif isinstance(as_value, list):
+                fields.update(str(item) for item in as_value if item)
+            aggregate = transform.get('aggregate') or transform.get('joinaggregate') or []
+            if isinstance(aggregate, list):
+                for item in aggregate:
+                    if isinstance(item, dict) and isinstance(item.get('as'), str):
+                        fields.add(item['as'])
+        return fields
+
+    @classmethod
+    def _validate_encoding(cls, spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[str, dict[str, Any]]:
         encoding = spec.get('encoding', {})
         if not isinstance(encoding, dict) or not encoding:
             errors.append('Specification encoding must be a non-empty object.')
             return {}
+        derived_columns = cls._derived_fields_from_transforms(spec)
+        allowed_fields = dataset_columns | derived_columns
         for channel, channel_spec in encoding.items():
             if channel not in _ALLOWED_CHANNELS:
                 errors.append(f'Unsupported encoding channel: {channel}.')
                 continue
+            if isinstance(channel_spec, list):
+                for item in channel_spec:
+                    if isinstance(item, dict):
+                        cls._validate_channel_spec(channel, item, allowed_fields, errors)
+                    else:
+                        errors.append(f'Encoding list item for channel {channel!r} must be an object.')
+                continue
             if not isinstance(channel_spec, dict):
                 errors.append(f'Encoding for channel {channel!r} must be an object.')
                 continue
-            field = channel_spec.get('field')
-            aggregate = channel_spec.get('aggregate')
-            requires_field = channel not in {'detail', 'tooltip'} and not (channel == 'y' and aggregate == 'count')
-            if requires_field:
-                if not isinstance(field, str) or not field.strip():
-                    errors.append(f'Encoding.{channel}.field is required.')
-                elif dataset_columns and field not in dataset_columns:
-                    errors.append(f'Encoding.{channel}.field references a missing dataset column: {field}.')
-            elif isinstance(field, str) and field.strip() and dataset_columns and field not in dataset_columns:
-                errors.append(f'Encoding.{channel}.field references a missing dataset column: {field}.')
-            field_type = channel_spec.get('type')
-            if field_type is not None and field_type not in _ALLOWED_TYPES:
-                errors.append(f'Encoding.{channel}.type has unsupported value: {field_type}.')
-            aggregate = channel_spec.get('aggregate')
-            if aggregate is not None and aggregate not in _ALLOWED_AGGREGATES:
-                errors.append(f'Encoding.{channel}.aggregate has unsupported value: {aggregate}.')
+            cls._validate_channel_spec(channel, channel_spec, allowed_fields, errors)
         return encoding
+
+    @staticmethod
+    def _validate_channel_spec(channel: str, channel_spec: dict[str, Any], allowed_fields: set[str], errors: list[str]) -> None:
+        field = channel_spec.get('field')
+        aggregate = channel_spec.get('aggregate')
+        requires_field = channel not in {'detail', 'tooltip'} and not (channel == 'y' and aggregate == 'count') and not channel_spec.get('value')
+        if requires_field:
+            if not isinstance(field, str) or not field.strip():
+                errors.append(f'Encoding.{channel}.field is required.')
+            elif allowed_fields and field not in allowed_fields:
+                errors.append(f'Encoding.{channel}.field references a missing dataset or derived column: {field}.')
+        elif isinstance(field, str) and field.strip() and allowed_fields and field not in allowed_fields:
+            errors.append(f'Encoding.{channel}.field references a missing dataset or derived column: {field}.')
+        field_type = channel_spec.get('type')
+        if field_type is not None and field_type not in _ALLOWED_TYPES:
+            errors.append(f'Encoding.{channel}.type has unsupported value: {field_type}.')
+        if aggregate == 'average':
+            channel_spec['aggregate'] = 'mean'
+            aggregate = 'mean'
+        if aggregate is not None and aggregate not in _ALLOWED_AGGREGATES:
+            errors.append(f'Encoding.{channel}.aggregate has unsupported value: {aggregate}.')
 
     @staticmethod
     def _validate_transforms(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> None:
@@ -132,42 +186,67 @@ class SpecValidatorService(BaseService):
         if not isinstance(transforms, list):
             errors.append('Specification transform must be a list when present.')
             return
+        derived_fields: set[str] = set()
         for index, transform in enumerate(transforms):
             if not isinstance(transform, dict):
                 errors.append(f'Transform at index {index} must be an object.')
                 continue
             kind = transform.get('kind')
             if kind is None:
-                if 'aggregate' in transform or 'joinaggregate' in transform:
-                    kind = 'aggregate'
-                elif 'filter' in transform:
-                    kind = 'filter'
-                elif 'calculate' in transform:
-                    kind = 'calculate'
-                elif 'bin' in transform:
-                    kind = 'bin'
+                for candidate in _ALLOWED_TRANSFORMS:
+                    if candidate in transform:
+                        kind = candidate
+                        break
             if kind not in _ALLOWED_TRANSFORMS:
                 errors.append(f'Unsupported transform kind at index {index}: {kind}.')
                 continue
-            field = transform.get('field') or transform.get('field_name')
-            if field and dataset_columns and field not in dataset_columns and field != 'count':
-                errors.append(f'Transform at index {index} references a missing field: {field}.')
-            aggregate = transform.get('aggregate')
-            if aggregate is not None and aggregate not in _ALLOWED_AGGREGATES:
-                errors.append(f'Transform at index {index} uses unsupported aggregate: {aggregate}.')
+            for field in SpecValidatorService._transform_input_fields(transform):
+                if field and dataset_columns and field not in dataset_columns and field not in derived_fields and field != 'count':
+                    errors.append(f'Transform at index {index} references a missing field: {field}.')
+            derived_fields.update(SpecValidatorService._transform_output_fields(transform))
 
     @staticmethod
-    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]],
-                                             errors: list[str]) -> None:
+    def _transform_input_fields(transform: dict[str, Any]) -> set[str]:
+        fields: set[str] = set()
+        for key in ('field', 'field_name'):
+            value = transform.get(key)
+            if isinstance(value, str):
+                fields.add(value)
+        for key in ('aggregate', 'joinaggregate', 'window'):
+            value = transform.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict) and isinstance(item.get('field'), str):
+                        fields.add(item['field'])
+        return fields
+
+    @staticmethod
+    def _transform_output_fields(transform: dict[str, Any]) -> set[str]:
+        fields: set[str] = set()
+        value = transform.get('as')
+        if isinstance(value, str):
+            fields.add(value)
+        elif isinstance(value, list):
+            fields.update(str(item) for item in value if item)
+        for key in ('aggregate', 'joinaggregate', 'window'):
+            value = transform.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict) and isinstance(item.get('as'), str):
+                        fields.add(item['as'])
+        return fields
+
+    @staticmethod
+    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]], errors: list[str]) -> None:
         x = encoding.get('x') if isinstance(encoding, dict) else None
         y = encoding.get('y') if isinstance(encoding, dict) else None
-        if mark_type in {'line', 'area', 'bar', 'point', 'circle', 'tick'}:
-            if not isinstance(x, dict) or not x.get('field'):
-                errors.append(f"Mark '{mark_type}' requires encoding.x.field.")
+        if mark_type in _MARK_REQUIRING_XY:
+            if not isinstance(x, dict) or (not x.get('field') and not x.get('value')):
+                errors.append(f"Mark '{mark_type}' requires encoding.x.field or encoding.x.value.")
             if not isinstance(y, dict):
                 errors.append(f"Mark '{mark_type}' requires encoding.y.")
-            elif not y.get('field') and y.get('aggregate') != 'count':
-                errors.append(f"Mark '{mark_type}' requires encoding.y.field unless aggregate=count.")
+            elif not y.get('field') and y.get('aggregate') != 'count' and not y.get('value'):
+                errors.append(f"Mark '{mark_type}' requires encoding.y.field unless aggregate=count or value is set.")
         if mark_type == 'boxplot' and not isinstance(y, dict):
             errors.append('Boxplot requires a quantitative y encoding.')
         if mark_type == 'histogram':
@@ -178,10 +257,15 @@ class SpecValidatorService(BaseService):
 
     @staticmethod
     def _normalize_spec(spec: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(spec)
+        normalized = deepcopy(spec)
         normalized.setdefault('$schema', 'https://vega.github.io/schema/vega-lite/v5.json')
-        if isinstance(normalized.get('mark'), str):
-            normalized['mark'] = normalized['mark'].strip()
+        mark = normalized.get('mark')
+        mark_type = mark.get('type') if isinstance(mark, dict) else mark
+        if isinstance(mark_type, str) and mark_type.lower() == 'scatter':
+            if isinstance(mark, dict):
+                mark['type'] = 'point'
+            else:
+                normalized['mark'] = 'point'
         return normalized
 
     @classmethod
@@ -195,7 +279,7 @@ class SpecValidatorService(BaseService):
         except Exception:
             vlc = None
         try:
-            df = pd.read_csv(dataset_path)
+            df = cls._read_frame(dataset_path)
         except Exception as exc:
             return {'is_valid_schema': False, 'is_valid_scenegraph': False, 'is_empty_scenegraph': True,
                     'schema_error': f'Could not read dataset: {exc}',
@@ -232,8 +316,8 @@ class SpecValidatorService(BaseService):
 
     @staticmethod
     def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
-        clone = dict(spec)
-        clone['data'] = {'values': df.to_dict(orient='records')}
+        clone = deepcopy(spec)
+        clone['data'] = {'values': df.where(pd.notna(df), None).to_dict(orient='records')}
         return clone
 
     @staticmethod

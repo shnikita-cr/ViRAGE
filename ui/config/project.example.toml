@@ -29,25 +29,29 @@ compute_metrics = false
 show_step_logs = true
 
 [reasoning_model]
-provider = "openai"
-model = "gpt-4.1-mini"
+provider = "ollama"
+model = "qwen2.5:7b-instruct"
 temperature = 0.0
+base_url = "http://localhost:11434"
 timeout_seconds = 60.0
 
 [spec_model]
-provider = "openai"
-model = "gpt-4.1-mini"
+provider = "ollama"
+model = "qwen2.5-coder:7b"
 temperature = 0.0
+base_url = "http://localhost:11434"
 timeout_seconds = 60.0
 
 [vlm_model]
 provider = "openai"
 model = "gpt-4.1-mini"
 temperature = 0.0
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 60.0
 
 [vision_judge_model]
 provider = "openai"
 model = "gpt-4.1-mini"
 temperature = 0.0
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 60.0
