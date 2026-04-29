@@ -2,18 +2,9 @@ mode = "streamlit"
 
 [settings]
 artifact_root = "./artifacts"
-visrag_corpus_root = "./data/visrag_corpora"
-visrag_index_root = "./artifacts/visrag_index"
-visrag_force_rebuild_index = false
+visrag_corpus_root = "./rag_corpus/data"
 visrag_top_k_examples = 5
 visrag_top_k_recommendations = 3
-visrag_retriever_fetch_k = 20
-visrag_similarity_threshold = 0.10
-visrag_embedding_backend = "ollama"
-visrag_embedding_model = "embeddinggemma"
-visrag_ollama_base_url = "http://localhost:11434/api"
-visrag_ollama_timeout_seconds = 30.0
-visrag_enable_llm_synthesis = true
 vega_output_format = "png"
 enable_scenegraph_check = true
 enable_empty_chart_check = true

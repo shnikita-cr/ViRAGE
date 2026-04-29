@@ -10,6 +10,7 @@ import pandas as pd
 from src.domain.models import PlotImageArtifact, PlotRenderingResult, SpecValidationResult
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
+from src.services.data import read_dataframe
 
 
 class VegaLitePlotDrawingService(BaseService):
@@ -28,7 +29,7 @@ class VegaLitePlotDrawingService(BaseService):
 
         spec = deepcopy(spec_validation.validated_spec)
         data_url = self._extract_data_url(spec)
-        df = self._read_frame(data_url)
+        df = read_dataframe(data_url)
         spec_with_data = self._spec_add_data(spec, df)
         spec_with_data = self._apply_render_defaults(spec_with_data)
 
@@ -66,16 +67,6 @@ class VegaLitePlotDrawingService(BaseService):
         if not isinstance(data_url, str) or not data_url.strip():
             raise RuntimeError('Validated Vega-Lite spec must contain a non-empty data.url.')
         return data_url
-
-    @staticmethod
-    def _read_frame(data_url: str) -> pd.DataFrame:
-        path = Path(data_url)
-        suffix = path.suffix.lower()
-        if suffix == '.parquet':
-            return pd.read_parquet(path)
-        if suffix in {'.xlsx', '.xls'}:
-            return pd.read_excel(path)
-        return pd.read_csv(path)
 
     @staticmethod
     def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:

@@ -9,9 +9,8 @@ class PlanningStep(BaseModel):
 
 
 class ExecutionPolicy(BaseModel):
-    max_retries: int = 1
-    fallback_enabled: bool = True
-    retry_strategy: str = "repair_then_fallback"
+    max_retries: int = 0
+    retry_strategy: str = "fail_fast"
     prefer_best_ranked_spec: bool = True
 
 

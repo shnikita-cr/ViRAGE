@@ -1,14 +1,6 @@
-from src.visrag_core.corpus import canonicalize_chart_type
-from src.visrag_core.models import (
-    VisRAGCandidate,
-    VisRAGColumnProfile,
-    VisRAGConfig,
-    VisRAGDataProfile,
-    VisRAGExample,
-    VisRAGRequest,
-    VisRAGResult,
-)
-from src.visrag_core.service import VisRAGCoreService
+from .chart_types import canonicalize_chart_type, normalize_aggregate, require_supported_chart_type
+from .models import VisRAGCandidate, VisRAGColumnProfile, VisRAGConfig, VisRAGDataProfile, VisRAGExample, VisRAGRequest, VisRAGResult
+from .service import VisRAGCoreService
 
 __all__ = [
     "VisRAGCandidate",
@@ -20,4 +12,6 @@ __all__ = [
     "VisRAGRequest",
     "VisRAGResult",
     "canonicalize_chart_type",
+    "normalize_aggregate",
+    "require_supported_chart_type",
 ]

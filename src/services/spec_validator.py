@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.services.base import BaseService
+from src.services.data import read_dataframe
 
 _ALLOWED_MARKS = {'line', 'area', 'bar', 'point', 'circle', 'square', 'boxplot', 'histogram', 'tick', 'rect', 'rule',
                   'text'}
@@ -74,26 +75,13 @@ class SpecValidatorService(BaseService):
         if not isinstance(data_url, str) or not data_url.strip():
             errors.append('Specification data.url must point to the prepared dataset path.')
             return None, set()
-        path = Path(data_url)
-        if not path.exists():
-            errors.append(f'Prepared dataset path does not exist: {data_url}')
-            return None, set()
+        path = data_url
         try:
-            df = SpecValidatorService._read_frame(path, nrows=5)
+            df = read_dataframe(path, nrows=5)
         except Exception as exc:
             errors.append(f'Prepared dataset could not be read: {exc}')
             return None, set()
-        return path, set(df.columns)
-
-    @staticmethod
-    def _read_frame(path: Path, nrows: int | None = None) -> pd.DataFrame:
-        suffix = path.suffix.lower()
-        if suffix in {'.xlsx', '.xls'}:
-            return pd.read_excel(path, nrows=nrows)
-        if suffix == '.parquet':
-            df = pd.read_parquet(path)
-            return df.head(nrows) if nrows else df
-        return pd.read_csv(path, nrows=nrows)
+        return Path(data_url), set(df.columns)
 
     @staticmethod
     def _validate_mark(spec: dict[str, Any], errors: list[str]) -> str:
@@ -285,7 +273,7 @@ class SpecValidatorService(BaseService):
         except Exception:
             vlc = None
         try:
-            df = cls._read_frame(dataset_path)
+            df = read_dataframe(dataset_path)
         except Exception as exc:
             return {'is_valid_schema': False, 'is_valid_scenegraph': False, 'is_empty_scenegraph': True,
                     'schema_error': f'Could not read dataset: {exc}',

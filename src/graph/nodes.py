@@ -224,38 +224,20 @@ class PipelineNodes:  # fixme
 
     @traceable(name='virage.spec_validator')
     def spec_validator_node(self, state: PipelineState) -> dict:
-        max_retries = state.get('execution_policy').max_retries if state.get('execution_policy') else 0
-        current_spec = state['vega_spec']
-        attempts = 0
-        latest = self.spec_validator.invoke(current_spec)
-        while not latest.is_valid and attempts < max_retries:
-            attempts += 1
-            current_spec = self.chart_generator.repair(state['data_preparation'], current_spec,
-                                                       latest.validation_errors, latest.repair_hints,
-                                                       runtime=self.runtime)
-            latest = self.spec_validator.invoke(current_spec)
-        artifact_paths = self._save(state, 'spec_validation', latest.model_dump())
-        if current_spec is not state['vega_spec']:
-            artifact_paths = self._save({**state, 'artifact_paths': artifact_paths}, 'vega_spec_repaired',
-                                        current_spec.model_dump())
-        if not latest.is_valid:
-            self.runtime.save_text_artifact('errors/spec_validation_failed.txt', '\n'.join(latest.validation_errors),
-                                            run_id=state['run_id'])
-            raise RuntimeError(
-                'Specification validation failed after repair attempts. See artifacts/spec_validation.json and errors/spec_validation_failed.txt')
-        payload = {
-            'spec_validation': latest,
+        result = self.spec_validator.invoke(state['vega_spec'])
+        artifact_paths = self._save(state, 'spec_validation', result.model_dump())
+        if not result.is_valid:
+            self.runtime.save_text_artifact('errors/spec_validation_failed.txt', '\n'.join(result.validation_errors), run_id=state['run_id'])
+            raise RuntimeError('Specification validation failed. See artifacts/spec_validation.json and errors/spec_validation_failed.txt')
+        return {
+            'spec_validation': result,
             'stage': PipelineStage.SPEC_VALIDATION,
             'trace': self._trace(state, 'spec_validator'),
             'artifact_paths': artifact_paths,
             'step_logs': self._append_log(state, stage='spec_validator', title='Specification validation',
                                           summary='valid', inputs=['vega_spec'], outputs=['validated_spec'],
-                                          details={'artifact': artifact_paths['spec_validation'],
-                                                   'validated_spec': latest.validated_spec}),
+                                          details={'artifact': artifact_paths['spec_validation'], 'validated_spec': result.validated_spec}),
         }
-        if current_spec is not state['vega_spec']:
-            payload['vega_spec'] = current_spec
-        return payload
 
     @traceable(name='virage.vegalite_plot_drawing')
     def vegalite_plot_drawing_node(self, state: PipelineState) -> dict:
@@ -293,50 +275,11 @@ class PipelineNodes:  # fixme
     @traceable(name='virage.empty_chart_check')
     def empty_chart_check_node(self, state: PipelineState) -> dict:
         result = self.empty_chart_check.invoke(state['scenegraph_check'])
-        current_spec = state['vega_spec']
-        current_validation = state['spec_validation']
-        current_rendering = state['plot_rendering']
-        current_scenegraph = state['scenegraph_check']
-        candidate_set = state['candidate_spec_set']
-        artifact_paths = state.get('artifact_paths', {})
-        if result.empty_chart_signal and state[
-            'execution_policy'].fallback_enabled and candidate_set and candidate_set.selected_candidate_spec is not None:
-            current_index = next((i for i, item in enumerate(candidate_set.candidate_specs) if
-                                  item.spec_id == candidate_set.selected_candidate_spec.spec_id), 0)
-            prepared_columns = []
-            try:
-                import pandas as _pd
-                prepared_columns = list(_pd.read_csv(state['data_preparation'].output_path, nrows=1).columns)
-            except Exception:
-                prepared_columns = []
-            for fallback_index in range(current_index + 1, len(candidate_set.candidate_specs)):
-                candidate = candidate_set.candidate_specs[fallback_index]
-                if not self._is_candidate_compatible(candidate, prepared_columns, state.get('query_understanding')):
-                    continue
-                candidate_set.selected_candidate_spec = candidate
-                current_spec = self.chart_generator.build_from_candidate(state['data_preparation'], candidate_set,
-                                                                         fallback_index, state['execution_policy'],
-                                                                         state['validation_policy'],
-                                                                         runtime=self.runtime)
-                current_validation = self.spec_validator.invoke(current_spec)
-                if not current_validation.is_valid:
-                    continue
-                current_rendering = self.vegalite_plot_drawing.invoke(current_validation, state['run_id'],
-                                                                      runtime=self.runtime)
-                current_scenegraph = self.scenegraph_check.invoke(current_rendering)
-                result = self.empty_chart_check.invoke(current_scenegraph)
-                artifact_paths = self._save({**state, 'artifact_paths': artifact_paths}, 'vega_spec_fallback',
-                                            current_spec.model_dump())
-                if not result.empty_chart_signal:
-                    break
-        artifact_paths = self._save({**state, 'artifact_paths': artifact_paths}, 'empty_chart_check',
-                                    result.model_dump())
+        artifact_paths = self._save(state, 'empty_chart_check', result.model_dump())
         if result.empty_chart_signal:
-            self.runtime.save_text_artifact('errors/empty_chart_detected.txt', result.empty_chart_status,
-                                            run_id=state['run_id'])
-            raise RuntimeError(
-                'Rendered chart is empty or unusable. See artifacts/empty_chart_check.json and errors/empty_chart_detected.txt')
-        payload = {
+            self.runtime.save_text_artifact('errors/empty_chart_detected.txt', result.empty_chart_status, run_id=state['run_id'])
+            raise RuntimeError('Rendered chart is empty or unusable. See artifacts/empty_chart_check.json and errors/empty_chart_detected.txt')
+        return {
             'empty_chart_check': result,
             'stage': PipelineStage.EMPTY_CHART_CHECK,
             'trace': self._trace(state, 'empty_chart_check'),
@@ -344,34 +287,8 @@ class PipelineNodes:  # fixme
             'step_logs': self._append_log(state, stage='empty_chart_check', title='Empty chart check',
                                           summary=result.empty_chart_status, inputs=['scenegraph_status'],
                                           outputs=[str(result.empty_chart_signal)],
-                                          details={'artifact': artifact_paths['empty_chart_check'],
-                                                   **result.model_dump()}),
+                                          details={'artifact': artifact_paths['empty_chart_check'], **result.model_dump()}),
         }
-        if current_spec is not state['vega_spec']:
-            payload.update(
-                {'candidate_spec_set': candidate_set, 'vega_spec': current_spec, 'spec_validation': current_validation,
-                 'plot_rendering': current_rendering, 'plot_image': current_rendering.plot_image.model_dump(),
-                 'scenegraph_check': current_scenegraph})
-        return payload
-
-    @staticmethod
-    def _is_candidate_compatible(candidate, prepared_columns: list[str], query_understanding) -> bool:
-        plan = getattr(candidate, 'visualization_plan', None)
-        if plan is None:
-            return False
-        field_names = {binding.field_name for binding in plan.field_bindings if binding.field_name}
-        if prepared_columns and not field_names.issubset(set(prepared_columns)):
-            return False
-        task_text = ''
-        if query_understanding is not None:
-            task_text = ' '.join(
-                [query_understanding.intent or '', ' '.join(query_understanding.requested_operations or []),
-                 query_understanding.analysis_goal or '']).lower()
-        distribution_markers = {'distribution', 'count', 'frequency', 'proportion', 'percentage', 'composition',
-                                'class balance', 'imbalance', 'category', 'breakdown'}
-        if any(marker in task_text for marker in distribution_markers):
-            return candidate.chart_family in {'bar', 'tick'}
-        return True
 
     @traceable(name='virage.spec_score')
     def spec_score_node(self, state: PipelineState) -> dict:

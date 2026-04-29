@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from pydantic import BaseModel, Field
 
 from src.domain.models import CandidateSpecSet, DataPreparationResult, ExecutionPolicy, ValidationPolicy, \
@@ -12,6 +10,7 @@ from src.domain.models import CandidateSpecSet, DataPreparationResult, Execution
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import ainvoke_structured, invoke_structured
 from src.services.base import BaseService
+from src.services.data import read_dataframe
 
 
 class _GeneratedSpecSchema(BaseModel):
@@ -73,62 +72,6 @@ class ChartGeneratorService(BaseService):
             spec_json=self._postprocess_spec(self._merge_with_plan(parsed, prepared, plan), prepared, plan),
             version="v1")
 
-    def repair(self, prepared: DataPreparationResult, current_spec: VegaLiteSpecArtifact, validation_errors: list[str],
-               repair_hints: list[str], runtime: RuntimeContext) -> VegaLiteSpecArtifact:
-        if runtime.spec_llm is None:
-            raise RuntimeError("Spec repair requires runtime.spec_llm. No specification model was provided.")
-        preview = self._read_preview(prepared.output_path)
-        prompt = (
-            "Repair the Vega-Lite specification so it becomes structurally valid and renderable.\n"
-            "Keep the analytical intent. Use point mark for scatter plots; do not output mark=scatter.\n"
-            "Do not include raw data rows in data/datasets.\n"
-            f"Current spec JSON:\n{current_spec.model_dump_json(indent=2)}\n\n"
-            f"Validation errors:\n{validation_errors}\n\n"
-            f"Repair hints:\n{repair_hints}\n\n"
-            f"Prepared data preview (first rows):\n{preview}\n"
-        )
-        parsed = invoke_structured(
-            runtime.spec_llm,
-            prompt,
-            _GeneratedSpecSchema,
-            runtime=runtime,
-            stage="chart_generator_repair",
-            role="spec",
-            examples=None,
-            max_attempts=2,
-        )
-        spec_json = dict(current_spec.spec_json)
-        spec_json.update(
-            {
-                "mark": self._normalize_mark(parsed.mark),
-                "title": parsed.title,
-                "description": parsed.description,
-                "encoding": parsed.encoding,
-                "transform": parsed.transform,
-            }
-        )
-        if parsed.width is not None:
-            spec_json["width"] = parsed.width
-        if parsed.height is not None:
-            spec_json["height"] = parsed.height
-        return VegaLiteSpecArtifact(spec_json=self._postprocess_spec(spec_json, prepared, VisualizationPlan(
-            chart_family="point" if self._normalize_mark(parsed.mark) == "point" else str(
-                self._normalize_mark(parsed.mark)),
-            visual_task="repair",
-            goal="repair Vega-Lite specification",
-            title=parsed.title,
-        )), version=current_spec.version)
-
-    def build_from_candidate(self, prepared: DataPreparationResult, candidate_spec_set: CandidateSpecSet,
-                             candidate_index: int, execution_policy: ExecutionPolicy,
-                             validation_policy: ValidationPolicy, runtime: RuntimeContext) -> VegaLiteSpecArtifact:
-        if candidate_index < 0 or candidate_index >= len(candidate_spec_set.candidate_specs):
-            raise IndexError("Candidate index is out of range.")
-        adjusted_set = deepcopy(candidate_spec_set)
-        adjusted_set.selected_candidate_spec = adjusted_set.candidate_specs[candidate_index]
-        adjusted_set.visualization_plan = self._resolve_plan(adjusted_set)
-        return self.invoke(prepared, adjusted_set, execution_policy, validation_policy, runtime)
-
     @staticmethod
     def _resolve_plan(candidate_spec_set: CandidateSpecSet) -> VisualizationPlan | None:
         selected = candidate_spec_set.selected_candidate_spec
@@ -138,7 +81,7 @@ class ChartGeneratorService(BaseService):
 
     @staticmethod
     def _read_preview(data_path: str) -> list[dict[str, Any]]:
-        return pd.read_csv(Path(data_path)).head(5).to_dict(orient="records")
+        return read_dataframe(data_path, nrows=5).to_dict(orient="records")
 
     def _build_prompt(self, prepared: DataPreparationResult, selected_candidate, plan: VisualizationPlan,
                       execution_policy: ExecutionPolicy, validation_policy: ValidationPolicy,

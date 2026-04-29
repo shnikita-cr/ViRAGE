@@ -41,14 +41,9 @@ def _image_to_data_url(image_path: str) -> str:
 
 
 def _normalize_multimodal_prompt_input(prompt_text: str, image_path: str) -> Any:
-    """Build a LangChain-compatible multimodal message with image bytes.
-
-    ChatOpenAI and many LangChain chat models accept HumanMessage content as a
-    list of typed blocks. If LangChain is unavailable, the text fallback is kept
-    explicit rather than pretending that the model can access a local path.
-    """
+    """Build a LangChain-compatible multimodal message with image bytes."""
     if not is_langchain_available():
-        return f"{prompt_text}\n\n[Image file attached at runtime: {image_path}]"
+        raise RuntimeError("Multimodal calls require langchain_core message support.")
     from langchain_core.messages import HumanMessage
 
     data_url = _image_to_data_url(image_path)
@@ -60,7 +55,6 @@ def _normalize_multimodal_prompt_input(prompt_text: str, image_path: str) -> Any
             ]
         )
     ]
-
 
 def _model_name(llm: Any) -> str:
     for attr in ("model", "model_name"):

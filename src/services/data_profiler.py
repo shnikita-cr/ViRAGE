@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import warnings
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -10,6 +9,7 @@ import pandas as pd
 from src.domain.models import DataColumnProfile, DataProfile
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
+from src.services.data import read_dataframe
 
 _TEMPORAL_NAME_RE = re.compile(r"(^|[_\s-])(date|time|timestamp|year|month|day)([_\s-]|$)", re.IGNORECASE)
 _ID_NAME_RE = re.compile(r"(^|[_\s-])(id|uuid|guid|key)([_\s-]|$)", re.IGNORECASE)
@@ -17,8 +17,7 @@ _ID_NAME_RE = re.compile(r"(^|[_\s-])(id|uuid|guid|key)([_\s-]|$)", re.IGNORECAS
 
 class DataProfilerService(BaseService):
     def invoke(self, data_path: str, runtime: RuntimeContext) -> DataProfile:
-        path = Path(data_path)
-        df = self._read_frame(path)
+        df = read_dataframe(data_path)
         df = self._ensure_unique_columns(df)
 
         columns: list[DataColumnProfile] = []
@@ -132,17 +131,6 @@ class DataProfilerService(BaseService):
             column_name_map=column_name_map,
             data_complexity="large" if row_count > 100_000 or col_count > 30 else "standard",
         )
-
-    @staticmethod
-    def _read_frame(path: Path) -> pd.DataFrame:
-        suffix = path.suffix.lower()
-        if suffix == ".parquet":
-            return pd.read_parquet(path)
-        if suffix in {".csv", ".txt"}:
-            return pd.read_csv(path)
-        if suffix in {".xlsx", ".xls"}:
-            return pd.read_excel(path)
-        raise ValueError(f"Unsupported data format: {suffix}")
 
     def _semantic_dtype(self, column: str, series: pd.Series) -> str:
         non_null = series.dropna()

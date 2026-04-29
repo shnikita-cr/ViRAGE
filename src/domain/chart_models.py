@@ -26,7 +26,6 @@ class ScenegraphCheckResult(BaseModel):
 
 class EmptyChartCheckResult(BaseModel):
     empty_chart_signal: bool = False
-    fallback_request: str | None = None
     non_empty_render: bool = False
     empty_chart_status: str = "unknown"
 
