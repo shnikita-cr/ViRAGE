@@ -207,7 +207,7 @@ class VisRAGService(BaseService):
                                 selected_candidate_spec=(specs[0] if specs else None))
 
     def _plan_channels(self, chart_family: str, data_profile: DataProfile, request_analysis: RequestAnalysisResult) -> \
-    tuple[str, str, str, str, str | None, str]:
+            tuple[str, str, str, str, str | None, str]:
         selected = list(request_analysis.selected_fields)
         time_columns = data_profile.likely_time_columns
         numeric_columns = data_profile.likely_numeric_columns

@@ -150,7 +150,7 @@ class ChartGeneratorService(BaseService):
 
     @staticmethod
     def _merge_with_plan(parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> \
-    dict[str, Any]:
+            dict[str, Any]:
         spec_json: dict[str, Any] = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
             "description": parsed.description or plan.description or plan.goal,
@@ -171,7 +171,7 @@ class ChartGeneratorService(BaseService):
 
     @classmethod
     def _postprocess_spec(cls, spec_json: dict[str, Any], prepared: DataPreparationResult, plan: VisualizationPlan) -> \
-    dict[str, Any]:
+            dict[str, Any]:
         normalized = deepcopy(spec_json)
         encoding = normalized.get("encoding", {})
         if not isinstance(encoding, dict):
