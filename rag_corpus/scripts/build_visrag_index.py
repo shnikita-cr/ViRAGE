@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
-SUPPORTED_CHART_TYPES = {"bar", "line", "area", "point", "circle", "tick", "histogram", "boxplot"}
+SUPPORTED_CHART_TYPES = {"bar", "line", "area", "point", "circle", "square", "tick", "histogram", "boxplot", "rect", "rule", "text"}
 SUPPORTED_ROLES = {"quantitative", "temporal", "nominal", "ordinal", "boolean"}
 GENERATED_FILES = {"manifest.json", "validation_report.json", "lexical_index.json"}
 TOKEN_RE = re.compile(r"[a-zA-Zа-яА-Я0-9_]+")
@@ -24,6 +24,10 @@ CHART_ALIASES = {
     "hist": "histogram",
     "box": "boxplot",
     "box_plot": "boxplot",
+    "heatmap": "rect",
+    "heat_map": "rect",
+    "matshow": "rect",
+    "imshow": "rect",
 }
 
 

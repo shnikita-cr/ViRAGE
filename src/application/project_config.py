@@ -15,12 +15,11 @@ class ModelRoleConfig(BaseModel):
     model: str
     temperature: float = 0.0
     base_url: str | None = None
-    api_key_env: str | None = None
     timeout_seconds: float = 60.0
 
 
 class StreamlitConfig(BaseModel):
-    compute_metrics: bool = False
+    compute_metrics: bool = True
     show_step_logs: bool = True
 
 

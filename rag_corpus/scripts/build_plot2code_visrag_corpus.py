@@ -11,7 +11,7 @@ from typing import Any, Iterable
 
 
 SUPPORTED_INPUT_SUFFIXES = {".json", ".jsonl", ".ndjson", ".parquet", ".csv", ".tsv"}
-SUPPORTED_CHART_TYPES = {"bar", "line", "area", "point", "circle", "tick", "histogram", "boxplot"}
+SUPPORTED_CHART_TYPES = {"bar", "line", "area", "point", "circle", "square", "tick", "histogram", "boxplot", "rect", "rule", "text"}
 TOKEN_RE = re.compile(r"[a-zA-Zа-яА-Я0-9_]+")
 
 CHART_ALIASES = {
@@ -49,8 +49,10 @@ CHART_ALIASES = {
     "boxplot": "boxplot",
     "box_plot": "boxplot",
     "violin": "boxplot",
-    "heatmap": "bar",
-    "matshow": "bar",
+    "heatmap": "rect",
+    "heat_map": "rect",
+    "matshow": "rect",
+    "imshow": "rect",
 }
 
 ROLE_BY_CHART_TYPE: dict[str, dict[str, str]] = {
@@ -62,6 +64,10 @@ ROLE_BY_CHART_TYPE: dict[str, dict[str, str]] = {
     "tick": {"x": "quantitative"},
     "histogram": {"x": "quantitative"},
     "boxplot": {"x": "nominal", "y": "quantitative"},
+    "rect": {"x": "nominal", "y": "nominal", "color": "quantitative"},
+    "square": {"x": "quantitative", "y": "quantitative"},
+    "rule": {"x": "nominal", "y": "quantitative"},
+    "text": {"x": "nominal", "y": "quantitative", "text": "nominal"},
 }
 
 AGGREGATE_ALIASES = {
@@ -376,6 +382,7 @@ def infer_chart_type(
         ("histogram", ["histogram", "hist ", "distribution", "density", "распредел"]),
         ("boxplot", ["boxplot", "box plot", "violin"]),
         ("area", ["area chart", "fill_between"]),
+        ("rect", ["heatmap", "heat map", "matshow", "imshow", "colorbar", "color scale"]),
         ("bar", ["bar chart", "barplot", "bar ", "column chart", "broken_barh", "compare", "rank", "top"]),
         ("line", ["line chart", "line ", "trend", "time series", "timeseries", "step", "stem", "динами", "тренд"]),
     ]

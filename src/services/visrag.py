@@ -44,7 +44,6 @@ class VisRAGService(BaseService):
                 embedding_provider=getattr(runtime.settings, "visrag_embedding_provider", None),
                 embedding_model=getattr(runtime.settings, "visrag_embedding_model", None),
                 embedding_base_url=getattr(runtime.settings, "visrag_embedding_base_url", None),
-                embedding_api_key_env=getattr(runtime.settings, "visrag_embedding_api_key_env", None),
                 embedding_timeout_seconds=getattr(runtime.settings, "visrag_embedding_timeout_seconds", 60.0),
             )
         )

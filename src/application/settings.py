@@ -16,7 +16,6 @@ class ViRAGESettings(BaseModel):
     visrag_embedding_provider: str | None = Field(default=None)
     visrag_embedding_model: str | None = Field(default=None)
     visrag_embedding_base_url: str | None = Field(default=None)
-    visrag_embedding_api_key_env: str | None = Field(default=None)
     visrag_embedding_timeout_seconds: float = Field(default=60.0)
 
     vega_output_format: str = Field(default="png")
@@ -28,5 +27,5 @@ class ViRAGESettings(BaseModel):
     benchmark_output_dir: Path = Field(default=Path("./artifacts/benchmarks"))
     strict_image_only_analysis: bool = Field(default=True)
 
-    streamlit_compute_metrics: bool = Field(default=False)
+    streamlit_compute_metrics: bool = Field(default=True)
     streamlit_show_step_logs: bool = Field(default=True)

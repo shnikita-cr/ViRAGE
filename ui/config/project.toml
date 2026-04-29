@@ -20,7 +20,7 @@ streamlit_compute_metrics = true
 streamlit_show_step_logs = true
 
 [streamlit]
-compute_metrics = false
+compute_metrics = true
 show_step_logs = true
 
 [reasoning_model]

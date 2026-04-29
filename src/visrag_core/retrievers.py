@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import os
 from typing import Protocol, Sequence
 
 from .models import VisRAGCandidate, VisRAGConfig, VisRAGExample, VisRAGRequest
@@ -130,9 +129,9 @@ def build_retriever(config_or_name: VisRAGConfig | str | None = None) -> VisRAGR
         return BM25VisRAGRetriever()
     if backend in {"tfidf", "tf-idf"}:
         return TfidfVisRAGRetriever()
-    if backend in {"langchain", "embedding", "embeddings", "ollama", "openai", "chatgpt", "huggingface", "hf"}:
-        if backend in {"ollama", "openai", "chatgpt", "huggingface", "hf"}:
-            provider = "huggingface" if backend == "hf" else ("openai" if backend == "chatgpt" else backend)
+    if backend in {"langchain", "embedding", "embeddings", "ollama", "openai", "huggingface", "hf"}:
+        if backend in {"ollama", "openai", "huggingface", "hf"}:
+            provider = "huggingface" if backend == "hf" else backend
             config = config.model_copy(update={"embedding_provider": provider})
         return LangChainEmbeddingVisRAGRetriever(config)
     raise ValueError(f"Unsupported VisRAG retriever backend: {config.retriever_backend!r}")
@@ -152,13 +151,12 @@ def _build_langchain_embeddings(config: VisRAGConfig):
             kwargs["base_url"] = config.embedding_base_url
         return OllamaEmbeddings(**kwargs)
 
-    if provider in {"openai", "chatgpt"}:
+    if provider == "openai":
         try:
             from langchain_openai import OpenAIEmbeddings
         except ImportError as exc:
             raise RuntimeError("OpenAI embeddings require langchain-openai.") from exc
-        api_key = _api_key(config.embedding_api_key_env or "OPENAI_API_KEY")
-        kwargs: dict[str, object] = {"model": model or "text-embedding-3-small", "api_key": api_key}
+        kwargs: dict[str, object] = {"model": model or "text-embedding-3-small"}
         if config.embedding_base_url:
             kwargs["base_url"] = config.embedding_base_url
         return OpenAIEmbeddings(**kwargs)
@@ -175,20 +173,12 @@ def _build_langchain_embeddings(config: VisRAGConfig):
 
 def _embedding_provider(config: VisRAGConfig) -> str:
     provider = (config.embedding_provider or config.retriever_backend or "ollama").strip().lower()
-    if provider == "chatgpt":
-        return "openai"
     if provider == "hf":
         return "huggingface"
     if provider in {"langchain", "embedding", "embeddings"}:
         return "ollama"
     return provider
 
-
-def _api_key(env_name: str) -> str:
-    value = os.getenv(env_name)
-    if not value:
-        raise RuntimeError(f"Environment variable {env_name} is required for embeddings.")
-    return value
 
 
 def _candidate(example: VisRAGExample, score: float, backend: str) -> VisRAGCandidate:

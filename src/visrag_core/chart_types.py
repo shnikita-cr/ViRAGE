@@ -6,12 +6,37 @@ _CHART_ALIASES = {
     "scatter_plot": "point",
     "scatter plot": "point",
     "bar chart": "bar",
+    "bar_chart": "bar",
+    "column": "bar",
+    "column_chart": "bar",
     "line chart": "line",
+    "line_chart": "line",
     "area chart": "area",
+    "area_chart": "area",
+    "hist": "histogram",
     "histogram chart": "histogram",
+    "box": "boxplot",
+    "box_plot": "boxplot",
+    "heatmap": "rect",
+    "heat_map": "rect",
+    "matshow": "rect",
+    "imshow": "rect",
 }
 
-SUPPORTED_CHART_TYPES = {"bar", "line", "area", "point", "circle", "tick", "histogram", "boxplot"}
+SUPPORTED_CHART_TYPES = {
+    "bar",
+    "line",
+    "area",
+    "point",
+    "circle",
+    "square",
+    "tick",
+    "histogram",
+    "boxplot",
+    "rect",
+    "rule",
+    "text",
+}
 
 
 def canonicalize_chart_type(value: str | None) -> str:

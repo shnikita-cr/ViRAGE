@@ -1,10 +1,11 @@
 {
   "chart_type_counts": {
-    "bar": 50,
+    "bar": 43,
     "boxplot": 17,
-    "histogram": 99,
+    "histogram": 85,
     "line": 56,
-    "point": 98
+    "point": 93,
+    "rect": 26
   },
   "files": [
     "plot2code.jsonl"
