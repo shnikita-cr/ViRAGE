@@ -297,10 +297,10 @@ def _invoke_structured_with_message_builder(
                         started_at=started_at, finished_at=finished_at)
                 parser_errors.append(str(exc))
                 current_prompt = (
-                    _json_prompt(prompt_text, schema, examples)
-                    + "\nThe previous response was invalid. Fix it.\n"
-                    + f"Validation / parsing error:\n{exc}\n"
-                    + f"Previous response:\n{raw_text}\n"
+                        _json_prompt(prompt_text, schema, examples)
+                        + "\nThe previous response was invalid. Fix it.\n"
+                        + f"Validation / parsing error:\n{exc}\n"
+                        + f"Previous response:\n{raw_text}\n"
                 )
                 continue
         if hasattr(llm, "with_structured_output"):

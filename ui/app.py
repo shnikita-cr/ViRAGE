@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import tempfile
 from pathlib import Path
-import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -63,6 +63,7 @@ if run_clicked:
     live_steps: list[StepLog] = []
     live_model_calls: list[ModelCallLog] = []
 
+
     def render_live() -> None:
         with progress_slot:
             st.subheader('Intermediate thinking-like steps')
@@ -99,17 +100,21 @@ if run_clicked:
                         st.caption('Parser errors')
                         st.write(call.parser_errors)
 
+
     def on_step(step: StepLog) -> None:
         live_steps.append(step)
         status_slot.info(f"Current step: {step.stage} — {step.title}")
         render_live()
 
+
     def on_model_call(call: ModelCallLog) -> None:
         live_model_calls.append(call)
         render_live()
 
+
     try:
-        result = pipeline.invoke(PipelineRequest(query=query, data_path=data_path.as_posix()), step_callback=on_step, model_call_callback=on_model_call)
+        result = pipeline.invoke(PipelineRequest(query=query, data_path=data_path.as_posix()), step_callback=on_step,
+                                 model_call_callback=on_model_call)
     except Exception as exc:
         render_live()
         st.exception(exc)
@@ -145,7 +150,8 @@ if run_clicked:
     with tabs[0]:
         st.json(result.model_dump())
     with tabs[1]:
-        for name in ['query_understanding', 'request_analysis', 'candidate_spec_set', 'vega_spec', 'spec_validation', 'plot_rendering', 'vlm_analysis', 'visual_facts', 'insight_reasoning', 'insight_verification']:
+        for name in ['query_understanding', 'request_analysis', 'candidate_spec_set', 'vega_spec', 'spec_validation',
+                     'plot_rendering', 'vlm_analysis', 'visual_facts', 'insight_reasoning', 'insight_verification']:
             value = getattr(result, name, None)
             st.markdown(f'### {name}')
             if value is None:

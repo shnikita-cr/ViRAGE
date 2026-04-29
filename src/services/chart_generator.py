@@ -112,7 +112,8 @@ class ChartGeneratorService(BaseService):
         if parsed.height is not None:
             spec_json["height"] = parsed.height
         return VegaLiteSpecArtifact(spec_json=self._postprocess_spec(spec_json, prepared, VisualizationPlan(
-            chart_family="point" if self._normalize_mark(parsed.mark) == "point" else str(self._normalize_mark(parsed.mark)),
+            chart_family="point" if self._normalize_mark(parsed.mark) == "point" else str(
+                self._normalize_mark(parsed.mark)),
             visual_task="repair",
             goal="repair Vega-Lite specification",
             title=parsed.title,
@@ -158,7 +159,8 @@ class ChartGeneratorService(BaseService):
         )
 
     @classmethod
-    def _merge_with_plan(cls, parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> dict[str, Any]:
+    def _merge_with_plan(cls, parsed: _GeneratedSpecSchema, prepared: DataPreparationResult, plan: VisualizationPlan) -> \
+    dict[str, Any]:
         spec_json: dict[str, Any] = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
             "description": parsed.description or plan.description or plan.goal,
@@ -178,7 +180,8 @@ class ChartGeneratorService(BaseService):
         return spec_json
 
     @classmethod
-    def _postprocess_spec(cls, spec_json: dict[str, Any], prepared: DataPreparationResult, plan: VisualizationPlan) -> dict[str, Any]:
+    def _postprocess_spec(cls, spec_json: dict[str, Any], prepared: DataPreparationResult, plan: VisualizationPlan) -> \
+    dict[str, Any]:
         normalized = deepcopy(spec_json)
         normalized["mark"] = cls._normalize_mark(normalized.get("mark"))
         encoding = normalized.get("encoding", {})

@@ -9,8 +9,10 @@ import pandas as pd
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.services.base import BaseService
 
-_ALLOWED_MARKS = {'line', 'area', 'bar', 'point', 'circle', 'square', 'boxplot', 'histogram', 'tick', 'rect', 'rule', 'text'}
-_ALLOWED_CHANNELS = {'x', 'y', 'color', 'tooltip', 'detail', 'size', 'shape', 'opacity', 'row', 'column', 'theta', 'radius'}
+_ALLOWED_MARKS = {'line', 'area', 'bar', 'point', 'circle', 'square', 'boxplot', 'histogram', 'tick', 'rect', 'rule',
+                  'text'}
+_ALLOWED_CHANNELS = {'x', 'y', 'color', 'tooltip', 'detail', 'size', 'shape', 'opacity', 'row', 'column', 'theta',
+                     'radius'}
 _ALLOWED_TYPES = {'quantitative', 'temporal', 'nominal', 'ordinal', 'geojson'}
 _ALLOWED_AGGREGATES = {'mean', 'average', 'sum', 'count', 'min', 'max', 'median'}
 _ALLOWED_TRANSFORMS = {'aggregate', 'joinaggregate', 'filter', 'calculate', 'bin', 'timeUnit', 'window'}
@@ -133,7 +135,8 @@ class SpecValidatorService(BaseService):
         return fields
 
     @classmethod
-    def _validate_encoding(cls, spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[str, dict[str, Any]]:
+    def _validate_encoding(cls, spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[
+        str, dict[str, Any]]:
         encoding = spec.get('encoding', {})
         if not isinstance(encoding, dict) or not encoding:
             errors.append('Specification encoding must be a non-empty object.')
@@ -158,10 +161,12 @@ class SpecValidatorService(BaseService):
         return encoding
 
     @staticmethod
-    def _validate_channel_spec(channel: str, channel_spec: dict[str, Any], allowed_fields: set[str], errors: list[str]) -> None:
+    def _validate_channel_spec(channel: str, channel_spec: dict[str, Any], allowed_fields: set[str],
+                               errors: list[str]) -> None:
         field = channel_spec.get('field')
         aggregate = channel_spec.get('aggregate')
-        requires_field = channel not in {'detail', 'tooltip'} and not (channel == 'y' and aggregate == 'count') and not channel_spec.get('value')
+        requires_field = channel not in {'detail', 'tooltip'} and not (
+                    channel == 'y' and aggregate == 'count') and not channel_spec.get('value')
         if requires_field:
             if not isinstance(field, str) or not field.strip():
                 errors.append(f'Encoding.{channel}.field is required.')
@@ -237,7 +242,8 @@ class SpecValidatorService(BaseService):
         return fields
 
     @staticmethod
-    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]], errors: list[str]) -> None:
+    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]],
+                                             errors: list[str]) -> None:
         x = encoding.get('x') if isinstance(encoding, dict) else None
         y = encoding.get('y') if isinstance(encoding, dict) else None
         if mark_type in _MARK_REQUIRING_XY:

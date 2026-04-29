@@ -207,6 +207,7 @@ class DataProfilerService(BaseService):
             if semantic_dtype == "datetime":
                 if cls._is_year_like(column, non_null):
                     numeric = pd.to_numeric(non_null, errors="coerce").dropna()
+
                     def expand_year(value: float) -> int:
                         rounded = int(round(value))
                         if 0 <= rounded <= 29:
@@ -214,8 +215,10 @@ class DataProfilerService(BaseService):
                         if 30 <= rounded <= 99:
                             return 1900 + rounded
                         return rounded
+
                     years = numeric.map(expand_year)
-                    converted = pd.to_datetime(years.astype("Int64").astype("string") + "-01-01", errors="coerce").dropna()
+                    converted = pd.to_datetime(years.astype("Int64").astype("string") + "-01-01",
+                                               errors="coerce").dropna()
                 else:
                     converted = pd.to_datetime(non_null.head(1000), errors="coerce").dropna()
                 if converted.empty:
@@ -224,6 +227,7 @@ class DataProfilerService(BaseService):
             return None, None
         except Exception:
             return None, None
+
     @staticmethod
     def _sample_values(series: pd.Series) -> list[Any]:
         values = []
