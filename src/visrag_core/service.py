@@ -20,7 +20,7 @@ class VisRAGCoreService:
             return self._result(request, [], caveats + ["empty_result: no corpus examples are available."])
 
         preferred = self._preferred_chart_types(request.preferred_chart_types, caveats)
-        retrieved = build_retriever(self.config.retriever_backend).search(request, examples)
+        retrieved = build_retriever(self.config).search(request, examples)
         candidates, failed_mappings = self._rank_candidates(retrieved, request, preferred)
         if failed_mappings:
             caveats.append(

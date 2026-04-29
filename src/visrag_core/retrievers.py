@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-import json
 import math
-import urllib.request
-from collections import Counter
+import os
 from typing import Protocol, Sequence
 
-from .models import VisRAGCandidate, VisRAGExample, VisRAGRequest
+from .models import VisRAGCandidate, VisRAGConfig, VisRAGExample, VisRAGRequest
+
+try:  # Optional LangSmith tracing for portable core usage.
+    from langsmith import traceable  # type: ignore
+except Exception:  # pragma: no cover
+    def traceable(*args, **kwargs):  # type: ignore
+        def decorator(func):
+            return func
+
+        return decorator
 
 
 class VisRAGRetriever(Protocol):
@@ -15,11 +22,12 @@ class VisRAGRetriever(Protocol):
 
 
 class KeywordVisRAGRetriever:
+    @traceable(name="visrag.retriever.keyword.search")
     def search(self, request: VisRAGRequest, examples: Sequence[VisRAGExample]) -> list[VisRAGCandidate]:
         query_terms = set(_tokenize(request.query))
         if not query_terms:
             return []
-        candidates = []
+        candidates: list[VisRAGCandidate] = []
         for example in examples:
             terms = set(_tokenize(_example_text(example)))
             score = len(query_terms & terms) / max(1, len(query_terms))
@@ -29,42 +37,36 @@ class KeywordVisRAGRetriever:
 
 
 class BM25VisRAGRetriever:
+    @traceable(name="visrag.retriever.bm25.search")
     def search(self, request: VisRAGRequest, examples: Sequence[VisRAGExample]) -> list[VisRAGCandidate]:
+        try:
+            from rank_bm25 import BM25Okapi  # type: ignore
+        except ImportError as exc:
+            raise RuntimeError("BM25 retrieval requires the rank-bm25 package.") from exc
+
         query_terms = _tokenize(request.query)
         if not query_terms or not examples:
             return []
+
         docs = [_tokenize(_example_text(example)) for example in examples]
-        avg_len = sum(len(doc) for doc in docs) / max(1, len(docs))
-        df = Counter(term for doc in docs for term in set(doc))
-        k1 = 1.5
-        b = 0.75
-        results = []
-        for example, doc in zip(examples, docs):
-            tf = Counter(doc)
-            doc_len = len(doc) or 1
-            score = 0.0
-            for term in query_terms:
-                if term not in tf:
-                    continue
-                idf = math.log(1 + (len(docs) - df[term] + 0.5) / (df[term] + 0.5))
-                denom = tf[term] + k1 * (1 - b + b * doc_len / max(avg_len, 1e-9))
-                score += idf * (tf[term] * (k1 + 1)) / denom
-            if score > 0:
-                results.append(_candidate(example, score, "bm25"))
-        max_score = max((item.score for item in results), default=1.0)
-        for item in results:
-            item.score = round(item.score / max_score, 6)
-            item.score_breakdown["text"] = item.score
-        return sorted(results, key=lambda item: (-item.score, item.example.example_id))
+        scores = BM25Okapi(docs).get_scores(query_terms)
+        raw = [
+            _candidate(example, float(score), "bm25")
+            for example, score in zip(examples, scores)
+            if float(score) > 0
+        ]
+        return _normalize_scores(raw)
 
 
 class TfidfVisRAGRetriever:
+    @traceable(name="visrag.retriever.tfidf.search")
     def search(self, request: VisRAGRequest, examples: Sequence[VisRAGExample]) -> list[VisRAGCandidate]:
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.metrics.pairwise import cosine_similarity
         except ImportError as exc:
             raise RuntimeError("TF-IDF retrieval requires scikit-learn.") from exc
+
         texts = [_example_text(example) for example in examples]
         if not request.query.strip() or not texts:
             return []
@@ -73,48 +75,120 @@ class TfidfVisRAGRetriever:
         candidates = [
             _candidate(example, float(score), "tfidf")
             for example, score in zip(examples, similarities)
-            if score > 0
+            if float(score) > 0
         ]
         return sorted(candidates, key=lambda item: (-item.score, item.example.example_id))
 
 
-class OllamaEmbeddingVisRAGRetriever:
-    model_name = "embeddinggemma:latest"
-    endpoint = "http://localhost:11434/api/embeddings"
+class LangChainEmbeddingVisRAGRetriever:
+    def __init__(self, config: VisRAGConfig):
+        self.config = config
+        self.embeddings = _build_langchain_embeddings(config)
 
+    @traceable(name="visrag.retriever.langchain_embeddings.search")
     def search(self, request: VisRAGRequest, examples: Sequence[VisRAGExample]) -> list[VisRAGCandidate]:
         if not request.query.strip() or not examples:
             return []
-        query_embedding = self._embed(request.query)
-        results = []
-        for example in examples:
-            score = _cosine(query_embedding, self._embed(_example_text(example)))
-            if score > 0:
-                results.append(_candidate(example, score, "ollama"))
-        return sorted(results, key=lambda item: (-item.score, item.example.example_id))
-
-    def _embed(self, text: str) -> list[float]:
-        payload = json.dumps({"model": self.model_name, "prompt": text}).encode("utf-8")
-        request = urllib.request.Request(self.endpoint, data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode("utf-8"))
-        embedding = data.get("embedding")
-        if not isinstance(embedding, list):
-            raise RuntimeError("Ollama embedding response does not contain an embedding list.")
-        return [float(value) for value in embedding]
+        texts = [_example_text(example) for example in examples]
+        query_embedding = self.embeddings.embed_query(request.query)
+        document_embeddings = self.embeddings.embed_documents(texts)
+        backend = f"embedding:{_embedding_provider(self.config)}"
+        candidates = [
+            _candidate(example, _cosine(query_embedding, embedding), backend)
+            for example, embedding in zip(examples, document_embeddings)
+        ]
+        return sorted(
+            [item for item in candidates if item.score > 0],
+            key=lambda item: (-item.score, item.example.example_id),
+        )
 
 
-def build_retriever(name: str) -> VisRAGRetriever:
-    normalized = (name or "bm25").strip().lower()
-    if normalized == "keyword":
+class OllamaEmbeddingVisRAGRetriever(LangChainEmbeddingVisRAGRetriever):
+    def __init__(self, config: VisRAGConfig | None = None):
+        config = config or VisRAGConfig()
+        super().__init__(
+            config.model_copy(
+                update={
+                    "embedding_provider": "ollama",
+                    "embedding_model": config.embedding_model or "nomic-embed-text",
+                }
+            )
+        )
+
+
+def build_retriever(config_or_name: VisRAGConfig | str | None = None) -> VisRAGRetriever:
+    if isinstance(config_or_name, VisRAGConfig):
+        config = config_or_name
+        backend = config.retriever_backend.strip().lower()
+    else:
+        config = VisRAGConfig(retriever_backend=str(config_or_name or "bm25"))
+        backend = config.retriever_backend.strip().lower()
+
+    if backend == "keyword":
         return KeywordVisRAGRetriever()
-    if normalized == "bm25":
+    if backend == "bm25":
         return BM25VisRAGRetriever()
-    if normalized in {"tfidf", "tf-idf"}:
+    if backend in {"tfidf", "tf-idf"}:
         return TfidfVisRAGRetriever()
-    if normalized == "ollama":
-        return OllamaEmbeddingVisRAGRetriever()
-    raise ValueError(f"Unsupported VisRAG retriever backend: {name!r}")
+    if backend in {"langchain", "embedding", "embeddings", "ollama", "openai", "chatgpt", "huggingface", "hf"}:
+        if backend in {"ollama", "openai", "chatgpt", "huggingface", "hf"}:
+            provider = "huggingface" if backend == "hf" else ("openai" if backend == "chatgpt" else backend)
+            config = config.model_copy(update={"embedding_provider": provider})
+        return LangChainEmbeddingVisRAGRetriever(config)
+    raise ValueError(f"Unsupported VisRAG retriever backend: {config.retriever_backend!r}")
+
+
+def _build_langchain_embeddings(config: VisRAGConfig):
+    provider = _embedding_provider(config)
+    model = config.embedding_model
+
+    if provider == "ollama":
+        try:
+            from langchain_ollama import OllamaEmbeddings
+        except ImportError as exc:
+            raise RuntimeError("Ollama embeddings require langchain-ollama.") from exc
+        kwargs: dict[str, object] = {"model": model or "nomic-embed-text"}
+        if config.embedding_base_url:
+            kwargs["base_url"] = config.embedding_base_url
+        return OllamaEmbeddings(**kwargs)
+
+    if provider in {"openai", "chatgpt"}:
+        try:
+            from langchain_openai import OpenAIEmbeddings
+        except ImportError as exc:
+            raise RuntimeError("OpenAI embeddings require langchain-openai.") from exc
+        api_key = _api_key(config.embedding_api_key_env or "OPENAI_API_KEY")
+        kwargs: dict[str, object] = {"model": model or "text-embedding-3-small", "api_key": api_key}
+        if config.embedding_base_url:
+            kwargs["base_url"] = config.embedding_base_url
+        return OpenAIEmbeddings(**kwargs)
+
+    if provider in {"huggingface", "hf"}:
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+        except ImportError as exc:
+            raise RuntimeError("HuggingFace embeddings require langchain-huggingface.") from exc
+        return HuggingFaceEmbeddings(model_name=model or "sentence-transformers/all-MiniLM-L6-v2")
+
+    raise ValueError(f"Unsupported embedding provider: {config.embedding_provider!r}")
+
+
+def _embedding_provider(config: VisRAGConfig) -> str:
+    provider = (config.embedding_provider or config.retriever_backend or "ollama").strip().lower()
+    if provider == "chatgpt":
+        return "openai"
+    if provider == "hf":
+        return "huggingface"
+    if provider in {"langchain", "embedding", "embeddings"}:
+        return "ollama"
+    return provider
+
+
+def _api_key(env_name: str) -> str:
+    value = os.getenv(env_name)
+    if not value:
+        raise RuntimeError(f"Environment variable {env_name} is required for embeddings.")
+    return value
 
 
 def _candidate(example: VisRAGExample, score: float, backend: str) -> VisRAGCandidate:
@@ -125,6 +199,16 @@ def _candidate(example: VisRAGExample, score: float, backend: str) -> VisRAGCand
         confidence=bounded,
         score_breakdown={"text": bounded, "retriever": backend},
     )
+
+
+def _normalize_scores(candidates: list[VisRAGCandidate]) -> list[VisRAGCandidate]:
+    max_score = max((item.score for item in candidates), default=1.0)
+    for item in candidates:
+        normalized = _clamp(item.score / max(max_score, 1e-12))
+        item.score = round(normalized, 6)
+        item.confidence = normalized
+        item.score_breakdown["text"] = normalized
+    return sorted(candidates, key=lambda item: (-item.score, item.example.example_id))
 
 
 def _example_text(example: VisRAGExample) -> str:

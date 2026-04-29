@@ -13,6 +13,8 @@ def build_chat_model(config: ModelRoleConfig) -> object:
         return _build_ollama_model(config)
     if provider == 'openai':
         return _build_openai_model(config)
+    if provider == 'huggingface':
+        return _build_huggingface_model(config)
     raise ValueError(f'Unsupported model provider: {config.provider}')
 
 
@@ -51,3 +53,22 @@ def _build_openai_model(config: ModelRoleConfig) -> object:
     if config.base_url:
         kwargs['base_url'] = config.base_url
     return ChatOpenAI(**kwargs)
+
+
+def _build_huggingface_model(config: ModelRoleConfig) -> object:
+    try:
+        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+    except ImportError as exc:
+        raise RuntimeError("langchain_huggingface is required to use provider='huggingface'.") from exc
+
+    api_key = os.getenv(config.api_key_env or 'HUGGINGFACEHUB_API_TOKEN')
+    endpoint_kwargs: dict[str, object] = {
+        'repo_id': config.model,
+        'temperature': config.temperature,
+        'timeout': config.timeout_seconds,
+    }
+    if api_key:
+        endpoint_kwargs['huggingfacehub_api_token'] = api_key
+    if config.base_url:
+        endpoint_kwargs['endpoint_url'] = config.base_url
+    return ChatHuggingFace(llm=HuggingFaceEndpoint(**endpoint_kwargs))

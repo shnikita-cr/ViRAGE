@@ -7,7 +7,7 @@ import pytest
 from src.visrag_core import canonicalize_chart_type
 from src.visrag_core.corpus import VisRAGCorpus
 from src.visrag_core.models import VisRAGColumnProfile, VisRAGConfig, VisRAGDataProfile, VisRAGRequest
-from src.visrag_core.retrievers import BM25VisRAGRetriever, VisRAGRetriever
+from src.visrag_core.retrievers import KeywordVisRAGRetriever, VisRAGRetriever
 from src.visrag_core.service import VisRAGCoreService
 
 
@@ -78,7 +78,7 @@ def test_visrag_service_uses_roles_materializes_template_and_score_breakdown(tmp
     corpus.mkdir()
     _write_jsonl(corpus / "examples.jsonl", [_bar_example()])
 
-    result = VisRAGCoreService(VisRAGConfig(corpus_root=corpus, retriever_backend="bm25")).search(_request())
+    result = VisRAGCoreService(VisRAGConfig(corpus_root=corpus, retriever_backend="keyword")).search(_request())
 
     assert result.caveats == []
     assert len(result.candidates) == 1
@@ -119,5 +119,5 @@ def test_failed_field_mapping_returns_caveat(tmp_path):
 
 
 def test_retriever_interface_is_available():
-    retriever: VisRAGRetriever = BM25VisRAGRetriever()
+    retriever: VisRAGRetriever = KeywordVisRAGRetriever()
     assert hasattr(retriever, "search")

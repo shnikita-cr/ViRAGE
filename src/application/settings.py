@@ -13,6 +13,11 @@ class ViRAGESettings(BaseModel):
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/data"))
     visrag_top_k_examples: int = Field(default=5, ge=1)
     visrag_retriever_backend: str = Field(default="bm25")
+    visrag_embedding_provider: str | None = Field(default=None)
+    visrag_embedding_model: str | None = Field(default=None)
+    visrag_embedding_base_url: str | None = Field(default=None)
+    visrag_embedding_api_key_env: str | None = Field(default=None)
+    visrag_embedding_timeout_seconds: float = Field(default=60.0)
 
     vega_output_format: str = Field(default="png")
     enable_scenegraph_check: bool = Field(default=True)

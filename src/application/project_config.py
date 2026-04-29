@@ -11,7 +11,7 @@ from src.application.settings import ViRAGESettings
 
 
 class ModelRoleConfig(BaseModel):
-    provider: Literal["ollama", "openai"]
+    provider: Literal["ollama", "openai", "huggingface"]
     model: str
     temperature: float = 0.0
     base_url: str | None = None

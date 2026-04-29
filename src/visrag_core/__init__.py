@@ -11,6 +11,7 @@ from .models import (
 from .retrievers import (
     BM25VisRAGRetriever,
     KeywordVisRAGRetriever,
+    LangChainEmbeddingVisRAGRetriever,
     OllamaEmbeddingVisRAGRetriever,
     TfidfVisRAGRetriever,
     VisRAGRetriever,
@@ -22,6 +23,7 @@ from .service import VisRAGCoreService
 __all__ = [
     "BM25VisRAGRetriever",
     "KeywordVisRAGRetriever",
+    "LangChainEmbeddingVisRAGRetriever",
     "OllamaEmbeddingVisRAGRetriever",
     "TfidfVisRAGRetriever",
     "VisRAGCandidate",

@@ -41,6 +41,11 @@ class VisRAGService(BaseService):
             VisRAGConfig(
                 corpus_root=self._corpus_root(runtime),
                 retriever_backend=getattr(runtime.settings, "visrag_retriever_backend", "bm25"),
+                embedding_provider=getattr(runtime.settings, "visrag_embedding_provider", None),
+                embedding_model=getattr(runtime.settings, "visrag_embedding_model", None),
+                embedding_base_url=getattr(runtime.settings, "visrag_embedding_base_url", None),
+                embedding_api_key_env=getattr(runtime.settings, "visrag_embedding_api_key_env", None),
+                embedding_timeout_seconds=getattr(runtime.settings, "visrag_embedding_timeout_seconds", 60.0),
             )
         )
         result = core.search(request)

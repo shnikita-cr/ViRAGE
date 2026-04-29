@@ -1,14 +1,33 @@
-# ViRAGE RAG corpus data
+# ViRAGE VisRAG prepared corpus
 
-This directory stores prepared corpus files used by `src/visrag_core`.
-The application code only reads this directory; corpus preparation and indexing should be done outside `src`.
+This directory contains only prepared runtime artifacts for the VisRAG layer.
+Corpus preparation and validation are performed offline from `rag_corpus/scripts`.
+The `src` package only reads files from this directory.
 
-Supported formats:
-- `*.jsonl`: one JSON object per line
-- `*.json`: a list of objects or `{ "examples": [...] }`
+Expected files:
 
-Required fields per example:
-- `instruction` / `query` / `utterance` / `description`
-- `chart_type` or `mark`
-- `field_roles` object, for example `{ "x": "nominal", "y": "quantitative" }`
-- `spec_template` object or `spec` object
+- `plot2code.jsonl` or another prepared `.jsonl` / `.json` corpus file
+- `manifest.json`
+- `validation_report.json`
+- `lexical_index.json`
+
+Runtime corpus rows must contain:
+
+- `id`
+- `instruction`
+- `chart_type`
+- `field_roles`
+- `spec_template`
+
+To rebuild:
+
+```bash
+python rag_corpus/scripts/build_plot2code_visrag_corpus.py \
+  --src path/to/raw_plot2code \
+  --out rag_corpus/data/plot2code.jsonl \
+  --strict
+
+python rag_corpus/scripts/build_visrag_index.py \
+  --corpus-root rag_corpus/data \
+  --strict
+```

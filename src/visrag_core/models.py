@@ -32,6 +32,11 @@ class VisRAGRequest(BaseModel):
 class VisRAGConfig(BaseModel):
     corpus_root: Path = Path("rag_corpus/data")
     retriever_backend: str = "bm25"
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    embedding_base_url: str | None = None
+    embedding_api_key_env: str | None = None
+    embedding_timeout_seconds: float = 60.0
 
 
 class VisRAGExample(BaseModel):
