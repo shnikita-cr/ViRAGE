@@ -10,13 +10,13 @@ from src.services.data import read_dataframe
 
 class DataPreparationService(BaseService):
     def invoke(
-        self,
-        data_path: str,
-        data_profile: DataProfile,
-        request_analysis: RequestAnalysisResult,
-        run_id: str,
-        runtime: RuntimeContext,
-        query_understanding: QueryUnderstandingResult | None = None,
+            self,
+            data_path: str,
+            data_profile: DataProfile,
+            request_analysis: RequestAnalysisResult,
+            run_id: str,
+            runtime: RuntimeContext,
+            query_understanding: QueryUnderstandingResult | None = None,
     ) -> DataPreparationResult:
         df = read_dataframe(data_path)
         operations = ["preserve_row_multiplicity"]
@@ -40,7 +40,8 @@ class DataPreparationService(BaseService):
 
         output_path = runtime.ensure_run_dir(run_id) / "cleaned_data.csv"
         df.to_csv(output_path, index=False)
-        return DataPreparationResult(output_path=output_path.as_posix(), operations=operations, row_count=len(df), col_count=len(df.columns))
+        return DataPreparationResult(output_path=output_path.as_posix(), operations=operations, row_count=len(df),
+                                     col_count=len(df.columns))
 
 
 def _parse_temporal(column: str, series: pd.Series) -> pd.Series:

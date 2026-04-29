@@ -10,12 +10,10 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    ExecutionPolicy,
     InsightReasoningResult,
     InsightVerificationResult,
     InsightsResult,
     ModelCallLog,
-    PlanningResult,
     PlotRenderingResult,
     QueryIntentBundle,
     QueryUnderstandingResult,
@@ -25,7 +23,6 @@ from src.domain.models import (
     StepLog,
     StructuralSpecMetric,
     TokenUsage,
-    ValidationPolicy,
     VegaLiteSpecArtifact,
     VisualFactExtractionResult,
     VisualQualityMetric,
@@ -47,9 +44,6 @@ class PipelineState(TypedDict, total=False):
     query_understanding: NotRequired[QueryUnderstandingResult]
     query_intent_bundle: NotRequired[QueryIntentBundle]
     request_analysis: NotRequired[RequestAnalysisResult]
-    planning: NotRequired[PlanningResult]
-    execution_policy: NotRequired[ExecutionPolicy]
-    validation_policy: NotRequired[ValidationPolicy]
     analysis_rubric: NotRequired[AnalysisRubric]
     data_profile: NotRequired[DataProfile]
     data_preparation: NotRequired[DataPreparationResult]

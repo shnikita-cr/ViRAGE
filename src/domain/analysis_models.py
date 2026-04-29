@@ -3,6 +3,13 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class AnalysisRubric(BaseModel):
+    focus_areas: list[str] = Field(default_factory=list)
+    output_format: str = "bullet_points"
+    strict_visual_only: bool = True
+    emphasize_anomalies: bool = True
+
+
 class VLMAnalysisResult(BaseModel):
     visual_observations: list[str] = Field(default_factory=list)
     extracted_visual_facts: list[str] = Field(default_factory=list)

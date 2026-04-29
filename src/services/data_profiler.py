@@ -55,7 +55,9 @@ class DataProfilerService(BaseService):
             missing_ratio = float(series.isna().mean()) if row_count else 0.0
             unique_count = int(series.nunique(dropna=True))
             semantic_dtype = self._semantic_dtype(column_name, series)
-            min_value, max_value = self._min_max(column_name, series, semantic_dtype)
+            min_value, max_value, min_max_note = self._min_max(column_name, series, semantic_dtype)
+            if min_max_note:
+                quality_notes.append(min_max_note)
             samples = self._sample_values(series)
             outlier_count, outlier_ratio = self._outlier_stats(series, semantic_dtype)
             is_identifier = self._looks_identifier(column_name, unique_count, row_count)
@@ -182,16 +184,16 @@ class DataProfilerService(BaseService):
         return False
 
     @classmethod
-    def _min_max(cls, column: str, series: pd.Series, semantic_dtype: str) -> tuple[Any | None, Any | None]:
+    def _min_max(cls, column: str, series: pd.Series, semantic_dtype: str) -> tuple[Any | None, Any | None, str | None]:
         non_null = series.dropna()
         if non_null.empty:
-            return None, None
+            return None, None, None
         try:
             if semantic_dtype == "numeric":
                 numeric = pd.to_numeric(non_null, errors="coerce").dropna()
                 if numeric.empty:
-                    return None, None
-                return numeric.min().item(), numeric.max().item()
+                    return None, None, None
+                return numeric.min().item(), numeric.max().item(), None
             if semantic_dtype == "datetime":
                 if cls._is_year_like(column, non_null):
                     numeric = pd.to_numeric(non_null, errors="coerce").dropna()
@@ -210,11 +212,11 @@ class DataProfilerService(BaseService):
                 else:
                     converted = pd.to_datetime(non_null.head(1000), errors="coerce").dropna()
                 if converted.empty:
-                    return None, None
-                return converted.min().isoformat(), converted.max().isoformat()
-            return None, None
-        except Exception:
-            return None, None
+                    return None, None, None
+                return converted.min().isoformat(), converted.max().isoformat(), None
+            return None, None, None
+        except (TypeError, ValueError, OverflowError) as exc:
+            return None, None, f"Column {column!r} min/max could not be computed: {exc}"
 
     @staticmethod
     def _sample_values(series: pd.Series) -> list[Any]:

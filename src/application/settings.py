@@ -12,7 +12,6 @@ class ViRAGESettings(BaseModel):
 
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/data"))
     visrag_top_k_examples: int = Field(default=5, ge=1)
-    visrag_top_k_recommendations: int = Field(default=3, ge=1)
 
     vega_output_format: str = Field(default="png")
     enable_scenegraph_check: bool = Field(default=True)

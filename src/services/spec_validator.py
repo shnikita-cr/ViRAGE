@@ -154,7 +154,7 @@ class SpecValidatorService(BaseService):
         field = channel_spec.get('field')
         aggregate = channel_spec.get('aggregate')
         requires_field = channel not in {'detail', 'tooltip'} and not (
-                    channel == 'y' and aggregate == 'count') and not channel_spec.get('value')
+                channel == 'y' and aggregate == 'count') and not channel_spec.get('value')
         if requires_field:
             if not isinstance(field, str) or not field.strip():
                 errors.append(f'Encoding.{channel}.field is required.')
@@ -266,47 +266,61 @@ class SpecValidatorService(BaseService):
     def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path) -> dict[str, Any]:
         try:
             import altair as alt
-        except Exception:
-            alt = None
+        except ImportError as exc:
+            return {
+                'is_valid_schema': False,
+                'is_valid_scenegraph': False,
+                'is_empty_scenegraph': True,
+                'schema_error': f'Altair is required for strict schema validation: {exc}',
+                'scenegraph_error': None,
+            }
         try:
             import vl_convert as vlc  # type: ignore
-        except Exception:
-            vlc = None
+        except ImportError as exc:
+            return {
+                'is_valid_schema': False,
+                'is_valid_scenegraph': False,
+                'is_empty_scenegraph': True,
+                'schema_error': None,
+                'scenegraph_error': f'vl-convert-python is required for strict scenegraph validation: {exc}',
+            }
         try:
             df = read_dataframe(dataset_path)
-        except Exception as exc:
-            return {'is_valid_schema': False, 'is_valid_scenegraph': False, 'is_empty_scenegraph': True,
-                    'schema_error': f'Could not read dataset: {exc}',
-                    'scenegraph_error': f'Could not read dataset: {exc}'}
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            return {
+                'is_valid_schema': False,
+                'is_valid_scenegraph': False,
+                'is_empty_scenegraph': True,
+                'schema_error': f'Could not read dataset: {exc}',
+                'scenegraph_error': f'Could not read dataset: {exc}',
+            }
 
-        scenegraph_error = None
         schema_error = None
+        scenegraph_error = None
+        is_valid_schema = False
         is_valid_scenegraph = False
         is_empty_scenegraph = True
-        if vlc is not None:
-            try:
-                spec_with_data = cls._spec_add_data(spec, df)
-                scenegraph = vlc.vegalite_to_scenegraph(vl_spec=spec_with_data, show_warnings=False)
-                is_valid_scenegraph = True
-                is_empty_scenegraph = cls._is_chart_empty_scenegraph(scenegraph)
-            except Exception as exc:
-                scenegraph_error = str(exc)
-        else:
-            is_valid_scenegraph = True
-            is_empty_scenegraph = False
-        if alt is not None:
-            try:
-                spec_with_data = cls._spec_add_data(spec, df.head())
-                alt.Chart.from_dict(spec_with_data)
-                is_valid_schema = True
-            except Exception as exc:
-                is_valid_schema = False
-                schema_error = str(exc)
-        else:
+
+        try:
+            alt.Chart.from_dict(cls._spec_add_data(spec, df.head()))
             is_valid_schema = True
-        return {'is_valid_schema': is_valid_schema, 'is_valid_scenegraph': is_valid_scenegraph,
-                'is_empty_scenegraph': is_empty_scenegraph, 'schema_error': schema_error,
-                'scenegraph_error': scenegraph_error}
+        except Exception as exc:
+            schema_error = str(exc)
+
+        try:
+            scenegraph = vlc.vegalite_to_scenegraph(vl_spec=cls._spec_add_data(spec, df), show_warnings=False)
+            is_valid_scenegraph = True
+            is_empty_scenegraph = cls._is_chart_empty_scenegraph(scenegraph)
+        except Exception as exc:
+            scenegraph_error = str(exc)
+
+        return {
+            'is_valid_schema': is_valid_schema,
+            'is_valid_scenegraph': is_valid_scenegraph,
+            'is_empty_scenegraph': is_empty_scenegraph,
+            'schema_error': schema_error,
+            'scenegraph_error': scenegraph_error,
+        }
 
     @staticmethod
     def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:

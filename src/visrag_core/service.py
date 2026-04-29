@@ -32,10 +32,10 @@ class VisRAGCoreService:
         return self._examples
 
     def _score_example(
-        self,
-        example: VisRAGExample,
-        request: VisRAGRequest,
-        preferred: set[str],
+            self,
+            example: VisRAGExample,
+            request: VisRAGRequest,
+            preferred: set[str],
     ) -> VisRAGCandidate | None:
         chart_type = canonicalize_chart_type(example.chart_type)
         if preferred and chart_type not in preferred:
@@ -61,7 +61,8 @@ class VisRAGCoreService:
         query_tokens = set(_TOKEN_RE.findall(query.lower()))
         if not query_tokens:
             return 0.0
-        corpus_tokens = set(_TOKEN_RE.findall(" ".join([example.instruction, example.description or "", *example.keywords]).lower()))
+        corpus_tokens = set(
+            _TOKEN_RE.findall(" ".join([example.instruction, example.description or "", *example.keywords]).lower()))
         return len(query_tokens & corpus_tokens) / max(1, len(query_tokens))
 
     @staticmethod
@@ -73,7 +74,8 @@ class VisRAGCoreService:
         for channel, role in field_roles.items():
             role_key = _normalize_role(role)
             candidates = [column.name for column in columns if _normalize_role(column.semantic_type) == role_key]
-            ordered = [name for name in selected if name in candidates] + [name for name in candidates if name not in selected]
+            ordered = [name for name in selected if name in candidates] + [name for name in candidates if
+                                                                           name not in selected]
             chosen = next((name for name in ordered if name not in used), None)
             if chosen:
                 mapping[channel] = chosen

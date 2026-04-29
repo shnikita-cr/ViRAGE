@@ -30,7 +30,6 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("request_analyzer", nodes.request_analyzer_node),
         ("data_preparation", nodes.data_preparation_node),
         ("visrag", nodes.visrag_node),
-        ("planning", nodes.planning_node),
         ("chart_generator", nodes.chart_generator_node),
         ("spec_validator", nodes.spec_validator_node),
         ("vegalite_plot_drawing", nodes.vegalite_plot_drawing_node),

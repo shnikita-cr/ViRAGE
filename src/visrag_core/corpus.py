@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Iterable
@@ -15,7 +16,8 @@ class VisRAGCorpus:
     def load(self) -> list[VisRAGExample]:
         if not self.root.exists():
             raise FileNotFoundError(f"RAG corpus directory does not exist: {self.root}")
-        examples = [self._to_example(row, path) for path in sorted(self.root.glob("*.jsonl")) for row in self._read_jsonl(path)]
+        examples = [self._to_example(row, path) for path in sorted(self.root.glob("*.jsonl")) for row in
+                    self._read_jsonl(path)]
         if not examples:
             raise ValueError(f"RAG corpus has no examples: {self.root}")
         return examples
@@ -37,8 +39,9 @@ class VisRAGCorpus:
         instruction = row.get("instruction") or row.get("query") or row.get("utterance") or row.get("description")
         if not instruction:
             raise ValueError(f"Corpus row in {path} has no instruction/query/description")
+        generated_id = hashlib.sha1(str(instruction).encode("utf-8")).hexdigest()[:12]
         return VisRAGExample(
-            example_id=str(row.get("id") or row.get("example_id") or f"{path.stem}:{abs(hash(instruction))}"),
+            example_id=str(row.get("id") or row.get("example_id") or f"{path.stem}:{generated_id}"),
             source=str(row.get("source") or path.stem),
             corpus=str(row.get("corpus") or path.stem),
             instruction=str(instruction),

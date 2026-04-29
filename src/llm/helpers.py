@@ -56,6 +56,7 @@ def _normalize_multimodal_prompt_input(prompt_text: str, image_path: str) -> Any
         )
     ]
 
+
 def _model_name(llm: Any) -> str:
     for attr in ("model", "model_name"):
         value = getattr(llm, attr, None)

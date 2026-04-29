@@ -23,8 +23,8 @@ class VisualQualityMetric(BaseModel):
 
 
 class EvaluationSummaryResult(BaseModel):
-    structural_spec_metric: float = 0.0
-    visual_quality_metric: float = 0.0
+    structural_spec_metric: float | None = None
+    visual_quality_metric: float | None = None
     empty_chart_status: str = "unknown"
     insight_verification_summary: str = ""
     benchmark_report: dict[str, Any] = Field(default_factory=dict)

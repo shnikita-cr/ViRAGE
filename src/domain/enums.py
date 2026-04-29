@@ -8,7 +8,6 @@ class PipelineStage(str, Enum):
     REQUEST_ANALYSIS = "request_analysis"
     DATA_PREPARATION = "data_preparation"
     VISRAG = "visrag"
-    PLANNING = "planning"
     CHART_GENERATION = "chart_generation"
     SPEC_VALIDATION = "spec_validation"
     PLOT_RENDERING = "plot_rendering"
