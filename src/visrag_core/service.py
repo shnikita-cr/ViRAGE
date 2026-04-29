@@ -22,6 +22,8 @@ class VisRAGCoreService:
         preferred = self._preferred_chart_types(request.preferred_chart_types, caveats)
         retrieved = build_retriever(self.config).search(request, examples)
         candidates, failed_mappings = self._rank_candidates(retrieved, request, preferred)
+        if not candidates and failed_mappings == 0:
+            failed_mappings = self._count_possible_failed_mappings(examples, request, preferred)
         if failed_mappings:
             caveats.append(
                 f"failed_field_mapping: {failed_mappings} retrieved examples were incompatible with the data profile.")
@@ -86,6 +88,22 @@ class VisRAGCoreService:
             result.append(candidate)
         result.sort(key=lambda item: (-item.score, item.example.chart_type, item.example.example_id))
         return result, failed_mappings
+
+    @staticmethod
+    def _count_possible_failed_mappings(
+            examples: list[VisRAGExample],
+            request: VisRAGRequest,
+            preferred: set[str],
+    ) -> int:
+        failed = 0
+        for example in examples:
+            chart_type = canonicalize_chart_type(example.chart_type)
+            if preferred and chart_type not in preferred:
+                continue
+            _, missing_channels = map_fields(example.field_roles, request)
+            if missing_channels:
+                failed += 1
+        return failed
 
     def _result(self, request: VisRAGRequest, candidates: list[VisRAGCandidate], caveats: list[str]) -> VisRAGResult:
         return VisRAGResult(

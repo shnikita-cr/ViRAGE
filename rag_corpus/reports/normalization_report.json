@@ -1,0 +1,78 @@
+{
+  "source": "D:/programming/projects/mas_rag/rag_corpus/examples",
+  "normalized_out": "D:/programming/projects/mas_rag/rag_corpus/normalized/jsonl",
+  "runtime_out": "D:/programming/projects/mas_rag/rag_corpus/data/visrag_runtime.jsonl",
+  "source_files": {
+    "draco_compassql_constraints.jsonl": 3,
+    "local_success_failure_cases.jsonl": 2,
+    "nlv_chart_llm_utterances.jsonl": 2,
+    "nvbench2_ambiguity_cases.jsonl": 1,
+    "nvbench_examples.jsonl": 1,
+    "official_vega_lite_examples.jsonl": 2,
+    "vega_datasets_profiles.jsonl": 2,
+    "vega_lite_docs_rules.jsonl": 2
+  },
+  "runtime_records": 10,
+  "errors": [],
+  "coverage": {
+    "corpus_type": {
+      "design_constraint": 3,
+      "success_case": 1,
+      "failure_case": 1,
+      "utterance": 2,
+      "ambiguity_case": 1,
+      "example": 3,
+      "dataset_profile": 2,
+      "rule": 2
+    },
+    "mark_type": {
+      "bar": 5,
+      "point": 2,
+      "line": 2,
+      "": 5,
+      "geoshape": 1
+    },
+    "chart_pattern": {
+      "bar_chart": 2,
+      "scatter_plot": 2,
+      "histogram": 3,
+      "line_chart": 2,
+      "unknown": 5,
+      "choropleth_map": 1
+    },
+    "task_type": {
+      "comparison": 2,
+      "relationship": 2,
+      "distribution": 3,
+      "trend": 3,
+      "ranking": 1,
+      "unknown": 3,
+      "geographic": 1
+    },
+    "quality_tier": {
+      "gold": 9,
+      "project_gold": 2,
+      "silver": 3,
+      "bronze": 1
+    },
+    "records": 15
+  },
+  "runtime_coverage": {
+    "corpus_type": {
+      "": 10
+    },
+    "mark_type": {
+      "": 10
+    },
+    "chart_pattern": {
+      "": 10
+    },
+    "task_type": {
+      "": 10
+    },
+    "quality_tier": {
+      "": 10
+    },
+    "records": 10
+  }
+}

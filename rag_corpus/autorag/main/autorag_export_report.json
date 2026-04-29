@@ -1,0 +1,55 @@
+{
+  "corpus_src": "D:/programming/projects/mas_rag/rag_corpus/normalized/jsonl",
+  "qa_src": "D:/programming/projects/mas_rag/rag_corpus/eval",
+  "corpus_rows": 15,
+  "qa_rows": 3,
+  "corpus_errors": [],
+  "qa_errors": [],
+  "coverage": {
+    "corpus_type": {
+      "design_constraint": 3,
+      "success_case": 1,
+      "failure_case": 1,
+      "utterance": 2,
+      "ambiguity_case": 1,
+      "example": 3,
+      "dataset_profile": 2,
+      "rule": 2
+    },
+    "mark_type": {
+      "bar": 5,
+      "point": 2,
+      "line": 2,
+      "": 5,
+      "geoshape": 1
+    },
+    "chart_pattern": {
+      "bar_chart": 2,
+      "scatter_plot": 2,
+      "histogram": 3,
+      "line_chart": 2,
+      "unknown": 5,
+      "choropleth_map": 1
+    },
+    "task_type": {
+      "comparison": 2,
+      "relationship": 2,
+      "distribution": 3,
+      "trend": 3,
+      "ranking": 1,
+      "unknown": 3,
+      "geographic": 1
+    },
+    "quality_tier": {
+      "gold": 9,
+      "project_gold": 2,
+      "silver": 3,
+      "bronze": 1
+    },
+    "records": 15,
+    "qa_records": 3,
+    "qa_groups": {
+      "benchmark_01_autorag_retrieval_main": 3
+    }
+  }
+}
