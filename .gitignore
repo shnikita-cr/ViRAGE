@@ -72,3 +72,4 @@ artifacts_test
 
 examples
 **artifacts
+/rag_corpus/raw/
