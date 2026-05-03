@@ -20,3 +20,5 @@ scikit-learn
 altair
 vl-convert-python
 openpyxl
+pyarrow
+rank-bm25
