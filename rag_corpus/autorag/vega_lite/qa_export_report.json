@@ -1,12 +1,14 @@
 {
-  "generated_at": "2026-05-05T21:34:09.478794+00:00",
+  "generated_at": "2026-05-05T22:55:07.023371+00:00",
   "input_jsonl": "rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl",
   "corpus_parquet": "rag_corpus/autorag/vega_lite/corpus.parquet",
-  "qa_path": "rag_corpus/autorag/vega_lite/qa.parquet",
+  "qa_path": "rag_corpus/autorag/vega_lite/qa_mixed_technical.parquet",
   "normalized_record_count": 100,
-  "qa_row_count": 100,
+  "qa_row_count": 300,
   "query_modes": [
-    "query_field"
+    "query_field",
+    "title_query",
+    "chart_pattern"
   ],
   "id_field": "id",
   "query_field": "instruction",
@@ -25,8 +27,8 @@
     "corpus_type"
   ],
   "min_query_length": 57,
-  "max_query_length": 98,
-  "avg_query_length": 78.25,
+  "max_query_length": 172,
+  "avg_query_length": 97.55,
   "chart_pattern_distribution_from_records": {
     "bar_chart": 9,
     "scatter_plot": 8,
@@ -58,11 +60,13 @@
     "text": 3
   },
   "query_mode_distribution": {
-    "query_field": 100
+    "query_field": 100,
+    "title_query": 100,
+    "chart_pattern": 100
   },
   "sample_rows": [
     {
-      "qid": "vega_lite_qa_000001",
+      "qid": "vega_lite_mixed_technical_qa_000001",
       "query": "Create a scatter plot that shows the relationship between two quantitative fields.",
       "retrieval_gt": [
         [
@@ -86,7 +90,55 @@
       }
     },
     {
-      "qid": "vega_lite_qa_000002",
+      "qid": "vega_lite_mixed_technical_qa_000002",
+      "query": "selection project multi. Create a scatter plot that shows the relationship between two quantitative fields.",
+      "retrieval_gt": [
+        [
+          "vega_lite:example:selection_project_multi"
+        ]
+      ],
+      "generation_gt": [
+        "scatter_plot using point mark with field roles: color unknown, size unknown, x quantitative, y quantitative"
+      ],
+      "metadata": {
+        "source_doc_id": "vega_lite:example:selection_project_multi",
+        "query_mode": "title_query",
+        "record_index": 1,
+        "source": "vega-lite",
+        "title": "selection project multi",
+        "chart_pattern": "scatter_plot",
+        "mark_type": "point",
+        "field_roles": "{\"color\": \"unknown\", \"size\": \"unknown\", \"x\": \"quantitative\", \"y\": \"quantitative\"}",
+        "source_path": "vega-lite/examples/specs/selection_project_multi.vl.json",
+        "corpus_type": "example"
+      }
+    },
+    {
+      "qid": "vega_lite_mixed_technical_qa_000003",
+      "query": "Find a relevant example for scatter_plot using point mark with field roles: color unknown, size unknown, x quantitative, y quantitative.",
+      "retrieval_gt": [
+        [
+          "vega_lite:example:selection_project_multi"
+        ]
+      ],
+      "generation_gt": [
+        "scatter_plot using point mark with field roles: color unknown, size unknown, x quantitative, y quantitative"
+      ],
+      "metadata": {
+        "source_doc_id": "vega_lite:example:selection_project_multi",
+        "query_mode": "chart_pattern",
+        "record_index": 1,
+        "source": "vega-lite",
+        "title": "selection project multi",
+        "chart_pattern": "scatter_plot",
+        "mark_type": "point",
+        "field_roles": "{\"color\": \"unknown\", \"size\": \"unknown\", \"x\": \"quantitative\", \"y\": \"quantitative\"}",
+        "source_path": "vega-lite/examples/specs/selection_project_multi.vl.json",
+        "corpus_type": "example"
+      }
+    },
+    {
+      "qid": "vega_lite_mixed_technical_qa_000004",
       "query": "Create a rule chart that shows reference lines, ranges, or intervals.",
       "retrieval_gt": [
         [
@@ -110,7 +162,55 @@
       }
     },
     {
-      "qid": "vega_lite_qa_000003",
+      "qid": "vega_lite_mixed_technical_qa_000005",
+      "query": "rule extent. Create a rule chart that shows reference lines, ranges, or intervals.",
+      "retrieval_gt": [
+        [
+          "vega_lite:example:rule_extent"
+        ]
+      ],
+      "generation_gt": [
+        "rule_chart using rule mark with field roles: x unknown, y unknown_aggregate"
+      ],
+      "metadata": {
+        "source_doc_id": "vega_lite:example:rule_extent",
+        "query_mode": "title_query",
+        "record_index": 2,
+        "source": "vega-lite",
+        "title": "rule extent",
+        "chart_pattern": "rule_chart",
+        "mark_type": "rule",
+        "field_roles": "{\"x\": \"unknown\", \"y\": \"unknown_aggregate\"}",
+        "source_path": "vega-lite/examples/specs/rule_extent.vl.json",
+        "corpus_type": "example"
+      }
+    },
+    {
+      "qid": "vega_lite_mixed_technical_qa_000006",
+      "query": "Find a relevant example for rule_chart using rule mark with field roles: x unknown, y unknown_aggregate.",
+      "retrieval_gt": [
+        [
+          "vega_lite:example:rule_extent"
+        ]
+      ],
+      "generation_gt": [
+        "rule_chart using rule mark with field roles: x unknown, y unknown_aggregate"
+      ],
+      "metadata": {
+        "source_doc_id": "vega_lite:example:rule_extent",
+        "query_mode": "chart_pattern",
+        "record_index": 2,
+        "source": "vega-lite",
+        "title": "rule extent",
+        "chart_pattern": "rule_chart",
+        "mark_type": "rule",
+        "field_roles": "{\"x\": \"unknown\", \"y\": \"unknown_aggregate\"}",
+        "source_path": "vega-lite/examples/specs/rule_extent.vl.json",
+        "corpus_type": "example"
+      }
+    },
+    {
+      "qid": "vega_lite_mixed_technical_qa_000007",
       "query": "Create a layered chart that combines multiple marks or views in one visualization.",
       "retrieval_gt": [
         [
@@ -134,7 +234,55 @@
       }
     },
     {
-      "qid": "vega_lite_qa_000004",
+      "qid": "vega_lite_mixed_technical_qa_000008",
+      "query": "layer ranged dot. Create a layered chart that combines multiple marks or views in one visualization.",
+      "retrieval_gt": [
+        [
+          "vega_lite:example:layer_ranged_dot"
+        ]
+      ],
+      "generation_gt": [
+        "layered_chart using line mark with field roles: color ordinal, opacity unknown, size unknown, x quantitative, y nominal"
+      ],
+      "metadata": {
+        "source_doc_id": "vega_lite:example:layer_ranged_dot",
+        "query_mode": "title_query",
+        "record_index": 3,
+        "source": "vega-lite",
+        "title": "layer ranged dot",
+        "chart_pattern": "layered_chart",
+        "mark_type": "line",
+        "field_roles": "{\"color\": \"ordinal\", \"opacity\": \"unknown\", \"size\": \"unknown\", \"x\": \"quantitative\", \"y\": \"nominal\"}",
+        "source_path": "vega-lite/examples/specs/layer_ranged_dot.vl.json",
+        "corpus_type": "example"
+      }
+    },
+    {
+      "qid": "vega_lite_mixed_technical_qa_000009",
+      "query": "Find a relevant example for layered_chart using line mark with field roles: color ordinal, opacity unknown, size unknown, x quantitative, y nominal.",
+      "retrieval_gt": [
+        [
+          "vega_lite:example:layer_ranged_dot"
+        ]
+      ],
+      "generation_gt": [
+        "layered_chart using line mark with field roles: color ordinal, opacity unknown, size unknown, x quantitative, y nominal"
+      ],
+      "metadata": {
+        "source_doc_id": "vega_lite:example:layer_ranged_dot",
+        "query_mode": "chart_pattern",
+        "record_index": 3,
+        "source": "vega-lite",
+        "title": "layer ranged dot",
+        "chart_pattern": "layered_chart",
+        "mark_type": "line",
+        "field_roles": "{\"color\": \"ordinal\", \"opacity\": \"unknown\", \"size\": \"unknown\", \"x\": \"quantitative\", \"y\": \"nominal\"}",
+        "source_path": "vega-lite/examples/specs/layer_ranged_dot.vl.json",
+        "corpus_type": "example"
+      }
+    },
+    {
+      "qid": "vega_lite_mixed_technical_qa_000010",
       "query": "Create a line chart that shows how a quantitative value changes over an ordered or temporal field.",
       "retrieval_gt": [
         [
@@ -154,150 +302,6 @@
         "mark_type": "line",
         "field_roles": "{\"x\": \"quantitative\", \"y\": \"quantitative\"}",
         "source_path": "vega-lite/examples/specs/line_skip_invalid_mid.vl.json",
-        "corpus_type": "example"
-      }
-    },
-    {
-      "qid": "vega_lite_qa_000005",
-      "query": "Create a geographic visualization using geospatial shapes or coordinates.",
-      "retrieval_gt": [
-        [
-          "vega_lite:example:geo_graticule_object"
-        ]
-      ],
-      "generation_gt": [
-        "map_chart using geoshape mark with field roles: none"
-      ],
-      "metadata": {
-        "source_doc_id": "vega_lite:example:geo_graticule_object",
-        "query_mode": "query_field",
-        "record_index": 5,
-        "source": "vega-lite",
-        "title": "geo graticule object",
-        "chart_pattern": "map_chart",
-        "mark_type": "geoshape",
-        "field_roles": "{}",
-        "source_path": "vega-lite/examples/specs/geo_graticule_object.vl.json",
-        "corpus_type": "example"
-      }
-    },
-    {
-      "qid": "vega_lite_qa_000006",
-      "query": "Create a heatmap that uses color intensity to compare values across two dimensions.",
-      "retrieval_gt": [
-        [
-          "vega_lite:example:selection_type_single_dblclick"
-        ]
-      ],
-      "generation_gt": [
-        "heatmap using rect mark with field roles: color unknown, x unknown, y unknown"
-      ],
-      "metadata": {
-        "source_doc_id": "vega_lite:example:selection_type_single_dblclick",
-        "query_mode": "query_field",
-        "record_index": 6,
-        "source": "vega-lite",
-        "title": "selection type single dblclick",
-        "chart_pattern": "heatmap",
-        "mark_type": "rect",
-        "field_roles": "{\"color\": \"unknown\", \"x\": \"unknown\", \"y\": \"unknown\"}",
-        "source_path": "vega-lite/examples/specs/selection_type_single_dblclick.vl.json",
-        "corpus_type": "example"
-      }
-    },
-    {
-      "qid": "vega_lite_qa_000007",
-      "query": "Create a scatter plot that shows the relationship between two quantitative fields.",
-      "retrieval_gt": [
-        [
-          "vega_lite:example:point_color_shape_constant"
-        ]
-      ],
-      "generation_gt": [
-        "scatter_plot using point mark with field roles: color unknown, shape unknown, x quantitative, y quantitative"
-      ],
-      "metadata": {
-        "source_doc_id": "vega_lite:example:point_color_shape_constant",
-        "query_mode": "query_field",
-        "record_index": 7,
-        "source": "vega-lite",
-        "title": "point color shape constant",
-        "chart_pattern": "scatter_plot",
-        "mark_type": "point",
-        "field_roles": "{\"color\": \"unknown\", \"shape\": \"unknown\", \"x\": \"quantitative\", \"y\": \"quantitative\"}",
-        "source_path": "vega-lite/examples/specs/point_color_shape_constant.vl.json",
-        "corpus_type": "example"
-      }
-    },
-    {
-      "qid": "vega_lite_qa_000008",
-      "query": "Create a histogram that shows the distribution of a quantitative field using bins and counts.",
-      "retrieval_gt": [
-        [
-          "vega_lite:example:bar_sort_by_count"
-        ]
-      ],
-      "generation_gt": [
-        "histogram using bar mark with field roles: x unknown, y count"
-      ],
-      "metadata": {
-        "source_doc_id": "vega_lite:example:bar_sort_by_count",
-        "query_mode": "query_field",
-        "record_index": 8,
-        "source": "vega-lite",
-        "title": "bar sort by count",
-        "chart_pattern": "histogram",
-        "mark_type": "bar",
-        "field_roles": "{\"x\": \"unknown\", \"y\": \"count\"}",
-        "source_path": "vega-lite/examples/specs/bar_sort_by_count.vl.json",
-        "corpus_type": "example"
-      }
-    },
-    {
-      "qid": "vega_lite_qa_000009",
-      "query": "Create a scatter plot that shows the relationship between two quantitative fields.",
-      "retrieval_gt": [
-        [
-          "vega_lite:example:selection_clear_brush"
-        ]
-      ],
-      "generation_gt": [
-        "scatter_plot using point mark with field roles: color unknown, x quantitative, y quantitative"
-      ],
-      "metadata": {
-        "source_doc_id": "vega_lite:example:selection_clear_brush",
-        "query_mode": "query_field",
-        "record_index": 9,
-        "source": "vega-lite",
-        "title": "selection clear brush",
-        "chart_pattern": "scatter_plot",
-        "mark_type": "point",
-        "field_roles": "{\"color\": \"unknown\", \"x\": \"quantitative\", \"y\": \"quantitative\"}",
-        "source_path": "vega-lite/examples/specs/selection_clear_brush.vl.json",
-        "corpus_type": "example"
-      }
-    },
-    {
-      "qid": "vega_lite_qa_000010",
-      "query": "Create a line chart that shows how a quantitative value changes over an ordered or temporal field.",
-      "retrieval_gt": [
-        [
-          "vega_lite:example:time_output_utc_scale"
-        ]
-      ],
-      "generation_gt": [
-        "line_chart using line mark with field roles: x unknown_timeunit, y quantitative"
-      ],
-      "metadata": {
-        "source_doc_id": "vega_lite:example:time_output_utc_scale",
-        "query_mode": "query_field",
-        "record_index": 10,
-        "source": "vega-lite",
-        "title": "time output utc scale",
-        "chart_pattern": "line_chart",
-        "mark_type": "line",
-        "field_roles": "{\"x\": \"unknown_timeunit\", \"y\": \"quantitative\"}",
-        "source_path": "vega-lite/examples/specs/time_output_utc_scale.vl.json",
         "corpus_type": "example"
       }
     }
