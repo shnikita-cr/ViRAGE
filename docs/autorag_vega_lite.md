@@ -1,217 +1,99 @@
-# AutoRAG для Vega-Lite корпуса
+# AutoRAG Vega-Lite
 
-Документ фиксирует, как готовить и запускать AutoRAG-оценку для `vega_lite` корпуса в проекте ViRAGE/VisRAG.
+Документ описывает запуск AutoRAG для подбора retrieval-компонентов на корпусе `vega_lite`.
 
 ## 1. Роль AutoRAG в проекте
 
-AutoRAG используется как offline-инструмент подбора retrieval pipeline для корпуса визуализационных примеров.
+AutoRAG используется только для offline retrieval evaluation / optimization.
 
-Он не является runtime-хранилищем ViRAGE. Runtime VisRAG продолжает читать:
-
-```text
-rag_corpus/data/vega_lite_examples.jsonl
-```
-
-AutoRAG читает производные parquet-артефакты:
+Он не заменяет runtime VisRAG-корпус:
 
 ```text
-rag_corpus/autorag/vega_lite/corpus.parquet
-rag_corpus/autorag/vega_lite/qa_*.parquet
+ViRAGE runtime:
+  rag_corpus/data/vega_lite_examples.jsonl
+
+AutoRAG offline:
+  rag_corpus/autorag/vega_lite/corpus.parquet
+  rag_corpus/autorag/vega_lite/qa_*.parquet
 ```
 
-## 2. Зачем нужен отдельный AutoRAG layer
+AutoRAG помогает выбрать retrieval-подход и параметры, но runtime-код проекта продолжает читать JSONL через `src/visrag_core`.
 
-AutoRAG помогает сравнить retrieval-варианты:
+---
+
+## 2. Артефакты
+
+Рабочая директория:
 
 ```text
-BM25 tokenizers
-BM25 top_k
-semantic vector retrieval
-hybrid retrieval
-query modes
+rag_corpus/autorag/vega_lite/
 ```
 
-Задача AutoRAG:
+Основные файлы:
 
 ```text
-query → relevant doc_id
+00_prepare_qa_sets.ps1
+01_run_retrieval_grid.ps1
+02_collect_retrieval_results.py
+README.md
+configs/01_retrieval_grid_all.yaml
+configs/99_retrieval_grid_bm25_debug.yaml
 ```
 
-Задача runtime VisRAG шире:
+---
+
+## 3. Почему один all-grid config
+
+Раньше были отдельные YAML для разных `top_k` и retrieval-типов.
+
+Теперь основной конфиг один:
 
 ```text
-query + data_profile
-→ candidate spec
-→ field grounding
-→ materialized Vega-Lite spec
-→ validator/render pipeline
+configs/01_retrieval_grid_all.yaml
 ```
 
-Поэтому AutoRAG-метрики — это не финальная оценка ViRAGE, а offline-сигнал для выбора retrieval-компонентов.
+Он содержит несколько `node_line` внутри одного YAML.
 
-## 3. Входные файлы
-
-### Source of truth
+Почему так:
 
 ```text
-rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl
+1. один config проще версионировать;
+2. один запуск проще воспроизводить;
+3. все результаты оказываются в одном trial tree;
+4. top_k остаётся scalar внутри каждого node_line;
+5. нет риска несовместимости из-за top_k: [3, 5, 10, 20].
 ```
 
-### AutoRAG corpus
+AutoRAG документация описывает `top_k` как node-level параметр, а пример retrieval config использует scalar `top_k`. Поэтому grid по `top_k` сделан через отдельные `node_line`, а не через список значений.
+
+---
+
+## 4. Что проверяет all-grid
+
+Основной config сравнивает:
 
 ```text
-rag_corpus/autorag/vega_lite/corpus.parquet
+BM25 lexical retrieval:
+  top_k = 3, 5, 10, 20
+  bm25_tokenizer = porter_stemmer, space
+
+Semantic retrieval:
+  module = vectordb
+  vectordb = default
+  top_k = 3, 5, 10, 20
+
+Hybrid retrieval:
+  modules = hybrid_rrf, hybrid_cc
+  top_k = 3, 5, 10, 20
 ```
 
-Ожидаемые поля:
+Hybrid retrieval в AutoRAG требует lexical и semantic retrieval nodes в том же config; поэтому hybrid node lines содержат `lexical_retrieval`, `semantic_retrieval` и `hybrid_retrieval` вместе.
 
-```text
-doc_id
-contents
-path
-metadata
-```
+---
 
-Где:
+## 5. Метрики
 
-```text
-doc_id   = normalized.id
-contents = normalized.retrieval_text
-path     = normalized.source_path
-metadata = source/title/chart_pattern/mark_type/field_roles/etc.
-```
-
-### AutoRAG QA
-
-```text
-rag_corpus/autorag/vega_lite/qa_instruction.parquet
-rag_corpus/autorag/vega_lite/qa_title_query.parquet
-rag_corpus/autorag/vega_lite/qa_chart_pattern.parquet
-rag_corpus/autorag/vega_lite/qa_all.parquet
-rag_corpus/autorag/vega_lite/qa_mixed_technical.parquet
-```
-
-## 4. QA-наборы
-
-### `qa_instruction.parquet`
-
-```text
-query = instruction
-retrieval_gt = exact doc_id
-```
-
-Использование:
-
-```text
-baseline semantic-ish query без title leakage
-```
-
-### `qa_title_query.parquet`
-
-```text
-query = title + instruction
-retrieval_gt = exact doc_id
-```
-
-Использование:
-
-```text
-technical smoke: проверяет, что title/file_name индексируется
-```
-
-Важно:
-
-```text
-это не честный user benchmark, потому что title сильно подсказывает doc_id.
-```
-
-### `qa_chart_pattern.parquet`
-
-```text
-query = chart_pattern + mark_type + field_roles
-retrieval_gt = exact doc_id
-```
-
-Использование:
-
-```text
-проверка technical retrieval по chart pattern / field roles
-```
-
-### `qa_all.parquet`
-
-```text
-query = title + instruction + chart_pattern + mark_type + field_roles
-```
-
-Использование:
-
-```text
-max-information technical retrieval
-```
-
-### `qa_mixed_technical.parquet`
-
-Содержит несколько query modes сразу:
-
-```text
-query_field
-title_query
-chart_pattern
-```
-
-Использование:
-
-```text
-сбалансированный технический набор для сравнения retriever-ов
-```
-
-## 5. Порядок подготовки AutoRAG данных
-
-Из корня проекта:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\00_prepare_qa_sets.ps1
-```
-
-Скрипт создаёт/обновляет:
-
-```text
-corpus.parquet
-qa_instruction.parquet
-qa_title_query.parquet
-qa_chart_pattern.parquet
-qa_all.parquet
-qa_mixed_technical.parquet
-```
-
-## 6. Retrieval configs
-
-Конфиги лежат здесь:
-
-```text
-rag_corpus/autorag/vega_lite/configs/
-```
-
-Текущие конфиги:
-
-```text
-01_bm25_topk_03.yaml
-02_bm25_topk_05.yaml
-03_bm25_topk_10.yaml
-04_bm25_topk_20.yaml
-05_bm25_tokenizer_sweep_topk_05.yaml
-06_bm25_tokenizer_sweep_topk_10.yaml
-07_semantic_vectordb_default_topk_05.yaml
-08_semantic_vectordb_default_topk_10.yaml
-09_hybrid_rrf_topk_05.yaml
-10_hybrid_cc_topk_05.yaml
-11_retrieval_full_grid.yaml
-```
-
-## 7. Метрики
-
-Используемые retrieval metrics:
+Используемые retrieval-метрики:
 
 ```text
 retrieval_f1
@@ -219,165 +101,159 @@ retrieval_recall
 retrieval_precision
 retrieval_ndcg
 retrieval_mrr
-retrieval_map
 ```
 
-Если текущая установленная версия AutoRAG не поддерживает `retrieval_map`, убери её из `metrics` в YAML или используй конфиг без `retrieval_map`.
-
-Рекомендуемая интерпретация:
-
-| Metric | Что показывает |
-|---|---|
-| `retrieval_recall` | попал ли правильный doc_id в top-k |
-| `retrieval_precision` | доля правильных документов среди найденных |
-| `retrieval_f1` | баланс precision/recall |
-| `retrieval_mrr` | насколько высоко стоит первый правильный документ |
-| `retrieval_ndcg` | качество ранжирования с учётом позиции |
-| `retrieval_map` | средняя precision по релевантным позициям |
-
-Для текущих exact-doc QA наиболее важны:
+Интерпретация:
 
 ```text
-retrieval_recall
-retrieval_mrr
-retrieval_ndcg
+retrieval_recall:
+  есть ли правильный документ среди top-k
+
+retrieval_mrr:
+  насколько высоко стоит первый правильный документ
+
+retrieval_ndcg:
+  насколько хорошо ранжирование в целом
+
+retrieval_precision:
+  сколько retrieved документов релевантны
+
+retrieval_f1:
+  баланс precision/recall
 ```
 
-## 8. Запуск BM25 grid
+---
 
-```powershell
-powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\01_run_retrieval_grid.ps1
-```
+## 6. QA-наборы
 
-По умолчанию запускаются только lexical BM25 configs:
+Скрипт подготовки создаёт:
 
 ```text
-01_bm25_topk_03.yaml
-02_bm25_topk_05.yaml
-03_bm25_topk_10.yaml
-04_bm25_topk_20.yaml
-05_bm25_tokenizer_sweep_topk_05.yaml
-06_bm25_tokenizer_sweep_topk_10.yaml
+qa_instruction.parquet
+qa_title_query.parquet
+qa_chart_pattern.parquet
+qa_all.parquet
+qa_mixed_technical.parquet
 ```
 
-## 9. Запуск semantic/hybrid configs
-
-Semantic/hybrid retrieval может требовать Chroma/vector dependencies и embedding settings.
-
-Запуск:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\01_run_retrieval_grid.ps1 -IncludeSemanticHybrid
-```
-
-Если semantic/hybrid configs падают из-за окружения, это не блокирует BM25 baseline. Оставь результаты BM25 и вернись к semantic/hybrid после настройки embedding/vector DB.
-
-## 10. Сбор результатов
-
-После запусков:
-
-```powershell
-python rag_corpus\autorag\vega_lite\02_collect_retrieval_results.py
-```
-
-Скрипт создаёт:
+Назначение:
 
 ```text
-rag_corpus/autorag/vega_lite/reports/retrieval_comparison.csv
-rag_corpus/autorag/vega_lite/reports/retrieval_comparison.md
+qa_instruction:
+  базовый semantic-ish smoke по instruction
+
+qa_title_query:
+  проверяет индексирование title/file name; не считать честным benchmark
+
+qa_chart_pattern:
+  проверяет поиск по chart pattern
+
+qa_all:
+  широкий technical set
+
+qa_mixed_technical:
+  сбалансированный technical smoke для нескольких query modes
 ```
 
-## 11. Где лежат trials
+---
 
-Запуски складываются в:
-
-```text
-rag_corpus/autorag/vega_lite/trials/<qa_name>/<config_name>/
-```
-
-Например:
-
-```text
-rag_corpus/autorag/vega_lite/trials/qa_mixed_technical/02_bm25_topk_05/
-```
-
-## 12. Рекомендуемая последовательность
-
-### Шаг A. Подготовить данные
+## 7. Подготовка QA и corpus
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\00_prepare_qa_sets.ps1
 ```
 
-### Шаг B. Запустить BM25 grid
+Создаёт:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\01_run_retrieval_grid.ps1
+```text
+rag_corpus/autorag/vega_lite/corpus.parquet
+rag_corpus/autorag/vega_lite/qa_instruction.parquet
+rag_corpus/autorag/vega_lite/qa_title_query.parquet
+rag_corpus/autorag/vega_lite/qa_chart_pattern.parquet
+rag_corpus/autorag/vega_lite/qa_all.parquet
+rag_corpus/autorag/vega_lite/qa_mixed_technical.parquet
 ```
 
-### Шаг C. Собрать результаты
+---
+
+## 8. Запуск all-grid
+
+```powershell
+powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\01_run_retrieval_grid.ps1 -ContinueOnError
+```
+
+`-ContinueOnError` рекомендуется, потому что semantic/vector/hybrid могут зависеть от локального embedding/vector-db окружения.
+
+---
+
+## 9. BM25 debug-only запуск
+
+Если нужно проверить только быстрый lexical baseline:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\01_run_retrieval_grid.ps1 -DebugBm25Only
+```
+
+Использует:
+
+```text
+configs/99_retrieval_grid_bm25_debug.yaml
+```
+
+---
+
+## 10. Сбор результатов
 
 ```powershell
 python rag_corpus\autorag\vega_lite\02_collect_retrieval_results.py
 ```
 
-### Шаг D. Если BM25 baseline стабилен, запустить semantic/hybrid
-
-```powershell
-powershell -ExecutionPolicy Bypass -File rag_corpus\autorag\vega_lite\01_run_retrieval_grid.ps1 -IncludeSemanticHybrid
-python rag_corpus\autorag\vega_lite\02_collect_retrieval_results.py
-```
-
-## 13. Что считать хорошим результатом
-
-Для technical QA:
+Создаёт:
 
 ```text
-qa_title_query:
-  expected recall ≈ 1.0
-  это smoke, не честный benchmark
-
-qa_instruction:
-  expected ниже, потому что instructions часто похожи
-
-qa_mixed_technical:
-  основной технический набор для сравнения retriever-ов
+rag_corpus/autorag/vega_lite/reports/retrieval_comparison.csv
+rag_corpus/autorag/vega_lite/reports/retrieval_comparison.md
+rag_corpus/autorag/vega_lite/reports/retrieval_comparison.json
 ```
 
-Для выбора retriever-а смотреть:
+---
+
+## 11. Как читать результаты
+
+Сначала смотреть:
 
 ```text
-1. qa_mixed_technical retrieval_mrr
-2. qa_mixed_technical retrieval_ndcg
-3. qa_mixed_technical retrieval_recall
-4. qa_instruction retrieval_recall / mrr
-5. execution_time
+qa_mixed_technical
+qa_instruction
 ```
 
-## 14. Что не решает AutoRAG
+`qa_title_query` использовать только как smoke того, что title индексируется.
 
-AutoRAG не проверяет:
+Если:
 
 ```text
-field grounding по DataProfile
-валидность materialized Vega-Lite spec
-rendering
-scenegraph
-empty chart
-intent-level correctness
+recall@20 высокий, но mrr/ndcg низкие
 ```
 
-Это проверяется pytest integration suite:
+значит документ находится, но плохо ранжируется.
+
+Если:
 
 ```text
-tests/integration/test_visrag_*_real_corpus.py
+recall@20 низкий
 ```
 
-## 15. Текущий принцип
+значит проблема в корпусе, query или retrieval model.
+
+---
+
+## 12. DoD AutoRAG итерации
 
 ```text
-AutoRAG выбирает retrieval strategy.
-ViRAGE tests проверяют runtime correctness.
+[ ] corpus.parquet создан
+[ ] qa_*.parquet созданы
+[ ] 01_retrieval_grid_all.yaml запущен хотя бы на qa_mixed_technical
+[ ] retrieval_comparison.md создан
+[ ] лучший config определён по mrr/ndcg/recall
+[ ] выводы перенесены в VisRAG backlog
 ```
-
-Не переносить AutoRAG parquet в runtime напрямую.
