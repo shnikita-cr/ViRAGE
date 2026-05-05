@@ -1,6 +1,6 @@
 # VisRAG Corpus Pipeline
 
-Документ фиксирует текущий pipeline подготовки корпуса для VisRAG в проекте ViRAGE, разделение ролей между JSONL и Parquet, порядок воспроизведения, тесты и текущие ограничения.
+Документ фиксирует pipeline подготовки корпуса для VisRAG в проекте ViRAGE, разделение ролей между JSONL и Parquet, порядок воспроизведения, тесты, текущий зелёный baseline и known issues после внедрения `auto/strict` grounding policy.
 
 ## 1. Назначение pipeline
 
@@ -27,7 +27,11 @@ cleaned corpus
 → pytest integration tests
 ```
 
-Текущий MVP-корпус: `vega_lite`.
+Текущий MVP-корпус:
+
+```text
+vega_lite
+```
 
 ---
 
@@ -36,8 +40,6 @@ cleaned corpus
 ### `rag_corpus/raw/`
 
 Сырой backup-слой.
-
-Используется для хранения исходных репозиториев и датасетов. Не является рабочим runtime-источником.
 
 ```text
 rag_corpus/raw/
@@ -48,7 +50,7 @@ rag_corpus/raw/
 ```text
 raw не используется напрямую в VisRAG runtime.
 raw можно пересоздать загрузочными скриптами.
-raw может быть в .gitignore или храниться как локальный backup.
+raw может оставаться локальным backup.
 ```
 
 ---
@@ -56,8 +58,6 @@ raw может быть в .gitignore или храниться как лока�
 ### `rag_corpus/cleaned/`
 
 Ручной curated-слой.
-
-Здесь лежат только нужные или потенциально нужные файлы после ручной чистки.
 
 ```text
 rag_corpus/cleaned/
@@ -79,29 +79,26 @@ Source of truth после нормализации.
 rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl
 ```
 
-Этот файл содержит полный normalized record:
+Содержит полный normalized record:
 
-```json
-{
-  "id": "vega_lite:example:point_2d",
-  "source": "vega-lite",
-  "source_path": "vega-lite/examples/specs/point_2d.vl.json",
-  "file_name": "point_2d.vl.json",
-  "file_stem": "point_2d",
-  "title": "point 2d",
-  "corpus_type": "example",
-  "instruction": "Create a scatter plot...",
-  "mark_type": "point",
-  "chart_pattern": "scatter_plot",
-  "field_roles": {
-    "x": "quantitative",
-    "y": "quantitative"
-  },
-  "retrieval_text": "Title: point 2d. Instruction: ...",
-  "spec_template": {},
-  "raw_spec": {},
-  "data_policy": "removed_from_spec_template"
-}
+```text
+id
+source
+source_path
+file_name
+file_stem
+title
+corpus_type
+instruction
+mark_type
+chart_pattern
+field_roles
+retrieval_text
+spec_template
+raw_spec
+data_policy
+removed_data_sections
+metadata
 ```
 
 Правило:
@@ -124,35 +121,7 @@ rag_corpus/autorag/vega_lite/qa.parquet
 Назначение:
 
 ```text
-AutoRAG offline retrieval evaluation / optimization.
-```
-
-`corpus.parquet` содержит:
-
-```text
-doc_id
-contents
-path
-metadata
-```
-
-Где:
-
-```text
-doc_id   = normalized.id
-contents = normalized.retrieval_text
-path     = normalized.source_path
-metadata = короткие признаки: source, title, chart_pattern, mark_type, field_roles...
-```
-
-`qa.parquet` содержит:
-
-```text
-qid
-query
-retrieval_gt
-generation_gt
-metadata
+offline retrieval evaluation / optimization.
 ```
 
 Важно:
@@ -171,7 +140,7 @@ Runtime corpus для текущего `src/visrag_core`.
 rag_corpus/data/vega_lite_examples.jsonl
 ```
 
-Это адаптированная версия normalized JSONL под runtime-контракт VisRAG:
+Формат одной записи:
 
 ```json
 {
@@ -216,17 +185,6 @@ git diff
 debug trace
 ```
 
-Преимущества:
-
-```text
-читается человеком
-удобен для diff
-удобен для ручной диагностики
-уже поддержан src/visrag_core/corpus.py
-```
-
----
-
 ### Parquet
 
 Используется для:
@@ -237,19 +195,9 @@ AutoRAG QA dataset
 offline retrieval evaluation
 ```
 
-Преимущества:
-
-```text
-ожидается AutoRAG
-удобен для табличных метрик
-быстро читается pandas/pyarrow
-```
-
 ---
 
 ## 4. Порядок скриптов
-
-Скрипты расположены в порядке воспроизведения:
 
 ```text
 scripts/rag_corpus/
@@ -264,14 +212,11 @@ scripts/rag_corpus/
   08_export_autorag_qa_from_normalized.py
   09_export_visrag_runtime_corpus.py
   10_run_pipeline_from_cleaned.ps1
-  README.md
 ```
 
 ---
 
 ## 5. Быстрый запуск pipeline от cleaned
-
-Основной воспроизводимый запуск:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\rag_corpus\10_run_pipeline_from_cleaned.ps1
@@ -311,7 +256,7 @@ rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl
 rag_corpus/data/vega_lite_examples.jsonl
 ```
 
-### Что делает exporter
+Exporter делает:
 
 ```text
 1. Удаляет data/datasets.
@@ -327,7 +272,9 @@ rag_corpus/data/vega_lite_examples.jsonl
 11. Пишет Markdown/JSON report.
 ```
 
-### Runtime-safe semantic roles
+---
+
+## 7. Runtime-safe semantic roles
 
 ```text
 quantitative
@@ -338,7 +285,9 @@ boolean
 geojson
 ```
 
-### Runtime-safe chart types на текущем этапе
+---
+
+## 8. Runtime-safe chart types
 
 ```text
 point
@@ -357,11 +306,11 @@ boxplot
 
 ---
 
-## 7. Почему `data` не хранится в `spec_template`
+## 9. Почему `data` не хранится в `spec_template`
 
 В ViRAGE данные подключаются runtime-слоем.
 
-Текущий ChartGenerator вставляет:
+ChartGenerator вставляет:
 
 ```json
 {
@@ -369,14 +318,6 @@ boxplot
     "url": "<prepared_dataset_path>"
   }
 }
-```
-
-Поэтому в корпусе запрещено использовать чужие:
-
-```text
-data
-datasets
-external data URLs
 ```
 
 Правило:
@@ -388,11 +329,9 @@ data.url attaches later by ChartGeneratorService.
 
 ---
 
-## 8. Pytest integration tests
+## 10. Pytest integration tests
 
-Smoke-проверки перенесены в pytest.
-
-### Runtime corpus test
+### Runtime corpus
 
 ```text
 tests/integration/test_visrag_runtime_corpus_real.py
@@ -411,7 +350,7 @@ runtime-safe field_roles
 
 ---
 
-### Core search test
+### Core search
 
 ```text
 tests/integration/test_visrag_core_search_real_corpus.py
@@ -426,19 +365,9 @@ field_mapping
 materialized spec_template
 ```
 
-Кейсы:
-
-```text
-scatter
-line
-bar
-histogram
-heatmap xfail
-```
-
 ---
 
-### Chart pipeline test
+### Chart pipeline
 
 ```text
 tests/integration/test_visrag_chart_pipeline_real_corpus.py
@@ -452,18 +381,9 @@ VisRAGService
 → SpecValidatorService
 ```
 
-Кейсы:
-
-```text
-scatter
-line
-bar
-histogram
-```
-
 ---
 
-### Render pipeline test
+### Render pipeline
 
 ```text
 tests/integration/test_visrag_render_pipeline_real_corpus.py
@@ -480,39 +400,69 @@ VisRAGService
 → EmptyChartCheckService
 ```
 
-Кейсы:
+---
+
+### Intent quality
 
 ```text
-scatter
-line
-bar
-histogram
+tests/integration/test_visrag_intent_quality_real_corpus.py
+```
+
+Проверяет intent-level correctness:
+
+```text
+query
+data_profile
+selected_fields
+expected chart_family
+expected field_mapping
+expected encoding
 ```
 
 ---
 
-## 9. Команды проверки
+## 11. Unit tests for grounding policy
 
-### Все integration tests
-
-```powershell
-pytest tests\integration -q
+```text
+tests/unit/test_visrag_grounding_policy.py
+tests/unit/test_visrag_field_grounding_policy.py
 ```
 
-### По отдельности
+Проверяют:
+
+```text
+auto policy resolver
+prefer behavior
+strict selected_fields behavior
+soft_fail decision mode
+override handling
+```
+
+---
+
+## 12. Команды проверки
 
 ```powershell
+pytest tests -q
+```
+
+По отдельности:
+
+```powershell
+pytest tests\unit\test_visrag_grounding_policy.py -q
+pytest tests\unit\test_visrag_field_grounding_policy.py -q
 pytest tests\integration\test_visrag_runtime_corpus_real.py -q
 pytest tests\integration\test_visrag_core_search_real_corpus.py -q
 pytest tests\integration\test_visrag_chart_pipeline_real_corpus.py -q
 pytest tests\integration\test_visrag_render_pipeline_real_corpus.py -q
+pytest tests\integration\test_visrag_intent_quality_real_corpus.py -q
 ```
 
 ---
 
-## 10. Текущий зелёный baseline
+## 13. Текущий зелёный baseline
 
-На текущем этапе подтверждён путь:
+Подтверждён путь:
 
 ```text
 cleaned corpus
@@ -527,159 +477,144 @@ cleaned corpus
 → VegaLitePlotDrawingService
 → ScenegraphCheckService
 → EmptyChartCheckService
-→ pytest integration tests
+→ intent-level tests
 ```
 
 Подтверждённые рабочие кейсы:
 
 ```text
-scatter_quantitative_relationship
-line_temporal_trend
-bar_category_comparison
+scatter_relationship_numeric
+line_trend_over_time
 histogram_distribution
-```
-
-Текущий runtime corpus содержит около 40 included examples из 100 normalized records.
-
----
-
-## 11. Known issues
-
-### 11.1. `selected_fields` пока preferred, не strict
-
-Сейчас field grounding может использовать поле не из `selected_fields`, если оно лучше подходит по semantic type.
-
-Пример:
-
-```text
-query: compare values across categories
-selected_fields: Category, Sales
-actual mapping: x = Month, y = Sales
-```
-
-Это технически валидный spec, но семантически спорный.
-
-Backlog:
-
-```text
-selected_fields_policy:
-  prefer
-  strict
-  soft_fail
+bar temporal technical smoke
 ```
 
 ---
 
-### 11.2. Heatmap / rect пока не runtime-stable
+## 14. Current expected test status
 
-Heatmap сейчас отмечен как `xfail`.
-
-Вероятные причины:
+Ожидаемый статус после strict-policy инкремента:
 
 ```text
-мало runtime-safe heatmap examples
-field_roles для x/y/color требуют отдельной настройки
-часть heatmap examples содержит transforms или complex layout
+green suite
+bar_compare_categories = xfail
+heatmap_two_dimensions = xfail
+```
+
+`bar_compare_categories` остаётся xfail осознанно.
+
+---
+
+## 15. Known issues
+
+### 15.1. `bar_compare_categories`
+
+Статус:
+
+```text
+xfail
+```
+
+Причина:
+
+```text
+strict selected_fields работает корректно,
+но в текущем runtime corpus нет подходящего categorical bar template.
+```
+
+Текущее решение:
+
+```text
+не добавлять categorical bar template в MVP.
+зафиксировать как known issue.
 ```
 
 ---
 
-### 11.3. Некоторые line templates слишком специфичные
+### 15.2. `heatmap_two_dimensions`
 
-Например:
+Статус:
+
+```text
+xfail
+```
+
+Причина:
+
+```text
+heatmap/rect runtime support пока не стабилен.
+```
+
+---
+
+### 15.3. Over-specific line templates
+
+Некоторые line templates могут быть слишком специфичными:
 
 ```text
 time_output_utc_scale
 ```
 
-Может содержать:
+Возможное будущее решение:
 
 ```text
-timeUnit = yearmonthdatehoursminutes
-scale.type = utc
-```
-
-Backlog:
-
-```text
-ranking penalty за overly-specific templates
+ranking penalty за overly-specific templates.
 ```
 
 ---
 
-### 11.4. Runtime corpus пока небольшой
+### 15.4. Runtime corpus пока небольшой
 
-Текущий strict exporter оставляет только runtime-safe subset.
+Strict exporter оставляет только runtime-safe subset.
 
-Это правильно для MVP, но позже можно расширять покрытие:
+Текущее состояние:
 
 ```text
-support transforms
-support layer/facet
-support rect/heatmap
-support arc/pie, если chart_types расширятся
+около 40 included examples из 100 normalized records
 ```
 
 ---
 
-## 12. Следующие итерации
-
-### Итерация 1. Intent-level QA для VisRAG
-
-Сделать ручной набор:
+## 16. Что не делаем в текущем MVP
 
 ```text
-query
-data_profile
-expected_chart_pattern
-expected_field_roles
-acceptable_doc_ids
-```
-
-Цель:
-
-```text
-оценивать не exact doc_id, а intent-level correctness.
+не добавляем categorical bar local template
+не чиним heatmap
+не расширяем corpus за счёт новых источников
+не внедряем full soft_fail fallback
+не оптимизируем AutoRAG hybrid pipeline
 ```
 
 ---
 
-### Итерация 2. Grounding policy
+## 17. Следующие возможные итерации
 
-Добавить режимы:
+### Итерация A. Soft-fail fallback
 
 ```text
-prefer
-strict
-soft_fail
+strict first
+prefer fallback
+caveat
 ```
 
-Цель:
+### Итерация B. Heatmap support
 
 ```text
-не подменять выбранные Request Analyzer поля без явного основания.
-```
-
----
-
-### Итерация 3. Heatmap support
-
-Отдельно стабилизировать:
-
-```text
-rect / heatmap examples
+rect templates
 x nominal
 y nominal
 color quantitative
 ```
 
----
+### Итерация C. Ranking penalty
 
-### Итерация 4. Расширение runtime corpus
+```text
+penalty for overly-specific templates
+```
 
-Подключать новые источники только после зелёного baseline на `vega_lite`.
+### Итерация D. New corpus integration
 
-Кандидаты:
+Подключать новые источники только после отдельного плана:
 
 ```text
 chart-llm-hf
@@ -690,20 +625,9 @@ draco
 compassql
 ```
 
-Правило:
-
-```text
-каждый новый corpus должен иметь:
-normalized JSONL
-AutoRAG export
-runtime JSONL export
-pytest integration tests
-source/leakage policy
-```
-
 ---
 
-## 13. Правила добавления новых корпусов
+## 18. Правила добавления новых корпусов
 
 Для каждого нового корпуса:
 
@@ -718,14 +642,6 @@ source/leakage policy
 8. Пометить benchmark-sensitive источники.
 ```
 
-Особенно важно для:
-
-```text
-chart-llm
-nlvcorpus
-chart-llm-hf
-```
-
 Если источник используется в VegaChat benchmark, он должен иметь:
 
 ```text
@@ -736,9 +652,9 @@ source_split = ...
 
 ---
 
-## 14. Definition of Done для текущего MVP
+## 19. Current DoD
 
-MVP VisRAG corpus integration считается готовым, если:
+Текущий MVP считается стабильным, если:
 
 ```text
 [done] runtime corpus генерируется
@@ -746,6 +662,9 @@ MVP VisRAG corpus integration считается готовым, если:
 [done] core search работает
 [done] chart pipeline работает
 [done] render pipeline работает
-[done] pytest integration tests зелёные
-[done] known issues зафиксированы
+[done] intent quality baseline работает
+[done] auto/strict grounding policy внедрена
+[done] tests green
+[done] bar_compare_categories documented xfail
+[done] heatmap_two_dimensions documented xfail
 ```
