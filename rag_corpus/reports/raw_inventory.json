@@ -1,0 +1,1040 @@
+{
+  "raw_root": "rag_corpus/raw",
+  "total_sources": 11,
+  "total_files": 36886,
+  "total_bytes": 915167995,
+  "total_mb": 872.772,
+  "sources": [
+    {
+      "source": "chart-llm",
+      "path": "chart-llm",
+      "file_count": 25399,
+      "total_bytes": 153939877,
+      "total_mb": 146.809,
+      "extensions": {
+        ".json": 21599,
+        ".vl.json": 3425,
+        ".csv": 148,
+        ".py": 118,
+        ".png": 54,
+        "[no_ext]": 16,
+        ".js": 16,
+        ".css": 6,
+        ".md": 5,
+        ".txt": 4,
+        ".html": 3,
+        ".xlsx": 2,
+        ".ico": 1,
+        ".pdf": 1,
+        ".tsv": 1
+      },
+      "interesting_files": {
+        ".json": 21599,
+        ".vl.json": 3425,
+        ".csv": 148,
+        ".md": 5,
+        ".txt": 4,
+        ".tsv": 1
+      },
+      "interesting_samples_by_type": {
+        ".md": [
+          "chart-llm/README.md",
+          "chart-llm/app/client/README.md",
+          "chart-llm/benchmark/data2vis/README.md",
+          "chart-llm/benchmark/nvBench/README.md",
+          "chart-llm/benchmark/VisQA-release/readme.md"
+        ],
+        ".txt": [
+          "chart-llm/requirements.txt",
+          "chart-llm/benchmark/LICENSE-vega-lite.txt",
+          "chart-llm/app/client/public/robots.txt",
+          "chart-llm/docs/static/css/bulma.css.map.txt"
+        ],
+        ".csv": [
+          "chart-llm/exp/d1_description.csv",
+          "chart-llm/exp/d2_utterance.csv",
+          "chart-llm/exp/d3_question.csv",
+          "chart-llm/framework_sample/superstore.csv",
+          "chart-llm/app/server/data/tech/0.csv",
+          "chart-llm/app/server/data/tech/1.csv",
+          "chart-llm/app/server/data/tech/2.csv",
+          "chart-llm/app/server/data/tech/3.csv",
+          "chart-llm/app/server/data/tech/4.csv",
+          "chart-llm/app/server/data/tech/5.csv"
+        ],
+        ".vl.json": [
+          "chart-llm/framework_sample/sample.vl.json",
+          "chart-llm/app/server/data/chart/0.vl.json",
+          "chart-llm/app/server/data/chart/1.vl.json",
+          "chart-llm/app/server/data/chart/2.vl.json",
+          "chart-llm/app/server/data/chart/3.vl.json",
+          "chart-llm/app/server/data/chart/4.vl.json",
+          "chart-llm/app/server/data/chart/5.vl.json",
+          "chart-llm/app/server/data/chart/6.vl.json",
+          "chart-llm/app/server/data/chart/7.vl.json",
+          "chart-llm/app/server/data/chart/8.vl.json"
+        ],
+        ".json": [
+          "chart-llm/app/client/package-lock.json",
+          "chart-llm/app/client/package.json",
+          "chart-llm/app/client/public/manifest.json",
+          "chart-llm/benchmark/vega-lite/repeat_layer_size.json",
+          "chart-llm/benchmark/vega-lite/test_minimal.json",
+          "chart-llm/benchmark/vega-lite-v4/selection_layer.json",
+          "chart-llm/benchmark/vega-lite-v4/test_minimal.json",
+          "chart-llm/benchmark/chartseer/jsonfiles/output_0000.json",
+          "chart-llm/benchmark/chartseer/jsonfiles/output_0001.json",
+          "chart-llm/benchmark/chartseer/jsonfiles/output_0002.json"
+        ],
+        ".tsv": [
+          "chart-llm/benchmark/data2vis/examplesdata/unemployment.tsv"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "chart-llm/docs/data/csv_48_process/d_46.csv",
+          "size_bytes": 27091632
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/flights-3m.json",
+          "size_bytes": 21942384
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/flights-200k.json",
+          "size_bytes": 11137926
+        },
+        {
+          "path": "chart-llm/exp/d3_question/result/task4_two.csv",
+          "size_bytes": 6121297
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/zipcodes.json",
+          "size_bytes": 5550458
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/birdstrikes.json",
+          "size_bytes": 4183924
+        },
+        {
+          "path": "chart-llm/exp/d2_utterance/result/task4_two.csv",
+          "size_bytes": 2371441
+        },
+        {
+          "path": "chart-llm/docs/data/csv_48_process/d_02.csv",
+          "size_bytes": 1994275
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/flights-20k.json",
+          "size_bytes": 1778907
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/movies.json",
+          "size_bytes": 1277555
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/earthquakes.json",
+          "size_bytes": 1219853
+        },
+        {
+          "path": "chart-llm/docs/static/js/fontawesome.all.min.js",
+          "size_bytes": 1194960
+        },
+        {
+          "path": "chart-llm/framework_sample/superstore.csv",
+          "size_bytes": 1166905
+        },
+        {
+          "path": "chart-llm/exp/d2_utterance/data/superstore.csv",
+          "size_bytes": 1166905
+        },
+        {
+          "path": "chart-llm/benchmark/data2vis/examplesdata/jobs.json",
+          "size_bytes": 936649
+        }
+      ]
+    },
+    {
+      "source": "chart-llm-data",
+      "path": "chart-llm-data",
+      "file_count": 2,
+      "total_bytes": 16175,
+      "total_mb": 0.015,
+      "extensions": {
+        ".html": 1,
+        "[no_ext]": 1
+      },
+      "interesting_files": {},
+      "interesting_samples_by_type": {},
+      "largest_files": [
+        {
+          "path": "chart-llm-data/LICENSE",
+          "size_bytes": 11558
+        },
+        {
+          "path": "chart-llm-data/index.html",
+          "size_bytes": 4617
+        }
+      ]
+    },
+    {
+      "source": "chart-llm-hf",
+      "path": "chart-llm-hf",
+      "file_count": 2,
+      "total_bytes": 33240711,
+      "total_mb": 31.701,
+      "extensions": {
+        ".jsonl": 1,
+        ".py": 1
+      },
+      "interesting_files": {
+        ".jsonl": 1
+      },
+      "interesting_samples_by_type": {
+        ".jsonl": [
+          "chart-llm-hf/data.jsonl"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "chart-llm-hf/data.jsonl",
+          "size_bytes": 33239876
+        },
+        {
+          "path": "chart-llm-hf/download_chart_llm_hf.py",
+          "size_bytes": 835
+        }
+      ]
+    },
+    {
+      "source": "compassql",
+      "path": "compassql",
+      "file_count": 142,
+      "total_bytes": 1237556,
+      "total_mb": 1.18,
+      "extensions": {
+        ".ts": 76,
+        ".json": 48,
+        "[no_ext]": 3,
+        ".yml": 3,
+        ".js": 3,
+        ".md": 3,
+        ".sh": 3,
+        ".html": 1,
+        ".lock": 1,
+        ".opts": 1
+      },
+      "interesting_files": {
+        ".json": 48,
+        ".yml": 3,
+        ".md": 3
+      },
+      "interesting_samples_by_type": {
+        ".json": [
+          "compassql/babel.config.json",
+          "compassql/package.json",
+          "compassql/tsconfig.json",
+          "compassql/.vscode/launch.json",
+          "compassql/.vscode/settings.json",
+          "compassql/examples/cql-examples.json",
+          "compassql/examples/output/1d-N-mark.results.json",
+          "compassql/examples/output/1d-N.results.json",
+          "compassql/examples/output/1d-O.results.json",
+          "compassql/examples/output/1d-Q-mark.results.json"
+        ],
+        ".yml": [
+          "compassql/codecov.yml",
+          "compassql/.github/workflows/merge-dependabot.yml",
+          "compassql/.github/workflows/test.yml"
+        ],
+        ".md": [
+          "compassql/README.md",
+          "compassql/.github/ISSUE_TEMPLATE.md",
+          "compassql/.github/PULL_REQUEST_TEMPLATE.md"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "compassql/yarn.lock",
+          "size_bytes": 383527
+        },
+        {
+          "path": "compassql/test/constraint/spec.test.ts",
+          "size_bytes": 70584
+        },
+        {
+          "path": "compassql/examples/output/3d-OxQxQ.results.json",
+          "size_bytes": 55431
+        },
+        {
+          "path": "compassql/examples/output/3d-NxQxQ.results.json",
+          "size_bytes": 51576
+        },
+        {
+          "path": "compassql/test/constraint/field.test.ts",
+          "size_bytes": 44420
+        },
+        {
+          "path": "compassql/test/query/shorthand.test.ts",
+          "size_bytes": 33873
+        },
+        {
+          "path": "compassql/src/constraint/spec.ts",
+          "size_bytes": 31926
+        },
+        {
+          "path": "compassql/test/generate.test.ts",
+          "size_bytes": 30318
+        },
+        {
+          "path": "compassql/test/enumerator.test.ts",
+          "size_bytes": 29242
+        },
+        {
+          "path": "compassql/examples/output/3d-NxOxQ.results.json",
+          "size_bytes": 27442
+        },
+        {
+          "path": "compassql/test/model.test.ts",
+          "size_bytes": 27426
+        },
+        {
+          "path": "compassql/test/nest.test.ts",
+          "size_bytes": 25905
+        },
+        {
+          "path": "compassql/test/schema.test.ts",
+          "size_bytes": 21805
+        },
+        {
+          "path": "compassql/examples/output/2d-QxT.results.json",
+          "size_bytes": 20260
+        },
+        {
+          "path": "compassql/src/schema.ts",
+          "size_bytes": 18930
+        }
+      ]
+    },
+    {
+      "source": "draco",
+      "path": "draco",
+      "file_count": 195,
+      "total_bytes": 10119632,
+      "total_mb": 9.651,
+      "extensions": {
+        ".json": 94,
+        ".lp": 34,
+        ".ts": 16,
+        "[no_ext]": 12,
+        ".py": 11,
+        ".csv": 5,
+        ".sh": 3,
+        ".md": 3,
+        ".lock": 2,
+        ".js": 2,
+        ".pdf": 2,
+        ".png": 2,
+        ".svg": 2,
+        ".in": 1,
+        ".txt": 1,
+        ".cfg": 1,
+        ".yaml": 1,
+        ".vl.json": 1,
+        ".sketch": 1,
+        ".yml": 1
+      },
+      "interesting_files": {
+        ".json": 94,
+        ".csv": 5,
+        ".md": 3,
+        ".txt": 1,
+        ".yaml": 1,
+        ".vl.json": 1,
+        ".yml": 1
+      },
+      "interesting_samples_by_type": {
+        ".json": [
+          "draco/package.json",
+          "draco/data/cars.json",
+          "draco/data/cars_mod.json",
+          "draco/data/driving.json",
+          "draco/data/movies.json",
+          "draco/data/random_data.json",
+          "draco/data/weather.json",
+          "draco/data/weball26.json",
+          "draco/data/weights.json",
+          "draco/examples/ab.json"
+        ],
+        ".md": [
+          "draco/README.md",
+          "draco/asp/Readme.md",
+          "draco/js/Readme.md"
+        ],
+        ".txt": [
+          "draco/requirements.txt"
+        ],
+        ".yaml": [
+          "draco/asp/tests.yaml"
+        ],
+        ".csv": [
+          "draco/data/cars.csv",
+          "draco/data/movies.csv",
+          "draco/examples/data/ab.csv",
+          "draco/examples/data/cars.csv",
+          "draco/examples/data/census2000.csv"
+        ],
+        ".vl.json": [
+          "draco/examples/scatter.vl.json"
+        ],
+        ".yml": [
+          "draco/.github/workflows/test.yml"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "draco/data/spec_pairs/bugs.json",
+          "size_bytes": 2543982
+        },
+        {
+          "path": "draco/data/training/kim2018.json",
+          "size_bytes": 1847730
+        },
+        {
+          "path": "draco/data/movies.json",
+          "size_bytes": 1278361
+        },
+        {
+          "path": "draco/data/spec_pairs/saket2018.json",
+          "size_bytes": 844234
+        },
+        {
+          "path": "draco/data/weather.json",
+          "size_bytes": 629164
+        },
+        {
+          "path": "draco/data/spec_pairs/synthetic.json",
+          "size_bytes": 230736
+        },
+        {
+          "path": "draco/data/spec_pairs/synthetic_default_weights.json",
+          "size_bytes": 230484
+        },
+        {
+          "path": "draco/data/to_label/mark-channel.json",
+          "size_bytes": 205799
+        },
+        {
+          "path": "draco/data/to_label/bin.json",
+          "size_bytes": 182161
+        },
+        {
+          "path": "draco/js/yarn.lock",
+          "size_bytes": 168670
+        },
+        {
+          "path": "draco/data/to_label/bin-channel.json",
+          "size_bytes": 149611
+        },
+        {
+          "path": "draco/data/cars_mod.json",
+          "size_bytes": 141639
+        },
+        {
+          "path": "draco/data/to_label/mark-aggregate.json",
+          "size_bytes": 139755
+        },
+        {
+          "path": "draco/data/to_label/mark.json",
+          "size_bytes": 113200
+        },
+        {
+          "path": "draco/logos/Draco Logo.sketch",
+          "size_bytes": 108754
+        }
+      ]
+    },
+    {
+      "source": "local_cases",
+      "path": "local_cases",
+      "file_count": 2,
+      "total_bytes": 0,
+      "total_mb": 0.0,
+      "extensions": {
+        ".jsonl": 2
+      },
+      "interesting_files": {
+        ".jsonl": 2
+      },
+      "interesting_samples_by_type": {
+        ".jsonl": [
+          "local_cases/failure_cases.jsonl",
+          "local_cases/success_cases.jsonl"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "local_cases/failure_cases.jsonl",
+          "size_bytes": 0
+        },
+        {
+          "path": "local_cases/success_cases.jsonl",
+          "size_bytes": 0
+        }
+      ]
+    },
+    {
+      "source": "nlvcorpus",
+      "path": "nlvcorpus",
+      "file_count": 11,
+      "total_bytes": 4667316,
+      "total_mb": 4.451,
+      "extensions": {
+        ".csv": 3,
+        "[no_ext]": 2,
+        ".html": 2,
+        ".pdf": 1,
+        ".md": 1,
+        ".json": 1,
+        ".css": 1
+      },
+      "interesting_files": {
+        ".csv": 3,
+        ".md": 1,
+        ".json": 1
+      },
+      "interesting_samples_by_type": {
+        ".md": [
+          "nlvcorpus/README.md"
+        ],
+        ".json": [
+          "nlvcorpus/vlSpecs.json"
+        ],
+        ".csv": [
+          "nlvcorpus/datasets/cars.csv",
+          "nlvcorpus/datasets/movies.csv",
+          "nlvcorpus/datasets/superstore.csv"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "nlvcorpus/paper-chi21.pdf",
+          "size_bytes": 3401778
+        },
+        {
+          "path": "nlvcorpus/datasets/superstore.csv",
+          "size_bytes": 1166905
+        },
+        {
+          "path": "nlvcorpus/datasets/movies.csv",
+          "size_bytes": 56667
+        },
+        {
+          "path": "nlvcorpus/vlSpecs.json",
+          "size_bytes": 16206
+        },
+        {
+          "path": "nlvcorpus/datasets/cars.csv",
+          "size_bytes": 14909
+        },
+        {
+          "path": "nlvcorpus/index.html",
+          "size_bytes": 6219
+        },
+        {
+          "path": "nlvcorpus/vizes.html",
+          "size_bytes": 1933
+        },
+        {
+          "path": "nlvcorpus/LICENSE",
+          "size_bytes": 1087
+        },
+        {
+          "path": "nlvcorpus/README.md",
+          "size_bytes": 830
+        },
+        {
+          "path": "nlvcorpus/css/style.css",
+          "size_bytes": 745
+        },
+        {
+          "path": "nlvcorpus/.gitignore",
+          "size_bytes": 37
+        }
+      ]
+    },
+    {
+      "source": "nvBench",
+      "path": "nvBench",
+      "file_count": 7244,
+      "total_bytes": 410621243,
+      "total_mb": 391.599,
+      "extensions": {
+        ".html": 7241,
+        ".zip": 1,
+        ".json": 1,
+        ".md": 1
+      },
+      "interesting_files": {
+        ".json": 1,
+        ".md": 1
+      },
+      "interesting_samples_by_type": {
+        ".json": [
+          "nvBench/NVBench.json"
+        ],
+        ".md": [
+          "nvBench/README.md"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "nvBench/databases.zip",
+          "size_bytes": 98291742
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_3252.html",
+          "size_bytes": 38244898
+        },
+        {
+          "path": "nvBench/NVBench.json",
+          "size_bytes": 14861693
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_5393.html",
+          "size_bytes": 4842836
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_1472.html",
+          "size_bytes": 4842828
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_4266.html",
+          "size_bytes": 4842796
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_2197.html",
+          "size_bytes": 4842761
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_6649.html",
+          "size_bytes": 4842435
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_4983.html",
+          "size_bytes": 4842373
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_6333.html",
+          "size_bytes": 2169834
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_4298.html",
+          "size_bytes": 2169794
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_6190.html",
+          "size_bytes": 2169752
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_601.html",
+          "size_bytes": 2169718
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_6939.html",
+          "size_bytes": 2169502
+        },
+        {
+          "path": "nvBench/nvBench_VegaLite/VIS_5005.html",
+          "size_bytes": 2168772
+        }
+      ]
+    },
+    {
+      "source": "nvBench-2.0",
+      "path": "nvBench-2.0",
+      "file_count": 344,
+      "total_bytes": 145817300,
+      "total_mb": 139.062,
+      "extensions": {
+        ".jpg": 242,
+        ".py": 38,
+        ".mp4": 17,
+        ".lp": 8,
+        ".svg": 6,
+        ".js": 6,
+        ".css": 5,
+        ".png": 5,
+        "[no_ext]": 4,
+        ".md": 3,
+        ".txt": 3,
+        ".json": 3,
+        ".html": 1,
+        ".pdf": 1,
+        ".zip": 1,
+        ".webm": 1
+      },
+      "interesting_files": {
+        ".md": 3,
+        ".txt": 3,
+        ".json": 3
+      },
+      "interesting_samples_by_type": {
+        ".md": [
+          "nvBench-2.0/README.md",
+          "nvBench-2.0/data/readme.md",
+          "nvBench-2.0/code/evaluation/README.md"
+        ],
+        ".txt": [
+          "nvBench-2.0/code/data_synthesis_pipeline/part2_vis_synthesize/draco2-asp-requirements.txt",
+          "nvBench-2.0/static/css/bulma.css.map.txt",
+          "nvBench-2.0/static/images/test.txt"
+        ],
+        ".json": [
+          "nvBench-2.0/data/nvbench2.0/dev.json",
+          "nvBench-2.0/data/nvbench2.0/test.json",
+          "nvBench-2.0/data/nvbench2.0/train.json"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "nvBench-2.0/data/nvbench2.0/train.json",
+          "size_bytes": 27511219
+        },
+        {
+          "path": "nvBench-2.0/data/database/database_csv.zip",
+          "size_bytes": 18395893
+        },
+        {
+          "path": "nvBench-2.0/static/videos/teaser.mp4",
+          "size_bytes": 9746783
+        },
+        {
+          "path": "nvBench-2.0/static/videos/matting.mp4",
+          "size_bytes": 7170928
+        },
+        {
+          "path": "nvBench-2.0/static/videos/replay.mp4",
+          "size_bytes": 6758131
+        },
+        {
+          "path": "nvBench-2.0/static/videos/coffee.mp4",
+          "size_bytes": 6569381
+        },
+        {
+          "path": "nvBench-2.0/static/videos/toby.mp4",
+          "size_bytes": 4751054
+        },
+        {
+          "path": "nvBench-2.0/static/videos/steve.mp4",
+          "size_bytes": 3485178
+        },
+        {
+          "path": "nvBench-2.0/data/nvbench2.0/test.json",
+          "size_bytes": 3366545
+        },
+        {
+          "path": "nvBench-2.0/data/nvbench2.0/dev.json",
+          "size_bytes": 3349832
+        },
+        {
+          "path": "nvBench-2.0/static/videos/dollyzoom.mp4",
+          "size_bytes": 3309556
+        },
+        {
+          "path": "nvBench-2.0/nvBench2.0.pdf",
+          "size_bytes": 2275723
+        },
+        {
+          "path": "nvBench-2.0/static/videos/blueshirt.mp4",
+          "size_bytes": 1645904
+        },
+        {
+          "path": "nvBench-2.0/static/videos/mask.mp4",
+          "size_bytes": 1503301
+        },
+        {
+          "path": "nvBench-2.0/static/videos/chair-tp.mp4",
+          "size_bytes": 1456453
+        }
+      ]
+    },
+    {
+      "source": "vega-datasets",
+      "path": "vega-datasets",
+      "file_count": 119,
+      "total_bytes": 43558926,
+      "total_mb": 41.541,
+      "extensions": {
+        ".json": 50,
+        ".csv": 23,
+        ".py": 13,
+        ".md": 7,
+        ".toml": 6,
+        ".yml": 4,
+        ".ts": 4,
+        "[no_ext]": 3,
+        ".png": 3,
+        ".js": 1,
+        ".lock": 1,
+        ".arrow": 1,
+        ".parquet": 1,
+        ".tsv": 1,
+        ".sh": 1
+      },
+      "interesting_files": {
+        ".json": 50,
+        ".csv": 23,
+        ".md": 7,
+        ".yml": 4,
+        ".tsv": 1
+      },
+      "interesting_samples_by_type": {
+        ".json": [
+          "vega-datasets/.release-it.json",
+          "vega-datasets/datapackage.json",
+          "vega-datasets/package-lock.json",
+          "vega-datasets/package.json",
+          "vega-datasets/tsconfig.json",
+          "vega-datasets/data/annual-precip.json",
+          "vega-datasets/data/anscombe.json",
+          "vega-datasets/data/barley.json",
+          "vega-datasets/data/budget.json",
+          "vega-datasets/data/budgets.json"
+        ],
+        ".md": [
+          "vega-datasets/CHANGELOG.md",
+          "vega-datasets/CONTRIBUTING.md",
+          "vega-datasets/datapackage.md",
+          "vega-datasets/README.md",
+          "vega-datasets/.github/PULL_REQUEST_TEMPLATE.md",
+          "vega-datasets/_data/templates/package-table.md",
+          "vega-datasets/_data/templates/resource-table.md"
+        ],
+        ".yml": [
+          "vega-datasets/.github/dependabot.yml",
+          "vega-datasets/.github/workflows/check-pr.yml",
+          "vega-datasets/.github/workflows/merge-dependabot.yml",
+          "vega-datasets/.github/workflows/test.yml"
+        ],
+        ".csv": [
+          "vega-datasets/data/airports.csv",
+          "vega-datasets/data/birdstrikes.csv",
+          "vega-datasets/data/co2-concentration.csv",
+          "vega-datasets/data/disasters.csv",
+          "vega-datasets/data/flights-airport.csv",
+          "vega-datasets/data/gapminder-health-income.csv",
+          "vega-datasets/data/github.csv",
+          "vega-datasets/data/global-temp.csv",
+          "vega-datasets/data/iowa-electricity.csv",
+          "vega-datasets/data/la-riots.csv"
+        ],
+        ".tsv": [
+          "vega-datasets/data/unemployment.tsv"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "vega-datasets/data/flights-3m.parquet",
+          "size_bytes": 13493022
+        },
+        {
+          "path": "vega-datasets/data/flights-200k.json",
+          "size_bytes": 9863892
+        },
+        {
+          "path": "vega-datasets/data/zipcodes.csv",
+          "size_bytes": 2018388
+        },
+        {
+          "path": "vega-datasets/data/flights-20k.json",
+          "size_bytes": 1784867
+        },
+        {
+          "path": "vega-datasets/data/flights-200k.arrow",
+          "size_bytes": 1600864
+        },
+        {
+          "path": "vega-datasets/data/platformer-terrain.json",
+          "size_bytes": 1424097
+        },
+        {
+          "path": "vega-datasets/data/movies.json",
+          "size_bytes": 1399981
+        },
+        {
+          "path": "vega-datasets/data/birdstrikes.csv",
+          "size_bytes": 1223329
+        },
+        {
+          "path": "vega-datasets/data/earthquakes.json",
+          "size_bytes": 1219853
+        },
+        {
+          "path": "vega-datasets/data/football.json",
+          "size_bytes": 1207180
+        },
+        {
+          "path": "vega-datasets/data/species.csv",
+          "size_bytes": 1034744
+        },
+        {
+          "path": "vega-datasets/data/jobs.json",
+          "size_bytes": 936649
+        },
+        {
+          "path": "vega-datasets/data/flights-10k.json",
+          "size_bytes": 892400
+        },
+        {
+          "path": "vega-datasets/data/us-10m.json",
+          "size_bytes": 642361
+        },
+        {
+          "path": "vega-datasets/data/flights-5k.json",
+          "size_bytes": 446167
+        }
+      ]
+    },
+    {
+      "source": "vega-lite",
+      "path": "vega-lite",
+      "file_count": 3426,
+      "total_bytes": 111949259,
+      "total_mb": 106.763,
+      "extensions": {
+        ".svg": 829,
+        ".vl.json": 810,
+        ".png": 644,
+        ".json": 638,
+        ".ts": 336,
+        ".md": 95,
+        ".html": 18,
+        "[no_ext]": 17,
+        ".yml": 13,
+        ".sh": 13,
+        ".js": 7,
+        ".mp4": 3,
+        ".css": 2,
+        ".lock": 1
+      },
+      "interesting_files": {
+        ".vl.json": 810,
+        ".json": 638,
+        ".md": 95,
+        ".yml": 13
+      },
+      "interesting_samples_by_type": {
+        ".json": [
+          "vega-lite/.release-it.json",
+          "vega-lite/package-lock.json",
+          "vega-lite/package.json",
+          "vega-lite/tsconfig.build.json",
+          "vega-lite/tsconfig.json",
+          "vega-lite/.vscode/settings.json",
+          "vega-lite/build/vega-lite-schema.json",
+          "vega-lite/examples/compiled/airport_connections.vg.json",
+          "vega-lite/examples/compiled/animated_gapminder.vg.json",
+          "vega-lite/examples/compiled/animated_hop.vg.json"
+        ],
+        ".md": [
+          "vega-lite/CHANGELOG.md",
+          "vega-lite/CONTRIBUTING.md",
+          "vega-lite/README.md",
+          "vega-lite/.github/PULL_REQUEST_TEMPLATE.md",
+          "vega-lite/.github/SUPPORT.md",
+          "vega-lite/site/comparison.md",
+          "vega-lite/site/ecosystem.md",
+          "vega-lite/site/index.md",
+          "vega-lite/.github/ISSUE_TEMPLATE/Bug_report.md",
+          "vega-lite/.github/ISSUE_TEMPLATE/Enhancement.md"
+        ],
+        ".yml": [
+          "vega-lite/.github/dependabot.yml",
+          "vega-lite/site/_config.yml",
+          "vega-lite/.github/ISSUE_TEMPLATE/config.yml",
+          "vega-lite/.github/workflows/approve-dependabot.yml",
+          "vega-lite/.github/workflows/check-pr.yml",
+          "vega-lite/.github/workflows/check-toc.yml",
+          "vega-lite/.github/workflows/check.yml",
+          "vega-lite/.github/workflows/merge-dependabot.yml",
+          "vega-lite/.github/workflows/release-docs-and-schema.yml",
+          "vega-lite/.github/workflows/test-docs.yml"
+        ],
+        ".vl.json": [
+          "vega-lite/examples/specs/airport_connections.vl.json",
+          "vega-lite/examples/specs/animated_gapminder.vl.json",
+          "vega-lite/examples/specs/animated_hop.vl.json",
+          "vega-lite/examples/specs/arc_color_mappings.vl.json",
+          "vega-lite/examples/specs/arc_donut.vl.json",
+          "vega-lite/examples/specs/arc_facet.vl.json",
+          "vega-lite/examples/specs/arc_ordinal_theta.vl.json",
+          "vega-lite/examples/specs/arc_params.vl.json",
+          "vega-lite/examples/specs/arc_pie.vl.json",
+          "vega-lite/examples/specs/arc_pie_normalize_tooltip.vl.json"
+        ]
+      },
+      "largest_files": [
+        {
+          "path": "vega-lite/examples/compiled/geo_circle.svg",
+          "size_bytes": 12021378
+        },
+        {
+          "path": "vega-lite/examples/compiled/interactive_geo_facet_species.svg",
+          "size_bytes": 4759649
+        },
+        {
+          "path": "vega-lite/examples/compiled/geo_constant_value.svg",
+          "size_bytes": 2354757
+        },
+        {
+          "path": "vega-lite/build/vega-lite-schema.json",
+          "size_bytes": 1911682
+        },
+        {
+          "path": "vega-lite/examples/compiled/repeat_splom.svg",
+          "size_bytes": 1720551
+        },
+        {
+          "path": "vega-lite/examples/compiled/geo_trellis.svg",
+          "size_bytes": 1258119
+        },
+        {
+          "path": "vega-lite/examples/compiled/geo_custom_projection.svg",
+          "size_bytes": 1120228
+        },
+        {
+          "path": "vega-lite/examples/compiled/geo_rule.svg",
+          "size_bytes": 1118962
+        },
+        {
+          "path": "vega-lite/examples/compiled/geo_layer.svg",
+          "size_bytes": 1116736
+        },
+        {
+          "path": "vega-lite/examples/compiled/interactive_1d_geo_brush.svg",
+          "size_bytes": 1113146
+        },
+        {
+          "path": "vega-lite/examples/compiled/geo_line.svg",
+          "size_bytes": 1101223
+        },
+        {
+          "path": "vega-lite/examples/compiled/interactive_splom.svg",
+          "size_bytes": 1090668
+        },
+        {
+          "path": "vega-lite/examples/compiled/selection_resolution_intersect.svg",
+          "size_bytes": 1089843
+        },
+        {
+          "path": "vega-lite/examples/compiled/selection_resolution_union.svg",
+          "size_bytes": 1089843
+        },
+        {
+          "path": "vega-lite/examples/compiled/selection_resolution_global.svg",
+          "size_bytes": 1089831
+        }
+      ]
+    }
+  ]
+}

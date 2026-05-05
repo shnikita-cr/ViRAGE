@@ -1,0 +1,1099 @@
+{
+  "generated_at": "2026-05-05T21:34:09.617315+00:00",
+  "input_jsonl": "rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl",
+  "output_jsonl": "rag_corpus/data/vega_lite_examples.jsonl",
+  "corpus_name": "vega_lite",
+  "keep_tooltip": false,
+  "strip_fields": true,
+  "allow_interactive_params": false,
+  "strip_interactions": true,
+  "input_records": 100,
+  "included_records": 40,
+  "skipped_records": 60,
+  "included_chart_type_distribution": {
+    "tick": 8,
+    "point": 7,
+    "line": 5,
+    "histogram": 5,
+    "bar": 5,
+    "area": 4,
+    "rule": 2,
+    "text": 2,
+    "rect": 2
+  },
+  "included_source_distribution": {
+    "vega-lite": 40
+  },
+  "included_original_chart_pattern_distribution": {
+    "tick_plot": 8,
+    "line_chart": 5,
+    "histogram": 5,
+    "bar_chart": 5,
+    "area_chart": 4,
+    "point_chart": 4,
+    "scatter_plot": 3,
+    "rule_chart": 2,
+    "text_chart": 2,
+    "heatmap": 2
+  },
+  "field_roles_source_distribution": {
+    "normalized_field_roles": 22,
+    "spec_template_encoding": 14,
+    "normalized_field_roles_plus_spec_template_encoding": 4
+  },
+  "had_interactive_params_distribution": {
+    "False": 40
+  },
+  "skip_reason_distribution": {
+    "complex_top_level_structure": 18,
+    "transform_not_runtime_safe": 18,
+    "interactive_params_not_runtime_safe": 13,
+    "unsupported_runtime_chart_type:arc": 6,
+    "unsupported_runtime_chart_type:facet": 3,
+    "unsupported_runtime_chart_type:geoshape": 2
+  },
+  "sample_included": [
+    {
+      "id": "vega_lite:example:rule_extent",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: rule extent. Instruction: Create a rule chart that shows reference lines, ranges, or intervals. Chart pattern: rule_chart. Runtime chart type: rule. Original mark type: rule. Field roles: x nominal, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a rule chart that shows reference lines, ranges, or intervals.",
+      "keywords": [
+        "rule extent",
+        "rule_extent",
+        "rule_chart",
+        "rule",
+        "vega-lite",
+        "example",
+        "extent"
+      ],
+      "chart_type": "rule",
+      "field_roles": {
+        "x": "nominal",
+        "y": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "description": "Minimum and maxmimum horsepower of cars from different origins.",
+        "mark": "rule",
+        "encoding": {
+          "x": {},
+          "y": {
+            "aggregate": "min"
+          },
+          "y2": {
+            "aggregate": "max"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:rule_extent",
+        "runtime_chart_type": "rule",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "spec_template_encoding",
+        "dropped_field_roles": {
+          "x": "unsupported_or_non_field_role:unknown",
+          "y": "unsupported_or_non_field_role:unknown_aggregate",
+          "y2": "unsupported_channel"
+        },
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:rule_extent",
+        "source_path": "vega-lite/examples/specs/rule_extent.vl.json",
+        "file_name": "rule_extent.vl.json",
+        "file_stem": "rule_extent",
+        "title": "rule extent",
+        "chart_pattern": "rule_chart",
+        "mark_type": "rule",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:line_skip_invalid_mid",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: line skip invalid mid. Instruction: Create a line chart that shows how a quantitative value changes over an ordered or temporal field. Chart pattern: line_chart. Runtime chart type: line. Original mark type: line. Field roles: x quantitative, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a line chart that shows how a quantitative value changes over an ordered or temporal field.",
+      "keywords": [
+        "line skip invalid mid",
+        "line_skip_invalid_mid",
+        "line_chart",
+        "line",
+        "vega-lite",
+        "example",
+        "skip",
+        "invalid",
+        "mid"
+      ],
+      "chart_type": "line",
+      "field_roles": {
+        "x": "quantitative",
+        "y": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "mark": "line",
+        "encoding": {
+          "x": {
+            "type": "quantitative"
+          },
+          "y": {
+            "type": "quantitative"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:line_skip_invalid_mid",
+        "runtime_chart_type": "line",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {},
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:line_skip_invalid_mid",
+        "source_path": "vega-lite/examples/specs/line_skip_invalid_mid.vl.json",
+        "file_name": "line_skip_invalid_mid.vl.json",
+        "file_stem": "line_skip_invalid_mid",
+        "title": "line skip invalid mid",
+        "chart_pattern": "line_chart",
+        "mark_type": "line",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:point_color_shape_constant",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: point color shape constant. Instruction: Create a scatter plot that shows the relationship between two quantitative fields. Chart pattern: scatter_plot. Runtime chart type: point. Original mark type: point. Field roles: x quantitative, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a scatter plot that shows the relationship between two quantitative fields.",
+      "keywords": [
+        "point color shape constant",
+        "point_color_shape_constant",
+        "scatter_plot",
+        "point",
+        "vega-lite",
+        "example",
+        "color",
+        "shape",
+        "constant"
+      ],
+      "chart_type": "point",
+      "field_roles": {
+        "x": "quantitative",
+        "y": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "mark": "point",
+        "encoding": {
+          "x": {
+            "type": "quantitative"
+          },
+          "y": {
+            "type": "quantitative"
+          },
+          "color": {
+            "value": "#ff9900"
+          },
+          "shape": {
+            "value": "square"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:point_color_shape_constant",
+        "runtime_chart_type": "point",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {
+          "color": "no_runtime_field_role_in_encoding",
+          "shape": "no_runtime_field_role_in_encoding"
+        },
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:point_color_shape_constant",
+        "source_path": "vega-lite/examples/specs/point_color_shape_constant.vl.json",
+        "file_name": "point_color_shape_constant.vl.json",
+        "file_stem": "point_color_shape_constant",
+        "title": "point color shape constant",
+        "chart_pattern": "scatter_plot",
+        "mark_type": "point",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:bar_sort_by_count",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: bar sort by count. Instruction: Create a histogram that shows the distribution of a quantitative field using bins and counts. Chart pattern: histogram. Runtime chart type: histogram. Original mark type: bar. Field roles: x nominal. Source: Vega-Lite official example.",
+      "description": "Create a histogram that shows the distribution of a quantitative field using bins and counts.",
+      "keywords": [
+        "bar sort by count",
+        "bar_sort_by_count",
+        "histogram",
+        "bar",
+        "vega-lite",
+        "example",
+        "sort",
+        "by",
+        "count"
+      ],
+      "chart_type": "histogram",
+      "field_roles": {
+        "x": "nominal"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "description": "A scatterplot showing horsepower and miles per gallons for various cars.",
+        "mark": "bar",
+        "encoding": {
+          "x": {
+            "sort": {
+              "op": "count",
+              "order": "descending"
+            }
+          },
+          "y": {
+            "aggregate": "count"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:bar_sort_by_count",
+        "runtime_chart_type": "histogram",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "spec_template_encoding",
+        "dropped_field_roles": {
+          "x": "unsupported_or_non_field_role:unknown",
+          "y": "no_runtime_field_role_in_encoding"
+        },
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:bar_sort_by_count",
+        "source_path": "vega-lite/examples/specs/bar_sort_by_count.vl.json",
+        "file_name": "bar_sort_by_count.vl.json",
+        "file_stem": "bar_sort_by_count",
+        "title": "bar sort by count",
+        "chart_pattern": "histogram",
+        "mark_type": "bar",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:time_output_utc_scale",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: time output utc scale. Instruction: Create a line chart that shows how a quantitative value changes over an ordered or temporal field. Chart pattern: line_chart. Runtime chart type: line. Original mark type: line. Field roles: x temporal, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a line chart that shows how a quantitative value changes over an ordered or temporal field.",
+      "keywords": [
+        "time output utc scale",
+        "time_output_utc_scale",
+        "line_chart",
+        "line",
+        "vega-lite",
+        "example",
+        "time",
+        "output",
+        "utc",
+        "scale"
+      ],
+      "chart_type": "line",
+      "field_roles": {
+        "y": "quantitative",
+        "x": "temporal"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "description": "Using utc scale with local time input.",
+        "mark": "line",
+        "encoding": {
+          "x": {
+            "timeUnit": "yearmonthdatehoursminutes",
+            "scale": {
+              "type": "utc"
+            },
+            "axis": {
+              "labelAngle": 15
+            }
+          },
+          "y": {
+            "type": "quantitative"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:time_output_utc_scale",
+        "runtime_chart_type": "line",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles_plus_spec_template_encoding",
+        "dropped_field_roles": {
+          "x": "unsupported_or_non_field_role:unknown_timeunit"
+        },
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:time_output_utc_scale",
+        "source_path": "vega-lite/examples/specs/time_output_utc_scale.vl.json",
+        "file_name": "time_output_utc_scale.vl.json",
+        "file_stem": "time_output_utc_scale",
+        "title": "time output utc scale",
+        "chart_pattern": "line_chart",
+        "mark_type": "line",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:rule_color_mean",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: rule color mean. Instruction: Create a rule chart that shows reference lines, ranges, or intervals. Chart pattern: rule_chart. Runtime chart type: rule. Original mark type: rule. Field roles: color nominal, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a rule chart that shows reference lines, ranges, or intervals.",
+      "keywords": [
+        "rule color mean",
+        "rule_color_mean",
+        "rule_chart",
+        "rule",
+        "vega-lite",
+        "example",
+        "color",
+        "mean"
+      ],
+      "chart_type": "rule",
+      "field_roles": {
+        "y": "quantitative",
+        "color": "nominal"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "description": "Average Stock prices of 5 Tech Companies.",
+        "mark": "rule",
+        "encoding": {
+          "y": {
+            "type": "quantitative",
+            "aggregate": "mean"
+          },
+          "size": {
+            "value": 2
+          },
+          "color": {
+            "type": "nominal"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:rule_color_mean",
+        "runtime_chart_type": "rule",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {
+          "size": "no_runtime_field_role_in_encoding"
+        },
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:rule_color_mean",
+        "source_path": "vega-lite/examples/specs/rule_color_mean.vl.json",
+        "file_name": "rule_color_mean.vl.json",
+        "file_stem": "rule_color_mean",
+        "title": "rule color mean",
+        "chart_pattern": "rule_chart",
+        "mark_type": "rule",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:tick_width_band",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: tick width band. Instruction: Create a tick plot that shows individual values along an axis. Chart pattern: tick_plot. Runtime chart type: tick. Original mark type: tick. Field roles: x nominal, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a tick plot that shows individual values along an axis.",
+      "keywords": [
+        "tick width band",
+        "tick_width_band",
+        "tick_plot",
+        "tick",
+        "vega-lite",
+        "example",
+        "width",
+        "band"
+      ],
+      "chart_type": "tick",
+      "field_roles": {
+        "x": "nominal",
+        "y": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "description": "A simple bar chart with embedded data.",
+        "width": {
+          "step": 50
+        },
+        "mark": {
+          "type": "tick",
+          "width": {
+            "band": 0.5
+          }
+        },
+        "encoding": {
+          "x": {
+            "type": "nominal",
+            "axis": {
+              "labelAngle": 0
+            }
+          },
+          "y": {
+            "type": "quantitative"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:tick_width_band",
+        "runtime_chart_type": "tick",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {},
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:tick_width_band",
+        "source_path": "vega-lite/examples/specs/tick_width_band.vl.json",
+        "file_name": "tick_width_band.vl.json",
+        "file_stem": "tick_width_band",
+        "title": "tick width band",
+        "chart_pattern": "tick_plot",
+        "mark_type": "tick",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:tick_strip_1D_with_height",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: tick strip 1D with height. Instruction: Create a tick plot that shows individual values along an axis. Chart pattern: tick_plot. Runtime chart type: tick. Original mark type: tick. Field roles: x quantitative. Source: Vega-Lite official example.",
+      "description": "Create a tick plot that shows individual values along an axis.",
+      "keywords": [
+        "tick strip 1d with height",
+        "tick_strip_1d_with_height",
+        "tick_plot",
+        "tick",
+        "vega-lite",
+        "example",
+        "strip",
+        "1d",
+        "with",
+        "height"
+      ],
+      "chart_type": "tick",
+      "field_roles": {
+        "x": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "height": 200,
+        "mark": "tick",
+        "encoding": {
+          "x": {
+            "type": "quantitative"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:tick_strip_1D_with_height",
+        "runtime_chart_type": "tick",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {},
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:tick_strip_1D_with_height",
+        "source_path": "vega-lite/examples/specs/tick_strip_1D_with_height.vl.json",
+        "file_name": "tick_strip_1D_with_height.vl.json",
+        "file_stem": "tick_strip_1D_with_height",
+        "title": "tick strip 1D with height",
+        "chart_pattern": "tick_plot",
+        "mark_type": "tick",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:area_invalid_null",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: area invalid null. Instruction: Create an area chart that shows a quantitative trend over an ordered or temporal field. Chart pattern: area_chart. Runtime chart type: area. Original mark type: area. Field roles: x quantitative, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create an area chart that shows a quantitative trend over an ordered or temporal field.",
+      "keywords": [
+        "area invalid null",
+        "area_invalid_null",
+        "area_chart",
+        "area",
+        "vega-lite",
+        "example",
+        "invalid",
+        "null"
+      ],
+      "chart_type": "area",
+      "field_roles": {
+        "x": "quantitative",
+        "y": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "mark": {
+          "type": "area",
+          "invalid": null
+        },
+        "encoding": {
+          "x": {
+            "type": "quantitative"
+          },
+          "y": {
+            "type": "quantitative"
+          }
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:area_invalid_null",
+        "runtime_chart_type": "area",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {},
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:area_invalid_null",
+        "source_path": "vega-lite/examples/specs/area_invalid_null.vl.json",
+        "file_name": "area_invalid_null.vl.json",
+        "file_stem": "area_invalid_null",
+        "title": "area invalid null",
+        "chart_pattern": "area_chart",
+        "mark_type": "area",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    },
+    {
+      "id": "vega_lite:example:config_numberFormatType_tooltip",
+      "source": "vega-lite",
+      "corpus": "vega_lite",
+      "corpus_type": "example",
+      "instruction": "Title: config numberFormatType tooltip. Instruction: Create a bar chart that compares aggregated quantitative values across categories. Chart pattern: bar_chart. Runtime chart type: bar. Original mark type: bar. Field roles: x temporal, y quantitative. Source: Vega-Lite official example.",
+      "description": "Create a bar chart that compares aggregated quantitative values across categories.",
+      "keywords": [
+        "config numberformattype tooltip",
+        "config_numberformattype_tooltip",
+        "bar_chart",
+        "bar",
+        "vega-lite",
+        "example",
+        "config",
+        "numberformattype",
+        "tooltip"
+      ],
+      "chart_type": "bar",
+      "field_roles": {
+        "x": "temporal",
+        "y": "quantitative"
+      },
+      "transform_types": [],
+      "spec_template": {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "description": "Testing global number formatting config",
+        "width": 150,
+        "height": 150,
+        "mark": {
+          "type": "bar",
+          "tooltip": true
+        },
+        "encoding": {
+          "x": {
+            "type": "temporal"
+          },
+          "y": {
+            "type": "quantitative",
+            "aggregate": "average"
+          }
+        },
+        "config": {
+          "tooltipFormat": {
+            "numberFormat": ".8f"
+          },
+          "numberFormat": "d",
+          "customFormatTypes": true
+        }
+      },
+      "metadata": {
+        "original_id": "vega_lite:example:config_numberFormatType_tooltip",
+        "runtime_chart_type": "bar",
+        "chart_type_source": "chart_pattern",
+        "field_roles_source": "normalized_field_roles",
+        "dropped_field_roles": {},
+        "transform_types": [],
+        "had_interactive_params": false,
+        "id": "vega_lite:example:config_numberFormatType_tooltip",
+        "source_path": "vega-lite/examples/specs/config_numberFormatType_tooltip.vl.json",
+        "file_name": "config_numberFormatType_tooltip.vl.json",
+        "file_stem": "config_numberFormatType_tooltip",
+        "title": "config numberFormatType tooltip",
+        "chart_pattern": "bar_chart",
+        "mark_type": "bar",
+        "data_policy": "removed_from_spec_template",
+        "source_split": null,
+        "benchmark_group": null,
+        "is_eval_leak_sensitive": false,
+        "removed_data_sections": 1
+      }
+    }
+  ],
+  "sample_skipped": [
+    {
+      "index": 1,
+      "id": "vega_lite:example:selection_project_multi",
+      "title": "selection project multi",
+      "chart_pattern": "scatter_plot",
+      "mark_type": "point",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 3,
+      "id": "vega_lite:example:layer_ranged_dot",
+      "title": "layer ranged dot",
+      "chart_pattern": "layered_chart",
+      "mark_type": "line",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 5,
+      "id": "vega_lite:example:geo_graticule_object",
+      "title": "geo graticule object",
+      "chart_pattern": "map_chart",
+      "mark_type": "geoshape",
+      "reason": "unsupported_runtime_chart_type:geoshape"
+    },
+    {
+      "index": 6,
+      "id": "vega_lite:example:selection_type_single_dblclick",
+      "title": "selection type single dblclick",
+      "chart_pattern": "heatmap",
+      "mark_type": "rect",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 9,
+      "id": "vega_lite:example:selection_clear_brush",
+      "title": "selection clear brush",
+      "chart_pattern": "scatter_plot",
+      "mark_type": "point",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 15,
+      "id": "vega_lite:example:arc_pie",
+      "title": "arc pie",
+      "chart_pattern": "pie_chart",
+      "mark_type": "arc",
+      "reason": "unsupported_runtime_chart_type:arc"
+    },
+    {
+      "index": 16,
+      "id": "vega_lite:example:arc_pie_pyramid",
+      "title": "arc pie pyramid",
+      "chart_pattern": "pie_chart",
+      "mark_type": "arc",
+      "reason": "unsupported_runtime_chart_type:arc"
+    },
+    {
+      "index": 19,
+      "id": "vega_lite:example:area_density_facet",
+      "title": "area density facet",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "area",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 20,
+      "id": "vega_lite:example:selection_translate_scatterplot_drag",
+      "title": "selection translate scatterplot drag",
+      "chart_pattern": "scatter_plot",
+      "mark_type": "circle",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 21,
+      "id": "vega_lite:example:layer_point_errorbar_2d_horizontal_color_encoding",
+      "title": "layer point errorbar 2d horizontal color encoding",
+      "chart_pattern": "layered_chart",
+      "mark_type": "point",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 22,
+      "id": "vega_lite:example:area_overlay",
+      "title": "area overlay",
+      "chart_pattern": "area_chart",
+      "mark_type": "area",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 24,
+      "id": "vega_lite:example:bar_grouped_facet_independent_scale",
+      "title": "bar grouped facet independent scale",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "bar",
+      "reason": "unsupported_runtime_chart_type:facet"
+    },
+    {
+      "index": 25,
+      "id": "vega_lite:example:facet_independent_scale",
+      "title": "facet independent scale",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "bar",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 26,
+      "id": "vega_lite:example:param_search_input",
+      "title": "param search input",
+      "chart_pattern": "scatter_plot",
+      "mark_type": "point",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 27,
+      "id": "vega_lite:example:area_gradient",
+      "title": "area gradient",
+      "chart_pattern": "area_chart",
+      "mark_type": "area",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 28,
+      "id": "vega_lite:example:circle_labelangle_orient_signal",
+      "title": "circle labelangle orient signal",
+      "chart_pattern": "point_chart",
+      "mark_type": "circle",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 29,
+      "id": "vega_lite:example:text_scatterplot_colored",
+      "title": "text scatterplot colored",
+      "chart_pattern": "text_chart",
+      "mark_type": "text",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 31,
+      "id": "vega_lite:example:repeat_splom_cars",
+      "title": "repeat splom cars",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "point",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 32,
+      "id": "vega_lite:example:rect_mosaic_labelled_with_offset",
+      "title": "rect mosaic labelled with offset",
+      "chart_pattern": "heatmap",
+      "mark_type": "rect",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 35,
+      "id": "vega_lite:example:interactive_multi_line_label",
+      "title": "interactive multi line label",
+      "chart_pattern": "layered_chart",
+      "mark_type": "line",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 36,
+      "id": "vega_lite:example:facet_grid_bar",
+      "title": "facet grid bar",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "bar",
+      "reason": "unsupported_runtime_chart_type:facet"
+    },
+    {
+      "index": 37,
+      "id": "vega_lite:example:line_inside_domain_using_transform",
+      "title": "line inside domain using transform",
+      "chart_pattern": "line_chart",
+      "mark_type": "line",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 38,
+      "id": "vega_lite:example:area_horizon",
+      "title": "area horizon",
+      "chart_pattern": "layered_chart",
+      "mark_type": "area",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 42,
+      "id": "vega_lite:example:concat_marginal_histograms",
+      "title": "concat marginal histograms",
+      "chart_pattern": "histogram",
+      "mark_type": "bar",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 44,
+      "id": "vega_lite:example:selection_heatmap",
+      "title": "selection heatmap",
+      "chart_pattern": "rect_chart",
+      "mark_type": "rect",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 46,
+      "id": "vega_lite:example:area_density",
+      "title": "area density",
+      "chart_pattern": "area_chart",
+      "mark_type": "area",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 48,
+      "id": "vega_lite:example:rule_params",
+      "title": "rule params",
+      "chart_pattern": "rule_chart",
+      "mark_type": "rule",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 50,
+      "id": "vega_lite:example:geo_choropleth",
+      "title": "geo choropleth",
+      "chart_pattern": "map_chart",
+      "mark_type": "geoshape",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 51,
+      "id": "vega_lite:example:line_default_format",
+      "title": "line default format",
+      "chart_pattern": "line_chart",
+      "mark_type": "line",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 52,
+      "id": "vega_lite:example:geo_params_projections",
+      "title": "geo params projections",
+      "chart_pattern": "map_chart",
+      "mark_type": "geoshape",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 53,
+      "id": "vega_lite:example:bar_diverging_stack_population_pyramid",
+      "title": "bar diverging stack population pyramid",
+      "chart_pattern": "bar_chart",
+      "mark_type": "bar",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 55,
+      "id": "vega_lite:example:rect_params",
+      "title": "rect params",
+      "chart_pattern": "rect_chart",
+      "mark_type": "rect",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 56,
+      "id": "vega_lite:example:concat_layer_voyager_result",
+      "title": "concat layer voyager result",
+      "chart_pattern": "point_chart",
+      "mark_type": "point",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 57,
+      "id": "vega_lite:example:config_numberFormatType_test",
+      "title": "config numberFormatType test",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "point",
+      "reason": "unsupported_runtime_chart_type:facet"
+    },
+    {
+      "index": 58,
+      "id": "vega_lite:example:area_cumulative_freq",
+      "title": "area cumulative freq",
+      "chart_pattern": "area_chart",
+      "mark_type": "area",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 59,
+      "id": "vega_lite:example:selection_composition_and",
+      "title": "selection composition and",
+      "chart_pattern": "heatmap",
+      "mark_type": "rect",
+      "reason": "interactive_params_not_runtime_safe"
+    },
+    {
+      "index": 60,
+      "id": "vega_lite:example:interactive_histogram_full_height_hover",
+      "title": "interactive histogram full height hover",
+      "chart_pattern": "layered_chart",
+      "mark_type": "bar",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 61,
+      "id": "vega_lite:example:arc_color_mappings",
+      "title": "arc color mappings",
+      "chart_pattern": "pie_chart",
+      "mark_type": "arc",
+      "reason": "unsupported_runtime_chart_type:arc"
+    },
+    {
+      "index": 62,
+      "id": "vega_lite:example:arc_ordinal_theta",
+      "title": "arc ordinal theta",
+      "chart_pattern": "pie_chart",
+      "mark_type": "arc",
+      "reason": "unsupported_runtime_chart_type:arc"
+    },
+    {
+      "index": 63,
+      "id": "vega_lite:example:point_offset_random",
+      "title": "point offset random",
+      "chart_pattern": "point_chart",
+      "mark_type": "point",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 64,
+      "id": "vega_lite:example:line",
+      "title": "line",
+      "chart_pattern": "line_chart",
+      "mark_type": "line",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 65,
+      "id": "vega_lite:example:arc_params",
+      "title": "arc params",
+      "chart_pattern": "pie_chart",
+      "mark_type": "arc",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 66,
+      "id": "vega_lite:example:point_ordinal_bin_offset_random",
+      "title": "point ordinal bin offset random",
+      "chart_pattern": "point_chart",
+      "mark_type": "point",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 67,
+      "id": "vega_lite:example:rect_binned_heatmap",
+      "title": "rect binned heatmap",
+      "chart_pattern": "heatmap",
+      "mark_type": "rect",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 70,
+      "id": "vega_lite:example:arc_donut",
+      "title": "arc donut",
+      "chart_pattern": "pie_chart",
+      "mark_type": "arc",
+      "reason": "unsupported_runtime_chart_type:arc"
+    },
+    {
+      "index": 71,
+      "id": "vega_lite:example:repeat_line_weather",
+      "title": "repeat line weather",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "line",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 74,
+      "id": "vega_lite:example:interactive_bin_extent_bottom",
+      "title": "interactive bin extent bottom",
+      "chart_pattern": "histogram",
+      "mark_type": "bar",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 76,
+      "id": "vega_lite:example:rect_mosaic_labelled",
+      "title": "rect mosaic labelled",
+      "chart_pattern": "heatmap",
+      "mark_type": "rect",
+      "reason": "complex_top_level_structure"
+    },
+    {
+      "index": 81,
+      "id": "vega_lite:example:interactive_geo_facet_species",
+      "title": "interactive geo facet species",
+      "chart_pattern": "faceted_chart",
+      "mark_type": "geoshape",
+      "reason": "transform_not_runtime_safe"
+    },
+    {
+      "index": 82,
+      "id": "vega_lite:example:bar_axis_orient",
+      "title": "bar axis orient",
+      "chart_pattern": "bar_chart",
+      "mark_type": "bar",
+      "reason": "interactive_params_not_runtime_safe"
+    }
+  ]
+}
