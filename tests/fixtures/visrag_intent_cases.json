@@ -221,7 +221,7 @@
         }
       },
       "xfail": {
-        "reason": "selected_fields are currently preferred, not strict; grounding may choose Month instead of Category."
+        "reason": "strict selected_fields policy now rejects current temporal bar templates; categorical bar template is not available in retrieved candidates yet."
       }
     },
     {

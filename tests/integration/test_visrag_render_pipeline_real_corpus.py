@@ -285,14 +285,14 @@ def test_real_corpus_render_pipeline_histogram_non_empty(tmp_path: Path) -> None
     assert_non_empty_render_result(result)
 
 
-def test_real_corpus_render_pipeline_bar_non_empty_with_known_selected_fields_gap(tmp_path: Path) -> None:
+def test_real_corpus_render_pipeline_bar_temporal_non_empty(tmp_path: Path) -> None:
     result = run_render_pipeline_case(
         tmp_path=tmp_path,
-        case_id="bar_category_comparison",
-        query="compare values across categories with a bar chart",
+        case_id="bar_temporal_comparison",
+        query="compare monthly sales with a bar chart",
         intent="comparison",
         candidate_charts=["bar"],
-        selected_fields=["Category", "Sales"],
+        selected_fields=["Month", "Sales"],
         field_roles={
             "Category": "dimension",
             "Sales": "measure",
@@ -307,11 +307,9 @@ def test_real_corpus_render_pipeline_bar_non_empty_with_known_selected_fields_ga
     )
 
     spec = result["spec"]
-    assert spec["data"]["url"] == result["dataset_path"].as_posix()
-    assert spec["encoding"]["y"]["field"] == "Sales"
 
-    # Known backlog:
-    # selected_fields are currently preferred, not strict.
-    # Current grounding may choose Month instead of Category for x.
-    assert spec["encoding"]["x"]["field"] in {"Category", "Month"}
+    assert spec["data"]["url"] == result["dataset_path"].as_posix()
+    assert spec["encoding"]["x"]["field"] == "Month"
+    assert spec["encoding"]["y"]["field"] == "Sales"
     assert_non_empty_render_result(result)
+

@@ -214,14 +214,14 @@ def test_real_corpus_chart_pipeline_line_validates(tmp_path: Path) -> None:
     assert spec["encoding"]["y"]["field"] == "Sales"
 
 
-def test_real_corpus_chart_pipeline_bar_validates_with_known_selected_fields_gap(tmp_path: Path) -> None:
+def test_real_corpus_chart_pipeline_bar_temporal_validates(tmp_path: Path) -> None:
     result = run_pipeline_case(
         tmp_path=tmp_path,
-        case_id="bar_category_comparison",
-        query="compare values across categories with a bar chart",
+        case_id="bar_temporal_comparison",
+        query="compare monthly sales with a bar chart",
         intent="comparison",
         candidate_charts=["bar"],
-        selected_fields=["Category", "Sales"],
+        selected_fields=["Month", "Sales"],
         field_roles={
             "Category": "dimension",
             "Sales": "measure",
@@ -239,13 +239,8 @@ def test_real_corpus_chart_pipeline_bar_validates_with_known_selected_fields_gap
 
     assert validation.is_valid
     assert spec["data"]["url"] == result["dataset_path"].as_posix()
+    assert spec["encoding"]["x"]["field"] == "Month"
     assert spec["encoding"]["y"]["field"] == "Sales"
-
-    # Known backlog:
-    # selected_fields are currently preferred, not strict.
-    # Current grounding may choose Month instead of Category for x.
-    assert spec["encoding"]["x"]["field"] in {"Category", "Month"}
-
 
 def test_real_corpus_chart_pipeline_histogram_validates_count_without_y_field(tmp_path: Path) -> None:
     result = run_pipeline_case(
