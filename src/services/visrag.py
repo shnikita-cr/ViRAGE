@@ -23,6 +23,7 @@ from src.visrag_core import (
     canonicalize_chart_type,
     semantic_type_from_role_or_dtype,
 )
+from src.visrag_core.grounding_policy import resolve_grounding_policy
 from src.visrag_core.models import VisRAGCandidate as CoreCandidate
 
 
@@ -68,14 +69,45 @@ class VisRAGService(BaseService):
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGRequest:
-        return VisRAGRequest(
+        request = VisRAGRequest(
             query=self._search_query(query_understanding, request_analysis),
             data_profile=VisRAGDataProfile(
                 columns=[self._to_core_column(column, data_profile) for column in data_profile.columns]),
             preferred_chart_types=[canonicalize_chart_type(item) for item in query_understanding.candidate_charts],
             selected_fields=list(request_analysis.selected_fields),
+            selected_fields_policy="auto",
             top_k=runtime.settings.visrag_top_k_examples,
         )
+        policy_decision = resolve_grounding_policy(
+            request,
+            request_confidence=self._request_confidence(query_understanding, request_analysis),
+            ambiguity_notes=self._ambiguity_notes(query_understanding, request_analysis),
+        )
+        return request.model_copy(
+            update={"selected_fields_policy": policy_decision.selected_fields_policy.value}
+        )
+
+
+    @staticmethod
+    def _request_confidence(
+            query_understanding: QueryUnderstandingResult,
+            request_analysis: RequestAnalysisResult,
+    ) -> float | None:
+        if request_analysis.confidence > 0:
+            return request_analysis.confidence
+        if query_understanding.confidence > 0:
+            return query_understanding.confidence
+        return None
+
+    @staticmethod
+    def _ambiguity_notes(
+            query_understanding: QueryUnderstandingResult,
+            request_analysis: RequestAnalysisResult,
+    ) -> list[str]:
+        return [
+            *list(query_understanding.ambiguity_notes),
+            *list(request_analysis.ambiguity_report),
+        ]
 
     @staticmethod
     def _search_query(query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult) -> str:

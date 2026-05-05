@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,6 +26,7 @@ class VisRAGRequest(BaseModel):
     data_profile: VisRAGDataProfile
     preferred_chart_types: list[str] = Field(default_factory=list)
     selected_fields: list[str] = Field(default_factory=list)
+    selected_fields_policy: Literal["auto", "prefer", "strict", "soft_fail"] = "auto"
     top_k: int = 5
 
 
