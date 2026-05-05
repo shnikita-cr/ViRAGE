@@ -1,0 +1,279 @@
+{
+  "cases": [
+    {
+      "case_id": "scatter_relationship_numeric",
+      "query": "show the relationship between horsepower and miles per gallon as a scatter plot",
+      "intent": "relationship",
+      "candidate_charts": [
+        "point"
+      ],
+      "selected_fields": [
+        "Horsepower",
+        "Miles_per_Gallon"
+      ],
+      "field_roles": {
+        "Horsepower": "measure",
+        "Miles_per_Gallon": "measure",
+        "Origin": "dimension"
+      },
+      "rows": [
+        {
+          "Horsepower": 130,
+          "Miles_per_Gallon": 18.0,
+          "Origin": "USA"
+        },
+        {
+          "Horsepower": 95,
+          "Miles_per_Gallon": 24.0,
+          "Origin": "Europe"
+        },
+        {
+          "Horsepower": 70,
+          "Miles_per_Gallon": 33.0,
+          "Origin": "Japan"
+        },
+        {
+          "Horsepower": 165,
+          "Miles_per_Gallon": 15.0,
+          "Origin": "USA"
+        }
+      ],
+      "expected": {
+        "chart_family": "point",
+        "field_mapping": {
+          "x": "Horsepower",
+          "y": "Miles_per_Gallon"
+        },
+        "encoding": {
+          "x": {
+            "field": "Horsepower",
+            "type": "quantitative"
+          },
+          "y": {
+            "field": "Miles_per_Gallon",
+            "type": "quantitative"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "line_trend_over_time",
+      "query": "show how sales change over time using a line chart",
+      "intent": "trend",
+      "candidate_charts": [
+        "line"
+      ],
+      "selected_fields": [
+        "Month",
+        "Sales"
+      ],
+      "field_roles": {
+        "Month": "date",
+        "Sales": "measure",
+        "Category": "dimension"
+      },
+      "rows": [
+        {
+          "Month": "2024-01-01",
+          "Sales": 120.0,
+          "Category": "A"
+        },
+        {
+          "Month": "2024-02-01",
+          "Sales": 150.0,
+          "Category": "A"
+        },
+        {
+          "Month": "2024-03-01",
+          "Sales": 135.0,
+          "Category": "B"
+        },
+        {
+          "Month": "2024-04-01",
+          "Sales": 180.0,
+          "Category": "B"
+        }
+      ],
+      "expected": {
+        "chart_family": "line",
+        "field_mapping": {
+          "x": "Month",
+          "y": "Sales"
+        },
+        "encoding": {
+          "x": {
+            "field": "Month",
+            "type": "temporal"
+          },
+          "y": {
+            "field": "Sales",
+            "type": "quantitative"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "histogram_distribution",
+      "query": "show the distribution of a numeric value with a histogram",
+      "intent": "distribution",
+      "candidate_charts": [
+        "histogram"
+      ],
+      "selected_fields": [
+        "Value"
+      ],
+      "field_roles": {
+        "Value": "measure",
+        "Group": "dimension"
+      },
+      "rows": [
+        {
+          "Value": 10.0,
+          "Group": "A"
+        },
+        {
+          "Value": 12.5,
+          "Group": "A"
+        },
+        {
+          "Value": 15.0,
+          "Group": "B"
+        },
+        {
+          "Value": 20.0,
+          "Group": "B"
+        },
+        {
+          "Value": 21.0,
+          "Group": "B"
+        }
+      ],
+      "expected": {
+        "chart_family": "histogram",
+        "field_mapping": {
+          "x": "Value"
+        },
+        "encoding": {
+          "x": {
+            "field": "Value",
+            "type": "quantitative",
+            "bin": true
+          },
+          "y": {
+            "aggregate": "count",
+            "field_absent": true
+          }
+        }
+      }
+    },
+    {
+      "case_id": "bar_compare_categories",
+      "query": "compare sales across product categories with a bar chart",
+      "intent": "comparison",
+      "candidate_charts": [
+        "bar"
+      ],
+      "selected_fields": [
+        "Category",
+        "Sales"
+      ],
+      "field_roles": {
+        "Category": "dimension",
+        "Sales": "measure",
+        "Month": "date"
+      },
+      "rows": [
+        {
+          "Category": "A",
+          "Sales": 100.0,
+          "Month": "2024-01-01"
+        },
+        {
+          "Category": "A",
+          "Sales": 110.0,
+          "Month": "2024-02-01"
+        },
+        {
+          "Category": "B",
+          "Sales": 170.0,
+          "Month": "2024-01-01"
+        },
+        {
+          "Category": "B",
+          "Sales": 160.0,
+          "Month": "2024-02-01"
+        }
+      ],
+      "expected": {
+        "chart_family": "bar",
+        "field_mapping": {
+          "x": "Category",
+          "y": "Sales"
+        },
+        "encoding": {
+          "x": {
+            "field": "Category"
+          },
+          "y": {
+            "field": "Sales",
+            "type": "quantitative"
+          }
+        }
+      },
+      "xfail": {
+        "reason": "selected_fields are currently preferred, not strict; grounding may choose Month instead of Category."
+      }
+    },
+    {
+      "case_id": "heatmap_two_dimensions",
+      "query": "create a heatmap comparing sales across segment and region",
+      "intent": "comparison",
+      "candidate_charts": [
+        "rect"
+      ],
+      "selected_fields": [
+        "Segment",
+        "Region",
+        "Sales"
+      ],
+      "field_roles": {
+        "Segment": "dimension",
+        "Region": "dimension",
+        "Sales": "measure"
+      },
+      "rows": [
+        {
+          "Segment": "Consumer",
+          "Region": "West",
+          "Sales": 100.0
+        },
+        {
+          "Segment": "Consumer",
+          "Region": "East",
+          "Sales": 120.0
+        },
+        {
+          "Segment": "Corporate",
+          "Region": "West",
+          "Sales": 150.0
+        },
+        {
+          "Segment": "Corporate",
+          "Region": "East",
+          "Sales": 90.0
+        }
+      ],
+      "expected": {
+        "chart_family": "rect",
+        "field_mapping": {
+          "x": "Segment",
+          "y": "Region",
+          "color": "Sales"
+        }
+      },
+      "xfail": {
+        "reason": "heatmap/rect runtime support is not stable yet."
+      }
+    }
+  ]
+}
