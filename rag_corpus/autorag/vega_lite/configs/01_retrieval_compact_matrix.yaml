@@ -1,0 +1,71 @@
+vectordb:
+  - name: chroma_hf_bge_small_en_v15
+    db_type: chroma
+    client_type: persistent
+    embedding_batch: 16
+    embedding_model: huggingface_baai_bge_small
+    collection_name: vega_lite_bge_small_en_v15
+    path: rag_corpus/autorag/vega_lite/chroma/bge_small_en_v15
+
+  - name: chroma_hf_all_mpnet_base_v2
+    db_type: chroma
+    client_type: persistent
+    embedding_batch: 16
+    embedding_model: huggingface_all_mpnet_base_v2
+    collection_name: vega_lite_all_mpnet_base_v2
+    path: rag_corpus/autorag/vega_lite/chroma/all_mpnet_base_v2
+
+node_lines:
+  - node_line_name: retrieve_compact_matrix
+    nodes:
+      - node_type: lexical_retrieval
+        strategy:
+          metrics:
+            - retrieval_f1
+            - retrieval_recall
+            - retrieval_precision
+            - retrieval_ndcg
+            - retrieval_mrr
+          speed_threshold: 10
+        top_k: 5
+        modules:
+          - module_type: bm25
+            bm25_tokenizer:
+              - porter_stemmer
+              - space
+
+      - node_type: semantic_retrieval
+        strategy:
+          metrics:
+            - retrieval_f1
+            - retrieval_recall
+            - retrieval_precision
+            - retrieval_ndcg
+            - retrieval_mrr
+          speed_threshold: 10
+        top_k: 5
+        modules:
+          - module_type: vectordb
+            vectordb:
+              - chroma_hf_bge_small_en_v15
+              - chroma_hf_all_mpnet_base_v2
+
+      - node_type: hybrid_retrieval
+        strategy:
+          metrics:
+            - retrieval_f1
+            - retrieval_recall
+            - retrieval_precision
+            - retrieval_ndcg
+            - retrieval_mrr
+          speed_threshold: 10
+        top_k: 5
+        modules:
+          - module_type: hybrid_rrf
+            weight_range: "(10, 80)"
+          - module_type: hybrid_cc
+            normalize_method:
+              - mm
+              - z
+            weight_range: "(0.0, 1.0)"
+            test_weight_size: 11
