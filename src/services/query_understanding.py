@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, Field, model_validator
 
-from src.domain.models import QueryUnderstandingResult, QueryVariant
+from src.domain.models import DataProfile, QueryUnderstandingResult, QueryVariant
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import ainvoke_structured, invoke_structured
 from src.services.base import BaseService
@@ -66,14 +66,20 @@ class _QueryUnderstandingSchema(BaseModel):
 
 
 class QueryUnderstandingService(BaseService):
-    def invoke(self, query: str, user_context: dict[str, Any], runtime: RuntimeContext) -> QueryUnderstandingResult:
+    def invoke(
+        self,
+        query: str,
+        user_context: dict[str, Any],
+        runtime: RuntimeContext,
+        data_profile: DataProfile | None = None,
+    ) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
             raise RuntimeError(
                 "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = invoke_structured(
             reasoning_llm,
-            self._build_prompt(query, user_context),
+            self._build_prompt(query, user_context, data_profile),
             _QueryUnderstandingSchema,
             runtime=runtime,
             stage="query_understanding",
@@ -83,15 +89,20 @@ class QueryUnderstandingService(BaseService):
         )
         return self._build_result(parsed, query)
 
-    async def ainvoke(self, query: str, user_context: dict[str, Any],
-                      runtime: RuntimeContext) -> QueryUnderstandingResult:
+    async def ainvoke(
+        self,
+        query: str,
+        user_context: dict[str, Any],
+        runtime: RuntimeContext,
+        data_profile: DataProfile | None = None,
+    ) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
             raise RuntimeError(
                 "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = await ainvoke_structured(
             reasoning_llm,
-            self._build_prompt(query, user_context),
+            self._build_prompt(query, user_context, data_profile),
             _QueryUnderstandingSchema,
             runtime=runtime,
             stage="query_understanding",
@@ -101,16 +112,42 @@ class QueryUnderstandingService(BaseService):
         )
         return self._build_result(parsed, query)
 
-    def _build_prompt(self, query: str, user_context: dict[str, Any]) -> str:
+    def _build_prompt(
+        self,
+        query: str,
+        user_context: dict[str, Any],
+        data_profile: DataProfile | None = None,
+    ) -> str:
         context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
+        schema_lines = self._schema_context(data_profile)
         return (
             "You analyze requests for an NL2VIS system.\n"
             "Use the exact field names required by the schema.\n"
             "Do not classify requests into canonical/non-canonical groups.\n"
             "Generate query variants for these kinds when possible: canonical, schema_grounding, spec_retrieval, analysis.\n"
+            "When schema context is available, prefer chart families and operations compatible with the listed fields.\n"
             f"User request:\n{query}\n\n"
             f"User context:\n{context_lines}\n"
+            f"Dataset schema context:\n{schema_lines}\n"
         )
+
+    @staticmethod
+    def _schema_context(data_profile: DataProfile | None) -> str:
+        if data_profile is None:
+            return "- none"
+
+        lines = []
+        for column in data_profile.columns:
+            role = data_profile.field_roles.get(column.name, "unknown")
+            lines.append(
+                f"- {column.name} | dtype={column.dtype} | role={role} | "
+                f"missing_ratio={column.missing_ratio:.3f} | unique_count={column.unique_count}"
+            )
+
+        if data_profile.quality_notes:
+            lines.append("Quality notes: " + "; ".join(data_profile.quality_notes[:5]))
+
+        return "\n".join(lines) or "- none"
 
     def _build_result(self, parsed: _QueryUnderstandingSchema, original_query: str) -> QueryUnderstandingResult:
         return QueryUnderstandingResult(

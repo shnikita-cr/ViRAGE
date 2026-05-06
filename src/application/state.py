@@ -21,6 +21,7 @@ from src.domain.models import (
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
+    StageExecutionLog,
     StructuralSpecMetric,
     TokenUsage,
     VegaLiteSpecArtifact,
@@ -65,5 +66,6 @@ class PipelineState(TypedDict, total=False):
     evaluation_summary: NotRequired[EvaluationSummaryResult]
 
     step_logs: NotRequired[list[StepLog]]
+    stage_execution_logs: NotRequired[list[StageExecutionLog]]
     model_call_logs: NotRequired[list[ModelCallLog]]
     token_usage_summary: NotRequired[TokenUsage]

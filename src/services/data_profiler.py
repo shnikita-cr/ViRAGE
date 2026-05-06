@@ -30,6 +30,7 @@ class DataProfilerService(BaseService):
         complexity_hints: list[str] = []
         cleaning_hints: list[str] = []
         column_name_map: dict[str, str] = {}
+        column_errors: list[dict[str, Any]] = []
 
         row_count = int(len(df))
         col_count = int(len(df.columns))
@@ -51,35 +52,29 @@ class DataProfilerService(BaseService):
             if safe_name != column_name:
                 cleaning_hints.append(f"Column '{column_name}' can be normalized to '{safe_name}' for renderer safety.")
 
-            series = df[column]
-            missing_ratio = float(series.isna().mean()) if row_count else 0.0
-            unique_count = int(series.nunique(dropna=True))
-            semantic_dtype = self._semantic_dtype(column_name, series)
-            min_value, max_value, min_max_note = self._min_max(column_name, series, semantic_dtype)
-            if min_max_note:
-                quality_notes.append(min_max_note)
-            samples = self._sample_values(series)
-            outlier_count, outlier_ratio = self._outlier_stats(series, semantic_dtype)
-            is_identifier = self._looks_identifier(column_name, unique_count, row_count)
-            is_high_cardinality = semantic_dtype == "categorical" and unique_count > max(50, int(row_count * 0.5))
-
-            columns.append(
-                DataColumnProfile(
-                    name=column_name,
-                    original_name=column_name,
-                    safe_name=safe_name,
-                    dtype=semantic_dtype,
-                    missing_ratio=missing_ratio,
-                    unique_count=unique_count,
-                    min_value=min_value,
-                    max_value=max_value,
-                    sample_values=samples,
-                    outlier_count=outlier_count,
-                    outlier_ratio=outlier_ratio,
-                    is_identifier=is_identifier,
-                    is_high_cardinality=is_high_cardinality,
+            try:
+                column_profile, column_quality_notes = self._profile_column(
+                    column_name=column_name,
+                    series=df[column],
+                    row_count=row_count,
                 )
-            )
+                quality_notes.extend(column_quality_notes)
+            except Exception as exc:  # noqa: BLE001 - column-level degradation is intentional.
+                error_payload = self._column_error_payload(column_name=column_name, series=df[column], exc=exc)
+                column_errors.append(error_payload)
+                quality_notes.append(
+                    f"Column '{column_name}' could not be fully profiled and was treated as categorical: {type(exc).__name__}: {exc}"
+                )
+                self._save_column_error(runtime, error_payload)
+                column_profile = self._degraded_column_profile(
+                    column_name=column_name,
+                    safe_name=safe_name,
+                    series=df[column],
+                    row_count=row_count,
+                )
+
+            columns.append(column_profile)
+            semantic_dtype = column_profile.dtype
 
             if semantic_dtype == "numeric":
                 numeric.append(column_name)
@@ -90,19 +85,6 @@ class DataProfilerService(BaseService):
             else:
                 categorical.append(column_name)
                 field_roles[column_name] = "dimension"
-
-            if missing_ratio >= 0.5:
-                quality_notes.append(f"Column '{column_name}' has high missing ratio ({missing_ratio:.0%}).")
-            if unique_count <= 1 and row_count > 0:
-                quality_notes.append(f"Column '{column_name}' is constant or nearly constant.")
-            if is_identifier:
-                quality_notes.append(f"Column '{column_name}' looks like an identifier.")
-            if is_high_cardinality:
-                quality_notes.append(f"Column '{column_name}' has high cardinality for a categorical field.")
-            if outlier_count:
-                quality_notes.append(
-                    f"Column '{column_name}' has {outlier_count} potential numeric outliers ({outlier_ratio:.1%})."
-                )
 
         if not numeric:
             quality_notes.append("No numeric columns detected; numeric chart options may be limited.")
@@ -115,9 +97,12 @@ class DataProfilerService(BaseService):
             complexity_hints.append("wide_dataset")
         if duplicate_rows:
             cleaning_hints.append("preserve_row_multiplicity")
+        if column_errors:
+            complexity_hints.append("degraded_profile")
+            cleaning_hints.append("review_profile_column_errors")
         schema_hints.extend([f"{column.name}:{column.dtype}" for column in columns])
 
-        return DataProfile(
+        profile = DataProfile(
             row_count=row_count,
             col_count=col_count,
             columns=columns,
@@ -132,10 +117,70 @@ class DataProfilerService(BaseService):
             cleaning_hints=self._dedupe(cleaning_hints),
             column_name_map=column_name_map,
             data_complexity="large" if row_count > 100_000 or col_count > 30 else "standard",
+            profile_status="degraded" if column_errors else "ok",
+            column_errors=column_errors,
+        )
+
+        if column_errors:
+            self._save_profile_error_summary(runtime, profile)
+
+        return profile
+
+    def _profile_column(
+        self,
+        *,
+        column_name: str,
+        series: pd.Series,
+        row_count: int,
+    ) -> tuple[DataColumnProfile, list[str]]:
+        quality_notes: list[str] = []
+        missing_ratio = float(series.isna().mean()) if row_count else 0.0
+        unique_count = int(series.nunique(dropna=True))
+        semantic_dtype = self._semantic_dtype(column_name, series)
+        min_value, max_value, min_max_note = self._min_max(column_name, series, semantic_dtype)
+        if min_max_note:
+            quality_notes.append(min_max_note)
+        samples = self._sample_values(series)
+        outlier_count, outlier_ratio = self._outlier_stats(series, semantic_dtype)
+        is_identifier = self._looks_identifier(column_name, unique_count, row_count)
+        is_high_cardinality = semantic_dtype == "categorical" and unique_count > max(50, int(row_count * 0.5))
+
+        if missing_ratio >= 0.5:
+            quality_notes.append(f"Column '{column_name}' has high missing ratio ({missing_ratio:.0%}).")
+        if unique_count <= 1 and row_count > 0:
+            quality_notes.append(f"Column '{column_name}' is constant or nearly constant.")
+        if is_identifier:
+            quality_notes.append(f"Column '{column_name}' looks like an identifier.")
+        if is_high_cardinality:
+            quality_notes.append(f"Column '{column_name}' has high cardinality for a categorical field.")
+        if outlier_count:
+            quality_notes.append(
+                f"Column '{column_name}' has {outlier_count} potential numeric outliers ({outlier_ratio:.1%})."
+            )
+
+        return (
+            DataColumnProfile(
+                name=column_name,
+                original_name=column_name,
+                safe_name=self._safe_column_name(column_name),
+                dtype=semantic_dtype,
+                missing_ratio=missing_ratio,
+                unique_count=unique_count,
+                min_value=min_value,
+                max_value=max_value,
+                sample_values=samples,
+                outlier_count=outlier_count,
+                outlier_ratio=outlier_ratio,
+                is_identifier=is_identifier,
+                is_high_cardinality=is_high_cardinality,
+            ),
+            quality_notes,
         )
 
     def _semantic_dtype(self, column: str, series: pd.Series) -> str:
         non_null = series.dropna()
+        if pd.api.types.is_bool_dtype(series) or self._looks_boolean_like(non_null):
+            return "boolean"
         if pd.api.types.is_datetime64_any_dtype(series):
             return "datetime"
         # Semantic temporal names are checked before numeric dtype so columns such as Year=1970 or 70 are treated as time.
@@ -156,13 +201,21 @@ class DataProfilerService(BaseService):
 
     @staticmethod
     def _looks_numeric(series: pd.Series) -> bool:
-        if series.empty:
+        if series.empty or pd.api.types.is_bool_dtype(series):
             return False
         converted = pd.to_numeric(series, errors="coerce")
         return float(converted.notna().mean()) >= 0.9
 
-    def _can_parse_datetime_like(self, column: str, series: pd.Series) -> bool:
+    @staticmethod
+    def _looks_boolean_like(series: pd.Series) -> bool:
         if series.empty:
+            return False
+        normalized = series.astype(str).str.strip().str.lower()
+        allowed = {"true", "false", "yes", "no", "y", "n", "t", "f"}
+        return bool(normalized.isin(allowed).all())
+
+    def _can_parse_datetime_like(self, column: str, series: pd.Series) -> bool:
+        if series.empty or pd.api.types.is_bool_dtype(series) or self._looks_boolean_like(series):
             return False
         if self._is_year_like(column, series):
             return True
@@ -175,6 +228,8 @@ class DataProfilerService(BaseService):
     @staticmethod
     def _is_year_like(column: str, series: pd.Series) -> bool:
         if "year" not in str(column).lower():
+            return False
+        if pd.api.types.is_bool_dtype(series):
             return False
         numeric = pd.to_numeric(series, errors="coerce").dropna()
         if numeric.empty:
@@ -190,7 +245,7 @@ class DataProfilerService(BaseService):
             return None, None, None
         try:
             if semantic_dtype == "numeric":
-                numeric = pd.to_numeric(non_null, errors="coerce").dropna()
+                numeric = pd.to_numeric(non_null, errors="coerce").dropna().astype("float64")
                 if numeric.empty:
                     return None, None, None
                 return numeric.min().item(), numeric.max().item(), None
@@ -207,8 +262,7 @@ class DataProfilerService(BaseService):
                         return rounded
 
                     years = numeric.map(expand_year)
-                    converted = pd.to_datetime(years.astype("Int64").astype("string") + "-01-01",
-                                               errors="coerce").dropna()
+                    converted = pd.to_datetime(years.astype("Int64").astype("string") + "-01-01", errors="coerce").dropna()
                 else:
                     converted = pd.to_datetime(non_null.head(1000), errors="coerce").dropna()
                 if converted.empty:
@@ -229,9 +283,12 @@ class DataProfilerService(BaseService):
 
     @staticmethod
     def _outlier_stats(series: pd.Series, semantic_dtype: str) -> tuple[int, float]:
-        if semantic_dtype != "numeric":
+        if semantic_dtype != "numeric" or pd.api.types.is_bool_dtype(series):
             return 0, 0.0
         numeric = pd.to_numeric(series, errors="coerce").dropna()
+        if numeric.empty:
+            return 0, 0.0
+        numeric = numeric.astype("float64")
         if len(numeric) < 8:
             return 0, 0.0
         q1 = numeric.quantile(0.25)
@@ -269,6 +326,69 @@ class DataProfilerService(BaseService):
         copy = df.copy()
         copy.columns = new_columns
         return copy
+
+    def _degraded_column_profile(
+        self,
+        *,
+        column_name: str,
+        safe_name: str,
+        series: pd.Series,
+        row_count: int,
+    ) -> DataColumnProfile:
+        return DataColumnProfile(
+            name=column_name,
+            original_name=column_name,
+            safe_name=safe_name,
+            dtype="categorical",
+            missing_ratio=float(series.isna().mean()) if row_count else 0.0,
+            unique_count=int(series.nunique(dropna=True)),
+            sample_values=self._sample_values(series),
+            outlier_count=0,
+            outlier_ratio=0.0,
+            is_identifier=self._looks_identifier(column_name, int(series.nunique(dropna=True)), row_count),
+            is_high_cardinality=False,
+        )
+
+    @staticmethod
+    def _column_error_payload(column_name: str, series: pd.Series, exc: Exception) -> dict[str, Any]:
+        return {
+            "failure_class": "data_profile_error",
+            "subreason": "column_profile_failed",
+            "recoverable": True,
+            "column": column_name,
+            "raw_dtype": str(series.dtype),
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
+
+    @staticmethod
+    def _save_column_error(runtime: RuntimeContext, error_payload: dict[str, Any]) -> None:
+        try:
+            safe_column = DataProfilerService._safe_column_name(str(error_payload.get("column") or "column"))
+            runtime.save_json_artifact(
+                f"artifacts/data_profile_column_error_{safe_column}.json",
+                error_payload,
+                numbered=True,
+            )
+        except Exception:
+            return
+
+    @staticmethod
+    def _save_profile_error_summary(runtime: RuntimeContext, profile: DataProfile) -> None:
+        try:
+            runtime.save_json_artifact(
+                "artifacts/data_profile_error_summary.json",
+                {
+                    "failure_class": "data_profile_error",
+                    "subreason": "degraded_profile",
+                    "recoverable": True,
+                    "profile_status": profile.profile_status,
+                    "column_errors": profile.column_errors,
+                },
+                numbered=True,
+            )
+        except Exception:
+            return
 
     @staticmethod
     def _dedupe(values: list[str]) -> list[str]:

@@ -312,4 +312,3 @@ def test_real_corpus_render_pipeline_bar_temporal_non_empty(tmp_path: Path) -> N
     assert spec["encoding"]["x"]["field"] == "Month"
     assert spec["encoding"]["y"]["field"] == "Sales"
     assert_non_empty_render_result(result)
-

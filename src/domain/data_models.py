@@ -36,6 +36,8 @@ class DataProfile(BaseModel):
     cleaning_hints: list[str] = Field(default_factory=list)
     column_name_map: dict[str, str] = Field(default_factory=dict)
     data_complexity: str | None = None
+    profile_status: str = "ok"
+    column_errors: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RequestFieldMapping(BaseModel):

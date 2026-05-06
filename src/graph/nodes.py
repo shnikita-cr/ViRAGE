@@ -96,7 +96,12 @@ class PipelineNodes:
     @traceable(name="virage.query_understanding")
     def query_understanding_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
-        result = self.query_understanding.invoke(state["query"], state.get("user_context", {}), runtime=self.runtime)
+        result = self.query_understanding.invoke(
+            state["query"],
+            state.get("user_context", {}),
+            runtime=self.runtime,
+            data_profile=state.get("data_profile"),
+        )
         artifact_paths = self._save(state, "query_understanding", result.model_dump())
         return {
             "query_understanding": result,
@@ -109,7 +114,7 @@ class PipelineNodes:
                 stage="query_understanding",
                 title="Query understanding",
                 summary=result.intent,
-                inputs=[state["query"]],
+                inputs=[state["query"], "data_profile" if state.get("data_profile") else "no_data_profile"],
                 outputs=[result.task_type or "unknown", result.analysis_goal or ""],
                 details=self._stage_details(before) | {"artifact": artifact_paths["query_understanding"]},
             ),

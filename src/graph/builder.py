@@ -25,8 +25,8 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph = StateGraph(PipelineState)
 
     ordered_steps = [
-        ("query_understanding", nodes.query_understanding_node),
         ("data_profiler", nodes.data_profiler_node),
+        ("query_understanding", nodes.query_understanding_node),
         ("request_analyzer", nodes.request_analyzer_node),
         ("data_preparation", nodes.data_preparation_node),
         ("visrag", nodes.visrag_node),

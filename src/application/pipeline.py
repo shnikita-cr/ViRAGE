@@ -63,6 +63,7 @@ class ViRAGEPipeline:
     ) -> PipelineResult:
         self.runtime.current_run_id = request.run_id
         self.runtime.reset_model_logs()
+        self.runtime.reset_stage_execution_logs()
         self.runtime.reset_artifact_indices(run_id=request.run_id)
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
@@ -79,6 +80,7 @@ class ViRAGEPipeline:
             'errors': [],
             'step_logs': [],
             'model_call_logs': [],
+            'stage_execution_logs': [],
             'artifact_paths': {},
         }
         try:
@@ -93,6 +95,7 @@ class ViRAGEPipeline:
             self.runtime.step_callback = None
             self.runtime.model_call_callback = None
         final_state['model_call_logs'] = list(self.runtime.model_call_logs)
+        final_state['stage_execution_logs'] = list(self.runtime.stage_execution_logs)
         final_state['token_usage_summary'] = self.runtime.token_usage_summary()
         self.runtime.save_model_log_artifacts(run_id=request.run_id)
         return PipelineResult(
@@ -122,6 +125,7 @@ class ViRAGEPipeline:
             visual_quality_metric=final_state.get('visual_quality_metric'),
             evaluation_summary=final_state.get('evaluation_summary'),
             step_logs=final_state.get('step_logs', []),
+            stage_execution_logs=final_state.get('stage_execution_logs', []),
             model_call_logs=final_state.get('model_call_logs', []),
             token_usage_summary=final_state.get('token_usage_summary', self.runtime.token_usage_summary()),
             artifact_paths=final_state.get('artifact_paths', {}),

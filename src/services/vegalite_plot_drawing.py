@@ -49,7 +49,8 @@ class VegaLitePlotDrawingService(BaseService):
         scenegraph_summary = self._summarize_scenegraph(scenegraph)
         scenegraph_summary['source'] = 'vl-convert-python'
         scenegraph_summary['notes'].append('Rendered with Vega-Lite runtime via vl-convert-python.')
-        runtime.save_json_artifact('artifacts/rendered_scenegraph.json', scenegraph_summary, run_id=run_id, numbered=True)
+        runtime.save_json_artifact('artifacts/rendered_scenegraph.json', scenegraph_summary, run_id=run_id,
+                                   numbered=True)
         runtime.save_json_artifact('artifacts/rendered_scenegraph_raw.json', scenegraph, run_id=run_id, numbered=True)
 
         return PlotRenderingResult(

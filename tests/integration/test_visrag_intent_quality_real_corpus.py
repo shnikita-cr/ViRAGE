@@ -21,7 +21,6 @@ from src.services.chart_generator import ChartGeneratorService
 from src.services.spec_validator import SpecValidatorService
 from src.services.visrag import VisRAGService
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_ROOT = PROJECT_ROOT / "rag_corpus" / "data"
 RUNTIME_CORPUS_FILE = CORPUS_ROOT / "vega_lite_examples.jsonl"
@@ -163,8 +162,8 @@ def run_case(case: dict[str, Any], tmp_path: Path) -> dict[str, Any]:
 
 
 def assert_field_mapping(
-    actual_mapping: dict[str, str],
-    expected_mapping: dict[str, str],
+        actual_mapping: dict[str, str],
+        expected_mapping: dict[str, str],
 ) -> None:
     for channel, expected_field in expected_mapping.items():
         assert actual_mapping.get(channel) == expected_field

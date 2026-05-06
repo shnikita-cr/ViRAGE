@@ -9,21 +9,23 @@ from src.visrag_core.models import VisRAGColumnProfile, VisRAGDataProfile, VisRA
 
 
 def _request(
-    *,
-    query: str,
-    selected_fields: list[str],
-    preferred_chart_types: list[str] | None = None,
-    columns: list[VisRAGColumnProfile] | None = None,
+        *,
+        query: str,
+        selected_fields: list[str],
+        preferred_chart_types: list[str] | None = None,
+        columns: list[VisRAGColumnProfile] | None = None,
 ) -> VisRAGRequest:
     return VisRAGRequest(
         query=query,
         data_profile=VisRAGDataProfile(
             columns=columns
-            or [
-                VisRAGColumnProfile(name="Category", semantic_type="object", role="dimension", raw_dtype="object"),
-                VisRAGColumnProfile(name="Sales", semantic_type="float64", role="measure", raw_dtype="float64"),
-                VisRAGColumnProfile(name="Month", semantic_type="datetime64[ns]", role="date", raw_dtype="datetime64[ns]"),
-            ]
+                    or [
+                        VisRAGColumnProfile(name="Category", semantic_type="object", role="dimension",
+                                            raw_dtype="object"),
+                        VisRAGColumnProfile(name="Sales", semantic_type="float64", role="measure", raw_dtype="float64"),
+                        VisRAGColumnProfile(name="Month", semantic_type="datetime64[ns]", role="date",
+                                            raw_dtype="datetime64[ns]"),
+                    ]
         ),
         preferred_chart_types=preferred_chart_types or [],
         selected_fields=selected_fields,

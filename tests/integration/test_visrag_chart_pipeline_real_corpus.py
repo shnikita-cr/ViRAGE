@@ -242,6 +242,7 @@ def test_real_corpus_chart_pipeline_bar_temporal_validates(tmp_path: Path) -> No
     assert spec["encoding"]["x"]["field"] == "Month"
     assert spec["encoding"]["y"]["field"] == "Sales"
 
+
 def test_real_corpus_chart_pipeline_histogram_validates_count_without_y_field(tmp_path: Path) -> None:
     result = run_pipeline_case(
         tmp_path=tmp_path,
