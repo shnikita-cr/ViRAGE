@@ -1,0 +1,50 @@
+mode = "streamlit"
+
+[settings]
+artifact_root = "./artifacts"
+visrag_corpus_root = "./rag_corpus/data"
+visrag_top_k_examples = 5
+visrag_retriever_backend = "bm25"
+visrag_embedding_provider = "ollama"
+visrag_embedding_model = "nomic-embed-text"
+visrag_embedding_base_url = "http://localhost:11434"
+visrag_embedding_timeout_seconds = 60.0
+vega_output_format = "png"
+enable_scenegraph_check = true
+enable_empty_chart_check = true
+enable_spec_score = true
+enable_vision_score = true
+enable_evaluation_summary = true
+strict_image_only_analysis = true
+streamlit_compute_metrics = true
+streamlit_show_step_logs = true
+
+[streamlit]
+compute_metrics = true
+show_step_logs = true
+
+[reasoning_model]
+provider = "ollama"
+model = "qwen3.5:397b-cloud"
+temperature = 0.0
+base_url = "http://localhost:11434"
+timeout_seconds = 60.0
+
+[spec_model]
+provider = "ollama"
+model = "qwen3-coder:480b-cloud"
+temperature = 0.0
+base_url = "http://localhost:11434"
+timeout_seconds = 60.0
+
+[vlm_model]
+provider = "ollama"
+model = "qwen3.5:397b-cloud"
+temperature = 0.0
+timeout_seconds = 60.0
+
+[vision_judge_model]
+provider = "ollama"
+model = "qwen3.5:397b-cloud"
+temperature = 0.0
+timeout_seconds = 60.0

@@ -8,21 +8,21 @@ from src.services.base import BaseService
 class EvaluationSummaryService(BaseService):
     def invoke(
             self,
-            structural_spec_metric: StructuralSpecMetric,
-            visual_quality_metric: VisualQualityMetric,
+            structural_spec_metric: StructuralSpecMetric | None,
+            visual_quality_metric: VisualQualityMetric | None,
             empty_chart_check: EmptyChartCheckResult,
             insight_verification: InsightVerificationResult,
     ) -> EvaluationSummaryResult:
         report = {
-            "spec_score": structural_spec_metric.score,
-            "vision_score": visual_quality_metric.score,
+            "spec_score": structural_spec_metric.score if structural_spec_metric else None,
+            "vision_score": visual_quality_metric.score if visual_quality_metric else None,
             "empty_chart_status": empty_chart_check.empty_chart_status,
             "verified_insight_count": len(insight_verification.verified_insights),
             "rejected_claim_count": len(insight_verification.rejected_claims),
         }
         return EvaluationSummaryResult(
-            structural_spec_metric=structural_spec_metric.score,
-            visual_quality_metric=visual_quality_metric.score,
+            structural_spec_metric=report["spec_score"],
+            visual_quality_metric=report["vision_score"],
             empty_chart_status=empty_chart_check.empty_chart_status,
             insight_verification_summary=insight_verification.insight_verification_summary,
             benchmark_report=report,

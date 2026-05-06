@@ -11,12 +11,10 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    ExecutionPolicy,
     InsightReasoningResult,
     InsightVerificationResult,
     InsightsResult,
     ModelCallLog,
-    PlanningResult,
     PlotRenderingResult,
     QueryIntentBundle,
     QueryUnderstandingResult,
@@ -24,9 +22,9 @@ from src.domain.models import (
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
+    StageExecutionLog,
     StructuralSpecMetric,
     TokenUsage,
-    ValidationPolicy,
     VegaLiteSpecArtifact,
     VisualFactExtractionResult,
     VisualQualityMetric,
@@ -50,9 +48,6 @@ class PipelineResult(BaseModel):
     query_understanding: QueryUnderstandingResult | None = None
     query_intent_bundle: QueryIntentBundle | None = None
     request_analysis: RequestAnalysisResult | None = None
-    planning: PlanningResult | None = None
-    execution_policy: ExecutionPolicy | None = None
-    validation_policy: ValidationPolicy | None = None
     analysis_rubric: AnalysisRubric | None = None
     data_profile: DataProfile | None = None
     data_preparation: DataPreparationResult | None = None
@@ -74,6 +69,7 @@ class PipelineResult(BaseModel):
     evaluation_summary: EvaluationSummaryResult | None = None
 
     step_logs: list[StepLog] = Field(default_factory=list)
+    stage_execution_logs: list[StageExecutionLog] = Field(default_factory=list)
     model_call_logs: list[ModelCallLog] = Field(default_factory=list)
     token_usage_summary: TokenUsage = Field(default_factory=TokenUsage)
     artifact_paths: dict[str, str] = Field(default_factory=dict)

@@ -10,12 +10,10 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    ExecutionPolicy,
     InsightReasoningResult,
     InsightVerificationResult,
     InsightsResult,
     ModelCallLog,
-    PlanningResult,
     PlotRenderingResult,
     QueryIntentBundle,
     QueryUnderstandingResult,
@@ -23,9 +21,9 @@ from src.domain.models import (
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
+    StageExecutionLog,
     StructuralSpecMetric,
     TokenUsage,
-    ValidationPolicy,
     VegaLiteSpecArtifact,
     VisualFactExtractionResult,
     VisualQualityMetric,
@@ -47,9 +45,6 @@ class PipelineState(TypedDict, total=False):
     query_understanding: NotRequired[QueryUnderstandingResult]
     query_intent_bundle: NotRequired[QueryIntentBundle]
     request_analysis: NotRequired[RequestAnalysisResult]
-    planning: NotRequired[PlanningResult]
-    execution_policy: NotRequired[ExecutionPolicy]
-    validation_policy: NotRequired[ValidationPolicy]
     analysis_rubric: NotRequired[AnalysisRubric]
     data_profile: NotRequired[DataProfile]
     data_preparation: NotRequired[DataPreparationResult]
@@ -71,5 +66,6 @@ class PipelineState(TypedDict, total=False):
     evaluation_summary: NotRequired[EvaluationSummaryResult]
 
     step_logs: NotRequired[list[StepLog]]
+    stage_execution_logs: NotRequired[list[StageExecutionLog]]
     model_call_logs: NotRequired[list[ModelCallLog]]
     token_usage_summary: NotRequired[TokenUsage]

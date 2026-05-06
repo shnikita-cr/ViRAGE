@@ -11,16 +11,15 @@ from src.application.settings import ViRAGESettings
 
 
 class ModelRoleConfig(BaseModel):
-    provider: Literal["ollama", "openai"]
+    provider: Literal["ollama", "openai", "huggingface"]
     model: str
     temperature: float = 0.0
     base_url: str | None = None
-    api_key_env: str | None = None
     timeout_seconds: float = 60.0
 
 
 class StreamlitConfig(BaseModel):
-    compute_metrics: bool = False
+    compute_metrics: bool = True
     show_step_logs: bool = True
 
 
@@ -34,8 +33,8 @@ class ProjectConfig(BaseModel):
     vision_judge_model: ModelRoleConfig
 
 
-DEFAULT_CONFIG_PATH = Path("config/project.toml")
-EXAMPLE_CONFIG_PATH = Path("config/project.example.toml")
+DEFAULT_CONFIG_PATH = Path("ui/config/project-gemma.toml")
+EXAMPLE_CONFIG_PATH = Path("ui/config/project.example.toml")
 
 
 def load_project_config(path: str | Path = DEFAULT_CONFIG_PATH) -> ProjectConfig:

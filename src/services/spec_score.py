@@ -1,92 +1,85 @@
 from __future__ import annotations
 
-from src.domain.models import QueryUnderstandingResult, SpecValidationResult, StructuralSpecMetric
+from typing import Any
+
+from src.domain.models import SpecValidationResult, StructuralSpecMetric
 from src.services.base import BaseService
+from src.visrag_core import canonicalize_chart_type, normalize_aggregate
 
 
 class SpecScoreService(BaseService):
-    def invoke(self, spec_validation: SpecValidationResult,
-               query_understanding: QueryUnderstandingResult | None = None) -> StructuralSpecMetric:
+    """Benchmark metric comparing a generated spec with a ground-truth spec."""
+
+    def invoke(self, spec_validation: SpecValidationResult, ground_truth_spec: dict[str, Any]) -> StructuralSpecMetric:
         if not spec_validation.is_valid:
-            return StructuralSpecMetric(score=0.0, details=['invalid spec'])
-
-        spec = spec_validation.validated_spec
-        details: list[str] = []
-        mark_score = 0.0
-        encoding_score = 0.0
-        transform_score = 0.0
-        task_alignment_score = 0.0
-        hygiene_score = 0.0
-
-        if spec.get('$schema'):
-            hygiene_score += 0.34
-            details.append('schema present')
-        if spec.get('data', {}).get('url'):
-            hygiene_score += 0.33
-            details.append('data url present')
-        if spec.get('title'):
-            hygiene_score += 0.33
-            details.append('title present')
-
-        mark = spec.get('mark')
-        mark_type = mark.get('type') if isinstance(mark, dict) else mark
-        if isinstance(mark_type, str) and mark_type.strip():
-            mark_score = 1.0
-            details.append(f'mark={mark_type}')
-
-        encoding = spec.get('encoding', {})
-        if isinstance(encoding, dict) and encoding:
-            sub = 0.0
-            if isinstance(encoding.get('x'), dict) and encoding['x'].get('field'):
-                sub += 0.4
-            if isinstance(encoding.get('y'), dict) and encoding['y'].get('field'):
-                sub += 0.4
-            if isinstance(encoding.get('color'), dict) and encoding['color'].get('field'):
-                sub += 0.2
-            encoding_score = min(sub, 1.0)
-            details.append('encoding present')
-            details.append(f'encoding_score={encoding_score:.2f}')
-
-        transforms = spec.get('transform', [])
-        if isinstance(transforms, list):
-            if transforms:
-                transform_score = 1.0
-                details.append(f'transform_count={len(transforms)}')
-            else:
-                transform_score = 0.5
-                details.append('no transforms')
-
-        if query_understanding is not None:
-            requested = set(query_understanding.requested_operations)
-            intent_text = f"{query_understanding.intent} {' '.join(requested)}".lower()
-            aligned = 0.0
-            if 'trend' in intent_text and mark_type in {'line', 'area'}:
-                aligned = 1.0
-            elif ('compare' in intent_text or 'distribution' in intent_text) and mark_type in {'bar', 'boxplot',
-                                                                                               'histogram'}:
-                aligned = 1.0
-            elif ('relationship' in intent_text or 'correlation' in intent_text) and mark_type in {'point', 'circle'}:
-                aligned = 1.0
-            else:
-                aligned = 0.5 if mark_type else 0.0
-            task_alignment_score = aligned
-            details.append(f'task_alignment={task_alignment_score:.2f}')
-        else:
-            task_alignment_score = 0.5
-
-        score = min(
-            1.0,
-            (0.15 * mark_score)
-            + (0.4 * encoding_score)
-            + (0.15 * transform_score)
-            + (0.2 * task_alignment_score)
-            + (0.1 * hygiene_score),
-        )
+            return StructuralSpecMetric(score=0.0, details=["generated_spec_invalid"])
+        generated = spec_validation.validated_spec
+        mark_score = 1.0 if _mark(generated) == _mark(ground_truth_spec) else 0.0
+        encoding_score = _encoding_score(generated.get("encoding"), ground_truth_spec.get("encoding"))
+        transform_score = _transform_score(generated.get("transform"), ground_truth_spec.get("transform"))
+        score = round((0.2 * mark_score) + (0.65 * encoding_score) + (0.15 * transform_score), 4)
         return StructuralSpecMetric(
-            score=round(score, 4),
-            mark_score=round(mark_score, 4),
+            score=score,
+            mark_score=mark_score,
             encoding_score=round(encoding_score, 4),
             transform_score=round(transform_score, 4),
-            task_alignment_score=round(task_alignment_score, 4),
-            details=details,
+            task_alignment_score=0.0,
+            details=[
+                f"mark_score={mark_score:.4f}",
+                f"encoding_score={encoding_score:.4f}",
+                f"transform_score={transform_score:.4f}",
+            ],
         )
+
+
+def _mark(spec: dict[str, Any]) -> str:
+    mark = spec.get("mark")
+    value = mark.get("type") if isinstance(mark, dict) else mark
+    return canonicalize_chart_type(str(value or ""))
+
+
+def _encoding_score(generated: Any, expected: Any) -> float:
+    generated_items = _encoding_items(generated)
+    expected_items = _encoding_items(expected)
+    if not expected_items:
+        return 1.0 if not generated_items else 0.0
+    return len(generated_items & expected_items) / len(expected_items)
+
+
+def _encoding_items(encoding: Any) -> set[tuple[str, str, str, str]]:
+    if not isinstance(encoding, dict):
+        return set()
+    items: set[tuple[str, str, str, str]] = set()
+    for channel, channel_spec in encoding.items():
+        if isinstance(channel_spec, dict):
+            items.add(_channel_item(str(channel), channel_spec))
+    return items
+
+
+def _channel_item(channel: str, channel_spec: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        channel,
+        str(channel_spec.get("field") or ""),
+        str(channel_spec.get("type") or ""),
+        str(normalize_aggregate(channel_spec.get("aggregate")) or ""),
+    )
+
+
+def _transform_score(generated: Any, expected: Any) -> float:
+    generated_items = _transform_items(generated)
+    expected_items = _transform_items(expected)
+    if not expected_items:
+        return 1.0 if not generated_items else 0.0
+    return len(generated_items & expected_items) / len(expected_items)
+
+
+def _transform_items(transforms: Any) -> set[str]:
+    if not isinstance(transforms, list):
+        return set()
+    result: set[str] = set()
+    for transform in transforms:
+        if not isinstance(transform, dict):
+            continue
+        for key in sorted(transform.keys()):
+            result.add(str(key))
+    return result

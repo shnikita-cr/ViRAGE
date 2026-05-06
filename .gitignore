@@ -72,3 +72,11 @@ artifacts_test
 
 examples
 **artifacts
+/rag_corpus/raw/
+!rag_corpus/raw/local_cases/
+!rag_corpus/raw/local_cases/success_cases.jsonl
+!rag_corpus/raw/local_cases/failure_cases.jsonl
+!rag_corpus/raw/_sources_manifest.json
+/rag_corpus/cleaned
+/rag_corpus/autorag/vega_lite/trials_title_query
+/rag_corpus/autorag/vega_lite/trials
