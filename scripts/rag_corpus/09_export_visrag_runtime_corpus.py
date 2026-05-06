@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_INPUT_JSONL = "rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl"
 DEFAULT_OUTPUT_JSONL = "rag_corpus/data/vega_lite_examples.jsonl"
 DEFAULT_REPORT_MD = "rag_corpus/reports/visrag_runtime_export_report.md"
@@ -397,8 +396,8 @@ def infer_semantic_role_from_channel_def(channel_def: Any) -> str | None:
 
 
 def infer_field_roles_from_spec_template(
-    spec_template: dict[str, Any],
-    keep_tooltip: bool,
+        spec_template: dict[str, Any],
+        keep_tooltip: bool,
 ) -> tuple[dict[str, str], dict[str, str]]:
     encoding = spec_template.get("encoding")
 
@@ -412,7 +411,7 @@ def infer_field_roles_from_spec_template(
         channel_name = str(channel)
 
         if channel_name in DROPPED_ENCODING_CHANNELS_BY_DEFAULT and not (
-            channel_name == "tooltip" and keep_tooltip
+                channel_name == "tooltip" and keep_tooltip
         ):
             dropped[channel_name] = "dropped_encoding_channel"
             continue
@@ -433,10 +432,10 @@ def infer_field_roles_from_spec_template(
 
 
 def merge_field_roles(
-    primary_roles: dict[str, str],
-    primary_dropped: dict[str, str],
-    fallback_roles: dict[str, str],
-    fallback_dropped: dict[str, str],
+        primary_roles: dict[str, str],
+        primary_dropped: dict[str, str],
+        fallback_roles: dict[str, str],
+        fallback_dropped: dict[str, str],
 ) -> tuple[dict[str, str], dict[str, str], str]:
     if not primary_roles and fallback_roles:
         return fallback_roles, {**primary_dropped, **fallback_dropped}, "spec_template_encoding"
@@ -471,9 +470,9 @@ def strip_field_keys(value: Any) -> Any:
 
 
 def clean_encoding(
-    encoding: Any,
-    runtime_field_roles: dict[str, str],
-    keep_tooltip: bool,
+        encoding: Any,
+        runtime_field_roles: dict[str, str],
+        keep_tooltip: bool,
 ) -> Any:
     if not isinstance(encoding, dict):
         return encoding
@@ -484,7 +483,7 @@ def clean_encoding(
         channel_name = str(channel)
 
         if channel_name in DROPPED_ENCODING_CHANNELS_BY_DEFAULT and not (
-            channel_name == "tooltip" and keep_tooltip
+                channel_name == "tooltip" and keep_tooltip
         ):
             continue
 
@@ -529,11 +528,11 @@ def _is_empty_or_fieldless_encoding(value: Any) -> bool:
 
 
 def sanitize_spec_template(
-    spec_template: dict[str, Any],
-    runtime_field_roles: dict[str, str],
-    keep_tooltip: bool,
-    strip_fields: bool,
-    strip_interactions: bool,
+        spec_template: dict[str, Any],
+        runtime_field_roles: dict[str, str],
+        keep_tooltip: bool,
+        strip_fields: bool,
+        strip_interactions: bool,
 ) -> dict[str, Any]:
     spec = remove_data_sections(copy.deepcopy(spec_template))
 
@@ -628,9 +627,9 @@ def format_field_roles(field_roles: dict[str, str]) -> str:
 
 
 def build_runtime_instruction(
-    record: dict[str, Any],
-    runtime_chart_type: str,
-    runtime_field_roles: dict[str, str],
+        record: dict[str, Any],
+        runtime_chart_type: str,
+        runtime_field_roles: dict[str, str],
 ) -> str:
     title = record.get("title")
     instruction = record.get("instruction")
@@ -661,13 +660,13 @@ def build_runtime_instruction(
 
 
 def build_metadata(
-    record: dict[str, Any],
-    runtime_chart_type: str,
-    chart_type_source: str,
-    field_roles_source: str,
-    dropped_field_roles: dict[str, str],
-    transform_types: list[str],
-    had_interactive_params: bool,
+        record: dict[str, Any],
+        runtime_chart_type: str,
+        chart_type_source: str,
+        field_roles_source: str,
+        dropped_field_roles: dict[str, str],
+        transform_types: list[str],
+        had_interactive_params: bool,
 ) -> dict[str, Any]:
     metadata_fields = [
         "id",
@@ -711,12 +710,12 @@ def build_metadata(
 
 
 def build_runtime_record(
-    record: dict[str, Any],
-    corpus_name: str,
-    keep_tooltip: bool,
-    strip_fields: bool,
-    allow_interactive_params: bool,
-    strip_interactions: bool,
+        record: dict[str, Any],
+        corpus_name: str,
+        keep_tooltip: bool,
+        strip_fields: bool,
+        allow_interactive_params: bool,
+        strip_interactions: bool,
 ) -> tuple[dict[str, Any] | None, str | None]:
     original_id = record.get("id")
 
@@ -817,13 +816,13 @@ def build_runtime_record(
 
 
 def export_records(
-    records: list[dict[str, Any]],
-    corpus_name: str,
-    keep_tooltip: bool,
-    strip_fields: bool,
-    allow_interactive_params: bool,
-    strip_interactions: bool,
-    max_records: int | None,
+        records: list[dict[str, Any]],
+        corpus_name: str,
+        keep_tooltip: bool,
+        strip_fields: bool,
+        allow_interactive_params: bool,
+        strip_interactions: bool,
+        max_records: int | None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     included: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -898,16 +897,16 @@ def count_metadata_field(records: list[dict[str, Any]], field: str) -> dict[str,
 
 
 def build_report_data(
-    input_jsonl: Path,
-    output_jsonl: Path,
-    records: list[dict[str, Any]],
-    included: list[dict[str, Any]],
-    skipped: list[dict[str, Any]],
-    corpus_name: str,
-    keep_tooltip: bool,
-    strip_fields: bool,
-    allow_interactive_params: bool,
-    strip_interactions: bool,
+        input_jsonl: Path,
+        output_jsonl: Path,
+        records: list[dict[str, Any]],
+        included: list[dict[str, Any]],
+        skipped: list[dict[str, Any]],
+        corpus_name: str,
+        keep_tooltip: bool,
+        strip_fields: bool,
+        allow_interactive_params: bool,
+        strip_interactions: bool,
 ) -> dict[str, Any]:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),

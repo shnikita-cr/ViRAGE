@@ -8,7 +8,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CLEANED_ROOT = "rag_corpus/cleaned"
 DEFAULT_SPECS_DIR = "rag_corpus/cleaned/vega-lite/examples/specs"
 DEFAULT_OUT_FILE = "rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl"
@@ -242,17 +241,17 @@ def primary_mark_type(spec: dict[str, Any]) -> str:
         return "unknown"
 
     for preferred in (
-        "bar",
-        "line",
-        "point",
-        "circle",
-        "rect",
-        "area",
-        "arc",
-        "tick",
-        "rule",
-        "text",
-        "geoshape",
+            "bar",
+            "line",
+            "point",
+            "circle",
+            "rect",
+            "area",
+            "arc",
+            "tick",
+            "rule",
+            "text",
+            "geoshape",
     ):
         if preferred in marks:
             return preferred
@@ -278,8 +277,8 @@ def is_faceted(spec: dict[str, Any]) -> bool:
 
 
 def first_channel_def(
-    encodings: list[dict[str, Any]],
-    channel: str,
+        encodings: list[dict[str, Any]],
+        channel: str,
 ) -> dict[str, Any] | None:
     for encoding in encodings:
         value = encoding.get(channel)
@@ -413,9 +412,9 @@ def extract_field_roles(spec: dict[str, Any]) -> dict[str, str]:
 
 
 def make_instruction(
-    chart_pattern: str,
-    mark_type: str,
-    field_roles: dict[str, str],
+        chart_pattern: str,
+        mark_type: str,
+        field_roles: dict[str, str],
 ) -> str:
     if chart_pattern == "bar_chart":
         if "aggregate" in field_roles.get("x", "") or "aggregate" in field_roles.get("y", ""):
@@ -479,11 +478,11 @@ def format_field_roles_for_retrieval(field_roles: dict[str, str]) -> str:
 
 
 def build_retrieval_text(
-    title: str,
-    instruction: str,
-    chart_pattern: str,
-    mark_type: str,
-    field_roles: dict[str, str],
+        title: str,
+        instruction: str,
+        chart_pattern: str,
+        mark_type: str,
+        field_roles: dict[str, str],
 ) -> str:
     field_roles_text = format_field_roles_for_retrieval(field_roles)
 
@@ -548,10 +547,10 @@ def normalize_spec(path: Path, cleaned_root: Path) -> dict[str, Any]:
 
 
 def balanced_sample(
-    records: list[dict[str, Any]],
-    total: int,
-    seed: int,
-    include_unknown: bool,
+        records: list[dict[str, Any]],
+        total: int,
+        seed: int,
+        include_unknown: bool,
 ) -> list[dict[str, Any]]:
     rng = random.Random(seed)
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -621,12 +620,12 @@ def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
 
 
 def build_report(
-    selected: list[dict[str, Any]],
-    all_records: list[dict[str, Any]],
-    skipped_errors: list[str],
-    seed: int,
-    cleaned_root: Path,
-    specs_dir: Path,
+        selected: list[dict[str, Any]],
+        all_records: list[dict[str, Any]],
+        skipped_errors: list[str],
+        seed: int,
+        cleaned_root: Path,
+        specs_dir: Path,
 ) -> str:
     corpus_pattern_counts = Counter(record["chart_pattern"] for record in all_records)
     corpus_mark_counts = Counter(record["mark_type"] for record in all_records)

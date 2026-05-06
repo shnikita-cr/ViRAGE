@@ -3,7 +3,6 @@ from __future__ import annotations
 from .models import VisRAGColumnProfile, VisRAGRequest
 from .semantic import semantic_type_from_role_or_dtype
 
-
 STRICT_SELECTED_FIELDS_POLICY = "strict"
 
 
@@ -21,7 +20,8 @@ def map_fields(field_roles: dict[str, str], request: VisRAGRequest) -> tuple[dic
             for column in columns
             if semantic_type_from_role_or_dtype(column.role, column.semantic_type, column.raw_dtype) == role_key
         ]
-        ordered = [name for name in selected if name in candidates] + [name for name in candidates if name not in selected]
+        ordered = [name for name in selected if name in candidates] + [name for name in candidates if
+                                                                       name not in selected]
         chosen = next((name for name in ordered if name not in used), None)
 
         if chosen:

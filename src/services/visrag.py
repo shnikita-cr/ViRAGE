@@ -87,7 +87,6 @@ class VisRAGService(BaseService):
             update={"selected_fields_policy": policy_decision.selected_fields_policy.value}
         )
 
-
     @staticmethod
     def _request_confidence(
             query_understanding: QueryUnderstandingResult,

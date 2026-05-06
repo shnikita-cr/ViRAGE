@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 import zipfile
@@ -62,11 +61,11 @@ def is_same_or_inside(path: Path, possible_parent: Path) -> bool:
 
 
 def create_zip(
-    project_root: Path,
-    output_zip: Path,
-    files: list[Path],
-    compression_level: int,
-    dry_run: bool,
+        project_root: Path,
+        output_zip: Path,
+        files: list[Path],
+        compression_level: int,
+        dry_run: bool,
 ) -> None:
     output_zip = output_zip.resolve()
     project_root = project_root.resolve()
@@ -96,10 +95,10 @@ def create_zip(
     output_zip.parent.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(
-        output_zip,
-        mode="w",
-        compression=zipfile.ZIP_DEFLATED,
-        compresslevel=compression_level,
+            output_zip,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=compression_level,
     ) as archive:
         for relative_path in files_to_zip:
             absolute_path = project_root / relative_path

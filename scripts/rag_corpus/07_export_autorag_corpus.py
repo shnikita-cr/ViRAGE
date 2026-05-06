@@ -9,7 +9,6 @@ from typing import Any
 
 import pandas as pd
 
-
 DEFAULT_INPUT_JSONL = "rag_corpus/normalized/jsonl/official_vega_lite_examples.jsonl"
 DEFAULT_OUT_DIR = "rag_corpus/autorag/vega_lite"
 DEFAULT_CORPUS_FILE = "corpus.parquet"
@@ -74,9 +73,9 @@ def as_metadata_value(value: Any) -> Any:
 
 
 def build_metadata(
-    record: dict[str, Any],
-    metadata_fields: list[str],
-    generated_at: datetime,
+        record: dict[str, Any],
+        metadata_fields: list[str],
+        generated_at: datetime,
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "last_modified_datetime": generated_at,
@@ -92,11 +91,11 @@ def build_metadata(
 
 
 def build_corpus_rows(
-    records: list[dict[str, Any]],
-    content_field: str,
-    doc_id_field: str,
-    metadata_fields: list[str],
-    generated_at: datetime,
+        records: list[dict[str, Any]],
+        content_field: str,
+        doc_id_field: str,
+        metadata_fields: list[str],
+        generated_at: datetime,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
@@ -181,13 +180,13 @@ def count_field(records: list[dict[str, Any]], field: str) -> dict[str, int]:
 
 
 def build_report_data(
-    input_jsonl: Path,
-    corpus_path: Path,
-    records: list[dict[str, Any]],
-    rows: list[dict[str, Any]],
-    content_field: str,
-    doc_id_field: str,
-    metadata_fields: list[str],
+        input_jsonl: Path,
+        corpus_path: Path,
+        records: list[dict[str, Any]],
+        rows: list[dict[str, Any]],
+        content_field: str,
+        doc_id_field: str,
+        metadata_fields: list[str],
 ) -> dict[str, Any]:
     content_lengths = [len(row["contents"]) for row in rows]
 

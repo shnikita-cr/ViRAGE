@@ -180,7 +180,6 @@ def _embedding_provider(config: VisRAGConfig) -> str:
     return provider
 
 
-
 def _candidate(example: VisRAGExample, score: float, backend: str) -> VisRAGCandidate:
     bounded = _clamp(score)
     return VisRAGCandidate(

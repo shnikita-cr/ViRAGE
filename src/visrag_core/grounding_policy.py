@@ -5,7 +5,7 @@ from typing import Iterable
 
 from pydantic import BaseModel, Field
 
-from .models import VisRAGColumnProfile, VisRAGDataProfile, VisRAGRequest
+from .models import VisRAGColumnProfile, VisRAGRequest
 from .semantic import semantic_type_from_role_or_dtype
 
 
@@ -35,11 +35,11 @@ class GroundingPolicyResolver:
     MANY_SELECTED_FIELDS_THRESHOLD = 4
 
     def resolve(
-        self,
-        request: VisRAGRequest,
-        *,
-        request_confidence: float | None = None,
-        ambiguity_notes: Iterable[str] | None = None,
+            self,
+            request: VisRAGRequest,
+            *,
+            request_confidence: float | None = None,
+            ambiguity_notes: Iterable[str] | None = None,
     ) -> GroundingPolicyDecision:
         explicit_policy = _parse_policy(getattr(request, "selected_fields_policy", None))
 
@@ -132,10 +132,10 @@ class GroundingPolicyResolver:
 
 
 def resolve_grounding_policy(
-    request: VisRAGRequest,
-    *,
-    request_confidence: float | None = None,
-    ambiguity_notes: Iterable[str] | None = None,
+        request: VisRAGRequest,
+        *,
+        request_confidence: float | None = None,
+        ambiguity_notes: Iterable[str] | None = None,
 ) -> GroundingPolicyDecision:
     return GroundingPolicyResolver().resolve(
         request,
@@ -183,8 +183,8 @@ def _prefix_values(prefix: str, values: list[str]) -> list[str]:
 
 
 def _only_identifier_like_fields(
-    selected_fields: list[str],
-    column_by_name: dict[str, VisRAGColumnProfile],
+        selected_fields: list[str],
+        column_by_name: dict[str, VisRAGColumnProfile],
 ) -> bool:
     return all(_is_identifier_like(column_by_name[field]) for field in selected_fields)
 

@@ -1,5 +1,6 @@
 from .chart_types import canonicalize_chart_type, normalize_aggregate, require_supported_chart_type
-from .grounding_policy import GroundingPolicyDecision, GroundingPolicyResolver, SelectedFieldsPolicy, resolve_grounding_policy
+from .grounding_policy import GroundingPolicyDecision, GroundingPolicyResolver, SelectedFieldsPolicy, \
+    resolve_grounding_policy
 from .models import (
     VisRAGCandidate,
     VisRAGColumnProfile,
