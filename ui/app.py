@@ -327,6 +327,256 @@ def render_chart(result: Any, chart_mode: str) -> None:
     render_png_chart(result)
 
 
+
+def payload_from_model(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+
+    if hasattr(value, "model_dump"):
+        payload = value.model_dump()
+    else:
+        payload = value
+
+    if isinstance(payload, dict):
+        return payload
+
+    return {"value": payload}
+
+
+def numeric_score(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    return None
+
+
+def normalize_score(value: Any) -> float | None:
+    score = numeric_score(value)
+
+    if score is None:
+        return None
+
+    if score > 1.0:
+        return max(0.0, min(score / 100.0, 1.0))
+
+    return max(0.0, min(score, 1.0))
+
+
+def format_score(value: Any) -> str:
+    score = numeric_score(value)
+
+    if score is None:
+        return "—"
+
+    if score <= 1.0:
+        return f"{score * 100:.0f}%"
+
+    return f"{score:.2f}"
+
+
+def score_badge(score: Any) -> tuple[str, str]:
+    normalized = normalize_score(score)
+
+    if normalized is None:
+        return "Not available", "⚪"
+
+    if normalized >= 0.85:
+        return "Strong", "🟢"
+
+    if normalized >= 0.65:
+        return "Acceptable", "🟡"
+
+    return "Needs attention", "🔴"
+
+
+def render_score_card(
+    *,
+    title: str,
+    score: Any,
+    description: str,
+) -> None:
+    normalized = normalize_score(score)
+    status, icon = score_badge(score)
+
+    with st.container(border=True):
+        st.markdown(f"#### {icon} {title}")
+        st.metric("Score", format_score(score))
+        st.caption(description)
+
+        if normalized is not None:
+            st.progress(normalized)
+
+        st.caption(status)
+
+
+def render_component_scores(payload: dict[str, Any], fields: list[tuple[str, str]]) -> None:
+    available_fields = [(label, key) for label, key in fields if key in payload]
+
+    if not available_fields:
+        return
+
+    columns = st.columns(len(available_fields))
+
+    for column, (label, key) in zip(columns, available_fields):
+        with column:
+            normalized = normalize_score(payload.get(key))
+            st.caption(label)
+            st.metric("", format_score(payload.get(key)))
+
+            if normalized is not None:
+                st.progress(normalized)
+
+
+def render_metric_details(title: str, details: Any) -> None:
+    if not details:
+        st.caption("No details reported.")
+        return
+
+    st.markdown(f"**{title}**")
+
+    if isinstance(details, list):
+        for item in details:
+            st.markdown(f"- {item}")
+        return
+
+    if isinstance(details, dict):
+        for key, value in details.items():
+            st.markdown(f"- **{key}:** {value}")
+        return
+
+    st.write(details)
+
+
+def render_structural_metric(metric: Any) -> None:
+    payload = payload_from_model(metric)
+
+    if not payload:
+        return
+
+    render_score_card(
+        title="Structural specification",
+        score=payload.get("score"),
+        description="Checks whether the generated Vega-Lite structure matches the requested chart intent.",
+    )
+
+    render_component_scores(
+        payload,
+        [
+            ("Mark", "mark_score"),
+            ("Encoding", "encoding_score"),
+            ("Transform", "transform_score"),
+            ("Task alignment", "task_alignment_score"),
+        ],
+    )
+
+    details = payload.get("details")
+    if details:
+        with st.expander("Structural findings", expanded=False):
+            render_metric_details("Checks", details)
+
+
+def render_visual_quality_metric(metric: Any) -> None:
+    payload = payload_from_model(metric)
+
+    if not payload:
+        return
+
+    render_score_card(
+        title="Visual quality",
+        score=payload.get("score"),
+        description="Estimates readability, prompt compliance and whether the image supports useful insight extraction.",
+    )
+
+    render_component_scores(
+        payload,
+        [
+            ("Prompt compliance", "prompt_compliance"),
+            ("Readability", "readability"),
+            ("Insight support", "insight_supportiveness"),
+        ],
+    )
+
+    details = payload.get("details")
+    if details:
+        with st.expander("Visual quality findings", expanded=False):
+            render_metric_details("Checks", details)
+
+
+def render_summary_status_card(label: str, value: Any) -> None:
+    display_value = "—" if value is None or value == "" else str(value)
+
+    with st.container(border=True):
+        st.caption(label)
+        st.markdown(f"**{display_value}**")
+
+
+def render_evaluation_summary(summary: Any) -> None:
+    payload = payload_from_model(summary)
+
+    if not payload:
+        return
+
+    st.markdown("### Evaluation summary")
+
+    score_cols = st.columns(3)
+
+    with score_cols[0]:
+        render_summary_status_card(
+            "Structural score",
+            format_score(payload.get("structural_spec_metric")),
+        )
+
+    with score_cols[1]:
+        render_summary_status_card(
+            "Visual score",
+            format_score(payload.get("visual_quality_metric")),
+        )
+
+    with score_cols[2]:
+        empty_status = payload.get("empty_chart_status") or "unknown"
+        render_summary_status_card("Empty chart status", empty_status)
+
+    verification_summary = payload.get("insight_verification_summary")
+    if verification_summary:
+        with st.container(border=True):
+            st.markdown("#### Insight verification")
+            st.write(verification_summary)
+
+    benchmark_report = payload.get("benchmark_report")
+    if isinstance(benchmark_report, dict) and benchmark_report:
+        compact_report = {
+            key: value
+            for key, value in benchmark_report.items()
+            if isinstance(value, (str, int, float, bool)) or value is None
+        }
+
+        if compact_report:
+            st.markdown("#### Benchmark report")
+            report_columns = st.columns(min(len(compact_report), 4))
+
+            for column, (key, value) in zip(report_columns, compact_report.items()):
+                with column:
+                    label = key.replace("_", " ").title()
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        st.metric(label, format_score(value) if "score" in key or "metric" in key else value)
+                    else:
+                        st.caption(label)
+                        st.markdown(f"**{value}**")
+
+        complex_report = {
+            key: value
+            for key, value in benchmark_report.items()
+            if key not in compact_report
+        }
+
+        if complex_report:
+            with st.expander("Benchmark details", expanded=False):
+                st.json(complex_report)
+
+
 def render_metrics(result: Any, compute_metrics: bool) -> None:
     st.subheader("Metrics")
 
@@ -334,58 +584,62 @@ def render_metrics(result: Any, compute_metrics: bool) -> None:
         st.info("Metric calculation was disabled for this run.")
         return
 
-    metric_objects = {
-        "Structural spec": result.structural_spec_metric,
-        "Visual quality": result.visual_quality_metric,
-        "Evaluation summary": result.evaluation_summary,
-    }
-    available_metrics = {name: value for name, value in metric_objects.items() if value is not None}
+    structural_metric = result.structural_spec_metric
+    visual_metric = result.visual_quality_metric
+    evaluation_summary = result.evaluation_summary
 
-    if not available_metrics:
+    if not any([structural_metric, visual_metric, evaluation_summary]):
         st.info("No metrics were produced.")
         return
 
-    summary_cols = st.columns(3)
+    metric_count = sum(1 for item in [structural_metric, visual_metric, evaluation_summary] if item is not None)
 
-    with summary_cols[0]:
-        st.metric("Metric groups", len(available_metrics))
+    overview_columns = st.columns(3)
 
-    with summary_cols[1]:
-        st.metric("Spec metric", "yes" if result.structural_spec_metric else "no")
+    with overview_columns[0]:
+        st.metric("Metric groups", metric_count)
 
-    with summary_cols[2]:
-        st.metric("Visual metric", "yes" if result.visual_quality_metric else "no")
+    with overview_columns[1]:
+        structural_payload = payload_from_model(structural_metric)
+        st.metric("Structural", format_score(structural_payload.get("score")))
 
-    for name, value in available_metrics.items():
-        with st.container(border=True):
-            st.markdown(f"### {name}")
+    with overview_columns[2]:
+        visual_payload = payload_from_model(visual_metric)
+        st.metric("Visual", format_score(visual_payload.get("score")))
 
-            if hasattr(value, "model_dump"):
-                payload = value.model_dump()
-            else:
-                payload = value
+    st.markdown("---")
 
-            if isinstance(payload, dict):
-                compact_items = {
-                    key: item
-                    for key, item in payload.items()
-                    if isinstance(item, (str, int, float, bool)) or item is None
-                }
+    if structural_metric and visual_metric:
+        left, right = st.columns(2)
 
-                if compact_items:
-                    st.json(compact_items)
+        with left:
+            render_structural_metric(structural_metric)
 
-                complex_items = {
-                    key: item
-                    for key, item in payload.items()
-                    if key not in compact_items
-                }
+        with right:
+            render_visual_quality_metric(visual_metric)
 
-                if complex_items:
-                    with st.expander(f"{name} details", expanded=False):
-                        st.json(complex_items)
-            else:
-                st.json(payload)
+    elif structural_metric:
+        render_structural_metric(structural_metric)
+
+    elif visual_metric:
+        render_visual_quality_metric(visual_metric)
+
+    if evaluation_summary:
+        st.markdown("---")
+        render_evaluation_summary(evaluation_summary)
+
+    with st.expander("Raw metric payloads", expanded=False):
+        if structural_metric:
+            st.markdown("#### Structural spec")
+            st.json(payload_from_model(structural_metric))
+
+        if visual_metric:
+            st.markdown("#### Visual quality")
+            st.json(payload_from_model(visual_metric))
+
+        if evaluation_summary:
+            st.markdown("#### Evaluation summary")
+            st.json(payload_from_model(evaluation_summary))
 
 
 def init_session_state() -> None:
@@ -416,7 +670,7 @@ def build_pending_run_payload(
 bootstrap_project_environment()
 
 st.set_page_config(page_title="ViRAGE", layout="wide")
-st.title("ViRAGE — NL2VIS + RAG + Image-only Insights")
+st.title("ViRAGE")
 
 init_session_state()
 
