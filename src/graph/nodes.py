@@ -79,7 +79,7 @@ class PipelineNodes:
         return [*state.get("step_logs", []), log]
 
     def _save(self, state: PipelineState, name: str, payload: object) -> dict[str, str]:
-        path = self.runtime.save_json_artifact(f"artifacts/{name}.json", payload, run_id=state["run_id"])
+        path = self.runtime.save_json_artifact(f"artifacts/{name}.json", payload, run_id=state["run_id"], numbered=True)
         return {**state.get("artifact_paths", {}), name: path}
 
     @staticmethod
@@ -239,9 +239,9 @@ class PipelineNodes:
         artifact_paths = self._save(state, "spec_validation", result.model_dump())
         if not result.is_valid:
             self.runtime.save_text_artifact("errors/spec_validation_failed.txt", "\n".join(result.validation_errors),
-                                            run_id=state["run_id"])
+                                            run_id=state["run_id"], numbered=True)
             raise RuntimeError(
-                "Specification validation failed. See artifacts/spec_validation.json and errors/spec_validation_failed.txt")
+                "Specification validation failed. See run artifacts and errors directory for numbered details.")
         return {
             "spec_validation": result,
             "stage": PipelineStage.SPEC_VALIDATION,
@@ -306,9 +306,9 @@ class PipelineNodes:
         artifact_paths = self._save(state, "empty_chart_check", result.model_dump())
         if result.empty_chart_signal:
             self.runtime.save_text_artifact("errors/empty_chart_detected.txt", result.empty_chart_status,
-                                            run_id=state["run_id"])
+                                            run_id=state["run_id"], numbered=True)
             raise RuntimeError(
-                "Rendered chart is empty or unusable. See artifacts/empty_chart_check.json and errors/empty_chart_detected.txt")
+                "Rendered chart is empty or unusable. See run artifacts and errors directory for numbered details.")
         return {
             "empty_chart_check": result,
             "stage": PipelineStage.EMPTY_CHART_CHECK,

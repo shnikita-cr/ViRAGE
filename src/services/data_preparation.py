@@ -38,7 +38,7 @@ class DataPreparationService(BaseService):
                     df[column] = df[column].fillna(median)
                     operations.append(f"fill_numeric_median:{column}")
 
-        output_path = runtime.ensure_run_dir(run_id) / "cleaned_data.csv"
+        output_path = runtime.next_artifact_path("cleaned_data.csv", run_id=run_id)
         df.to_csv(output_path, index=False)
         return DataPreparationResult(output_path=output_path.as_posix(), operations=operations, row_count=len(df),
                                      col_count=len(df.columns))

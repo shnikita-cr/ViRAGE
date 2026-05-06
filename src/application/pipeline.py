@@ -63,6 +63,7 @@ class ViRAGEPipeline:
     ) -> PipelineResult:
         self.runtime.current_run_id = request.run_id
         self.runtime.reset_model_logs()
+        self.runtime.reset_artifact_indices(run_id=request.run_id)
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
@@ -85,7 +86,7 @@ class ViRAGEPipeline:
             final_state['stage'] = PipelineStage.COMPLETED
         except Exception as exc:
             tb = traceback.format_exc()
-            self.runtime.save_text_artifact('errors/fatal_error.txt', tb, run_id=request.run_id)
+            self.runtime.save_text_artifact('errors/fatal_error.txt', tb, run_id=request.run_id, numbered=True)
             self.runtime.save_model_log_artifacts(run_id=request.run_id)
             raise
         finally:

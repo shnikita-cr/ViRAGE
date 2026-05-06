@@ -50,6 +50,7 @@ class RuntimeContext:
     vlm: Any | None = None
     vision_judge_llm: Any | None = None
     model_call_logs: list[ModelCallLog] = field(default_factory=list)
+    artifact_indices: dict[str, int] = field(default_factory=dict)
     current_run_id: str | None = None
     step_callback: Callable[[StepLog], None] | None = None
     model_call_callback: Callable[[ModelCallLog], None] | None = None
@@ -75,6 +76,14 @@ class RuntimeContext:
             csv_path = run_dir / csv_name
             if csv_path.exists():
                 csv_path.unlink()
+
+    def reset_artifact_indices(self, *, run_id: str | None = None) -> None:
+        rid = run_id or self.current_run_id
+        if rid:
+            self.artifact_indices[rid] = 0
+
+    def next_artifact_path(self, relative_path: str, *, run_id: str | None = None) -> Path:
+        return self.ensure_run_dir(run_id) / self._numbered_relative_path(relative_path, run_id=run_id)
 
     def add_model_call_log(self, log: ModelCallLog) -> None:
         index = len(self.model_call_logs) + 1
@@ -115,20 +124,41 @@ class RuntimeContext:
             run_id=run_id,
         )
 
-    def save_json_artifact(self, relative_path: str, payload: Any, *, run_id: str | None = None) -> str:
-        path = self.ensure_run_dir(run_id) / relative_path
+    def save_json_artifact(
+        self,
+        relative_path: str,
+        payload: Any,
+        *,
+        run_id: str | None = None,
+        numbered: bool = False,
+    ) -> str:
+        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(run_id) / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
         return path.as_posix()
 
-    def save_text_artifact(self, relative_path: str, text: str, *, run_id: str | None = None) -> str:
-        path = self.ensure_run_dir(run_id) / relative_path
+    def save_text_artifact(
+        self,
+        relative_path: str,
+        text: str,
+        *,
+        run_id: str | None = None,
+        numbered: bool = False,
+    ) -> str:
+        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(run_id) / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding='utf-8')
         return path.as_posix()
 
-    def save_bytes_artifact(self, relative_path: str, data: bytes, *, run_id: str | None = None) -> str:
-        path = self.ensure_run_dir(run_id) / relative_path
+    def save_bytes_artifact(
+        self,
+        relative_path: str,
+        data: bytes,
+        *,
+        run_id: str | None = None,
+        numbered: bool = False,
+    ) -> str:
+        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(run_id) / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return path.as_posix()
@@ -136,6 +166,22 @@ class RuntimeContext:
     def emit_step(self, log: StepLog) -> None:
         if self.step_callback:
             self.step_callback(log)
+
+    def _numbered_relative_path(self, relative_path: str, *, run_id: str | None = None) -> Path:
+        rid = run_id or self.current_run_id
+        if not rid:
+            raise RuntimeError('RuntimeContext.current_run_id is not set.')
+        index = self.artifact_indices.get(rid, 0) + 1
+        self.artifact_indices[rid] = index
+
+        path = Path(relative_path)
+        filename = path.name
+        prefix = f'{index:03d}_'
+        if filename.startswith(prefix):
+            numbered_name = filename
+        else:
+            numbered_name = f'{prefix}{filename}'
+        return path.with_name(numbered_name)
 
     def _write_model_call_csvs(self, run_dir: Path) -> None:
         token_path = run_dir / 'model_call_tokens.csv'
