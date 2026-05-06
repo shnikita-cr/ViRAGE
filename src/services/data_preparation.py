@@ -21,10 +21,11 @@ class DataPreparationService(BaseService):
         df = read_dataframe(data_path)
         operations = ["preserve_row_multiplicity"]
 
-        fields = [field for field in request_analysis.selected_fields if field in df.columns]
-        if fields:
-            df = df[_unique(fields)].copy()
-            operations.append(f"select_fields:{','.join(df.columns)}")
+        # todo provide chart gen actual data profile instead of removing this step
+        # fields = [field for field in request_analysis.selected_fields if field in df.columns]
+        # if fields:
+        #     df = df[_unique(fields)].copy()
+        #     operations.append(f"select_fields:{','.join(df.columns)}")
 
         for column in data_profile.likely_time_columns:
             if column in df.columns:
