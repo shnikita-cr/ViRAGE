@@ -33,7 +33,7 @@ class ProjectConfig(BaseModel):
     vision_judge_model: ModelRoleConfig
 
 
-DEFAULT_CONFIG_PATH = Path("ui/config/project-gemma.toml")
+DEFAULT_CONFIG_PATH = Path("ui/config/project-gemma4.toml")
 EXAMPLE_CONFIG_PATH = Path("ui/config/project.example.toml")
 
 
