@@ -11,7 +11,7 @@ from typing import Any, Callable
 from src.application.settings import ViRAGESettings
 from src.domain.models import ModelCallLog, StageExecutionLog, StepLog, TokenUsage
 
-_TOKEN_CSV_COLUMNS = [
+_MODEL_CALL_CSV_COLUMNS = [
     "call_index",
     "stage",
     "model_role",
@@ -20,38 +20,17 @@ _TOKEN_CSV_COLUMNS = [
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",
-    "attempts",
-    "attempt_number",
-]
-
-_TIMING_CSV_COLUMNS = [
-    "call_index",
-    "stage",
-    "model_role",
-    "provider",
-    "model_name",
     "duration_ms",
     "duration_seconds",
     "started_at",
     "finished_at",
     "attempts",
     "attempt_number",
+    "parser_error_count",
+    "has_error",
 ]
 
-_STAGE_TIMING_CSV_COLUMNS = [
-    "execution_index",
-    "node_name",
-    "pipeline_stage",
-    "status",
-    "duration_ms",
-    "duration_seconds",
-    "started_at",
-    "finished_at",
-    "model_call_count",
-    "error",
-]
-
-_STAGE_TOKEN_CSV_COLUMNS = [
+_STAGE_CSV_COLUMNS = [
     "execution_index",
     "node_name",
     "pipeline_stage",
@@ -59,9 +38,17 @@ _STAGE_TOKEN_CSV_COLUMNS = [
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",
+    "duration_ms",
+    "duration_seconds",
+    "started_at",
+    "finished_at",
     "model_call_start_index",
     "model_call_end_index",
     "model_call_count",
+    "error",
+    "input_keys_json",
+    "output_keys_json",
+    "artifact_paths_json",
 ]
 
 _FILENAME_SAFE_RE = re.compile(r"[^A-Za-z0-9_-]+")
@@ -98,7 +85,7 @@ class RuntimeContext:
         calls_dir = run_dir / "model_calls"
         if calls_dir.exists():
             shutil.rmtree(calls_dir)
-        for csv_name in ("model_call_tokens.csv", "model_call_timings.csv"):
+        for csv_name in ("model_calls.csv", "model_call_tokens.csv", "model_call_timings.csv"):
             csv_path = run_dir / csv_name
             if csv_path.exists():
                 csv_path.unlink()
@@ -112,15 +99,19 @@ class RuntimeContext:
             run_dir = self.ensure_run_dir()
         except Exception:
             return
-        for csv_name in ("stage_timings.csv", "stage_tokens.csv"):
+        for csv_name in ("stages.csv", "stage_timings.csv", "stage_tokens.csv"):
             csv_path = run_dir / csv_name
             if csv_path.exists():
                 csv_path.unlink()
-        # Remove legacy directory from the previous implementation. Stage execution
-        # logs now live in the main artifacts directory together with other stage artifacts.
+        # Remove legacy directory and JSON-only stage markers from previous implementations.
         legacy_stage_dir = run_dir / "stage_executions"
         if legacy_stage_dir.exists():
             shutil.rmtree(legacy_stage_dir)
+        artifacts_dir = run_dir / "artifacts"
+        if artifacts_dir.exists():
+            for path in artifacts_dir.rglob("*stage_execution*.json"):
+                if path.is_file():
+                    path.unlink()
 
     def reset_artifact_indices(self, *, run_id: str | None = None) -> None:
         rid = run_id or self.current_run_id
@@ -156,13 +147,6 @@ class RuntimeContext:
         except Exception:
             run_dir = None
         if run_dir is not None:
-            stage_file = self.save_json_artifact(
-                f"artifacts/stage_execution_{self._safe_filename_part(enriched_log.node_name)}_{enriched_log.status}.json",
-                enriched_log.model_dump(),
-                run_id=self.current_run_id,
-                numbered=True,
-            )
-            enriched_log.artifact_paths.setdefault("stage_execution", stage_file)
             self._write_stage_execution_csvs(run_dir)
         return enriched_log
 
@@ -247,32 +231,38 @@ class RuntimeContext:
         return path.with_name(numbered_name)
 
     def _write_model_call_csvs(self, run_dir: Path) -> None:
-        token_path = run_dir / "model_call_tokens.csv"
-        timing_path = run_dir / "model_call_timings.csv"
-        with token_path.open("w", encoding="utf-8", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=_TOKEN_CSV_COLUMNS)
+        """Write one compact CSV with model-call token and timing statistics.
+
+        Detailed prompts/responses remain in model_calls/*.json. The CSV is meant
+        for analysis and benchmarking, so it contains only scalar fields.
+        """
+        path = run_dir / "model_calls.csv"
+        with path.open("w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=_MODEL_CALL_CSV_COLUMNS)
             writer.writeheader()
             for log in self.model_call_logs:
-                writer.writerow(self._token_csv_row(log))
-        with timing_path.open("w", encoding="utf-8", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=_TIMING_CSV_COLUMNS)
-            writer.writeheader()
-            for log in self.model_call_logs:
-                writer.writerow(self._timing_csv_row(log))
+                writer.writerow(self._model_call_csv_row(log))
+
+        # Remove legacy split files so new runs keep a single analysis CSV.
+        for legacy_name in ("model_call_tokens.csv", "model_call_timings.csv"):
+            legacy_path = run_dir / legacy_name
+            if legacy_path.exists():
+                legacy_path.unlink()
 
     def _write_stage_execution_csvs(self, run_dir: Path) -> None:
-        timing_path = run_dir / "stage_timings.csv"
-        token_path = run_dir / "stage_tokens.csv"
-        with timing_path.open("w", encoding="utf-8", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=_STAGE_TIMING_CSV_COLUMNS)
+        """Write one compact CSV with stage token and timing statistics."""
+        path = run_dir / "stages.csv"
+        with path.open("w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=_STAGE_CSV_COLUMNS)
             writer.writeheader()
             for log in self.stage_execution_logs:
-                writer.writerow(self._stage_timing_csv_row(log))
-        with token_path.open("w", encoding="utf-8", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=_STAGE_TOKEN_CSV_COLUMNS)
-            writer.writeheader()
-            for log in self.stage_execution_logs:
-                writer.writerow(self._stage_token_csv_row(log))
+                writer.writerow(self._stage_csv_row(log))
+
+        # Remove legacy split files so new runs keep a single analysis CSV.
+        for legacy_name in ("stage_timings.csv", "stage_tokens.csv"):
+            legacy_path = run_dir / legacy_name
+            if legacy_path.exists():
+                legacy_path.unlink()
 
     @staticmethod
     def _model_call_filename(log: ModelCallLog) -> str:
@@ -288,7 +278,7 @@ class RuntimeContext:
         return cleaned or "unknown"
 
     @staticmethod
-    def _token_csv_row(log: ModelCallLog) -> dict[str, Any]:
+    def _model_call_csv_row(log: ModelCallLog) -> dict[str, Any]:
         return {
             "call_index": log.call_index,
             "stage": log.stage,
@@ -298,43 +288,18 @@ class RuntimeContext:
             "prompt_tokens": log.token_usage.prompt_tokens,
             "completion_tokens": log.token_usage.completion_tokens,
             "total_tokens": log.token_usage.total_tokens,
-            "attempts": log.attempts,
-            "attempt_number": log.attempt_number,
-        }
-
-    @staticmethod
-    def _timing_csv_row(log: ModelCallLog) -> dict[str, Any]:
-        return {
-            "call_index": log.call_index,
-            "stage": log.stage,
-            "model_role": log.model_role,
-            "provider": log.provider or "",
-            "model_name": log.model_name,
             "duration_ms": log.duration_ms,
             "duration_seconds": log.duration_seconds,
             "started_at": log.started_at or "",
             "finished_at": log.finished_at or "",
             "attempts": log.attempts,
             "attempt_number": log.attempt_number,
+            "parser_error_count": len(log.parser_errors),
+            "has_error": bool(log.parser_errors),
         }
 
     @staticmethod
-    def _stage_timing_csv_row(log: StageExecutionLog) -> dict[str, Any]:
-        return {
-            "execution_index": log.execution_index,
-            "node_name": log.node_name,
-            "pipeline_stage": log.pipeline_stage or "",
-            "status": log.status,
-            "duration_ms": log.duration_ms,
-            "duration_seconds": log.duration_seconds,
-            "started_at": log.started_at,
-            "finished_at": log.finished_at,
-            "model_call_count": log.model_call_count,
-            "error": log.error or "",
-        }
-
-    @staticmethod
-    def _stage_token_csv_row(log: StageExecutionLog) -> dict[str, Any]:
+    def _stage_csv_row(log: StageExecutionLog) -> dict[str, Any]:
         return {
             "execution_index": log.execution_index,
             "node_name": log.node_name,
@@ -343,7 +308,15 @@ class RuntimeContext:
             "prompt_tokens": log.token_usage.prompt_tokens,
             "completion_tokens": log.token_usage.completion_tokens,
             "total_tokens": log.token_usage.total_tokens,
+            "duration_ms": log.duration_ms,
+            "duration_seconds": log.duration_seconds,
+            "started_at": log.started_at,
+            "finished_at": log.finished_at,
             "model_call_start_index": log.model_call_start_index,
             "model_call_end_index": log.model_call_end_index,
             "model_call_count": log.model_call_count,
+            "error": log.error or "",
+            "input_keys_json": json.dumps(log.input_keys, ensure_ascii=False),
+            "output_keys_json": json.dumps(log.output_keys, ensure_ascii=False),
+            "artifact_paths_json": json.dumps(log.artifact_paths, ensure_ascii=False, sort_keys=True),
         }

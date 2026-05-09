@@ -135,6 +135,45 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
     except Exception:
         return []
 
+def merge_csv_rows_by_key(
+    primary_rows: list[dict[str, Any]],
+    secondary_rows: list[dict[str, Any]],
+    key: str,
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+
+    for row in primary_rows:
+        row_key = str(row.get(key) or "")
+        if not row_key:
+            continue
+        merged[row_key] = dict(row)
+
+    for row in secondary_rows:
+        row_key = str(row.get(key) or "")
+        if not row_key:
+            continue
+        merged.setdefault(row_key, {}).update({k: v for k, v in row.items() if v not in (None, "")})
+
+    return [merged[item] for item in sorted(merged.keys(), key=lambda value: int(value) if value.isdigit() else value)]
+
+
+def int_cell(value: Any) -> int:
+    try:
+        if value in (None, ""):
+            return 0
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def float_cell(value: Any) -> float:
+    try:
+        if value in (None, ""):
+            return 0.0
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
 
 def flatten_scalar_dict(prefix: str, value: Any, max_keys: int = 40) -> dict[str, Any]:
     if not isinstance(value, dict):
@@ -180,6 +219,23 @@ def summarize_file_list(run_dir: Path) -> tuple[list[str], int]:
 def collect_model_calls(run_dir: Path) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
 
+    # Current analysis CSV format. Detailed JSON logs may also exist, but the CSV
+    # is the canonical scalar source for global analysis.
+    model_calls_csv = run_dir / "model_calls.csv"
+    for row in read_csv_rows(model_calls_csv):
+        payload: dict[str, Any] = dict(row)
+        payload["_artifact_path"] = model_calls_csv.relative_to(run_dir).as_posix()
+        payload["token_usage"] = {
+            "prompt_tokens": int_cell(row.get("prompt_tokens")),
+            "completion_tokens": int_cell(row.get("completion_tokens")),
+            "total_tokens": int_cell(row.get("total_tokens")),
+        }
+        calls.append(payload)
+
+    if calls:
+        return calls
+
+    # Legacy detailed JSON format. Still supported for older runs.
     model_calls_dir = run_dir / "model_calls"
 
     if model_calls_dir.exists():
@@ -190,7 +246,26 @@ def collect_model_calls(run_dir: Path) -> list[dict[str, Any]]:
                 payload["_artifact_path"] = path.relative_to(run_dir).as_posix()
                 calls.append(payload)
 
+    if calls:
+        return calls
+
+    # Legacy split CSV format from previous implementation.
+    token_rows = read_csv_rows(run_dir / "model_call_tokens.csv")
+    timing_rows = read_csv_rows(run_dir / "model_call_timings.csv")
+    for row in merge_csv_rows_by_key(token_rows, timing_rows, "call_index"):
+        payload = dict(row)
+        payload["_artifact_path"] = "model_call_tokens.csv+model_call_timings.csv"
+        payload["token_usage"] = {
+            "prompt_tokens": int_cell(row.get("prompt_tokens")),
+            "completion_tokens": int_cell(row.get("completion_tokens")),
+            "total_tokens": int_cell(row.get("total_tokens")),
+        }
+        calls.append(payload)
+
     # Legacy format from older runs. New code should not create this file anymore.
+    if calls:
+        return calls
+
     legacy_path = run_dir / "artifacts" / "model_call_logs.json"
     legacy_payload = read_json_safe(legacy_path)
 
@@ -203,13 +278,45 @@ def collect_model_calls(run_dir: Path) -> list[dict[str, Any]]:
 
     return calls
 
-
 def collect_stage_logs(run_dir: Path) -> list[dict[str, Any]]:
     logs: list[dict[str, Any]] = []
-    stage_dir = run_dir / "stage_executions"
 
-    if stage_dir.exists():
-        for path in sorted(stage_dir.glob("*.json")):
+    # Current format: one compact CSV with both timing and token data.
+    stages_path = run_dir / "stages.csv"
+    for row in read_csv_rows(stages_path):
+        payload: dict[str, Any] = dict(row)
+        payload["_artifact_path"] = stages_path.relative_to(run_dir).as_posix()
+        payload["token_usage"] = {
+            "prompt_tokens": int_cell(row.get("prompt_tokens")),
+            "completion_tokens": int_cell(row.get("completion_tokens")),
+            "total_tokens": int_cell(row.get("total_tokens")),
+        }
+        logs.append(payload)
+
+    if logs:
+        return logs
+
+    # Legacy split CSV format from previous implementation.
+    timing_rows = read_csv_rows(run_dir / "stage_timings.csv")
+    token_rows = read_csv_rows(run_dir / "stage_tokens.csv")
+    for row in merge_csv_rows_by_key(timing_rows, token_rows, "execution_index"):
+        payload = dict(row)
+        payload["_artifact_path"] = "stage_timings.csv+stage_tokens.csv"
+        payload["token_usage"] = {
+            "prompt_tokens": int_cell(row.get("prompt_tokens")),
+            "completion_tokens": int_cell(row.get("completion_tokens")),
+            "total_tokens": int_cell(row.get("total_tokens")),
+        }
+        logs.append(payload)
+
+    if logs:
+        return logs
+
+    # Legacy JSON-only format from older runs. New code should not create these
+    # files because they duplicate stages.csv and do not contain stage outputs.
+    artifacts_dir = run_dir / "artifacts"
+    if artifacts_dir.exists():
+        for path in sorted(artifacts_dir.rglob("*stage_execution*.json")):
             payload = read_json_safe(path)
 
             if isinstance(payload, dict):
@@ -219,17 +326,16 @@ def collect_stage_logs(run_dir: Path) -> list[dict[str, Any]]:
     if logs:
         return logs
 
-    # Fallback for older runs after stage_timings.csv exists but JSON files do not.
-    timings_path = run_dir / "stage_timings.csv"
-    timing_rows = read_csv_rows(timings_path)
+    stage_dir = run_dir / "stage_executions"
+    if stage_dir.exists():
+        for path in sorted(stage_dir.glob("*.json")):
+            payload = read_json_safe(path)
 
-    for row in timing_rows:
-        payload = dict(row)
-        payload["_artifact_path"] = timings_path.relative_to(run_dir).as_posix()
-        logs.append(payload)
+            if isinstance(payload, dict):
+                payload["_artifact_path"] = path.relative_to(run_dir).as_posix()
+                logs.append(payload)
 
     return logs
-
 
 def collect_errors(run_dir: Path) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
@@ -353,6 +459,9 @@ def extract_chart_metadata(run_dir: Path) -> dict[str, Any]:
             if isinstance(encoding, dict):
                 row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
                 row["vega_encoding_json"] = dump_json_cell(encoding)
+            fields = extract_spec_fields(spec_json)
+            row["vega_fields_json"] = dump_json_cell(fields)
+            row["vega_field_count"] = len(fields)
 
     return row
 
@@ -399,15 +508,122 @@ def extract_input_metadata(run_dir: Path) -> dict[str, Any]:
     return row
 
 
+def extract_data_profile(run_dir: Path) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+
+    _, payload = find_json_by_logical_name(run_dir, "data_profile")
+    if not isinstance(payload, dict):
+        return row
+
+    row["data_profile_row_count"] = payload.get("row_count")
+    row["data_profile_col_count"] = payload.get("col_count")
+    row["data_profile_status"] = payload.get("profile_status")
+    row["data_profile_complexity"] = payload.get("data_complexity")
+    row["data_profile_column_errors_count"] = len(payload.get("column_errors") or []) if isinstance(payload.get("column_errors"), list) else 0
+    row["data_profile_quality_notes_count"] = len(payload.get("quality_notes") or []) if isinstance(payload.get("quality_notes"), list) else 0
+    row["data_profile_column_name_map_json"] = dump_json_cell(payload.get("column_name_map"))
+
+    columns = payload.get("columns")
+    if isinstance(columns, list):
+        original_columns: list[str] = []
+        safe_columns: list[str] = []
+        renamed = 0
+        for item in columns:
+            if not isinstance(item, dict):
+                continue
+            original = str(item.get("original_name") or item.get("name") or "")
+            safe = str(item.get("safe_name") or original)
+            if original:
+                original_columns.append(original)
+            if safe:
+                safe_columns.append(safe)
+            if original and safe and original != safe:
+                renamed += 1
+        row["data_profile_original_columns_json"] = dump_json_cell(original_columns)
+        row["data_profile_safe_columns_json"] = dump_json_cell(safe_columns)
+        row["data_profile_renamed_column_count"] = renamed
+
+    return row
+
+
+def extract_spec_fields(spec_json: Any) -> list[str]:
+    fields: list[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key == "field" and isinstance(item, str):
+                    if item not in fields:
+                        fields.append(item)
+                elif key in {"fields", "groupby"} and isinstance(item, list):
+                    for entry in item:
+                        if isinstance(entry, str) and entry not in fields:
+                            fields.append(entry)
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(spec_json)
+    return fields
+
+
+def sum_stage_tokens(stage_logs: list[dict[str, Any]]) -> dict[str, int]:
+    totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    for log in stage_logs:
+        usage = log.get("token_usage")
+        if isinstance(usage, dict):
+            for key in totals:
+                try:
+                    totals[key] += int(usage.get(key) or 0)
+                except (TypeError, ValueError):
+                    pass
+    return totals
+
+
+def sum_stage_duration(stage_logs: list[dict[str, Any]]) -> float:
+    total = 0.0
+    for log in stage_logs:
+        value = log.get("duration_seconds")
+        if value in (None, ""):
+            value = log.get("duration_ms")
+            if value not in (None, ""):
+                try:
+                    value = float(value) / 1000.0
+                except (TypeError, ValueError):
+                    value = None
+        try:
+            total += float(value or 0.0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
 def extract_data_preparation(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
 
     _, payload = find_json_by_logical_name(run_dir, "data_preparation")
     if isinstance(payload, dict):
+        column_name_map = payload.get("column_name_map") if isinstance(payload.get("column_name_map"), dict) else {}
+        reverse_column_name_map = payload.get("reverse_column_name_map") if isinstance(payload.get("reverse_column_name_map"), dict) else {}
+        original_columns = payload.get("original_columns") if isinstance(payload.get("original_columns"), list) else []
+        safe_columns = payload.get("safe_columns") if isinstance(payload.get("safe_columns"), list) else []
+        renamed_column_count = payload.get("renamed_column_count")
+        if renamed_column_count is None and column_name_map:
+            renamed_column_count = sum(1 for original, safe in column_name_map.items() if original != safe)
+
         row["prepared_data_path"] = payload.get("output_path")
         row["prepared_row_count"] = payload.get("row_count")
         row["prepared_col_count"] = payload.get("col_count")
+        row["data_preparation_operations_json"] = dump_json_cell(payload.get("operations"))
         row["data_preparation_json"] = dump_json_cell(payload)
+        row["uses_safe_column_mapping"] = bool(renamed_column_count)
+        row["safe_column_mapping_count"] = len(column_name_map)
+        row["renamed_column_count"] = renamed_column_count or 0
+        row["column_name_map_json"] = dump_json_cell(column_name_map)
+        row["reverse_column_name_map_json"] = dump_json_cell(reverse_column_name_map)
+        row["original_columns_json"] = dump_json_cell(original_columns)
+        row["safe_columns_json"] = dump_json_cell(safe_columns)
 
     return row
 
@@ -480,6 +696,9 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
         if str(log.get("status") or "").lower() == "succeeded"
     ]
 
+    stage_token_totals = sum_stage_tokens(stage_logs)
+    stage_duration = sum_stage_duration(stage_logs)
+
     token_totals = sum_model_call_tokens(model_calls)
     model_call_duration = sum_model_call_duration(model_calls)
 
@@ -529,6 +748,10 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["stage_succeeded_count"] = len(succeeded_stage_logs)
     row["stage_failed_count"] = len(failed_stage_logs)
     row["stage_skipped_count"] = len(skipped_stage_logs)
+    row["stage_duration_seconds"] = round(stage_duration, 6)
+    row["stage_prompt_tokens"] = stage_token_totals["prompt_tokens"]
+    row["stage_completion_tokens"] = stage_token_totals["completion_tokens"]
+    row["stage_total_tokens"] = stage_token_totals["total_tokens"]
     row["stage_names"] = ",".join(stage_names)
     row["failed_stage"] = (
         failed_stage_logs[0].get("pipeline_stage")
@@ -537,6 +760,10 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
         else ""
     )
     row["stage_logs_json"] = dump_json_cell(stage_logs)
+    row["has_stages_csv"] = (run_dir / "stages.csv").exists()
+    row["stages_csv_path"] = "stages.csv" if (run_dir / "stages.csv").exists() else ""
+    row["has_legacy_stage_split_csv"] = (run_dir / "stage_timings.csv").exists() or (run_dir / "stage_tokens.csv").exists()
+    row["has_legacy_stage_execution_json"] = any("stage_execution" in str(path) for path in files)
 
     row["model_call_count"] = len(model_calls)
     row["model_call_stage_names"] = ",".join(unique_values(model_calls, "stage"))
@@ -552,6 +779,9 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
         if call.get("parser_errors") or call.get("error")
     )
     row["model_calls_json"] = dump_json_cell(model_calls)
+    row["has_model_calls_csv"] = (run_dir / "model_calls.csv").exists()
+    row["model_calls_csv_path"] = "model_calls.csv" if (run_dir / "model_calls.csv").exists() else ""
+    row["has_legacy_model_call_split_csv"] = (run_dir / "model_call_tokens.csv").exists() or (run_dir / "model_call_timings.csv").exists()
 
     row["has_png"] = has_png
     row["has_plot_png"] = has_plot_png
@@ -577,6 +807,7 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["errors_json"] = dump_json_cell(errors)
 
     row.update(extract_input_metadata(run_dir))
+    row.update(extract_data_profile(run_dir))
     row.update(extract_data_preparation(run_dir))
     row.update(extract_chart_metadata(run_dir))
     row.update(extract_metrics(run_dir))
@@ -626,8 +857,16 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "stage_succeeded_count",
         "stage_failed_count",
         "stage_skipped_count",
+        "stage_duration_seconds",
+        "stage_prompt_tokens",
+        "stage_completion_tokens",
+        "stage_total_tokens",
         "stage_names",
         "failed_stage",
+        "has_stages_csv",
+        "stages_csv_path",
+        "has_legacy_stage_split_csv",
+        "has_legacy_stage_execution_json",
         "model_call_count",
         "model_call_stage_names",
         "model_call_roles",
@@ -637,6 +876,9 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "model_call_total_tokens",
         "model_call_duration_seconds",
         "model_call_error_count",
+        "has_model_calls_csv",
+        "model_calls_csv_path",
+        "has_legacy_model_call_split_csv",
         "has_png",
         "has_plot_png",
         "png_count",
@@ -649,6 +891,10 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "selected_candidate_score",
         "vega_mark",
         "vega_encoding_channels",
+        "vega_field_count",
+        "uses_safe_column_mapping",
+        "renamed_column_count",
+        "safe_column_mapping_count",
         "prepared_data_path",
         "prepared_row_count",
         "prepared_col_count",

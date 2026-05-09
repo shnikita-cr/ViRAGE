@@ -29,11 +29,11 @@ class DataProfilerService(BaseService):
         schema_hints: list[str] = []
         complexity_hints: list[str] = []
         cleaning_hints: list[str] = []
-        column_name_map: dict[str, str] = {}
         column_errors: list[dict[str, Any]] = []
 
         row_count = int(len(df))
         col_count = int(len(df.columns))
+        column_name_map = self._build_unique_column_name_map([str(column) for column in df.columns])
 
         duplicate_rows = int(df.duplicated().sum())
         if duplicate_rows:
@@ -47,14 +47,14 @@ class DataProfilerService(BaseService):
 
         for column in df.columns:
             column_name = str(column)
-            safe_name = self._safe_column_name(column_name)
-            column_name_map[column_name] = safe_name
+            safe_name = column_name_map[column_name]
             if safe_name != column_name:
                 cleaning_hints.append(f"Column '{column_name}' can be normalized to '{safe_name}' for renderer safety.")
 
             try:
                 column_profile, column_quality_notes = self._profile_column(
                     column_name=column_name,
+                    safe_name=safe_name,
                     series=df[column],
                     row_count=row_count,
                 )
@@ -130,6 +130,7 @@ class DataProfilerService(BaseService):
         self,
         *,
         column_name: str,
+        safe_name: str,
         series: pd.Series,
         row_count: int,
     ) -> tuple[DataColumnProfile, list[str]]:
@@ -162,7 +163,7 @@ class DataProfilerService(BaseService):
             DataColumnProfile(
                 name=column_name,
                 original_name=column_name,
-                safe_name=self._safe_column_name(column_name),
+                safe_name=safe_name,
                 dtype=semantic_dtype,
                 missing_ratio=missing_ratio,
                 unique_count=unique_count,
@@ -307,10 +308,31 @@ class DataProfilerService(BaseService):
             return False
         return bool(_ID_NAME_RE.search(str(column).lower())) and unique_count >= int(row_count * 0.8)
 
+    @classmethod
+    def _build_unique_column_name_map(cls, columns: list[str]) -> dict[str, str]:
+        mapping: dict[str, str] = {}
+        used: set[str] = set()
+
+        for original in columns:
+            base = cls._safe_column_name(original)
+            candidate = base
+            suffix = 2
+
+            while candidate in used:
+                candidate = f"{base}_{suffix}"
+                suffix += 1
+
+            used.add(candidate)
+            mapping[original] = candidate
+
+        return mapping
+
     @staticmethod
     def _safe_column_name(name: str) -> str:
         safe = re.sub(r"[^0-9A-Za-z_]+", "_", str(name).strip())
         safe = re.sub(r"_+", "_", safe).strip("_")
+        if safe and safe[0].isdigit():
+            safe = f"col_{safe}"
         return safe or "column"
 
     @staticmethod

@@ -62,3 +62,8 @@ class DataPreparationResult(BaseModel):
     operations: list[str] = Field(default_factory=list)
     row_count: int
     col_count: int
+    column_name_map: dict[str, str] = Field(default_factory=dict)
+    reverse_column_name_map: dict[str, str] = Field(default_factory=dict)
+    original_columns: list[str] = Field(default_factory=list)
+    safe_columns: list[str] = Field(default_factory=list)
+    renamed_column_count: int = 0
