@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+from src.domain.data_models import DataPreparationResult, DataProfile, RequestAnalysisResult
+from src.domain.query_models import QueryUnderstandingResult
+from src.domain.visrag_models import CandidateSpecSet, VisRAGResult
+
+
+SpecGenerationBackendName = Literal["template", "vegachat_codegen"]
+
+
+class SpecGenerationRequest(BaseModel):
+    query: str
+    prepared: DataPreparationResult
+    candidate_spec_set: CandidateSpecSet
+    data_profile: DataProfile | None = None
+    request_analysis: RequestAnalysisResult | None = None
+    query_understanding: QueryUnderstandingResult | None = None
+    visrag: VisRAGResult | None = None
+
+
+class SpecGenerationAttempt(BaseModel):
+    attempt_number: int
+    status: str
+    raw_response: str = ""
+    explanation: str | None = None
+    spec_json: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class SpecGenerationResult(BaseModel):
+    backend_name: str
+    prompt_version: str | None = None
+    spec_json: dict[str, Any] = Field(default_factory=dict)
+    spec_without_runtime_data: dict[str, Any] = Field(default_factory=dict)
+    explanation: str | None = None
+    attempts: list[SpecGenerationAttempt] = Field(default_factory=list)
+    warning_messages: list[str] = Field(default_factory=list)
+    artifact_paths: dict[str, str] = Field(default_factory=dict)
+    used_visrag_context: bool = False
+
+    @property
+    def attempt_count(self) -> int:
+        return len(self.attempts)

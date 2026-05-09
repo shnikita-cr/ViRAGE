@@ -119,3 +119,52 @@ def test_global_analysis_supports_legacy_split_stage_csv(tmp_path: Path) -> None
     assert row["stage_duration_seconds"] == 2.0
     assert row["has_stages_csv"] is False
     assert row["has_legacy_stage_split_csv"] is True
+
+
+def test_global_analysis_collects_spec_generation_result(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    run = root / "2026-05-09T00-00-00_codegen"
+    art = run / "artifacts"
+    art.mkdir(parents=True)
+
+    (art / "003_spec_generation_result.json").write_text(
+        json.dumps(
+            {
+                "backend_name": "vegachat_codegen",
+                "prompt_version": "vega_chat_v1",
+                "spec_json": {"mark": "bar", "encoding": {"x": {"field": "Method"}}},
+                "spec_without_runtime_data": {"mark": "bar", "encoding": {"x": {"field": "Method"}}},
+                "explanation": "Bar chart.",
+                "attempts": [
+                    {"attempt_number": 1, "status": "succeeded", "raw_response": "..."}
+                ],
+                "warning_messages": ["model_output_missing_schema_added"],
+                "artifact_paths": {
+                    "spec_generation_prompt": "artifacts/001_spec_generation_prompt.txt",
+                    "spec_generation_raw_response": "artifacts/002_spec_generation_raw_response.txt",
+                },
+                "used_visrag_context": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (art / "004_vega_spec_raw.json").write_text(
+        json.dumps(
+            {
+                "spec_json": {"mark": "bar", "encoding": {"x": {"field": "Method"}}},
+                "generation_backend": "vegachat_codegen",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    row = collect_run(run, root)
+
+    assert row["has_spec_generation_result"] is True
+    assert row["spec_generation_backend"] == "vegachat_codegen"
+    assert row["spec_generation_prompt_version"] == "vega_chat_v1"
+    assert row["spec_generation_attempt_count"] == 1
+    assert row["spec_generation_warning_count"] == 1
+    assert row["spec_generation_used_visrag_context"] is True
+    assert row["vega_mark"] == "bar"
+    assert row["vega_field_count"] == 1

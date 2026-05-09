@@ -18,6 +18,11 @@ enable_evaluation_summary = true
 strict_image_only_analysis = true
 streamlit_compute_metrics = true
 streamlit_show_step_logs = true
+spec_generation_backend = "vegachat_codegen"
+spec_generation_max_retries = 2
+spec_generation_prompt_version = "vega_chat_v1"
+spec_generation_include_visrag_context = true
+spec_generation_max_context_chars = 3000
 
 [streamlit]
 compute_metrics = true

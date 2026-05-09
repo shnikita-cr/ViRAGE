@@ -449,7 +449,13 @@ def extract_chart_metadata(run_dir: Path) -> dict[str, Any]:
             row["selected_field_mapping_json"] = dump_json_cell(selected.get("field_mapping"))
             row["selected_encoding_roles_json"] = dump_json_cell(selected.get("encoding_roles"))
 
-    _, vega_spec = find_json_by_logical_name(run_dir, "vega_spec")
+    vega_spec = None
+    for logical_name in ("vega_spec", "vega_spec_raw"):
+        _, candidate_payload = find_json_by_logical_name(run_dir, logical_name)
+        if isinstance(candidate_payload, dict):
+            vega_spec = candidate_payload
+            row["vega_spec_artifact_name"] = logical_name
+            break
     if isinstance(vega_spec, dict):
         spec_json = vega_spec.get("spec_json") if "spec_json" in vega_spec else vega_spec
 
@@ -627,6 +633,44 @@ def extract_data_preparation(run_dir: Path) -> dict[str, Any]:
 
     return row
 
+
+
+def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+    result_path, payload = find_json_by_logical_name(run_dir, "spec_generation_result")
+    if not isinstance(payload, dict):
+        row["has_spec_generation_result"] = False
+        return row
+
+    attempts = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
+    warnings = payload.get("warning_messages") if isinstance(payload.get("warning_messages"), list) else []
+    artifact_paths = payload.get("artifact_paths") if isinstance(payload.get("artifact_paths"), dict) else {}
+    spec_without_data = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"), dict) else {}
+
+    row["has_spec_generation_result"] = True
+    row["spec_generation_backend"] = payload.get("backend_name") or ""
+    row["spec_generation_prompt_version"] = payload.get("prompt_version") or ""
+    row["spec_generation_attempt_count"] = len(attempts)
+    row["spec_generation_warning_count"] = len(warnings)
+    row["spec_generation_warnings_json"] = dump_json_cell(warnings)
+    row["spec_generation_used_visrag_context"] = bool(payload.get("used_visrag_context"))
+    row["spec_generation_has_explanation"] = bool(payload.get("explanation"))
+    row["spec_generation_result_path"] = result_path.relative_to(run_dir).as_posix() if result_path else ""
+    row["spec_generation_artifact_paths_json"] = dump_json_cell(artifact_paths)
+    row["spec_generation_spec_without_data_fields_json"] = dump_json_cell(extract_spec_fields(spec_without_data))
+
+    for key, value in artifact_paths.items():
+        if key.endswith("prompt") or key == "spec_generation_prompt":
+            row["spec_generation_prompt_path"] = value
+        if key.endswith("raw_response") or key == "spec_generation_raw_response":
+            row["spec_generation_raw_response_path"] = value
+        if key.endswith("parsed_response") or key == "spec_generation_parsed_response":
+            row["spec_generation_parsed_response_path"] = value
+
+    statuses = [str(item.get("status") or "") for item in attempts if isinstance(item, dict)]
+    row["spec_generation_attempt_statuses"] = ",".join(statuses)
+    row["spec_generation_failed_attempt_count"] = sum(1 for status in statuses if status.lower() == "failed")
+    return row
 
 def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     files, total_size_bytes = summarize_file_list(run_dir)
@@ -809,6 +853,7 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row.update(extract_input_metadata(run_dir))
     row.update(extract_data_profile(run_dir))
     row.update(extract_data_preparation(run_dir))
+    row.update(extract_spec_generation(run_dir))
     row.update(extract_chart_metadata(run_dir))
     row.update(extract_metrics(run_dir))
 
@@ -892,6 +937,16 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "vega_mark",
         "vega_encoding_channels",
         "vega_field_count",
+        "has_spec_generation_result",
+        "spec_generation_backend",
+        "spec_generation_prompt_version",
+        "spec_generation_attempt_count",
+        "spec_generation_failed_attempt_count",
+        "spec_generation_warning_count",
+        "spec_generation_used_visrag_context",
+        "spec_generation_has_explanation",
+        "spec_generation_prompt_path",
+        "spec_generation_raw_response_path",
         "uses_safe_column_mapping",
         "renamed_column_count",
         "safe_column_mapping_count",
