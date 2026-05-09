@@ -168,3 +168,61 @@ def test_global_analysis_collects_spec_generation_result(tmp_path: Path) -> None
     assert row["spec_generation_used_visrag_context"] is True
     assert row["vega_mark"] == "bar"
     assert row["vega_field_count"] == 1
+
+
+def test_global_analysis_collects_spec_generation_retry_attempts(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    run = root / "2026-05-09T00-00-00_retry"
+    art = run / "artifacts"
+    art.mkdir(parents=True)
+
+    for attempt_number in (1, 2):
+        (art / f"00{attempt_number}_spec_generation_attempt_{attempt_number:03d}_result.json").write_text(
+            json.dumps(
+                {
+                    "backend_name": "vegachat_codegen",
+                    "prompt_version": "vega_chat_v1",
+                    "spec_without_runtime_data": {"mark": "bar", "encoding": {"x": {"field": "Method"}}},
+                    "explanation": "fixed" if attempt_number == 2 else "bad",
+                    "attempts": [{"attempt_number": 1, "status": "succeeded"}],
+                    "warning_messages": [],
+                    "artifact_paths": {
+                        f"spec_generation_attempt_{attempt_number:03d}_prompt": f"artifacts/prompt_{attempt_number}.txt",
+                        f"spec_generation_attempt_{attempt_number:03d}_raw_response": f"artifacts/raw_{attempt_number}.txt",
+                    },
+                    "used_visrag_context": True,
+                    "generation_attempt_number": attempt_number,
+                    "max_generation_attempts": 2,
+                    "previous_validation_errors": ["bad"] if attempt_number == 2 else [],
+                    "previous_repair_hints": ["fix"] if attempt_number == 2 else [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    (art / "010_spec_validation_retry_summary.json").write_text(
+        json.dumps(
+            {
+                "max_generation_attempts": 2,
+                "completed_generation_attempts": 2,
+                "succeeded": True,
+                "attempts": [
+                    {"is_valid": False, "validation_errors": ["bad"], "repair_hints": ["fix"]},
+                    {"is_valid": True, "validation_errors": [], "repair_hints": []},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (art / "009_spec_validation_attempt_001_report.md").write_text("report", encoding="utf-8")
+
+    row = collect_run(run, root)
+
+    assert row["spec_generation_attempt_count"] == 2
+    assert row["spec_generation_pipeline_attempt_count"] == 2
+    assert row["spec_generation_response_attempt_count"] == 2
+    assert row["spec_generation_final_generation_attempt_number"] == 2
+    assert row["spec_generation_prompt_path"] == "artifacts/prompt_2.txt"
+    assert row["has_spec_validation_retry_summary"] is True
+    assert row["spec_validation_retry_succeeded"] is True
+    assert row["spec_validation_generation_attempt_count"] == 2

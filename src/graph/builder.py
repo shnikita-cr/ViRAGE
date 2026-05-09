@@ -119,6 +119,28 @@ def _wrap_stage_node(
     return wrapped
 
 
+
+def _route_technical_decision(state: PipelineState) -> str:
+    status = str(state.get("technical_status") or "")
+    if status == "retry":
+        return "retry"
+    return "ok"
+
+
+def _route_semantic_gate(state: PipelineState) -> str:
+    status = str(state.get("semantic_status") or "")
+    if status == "enabled":
+        return "enabled"
+    return "disabled"
+
+
+def _route_semantic_decision(state: PipelineState) -> str:
+    status = str(state.get("semantic_status") or "")
+    if status == "retry":
+        return "retry"
+    return "done"
+
+
 def build_pipeline_graph(runtime: RuntimeContext):
     """Build the ViRAGE pipeline with LangGraph instead of a custom sequential runner."""
     try:
@@ -131,7 +153,7 @@ def build_pipeline_graph(runtime: RuntimeContext):
     nodes = PipelineNodes(runtime)
     graph = StateGraph(PipelineState)
 
-    ordered_steps = [
+    base_steps = [
         ("data_profiler", nodes.data_profiler_node),
         ("query_understanding", nodes.query_understanding_node),
         ("request_analyzer", nodes.request_analyzer_node),
@@ -139,10 +161,17 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("visrag", nodes.visrag_node),
         ("chart_generator", nodes.chart_generator_node),
         ("spec_validator", nodes.spec_validator_node),
+        ("technical_decision", nodes.technical_decision_node),
         ("vegalite_plot_drawing", nodes.vegalite_plot_drawing_node),
         ("scenegraph_check", nodes.scenegraph_check_node),
         ("empty_chart_check", nodes.empty_chart_check_node),
         ("spec_score", nodes.spec_score_node),
+        ("semantic_loop_gate", nodes.semantic_loop_gate_node),
+        ("vlm_chart_description", nodes.vlm_chart_description_node),
+        ("chart_fact_summary", nodes.chart_fact_summary_node),
+        ("chart_answer_judge", nodes.chart_answer_judge_node),
+        ("semantic_decision", nodes.semantic_decision_node),
+        ("feedback_corpus_writer", nodes.feedback_corpus_writer_node),
         ("vlm_analysis", nodes.vlm_analysis_node),
         ("fact_extractor", nodes.fact_extractor_node),
         ("reasoner", nodes.reasoner_node),
@@ -153,11 +182,48 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("completed", _mark_completed),
     ]
 
-    for name, callable_node in ordered_steps:
+    for name, callable_node in base_steps:
         graph.add_node(name, _wrap_stage_node(name=name, callable_node=callable_node, runtime=runtime))
 
-    graph.add_edge(START, ordered_steps[0][0])
-    for (source, _), (target, _) in zip(ordered_steps, ordered_steps[1:]):
-        graph.add_edge(source, target)
-    graph.add_edge(ordered_steps[-1][0], END)
+    graph.add_edge(START, "data_profiler")
+    graph.add_edge("data_profiler", "query_understanding")
+    graph.add_edge("query_understanding", "request_analyzer")
+    graph.add_edge("request_analyzer", "data_preparation")
+    graph.add_edge("data_preparation", "visrag")
+    graph.add_edge("visrag", "chart_generator")
+    graph.add_edge("chart_generator", "spec_validator")
+    graph.add_edge("spec_validator", "technical_decision")
+    graph.add_conditional_edges(
+        "technical_decision",
+        _route_technical_decision,
+        {"retry": "chart_generator", "ok": "vegalite_plot_drawing"},
+    )
+
+    graph.add_edge("vegalite_plot_drawing", "scenegraph_check")
+    graph.add_edge("scenegraph_check", "empty_chart_check")
+    graph.add_edge("empty_chart_check", "spec_score")
+    graph.add_edge("spec_score", "semantic_loop_gate")
+    graph.add_conditional_edges(
+        "semantic_loop_gate",
+        _route_semantic_gate,
+        {"enabled": "vlm_chart_description", "disabled": "vlm_analysis"},
+    )
+    graph.add_edge("vlm_chart_description", "chart_fact_summary")
+    graph.add_edge("chart_fact_summary", "chart_answer_judge")
+    graph.add_edge("chart_answer_judge", "semantic_decision")
+    graph.add_conditional_edges(
+        "semantic_decision",
+        _route_semantic_decision,
+        {"retry": "feedback_corpus_writer", "done": "vlm_analysis"},
+    )
+    graph.add_edge("feedback_corpus_writer", "chart_generator")
+
+    graph.add_edge("vlm_analysis", "fact_extractor")
+    graph.add_edge("fact_extractor", "reasoner")
+    graph.add_edge("reasoner", "verifier")
+    graph.add_edge("verifier", "insights")
+    graph.add_edge("insights", "vision_score")
+    graph.add_edge("vision_score", "evaluation_summary")
+    graph.add_edge("evaluation_summary", "completed")
+    graph.add_edge("completed", END)
     return graph.compile()

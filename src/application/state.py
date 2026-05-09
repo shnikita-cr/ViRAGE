@@ -5,6 +5,8 @@ from typing_extensions import NotRequired, TypedDict
 from src.domain.enums import PipelineStage
 from src.domain.models import (
     AnalysisRubric,
+    ChartAnswerJudgeResult,
+    ChartFactSummaryResult,
     CandidateSpecSet,
     DataPreparationResult,
     DataProfile,
@@ -22,6 +24,7 @@ from src.domain.models import (
     SpecValidationResult,
     StepLog,
     StageExecutionLog,
+    SemanticFeedbackLoopSummary,
     StructuralSpecMetric,
     TokenUsage,
     VegaLiteSpecArtifact,
@@ -29,6 +32,8 @@ from src.domain.models import (
     VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
+    VLMChartDescriptionResult,
+    VisualFeedbackExample,
 )
 
 
@@ -41,6 +46,16 @@ class PipelineState(TypedDict, total=False):
     trace: list[str]
     errors: list[str]
     artifact_paths: dict[str, str]
+
+    technical_attempt_number: NotRequired[int]
+    technical_retry_feedback: NotRequired[dict[str, Any]]
+    technical_status: NotRequired[str]
+
+    semantic_attempt_number: NotRequired[int]
+    semantic_feedback_items: NotRequired[list[str]]
+    semantic_chart_fact_history: NotRequired[list[dict[str, Any]]]
+    semantic_status: NotRequired[str]
+    semantic_retry_feedback: NotRequired[str]
 
     query_understanding: NotRequired[QueryUnderstandingResult]
     query_intent_bundle: NotRequired[QueryIntentBundle]
@@ -56,6 +71,11 @@ class PipelineState(TypedDict, total=False):
     scenegraph_check: NotRequired[ScenegraphCheckResult]
     empty_chart_check: NotRequired[EmptyChartCheckResult]
     plot_image: NotRequired[dict[str, Any]]
+    vlm_chart_description: NotRequired[VLMChartDescriptionResult]
+    chart_fact_summary: NotRequired[ChartFactSummaryResult]
+    chart_answer_judge: NotRequired[ChartAnswerJudgeResult]
+    visual_feedback_examples: NotRequired[list[VisualFeedbackExample]]
+    semantic_feedback_loop_summary: NotRequired[SemanticFeedbackLoopSummary]
     vlm_analysis: NotRequired[VLMAnalysisResult]
     visual_facts: NotRequired[VisualFactExtractionResult]
     insight_reasoning: NotRequired[InsightReasoningResult]

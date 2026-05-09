@@ -8,3 +8,4 @@ from src.domain.query_models import *  # noqa: F401,F403
 from src.domain.runtime_models import *  # noqa: F401,F403
 from src.domain.visrag_models import *  # noqa: F401,F403
 from src.domain.spec_generation_models import *  # noqa: F401,F403
+from src.domain.visual_feedback_models import *  # noqa: F401,F403

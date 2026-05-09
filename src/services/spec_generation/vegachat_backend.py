@@ -25,7 +25,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         if runtime.spec_llm is None:
             raise RuntimeError("VegaChat codegen backend requires RuntimeContext.spec_llm.")
 
-        max_attempts = max(1, int(runtime.settings.spec_generation_max_retries) + 1)
+        max_attempts = max(1, int(runtime.settings.spec_generation_response_parse_retries) + 1)
         prompt_version = runtime.settings.spec_generation_prompt_version
         max_context_chars = int(runtime.settings.spec_generation_max_context_chars)
         attempts: list[SpecGenerationAttempt] = []
@@ -103,12 +103,18 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                 runtime.settings.spec_generation_include_visrag_context
                 and (request.candidate_spec_set.candidate_specs or request.candidate_spec_set.retrieved_examples)
             ),
+            generation_attempt_number=request.generation_attempt_number,
+            max_generation_attempts=request.max_generation_attempts,
+            previous_validation_errors=list(request.previous_validation_errors),
+            previous_repair_hints=list(request.previous_repair_hints),
+            previous_semantic_feedback=list(request.previous_semantic_feedback),
         )
         artifact_paths = self._save_artifacts(
             runtime=runtime,
             result=result,
             final_prompt=final_prompt,
             final_raw_response=final_raw_response,
+            generation_attempt_number=request.generation_attempt_number,
         )
         return result.model_copy(update={"artifact_paths": artifact_paths})
 
@@ -140,23 +146,26 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         result: SpecGenerationResult,
         final_prompt: str,
         final_raw_response: str,
+        generation_attempt_number: int,
     ) -> dict[str, str]:
         artifact_paths: dict[str, str] = {}
         if not runtime.current_run_id:
             return artifact_paths
 
-        artifact_paths["spec_generation_prompt"] = runtime.save_text_artifact(
-            "artifacts/spec_generation_prompt.txt",
+        attempt_prefix = f"spec_generation_attempt_{generation_attempt_number:03d}"
+
+        artifact_paths[f"{attempt_prefix}_prompt"] = runtime.save_text_artifact(
+            f"artifacts/{attempt_prefix}_prompt.txt",
             final_prompt,
             numbered=True,
         )
-        artifact_paths["spec_generation_raw_response"] = runtime.save_text_artifact(
-            "artifacts/spec_generation_raw_response.txt",
+        artifact_paths[f"{attempt_prefix}_raw_response"] = runtime.save_text_artifact(
+            f"artifacts/{attempt_prefix}_raw_response.txt",
             final_raw_response,
             numbered=True,
         )
-        artifact_paths["spec_generation_parsed_response"] = runtime.save_json_artifact(
-            "artifacts/spec_generation_parsed_response.json",
+        artifact_paths[f"{attempt_prefix}_parsed_response"] = runtime.save_json_artifact(
+            f"artifacts/{attempt_prefix}_parsed_response.json",
             {
                 "explanation": result.explanation,
                 "spec_without_runtime_data": result.spec_without_runtime_data,
@@ -166,8 +175,8 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         )
         result_payload = result.model_dump()
         result_payload["artifact_paths"] = dict(artifact_paths)
-        artifact_paths["spec_generation_result"] = runtime.save_json_artifact(
-            "artifacts/spec_generation_result.json",
+        artifact_paths[f"{attempt_prefix}_result"] = runtime.save_json_artifact(
+            f"artifacts/{attempt_prefix}_result.json",
             result_payload,
             numbered=True,
         )

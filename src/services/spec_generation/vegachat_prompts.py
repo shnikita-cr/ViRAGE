@@ -21,6 +21,8 @@ def build_vegachat_codegen_prompt(
         _system_contract(prompt_version),
         _dataset_contract(request.data_profile, request.prepared),
         _request_contract(request),
+        _validation_feedback_contract(request),
+        _semantic_feedback_contract(request),
         _visrag_context(request.candidate_spec_set, max_context_chars=max_context_chars) if include_visrag_context else "VisRAG context is disabled for this generation run.",
         _output_contract(),
     ]
@@ -53,6 +55,8 @@ Hard rules:
 8. Do not copy axis titles, legend titles, scale domains, or sort arrays from retrieved examples unless they directly match current dataset fields.
 9. Prefer channel-level aggregate/bin/timeUnit/sort/stack over view-level transform when possible.
 10. If faceting is needed, prefer row/column encoding channels over the facet view-level operator.
+11. If previous validation feedback is provided, fix the listed validation errors and address the repair hints.
+12. If previous semantic visual feedback is provided, generate a new chart that addresses those comments.
 """
 
 
@@ -121,6 +125,44 @@ def _request_contract(request: SpecGenerationRequest) -> str:
 
 def _to_safe(field: str, prepared: DataPreparationResult) -> str:
     return prepared.column_name_map.get(field, field)
+
+
+
+def _validation_feedback_contract(request: SpecGenerationRequest) -> str:
+    if not request.previous_validation_errors and not request.previous_repair_hints and not request.previous_invalid_spec:
+        return (
+            f"Generation attempt: {request.generation_attempt_number} of {request.max_generation_attempts}.\n"
+            "No previous validation errors for this attempt."
+        )
+
+    payload: dict[str, Any] = {
+        "generation_attempt_number": request.generation_attempt_number,
+        "max_generation_attempts": request.max_generation_attempts,
+        "previous_validation_errors": request.previous_validation_errors,
+        "previous_repair_hints": request.previous_repair_hints,
+        "previous_invalid_spec_without_large_data": _strip_data(request.previous_invalid_spec or {}),
+    }
+    return (
+        "Previous spec validation failed. Generate a corrected Vega-Lite spec.\n"
+        "Validation feedback for this retry:\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    )
+
+def _semantic_feedback_contract(request: SpecGenerationRequest) -> str:
+    if not request.previous_semantic_feedback and not request.previous_chart_facts:
+        return "No previous semantic visual feedback for this attempt."
+
+    payload: dict[str, Any] = {
+        "generation_attempt_number": request.generation_attempt_number,
+        "max_generation_attempts": request.max_generation_attempts,
+        "previous_semantic_feedback": request.previous_semantic_feedback,
+        "previous_chart_facts": request.previous_chart_facts[-3:],
+    }
+    return (
+        "Previous rendered chart was technically valid but did not sufficiently answer the user request. "
+        "Generate a new Vega-Lite spec that addresses the semantic feedback below.\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    )
 
 
 def _visrag_context(candidate_spec_set: CandidateSpecSet, *, max_context_chars: int) -> str:

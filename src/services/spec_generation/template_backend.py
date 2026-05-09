@@ -53,6 +53,10 @@ class TemplateSpecBackend(SpecGenerationBackend):
                 )
             ],
             used_visrag_context=True,
+            generation_attempt_number=request.generation_attempt_number,
+            max_generation_attempts=request.max_generation_attempts,
+            previous_validation_errors=list(request.previous_validation_errors),
+            previous_repair_hints=list(request.previous_repair_hints),
         )
         artifact_paths = self._save_result_artifacts(runtime, result)
         return result.model_copy(update={"artifact_paths": artifact_paths})
@@ -178,8 +182,9 @@ class TemplateSpecBackend(SpecGenerationBackend):
     def _save_result_artifacts(runtime: RuntimeContext, result: SpecGenerationResult) -> dict[str, str]:
         artifacts: dict[str, str] = {}
         if runtime.current_run_id:
-            artifacts["spec_generation_result"] = runtime.save_json_artifact(
-                "artifacts/spec_generation_result.json",
+            attempt_prefix = f"spec_generation_attempt_{result.generation_attempt_number:03d}"
+            artifacts[f"{attempt_prefix}_result"] = runtime.save_json_artifact(
+                f"artifacts/{attempt_prefix}_result.json",
                 result.model_dump(exclude={"artifact_paths"}),
                 numbered=True,
             )

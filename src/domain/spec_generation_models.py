@@ -20,6 +20,13 @@ class SpecGenerationRequest(BaseModel):
     request_analysis: RequestAnalysisResult | None = None
     query_understanding: QueryUnderstandingResult | None = None
     visrag: VisRAGResult | None = None
+    generation_attempt_number: int = Field(default=1, ge=1)
+    max_generation_attempts: int = Field(default=1, ge=1)
+    previous_validation_errors: list[str] = Field(default_factory=list)
+    previous_repair_hints: list[str] = Field(default_factory=list)
+    previous_invalid_spec: dict[str, Any] | None = None
+    previous_semantic_feedback: list[str] = Field(default_factory=list)
+    previous_chart_facts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SpecGenerationAttempt(BaseModel):
@@ -41,6 +48,11 @@ class SpecGenerationResult(BaseModel):
     warning_messages: list[str] = Field(default_factory=list)
     artifact_paths: dict[str, str] = Field(default_factory=dict)
     used_visrag_context: bool = False
+    generation_attempt_number: int = Field(default=1, ge=1)
+    max_generation_attempts: int = Field(default=1, ge=1)
+    previous_validation_errors: list[str] = Field(default_factory=list)
+    previous_repair_hints: list[str] = Field(default_factory=list)
+    previous_semantic_feedback: list[str] = Field(default_factory=list)
 
     @property
     def attempt_count(self) -> int:

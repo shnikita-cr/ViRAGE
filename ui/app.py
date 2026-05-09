@@ -66,16 +66,31 @@ def path_from_config_label(label: str, config_files: list[Path]) -> Path:
     return by_label[label]
 
 
-def apply_streamlit_metrics_override(
+def apply_streamlit_run_overrides(
     project_config: ProjectConfig,
+    *,
     compute_metrics: bool,
+    spec_generation_max_attempts: int,
+    semantic_feedback_loop_enabled: bool,
+    semantic_feedback_max_attempts: int,
+    semantic_feedback_min_accept_confidence: float,
+    semantic_feedback_save_rejected_specs: bool,
 ) -> ProjectConfig:
     streamlit_config = project_config.streamlit.model_copy(
         update={"compute_metrics": compute_metrics},
     )
+    settings = project_config.settings.model_copy(
+        update={
+            "spec_generation_max_attempts": spec_generation_max_attempts,
+            "semantic_feedback_loop_enabled": semantic_feedback_loop_enabled,
+            "semantic_feedback_max_attempts": semantic_feedback_max_attempts,
+            "semantic_feedback_min_accept_confidence": semantic_feedback_min_accept_confidence,
+            "semantic_feedback_save_rejected_specs": semantic_feedback_save_rejected_specs,
+        },
+    )
     return project_config.model_copy(
         deep=True,
-        update={"streamlit": streamlit_config},
+        update={"streamlit": streamlit_config, "settings": settings},
     )
 
 
@@ -577,6 +592,75 @@ def render_evaluation_summary(summary: Any) -> None:
                 st.json(complex_report)
 
 
+
+def read_text_artifact(path_value: str, *, max_chars: int = 30000) -> str:
+    try:
+        path = Path(path_value)
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        return f"Could not read artifact {path_value!r}: {exc}"
+    if len(text) > max_chars:
+        return text[:max_chars] + "\n\n[artifact truncated in UI]"
+    return text
+
+
+def render_spec_generation_validation_details(result: Any) -> None:
+    artifact_paths = getattr(result, "artifact_paths", {}) or {}
+    if not isinstance(artifact_paths, dict):
+        return
+
+    prompt_items = sorted(
+        (key, value)
+        for key, value in artifact_paths.items()
+        if key.startswith("spec_generation_attempt_") and key.endswith("_prompt")
+    )
+    validation_report_items = sorted(
+        (key, value)
+        for key, value in artifact_paths.items()
+        if key.startswith("spec_validation_attempt_") and key.endswith("_report")
+    )
+
+    if not prompt_items and not validation_report_items and not getattr(result, "vega_spec", None):
+        return
+
+    with st.expander("Spec generation and validation details", expanded=False):
+        if getattr(result, "vega_spec", None):
+            st.markdown("#### Final Vega-Lite spec")
+            st.json(result.vega_spec.spec_json)
+
+        if prompt_items:
+            st.markdown("#### Generation prompts")
+            for key, path in prompt_items:
+                st.markdown(f"**{key}**")
+                st.caption(path)
+                st.text_area(
+                    label=f"Prompt: {key}",
+                    value=read_text_artifact(str(path)),
+                    height=280,
+                    label_visibility="collapsed",
+                )
+
+        if validation_report_items:
+            st.markdown("#### Validation reports")
+            for key, path in validation_report_items:
+                st.markdown(f"**{key}**")
+                st.caption(path)
+                st.markdown(read_text_artifact(str(path)))
+
+        semantic_summary = getattr(result, "semantic_feedback_loop_summary", None)
+        if semantic_summary:
+            st.markdown("#### Semantic VLM loop summary")
+            st.json(semantic_summary.model_dump())
+
+        for title, payload in [
+            ("PNG-only VLM description", getattr(result, "vlm_chart_description", None)),
+            ("Chart fact summary", getattr(result, "chart_fact_summary", None)),
+            ("Chart answer judge", getattr(result, "chart_answer_judge", None)),
+        ]:
+            if payload:
+                st.markdown(f"#### {title}")
+                st.json(payload.model_dump())
+
 def render_metrics(result: Any, compute_metrics: bool) -> None:
     st.subheader("Metrics")
 
@@ -654,6 +738,11 @@ def build_pending_run_payload(
     selected_config_label: str,
     chart_mode: str,
     compute_metrics: bool,
+    spec_generation_max_attempts: int,
+    semantic_feedback_loop_enabled: bool,
+    semantic_feedback_max_attempts: int,
+    semantic_feedback_min_accept_confidence: float,
+    semantic_feedback_save_rejected_specs: bool,
     uploaded_file: Any,
     query: str,
 ) -> dict[str, Any]:
@@ -661,6 +750,11 @@ def build_pending_run_payload(
         "config_label": selected_config_label,
         "chart_mode": chart_mode,
         "compute_metrics": compute_metrics,
+        "spec_generation_max_attempts": spec_generation_max_attempts,
+        "semantic_feedback_loop_enabled": semantic_feedback_loop_enabled,
+        "semantic_feedback_max_attempts": semantic_feedback_max_attempts,
+        "semantic_feedback_min_accept_confidence": semantic_feedback_min_accept_confidence,
+        "semantic_feedback_save_rejected_specs": semantic_feedback_save_rejected_specs,
         "uploaded_file_name": uploaded_file.name,
         "uploaded_file_bytes": uploaded_file.getvalue(),
         "query": query,
@@ -695,10 +789,20 @@ if pending_run:
     selected_config_index = labels.index(pending_run["config_label"])
     selected_chart_index = CHART_MODE_OPTIONS.index(pending_run["chart_mode"])
     selected_metrics_index = 0 if pending_run["compute_metrics"] else 1
+    selected_spec_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
+    selected_semantic_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
+    selected_semantic_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
+    selected_semantic_confidence = float(pending_run.get("semantic_feedback_min_accept_confidence", 0.75))
+    selected_semantic_save = bool(pending_run.get("semantic_feedback_save_rejected_specs", True))
 else:
     selected_config_index = default_index
     selected_chart_index = 0
     selected_metrics_index = 0
+    selected_spec_attempts = 3
+    selected_semantic_enabled = False
+    selected_semantic_attempts = 2
+    selected_semantic_confidence = 0.75
+    selected_semantic_save = True
 
 with st.sidebar:
     st.header("Run configuration")
@@ -711,6 +815,25 @@ with st.sidebar:
         help="Choose a TOML config from ui/config before running the pipeline.",
     )
     selected_config_path = path_from_config_label(selected_config_label, config_files)
+    try:
+        selected_config_defaults = load_project_config(selected_config_path)
+        configured_spec_attempts = int(selected_config_defaults.settings.spec_generation_max_attempts)
+        configured_semantic_enabled = bool(selected_config_defaults.settings.semantic_feedback_loop_enabled)
+        configured_semantic_attempts = int(selected_config_defaults.settings.semantic_feedback_max_attempts)
+        configured_semantic_confidence = float(selected_config_defaults.settings.semantic_feedback_min_accept_confidence)
+        configured_semantic_save = bool(selected_config_defaults.settings.semantic_feedback_save_rejected_specs)
+    except Exception:
+        configured_spec_attempts = 3
+        configured_semantic_enabled = False
+        configured_semantic_attempts = 2
+        configured_semantic_confidence = 0.75
+        configured_semantic_save = True
+    if not pending_run:
+        selected_spec_attempts = configured_spec_attempts
+        selected_semantic_enabled = configured_semantic_enabled
+        selected_semantic_attempts = configured_semantic_attempts
+        selected_semantic_confidence = configured_semantic_confidence
+        selected_semantic_save = configured_semantic_save
 
     chart_mode = st.radio(
         "Chart output",
@@ -729,6 +852,48 @@ with st.sidebar:
     )
     compute_metrics = metrics_mode == METRICS_ENABLED
 
+    spec_generation_max_attempts = st.slider(
+        "Spec generation attempts",
+        min_value=1,
+        max_value=8,
+        value=max(1, min(8, int(selected_spec_attempts))),
+        step=1,
+        disabled=controls_disabled,
+        help="Maximum number of graph-level generate → spec validation attempts. Default from config is 3.",
+    )
+
+    semantic_feedback_loop_enabled = st.checkbox(
+        "Enable semantic VLM loop",
+        value=bool(selected_semantic_enabled),
+        disabled=controls_disabled,
+        help="If enabled, a PNG-only VLM description and semantic judge can trigger spec regeneration.",
+    )
+
+    semantic_feedback_max_attempts = st.slider(
+        "Semantic VLM attempts",
+        min_value=1,
+        max_value=5,
+        value=max(1, min(5, int(selected_semantic_attempts))),
+        step=1,
+        disabled=controls_disabled or not semantic_feedback_loop_enabled,
+        help="Maximum semantic attempts. Each rejected attempt saves comments and loops back to spec generation.",
+    )
+
+    semantic_feedback_min_accept_confidence = st.slider(
+        "Semantic accept confidence",
+        min_value=0.0,
+        max_value=1.0,
+        value=max(0.0, min(1.0, float(selected_semantic_confidence))),
+        step=0.05,
+        disabled=controls_disabled or not semantic_feedback_loop_enabled,
+    )
+
+    semantic_feedback_save_rejected_specs = st.checkbox(
+        "Save rejected specs to feedback corpus",
+        value=bool(selected_semantic_save),
+        disabled=controls_disabled or not semantic_feedback_loop_enabled,
+    )
+
     st.markdown("---")
 
     if controls_disabled and pending_run:
@@ -736,7 +901,10 @@ with st.sidebar:
             "Run settings are locked:\n\n"
             f"- `{pending_run['config_label']}`\n"
             f"- `{pending_run['chart_mode']}`\n"
-            f"- metrics: `{METRICS_ENABLED if pending_run['compute_metrics'] else METRICS_DISABLED}`"
+            f"- metrics: `{METRICS_ENABLED if pending_run['compute_metrics'] else METRICS_DISABLED}`\n"
+            f"- spec attempts: `{pending_run.get('spec_generation_max_attempts', 3)}`\n"
+            f"- semantic loop: `{pending_run.get('semantic_feedback_loop_enabled', False)}`\n"
+            f"- semantic attempts: `{pending_run.get('semantic_feedback_max_attempts', 2)}`"
         )
     else:
         st.caption("Settings are locked after pressing Run pipeline.")
@@ -773,6 +941,11 @@ if run_clicked:
         selected_config_label=selected_config_label,
         chart_mode=chart_mode,
         compute_metrics=compute_metrics,
+        spec_generation_max_attempts=spec_generation_max_attempts,
+        semantic_feedback_loop_enabled=semantic_feedback_loop_enabled,
+        semantic_feedback_max_attempts=semantic_feedback_max_attempts,
+        semantic_feedback_min_accept_confidence=semantic_feedback_min_accept_confidence,
+        semantic_feedback_save_rejected_specs=semantic_feedback_save_rejected_specs,
         uploaded_file=uploaded_file,
         query=query,
     )
@@ -813,15 +986,25 @@ locked_config_label = pending_run["config_label"]
 locked_config_path = path_from_config_label(locked_config_label, config_files)
 locked_chart_mode = pending_run["chart_mode"]
 locked_compute_metrics = bool(pending_run["compute_metrics"])
+locked_spec_generation_max_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
+locked_semantic_feedback_loop_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
+locked_semantic_feedback_max_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
+locked_semantic_feedback_min_accept_confidence = float(pending_run.get("semantic_feedback_min_accept_confidence", 0.75))
+locked_semantic_feedback_save_rejected_specs = bool(pending_run.get("semantic_feedback_save_rejected_specs", True))
 locked_query = pending_run["query"]
 uploaded_file_name = pending_run["uploaded_file_name"]
 uploaded_file_bytes = pending_run["uploaded_file_bytes"]
 
 try:
     project_config = load_project_config(locked_config_path)
-    project_config = apply_streamlit_metrics_override(
+    project_config = apply_streamlit_run_overrides(
         project_config=project_config,
         compute_metrics=locked_compute_metrics,
+        spec_generation_max_attempts=locked_spec_generation_max_attempts,
+        semantic_feedback_loop_enabled=locked_semantic_feedback_loop_enabled,
+        semantic_feedback_max_attempts=locked_semantic_feedback_max_attempts,
+        semantic_feedback_min_accept_confidence=locked_semantic_feedback_min_accept_confidence,
+        semantic_feedback_save_rejected_specs=locked_semantic_feedback_save_rejected_specs,
     )
     pipeline = ViRAGEPipeline.from_project_config(project_config)
 
@@ -851,7 +1034,9 @@ with status_slot.container():
     st.info(
         "Pipeline started with locked settings: "
         f"`{locked_config_label}` · `{locked_chart_mode}` · "
-        f"metrics `{METRICS_ENABLED if locked_compute_metrics else METRICS_DISABLED}`"
+        f"metrics `{METRICS_ENABLED if locked_compute_metrics else METRICS_DISABLED}` · "
+        f"spec attempts `{locked_spec_generation_max_attempts}` · "
+        f"semantic loop `{locked_semantic_feedback_loop_enabled}`"
     )
 
 
@@ -909,6 +1094,11 @@ st.session_state.last_run_settings = {
     "config_path": locked_config_label,
     "chart_mode": locked_chart_mode,
     "compute_metrics": locked_compute_metrics,
+    "spec_generation_max_attempts": locked_spec_generation_max_attempts,
+    "semantic_feedback_loop_enabled": locked_semantic_feedback_loop_enabled,
+    "semantic_feedback_max_attempts": locked_semantic_feedback_max_attempts,
+    "semantic_feedback_min_accept_confidence": locked_semantic_feedback_min_accept_confidence,
+    "semantic_feedback_save_rejected_specs": locked_semantic_feedback_save_rejected_specs,
 }
 
 status_slot.success("Pipeline completed successfully.")
@@ -928,6 +1118,8 @@ with insights_slot.container():
 with top_right:
     st.subheader("Run settings")
     st.json(st.session_state.last_run_settings)
+
+    render_spec_generation_validation_details(result)
 
     st.subheader("Token usage summary")
     st.json(result.token_usage_summary.model_dump())

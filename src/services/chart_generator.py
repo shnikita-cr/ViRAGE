@@ -30,6 +30,13 @@ class ChartGeneratorService(BaseService):
             request_analysis: RequestAnalysisResult | None = None,
             query_understanding: QueryUnderstandingResult | None = None,
             visrag: VisRAGResult | None = None,
+            generation_attempt_number: int = 1,
+            max_generation_attempts: int = 1,
+            previous_validation_errors: list[str] | None = None,
+            previous_repair_hints: list[str] | None = None,
+            previous_invalid_spec: dict | None = None,
+            previous_semantic_feedback: list[str] | None = None,
+            previous_chart_facts: list[dict] | None = None,
     ) -> VegaLiteSpecArtifact:
         if candidate_spec_set.selected_candidate_spec is None and not candidate_spec_set.candidate_specs:
             raise RuntimeError("Chart generation requires at least one RAG candidate or retrieved context.")
@@ -42,6 +49,13 @@ class ChartGeneratorService(BaseService):
             request_analysis=request_analysis,
             query_understanding=query_understanding,
             visrag=visrag,
+            generation_attempt_number=generation_attempt_number,
+            max_generation_attempts=max_generation_attempts,
+            previous_validation_errors=list(previous_validation_errors or []),
+            previous_repair_hints=list(previous_repair_hints or []),
+            previous_invalid_spec=previous_invalid_spec,
+            previous_semantic_feedback=list(previous_semantic_feedback or []),
+            previous_chart_facts=list(previous_chart_facts or []),
         )
         backend = self._select_backend(runtime)
         result = backend.generate(request, runtime)
@@ -65,6 +79,13 @@ class ChartGeneratorService(BaseService):
             request_analysis: RequestAnalysisResult | None = None,
             query_understanding: QueryUnderstandingResult | None = None,
             visrag: VisRAGResult | None = None,
+            generation_attempt_number: int = 1,
+            max_generation_attempts: int = 1,
+            previous_validation_errors: list[str] | None = None,
+            previous_repair_hints: list[str] | None = None,
+            previous_invalid_spec: dict | None = None,
+            previous_semantic_feedback: list[str] | None = None,
+            previous_chart_facts: list[dict] | None = None,
     ) -> VegaLiteSpecArtifact:
         return self.invoke(
             prepared=prepared,
@@ -75,6 +96,13 @@ class ChartGeneratorService(BaseService):
             request_analysis=request_analysis,
             query_understanding=query_understanding,
             visrag=visrag,
+            generation_attempt_number=generation_attempt_number,
+            max_generation_attempts=max_generation_attempts,
+            previous_validation_errors=previous_validation_errors,
+            previous_repair_hints=previous_repair_hints,
+            previous_invalid_spec=previous_invalid_spec,
+            previous_semantic_feedback=previous_semantic_feedback,
+            previous_chart_facts=previous_chart_facts,
         )
 
     @staticmethod

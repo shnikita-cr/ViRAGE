@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from src.domain.models import (
     AnalysisRubric,
+    ChartAnswerJudgeResult,
+    ChartFactSummaryResult,
     CandidateSpecSet,
     DataPreparationResult,
     DataProfile,
@@ -23,6 +25,7 @@ from src.domain.models import (
     SpecValidationResult,
     StepLog,
     StageExecutionLog,
+    SemanticFeedbackLoopSummary,
     StructuralSpecMetric,
     TokenUsage,
     VegaLiteSpecArtifact,
@@ -30,6 +33,8 @@ from src.domain.models import (
     VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
+    VLMChartDescriptionResult,
+    VisualFeedbackExample,
 )
 
 
@@ -59,6 +64,11 @@ class PipelineResult(BaseModel):
     scenegraph_check: ScenegraphCheckResult | None = None
     empty_chart_check: EmptyChartCheckResult | None = None
     plot_image: dict[str, Any] | None = None
+    vlm_chart_description: VLMChartDescriptionResult | None = None
+    chart_fact_summary: ChartFactSummaryResult | None = None
+    chart_answer_judge: ChartAnswerJudgeResult | None = None
+    visual_feedback_examples: list[VisualFeedbackExample] = Field(default_factory=list)
+    semantic_feedback_loop_summary: SemanticFeedbackLoopSummary | None = None
     vlm_analysis: VLMAnalysisResult | None = None
     visual_facts: VisualFactExtractionResult | None = None
     insight_reasoning: InsightReasoningResult | None = None
