@@ -38,26 +38,26 @@ show_step_logs = true
 
 [reasoning_model]
 provider = "ollama"
-model = "qwen3.5:cloud"
+model = "gpt-oss:120b-cloud"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 60.0
 
 [spec_model]
 provider = "ollama"
-model = "qwen3-coder:480b-cloud"
+model = "gpt-oss:120b-cloud"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 60.0
 
 [vlm_model]
 provider = "ollama"
-model = "qwen3.5:cloud"
+model = "gpt-oss:120b-cloud"
 temperature = 0.0
 timeout_seconds = 60.0
 
 [vision_judge_model]
 provider = "ollama"
-model = "qwen3.5:cloud"
+model = "gpt-oss:120b-cloud"
 temperature = 0.0
 timeout_seconds = 60.0
