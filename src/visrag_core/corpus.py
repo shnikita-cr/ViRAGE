@@ -9,10 +9,8 @@ from .chart_types import require_supported_chart_type
 from .models import VisRAGExample
 from .semantic import normalize_semantic_type
 
-_ALLOWED_CHANNELS = {
-    "x", "y", "color", "size", "shape", "opacity", "row", "column", "theta", "radius", "detail",
-    "tooltip", "longitude", "latitude", "text",
-}
+# Field role channels are not restricted to a local subset. Vega-Lite supports many channels
+# such as xOffset/yOffset, x2/y2, error channels, geo channels, theta/radius, tooltip, etc.
 _CONTROL_FILES = {"manifest.json", "validation_report.json", "lexical_index.json", "corpus_manifest.json"}
 
 
@@ -108,8 +106,6 @@ def _validate_field_roles(value: Any, path: Path) -> dict[str, str]:
     roles: dict[str, str] = {}
     for channel, role in value.items():
         channel_name = str(channel)
-        if channel_name not in _ALLOWED_CHANNELS:
-            raise ValueError(f"Corpus row in {path} has unsupported field role channel: {channel_name!r}.")
         normalized = normalize_semantic_type(str(role))
         if normalized not in {"quantitative", "temporal", "nominal", "ordinal", "boolean", "geojson"}:
             raise ValueError(f"Corpus row in {path} has unsupported field role value: {role!r}.")

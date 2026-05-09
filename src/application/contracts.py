@@ -14,7 +14,6 @@ from src.domain.models import (
     EmptyChartCheckResult,
     EvaluationSummaryResult,
     InsightReasoningResult,
-    InsightVerificationResult,
     InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
@@ -72,7 +71,6 @@ class PipelineResult(BaseModel):
     vlm_analysis: VLMAnalysisResult | None = None
     visual_facts: VisualFactExtractionResult | None = None
     insight_reasoning: InsightReasoningResult | None = None
-    insight_verification: InsightVerificationResult | None = None
     insights: InsightsResult | None = None
     structural_spec_metric: StructuralSpecMetric | None = None
     visual_quality_metric: VisualQualityMetric | None = None

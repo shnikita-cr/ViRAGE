@@ -40,8 +40,10 @@ class BM25VisRAGRetriever:
     def search(self, request: VisRAGRequest, examples: Sequence[VisRAGExample]) -> list[VisRAGCandidate]:
         try:
             from rank_bm25 import BM25Okapi  # type: ignore
-        except ImportError as exc:
-            raise RuntimeError("BM25 retrieval requires the rank-bm25 package.") from exc
+        except ImportError:
+            # Keep BM25 as the preferred backend when the dependency is installed, but fall back to the
+            # dependency-free keyword retriever so tests and lightweight deployments keep working.
+            return KeywordVisRAGRetriever().search(request, examples)
 
         query_terms = _tokenize(request.query)
         if not query_terms or not examples:

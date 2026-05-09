@@ -38,12 +38,5 @@ class InsightReasoningResult(BaseModel):
     reasoning_chain: list[str] = Field(default_factory=list)
 
 
-class InsightVerificationResult(BaseModel):
-    verified_insights: list[str] = Field(default_factory=list)
-    rejected_claims: list[str] = Field(default_factory=list)
-    insight_verification_summary: str = ""
-    all_verified: bool = False
-
-
 class InsightsResult(BaseModel):
     final_insights: list[str] = Field(default_factory=list)

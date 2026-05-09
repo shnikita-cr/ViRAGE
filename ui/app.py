@@ -32,7 +32,34 @@ METRICS_ENABLED = "Enabled"
 METRICS_DISABLED = "Disabled"
 METRICS_OPTIONS = [METRICS_ENABLED, METRICS_DISABLED]
 
-EXPECTED_STAGE_COUNT = 13
+EXPECTED_STAGE_COUNT = 24
+
+
+def render_loading_status(slot, message: str) -> None:
+    slot.markdown(
+        f"""
+<style>
+.virage-spinner {{
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid rgba(49, 130, 206, 0.25);
+  border-top-color: rgba(49, 130, 206, 1);
+  border-radius: 50%;
+  animation: virage-spin 0.85s linear infinite;
+  margin-right: 0.45rem;
+  vertical-align: -0.12rem;
+}}
+@keyframes virage-spin {{
+  to {{ transform: rotate(360deg); }}
+}}
+</style>
+<div style="padding: 0.75rem 1rem; border: 1px solid rgba(49,130,206,.25); border-radius: .5rem; background: rgba(49,130,206,.08);">
+  <span class="virage-spinner"></span>{message}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 
 def resolve_project_path(path: str | Path) -> Path:
@@ -70,6 +97,7 @@ def apply_streamlit_run_overrides(
     project_config: ProjectConfig,
     *,
     compute_metrics: bool,
+    visrag_enabled: bool,
     spec_generation_max_attempts: int,
     semantic_feedback_loop_enabled: bool,
     semantic_feedback_max_attempts: int,
@@ -81,6 +109,8 @@ def apply_streamlit_run_overrides(
     )
     settings = project_config.settings.model_copy(
         update={
+            "visrag_enabled": visrag_enabled,
+            "spec_generation_include_visrag_context": visrag_enabled,
             "spec_generation_max_attempts": spec_generation_max_attempts,
             "semantic_feedback_loop_enabled": semantic_feedback_loop_enabled,
             "semantic_feedback_max_attempts": semantic_feedback_max_attempts,
@@ -142,6 +172,10 @@ def render_reasoning_trace(steps: list[StepLog], model_calls: list[ModelCallLog]
             status_icon = "●" if is_latest else "✓"
             update_suffix = f" · {update_count} updates" if update_count > 1 else ""
 
+            duration_suffix = ""
+            if getattr(log, "duration_seconds", 0.0):
+                duration_suffix = f" · {log.duration_seconds:.2f}s"
+
             st.markdown(
                 f"""
 <div style="
@@ -150,7 +184,7 @@ def render_reasoning_trace(steps: list[StepLog], model_calls: list[ModelCallLog]
     margin: 0.45rem 0;
 ">
   <div style="font-size: 0.9rem; opacity: 0.72;">
-    {status_icon} Step {index:02d} · <code>{log.stage}</code>{update_suffix}
+    {status_icon} Step {index:02d} · <code>{log.stage}</code>{update_suffix}{duration_suffix}
   </div>
   <div style="font-weight: 650; margin-top: 0.1rem;">
     {log.title}
@@ -554,10 +588,10 @@ def render_evaluation_summary(summary: Any) -> None:
         empty_status = payload.get("empty_chart_status") or "unknown"
         render_summary_status_card("Empty chart status", empty_status)
 
-    verification_summary = payload.get("insight_verification_summary")
+    verification_summary = payload.get("insight_summary")
     if verification_summary:
         with st.container(border=True):
-            st.markdown("#### Insight verification")
+            st.markdown("#### Insight summary")
             st.write(verification_summary)
 
     benchmark_report = payload.get("benchmark_report")
@@ -738,6 +772,7 @@ def build_pending_run_payload(
     selected_config_label: str,
     chart_mode: str,
     compute_metrics: bool,
+    visrag_enabled: bool,
     spec_generation_max_attempts: int,
     semantic_feedback_loop_enabled: bool,
     semantic_feedback_max_attempts: int,
@@ -750,6 +785,7 @@ def build_pending_run_payload(
         "config_label": selected_config_label,
         "chart_mode": chart_mode,
         "compute_metrics": compute_metrics,
+        "visrag_enabled": visrag_enabled,
         "spec_generation_max_attempts": spec_generation_max_attempts,
         "semantic_feedback_loop_enabled": semantic_feedback_loop_enabled,
         "semantic_feedback_max_attempts": semantic_feedback_max_attempts,
@@ -789,6 +825,7 @@ if pending_run:
     selected_config_index = labels.index(pending_run["config_label"])
     selected_chart_index = CHART_MODE_OPTIONS.index(pending_run["chart_mode"])
     selected_metrics_index = 0 if pending_run["compute_metrics"] else 1
+    selected_visrag_enabled = bool(pending_run.get("visrag_enabled", True))
     selected_spec_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
     selected_semantic_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
     selected_semantic_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
@@ -798,6 +835,7 @@ else:
     selected_config_index = default_index
     selected_chart_index = 0
     selected_metrics_index = 0
+    selected_visrag_enabled = True
     selected_spec_attempts = 3
     selected_semantic_enabled = False
     selected_semantic_attempts = 2
@@ -817,18 +855,21 @@ with st.sidebar:
     selected_config_path = path_from_config_label(selected_config_label, config_files)
     try:
         selected_config_defaults = load_project_config(selected_config_path)
+        configured_visrag_enabled = bool(getattr(selected_config_defaults.settings, "visrag_enabled", True))
         configured_spec_attempts = int(selected_config_defaults.settings.spec_generation_max_attempts)
         configured_semantic_enabled = bool(selected_config_defaults.settings.semantic_feedback_loop_enabled)
         configured_semantic_attempts = int(selected_config_defaults.settings.semantic_feedback_max_attempts)
         configured_semantic_confidence = float(selected_config_defaults.settings.semantic_feedback_min_accept_confidence)
         configured_semantic_save = bool(selected_config_defaults.settings.semantic_feedback_save_rejected_specs)
     except Exception:
+        configured_visrag_enabled = True
         configured_spec_attempts = 3
         configured_semantic_enabled = False
         configured_semantic_attempts = 2
         configured_semantic_confidence = 0.75
         configured_semantic_save = True
     if not pending_run:
+        selected_visrag_enabled = configured_visrag_enabled
         selected_spec_attempts = configured_spec_attempts
         selected_semantic_enabled = configured_semantic_enabled
         selected_semantic_attempts = configured_semantic_attempts
@@ -851,6 +892,13 @@ with st.sidebar:
         help="Overrides Streamlit metrics flag from TOML for this run.",
     )
     compute_metrics = metrics_mode == METRICS_ENABLED
+
+    visrag_enabled = st.checkbox(
+        "Enable RAG / VisRAG context",
+        value=bool(selected_visrag_enabled),
+        disabled=controls_disabled,
+        help="If disabled, VisRAG retrieval is skipped and the spec generator works from query + data profile only.",
+    )
 
     spec_generation_max_attempts = st.slider(
         "Spec generation attempts",
@@ -902,6 +950,7 @@ with st.sidebar:
             f"- `{pending_run['config_label']}`\n"
             f"- `{pending_run['chart_mode']}`\n"
             f"- metrics: `{METRICS_ENABLED if pending_run['compute_metrics'] else METRICS_DISABLED}`\n"
+            f"- RAG enabled: `{pending_run.get('visrag_enabled', True)}`\n"
             f"- spec attempts: `{pending_run.get('spec_generation_max_attempts', 3)}`\n"
             f"- semantic loop: `{pending_run.get('semantic_feedback_loop_enabled', False)}`\n"
             f"- semantic attempts: `{pending_run.get('semantic_feedback_max_attempts', 2)}`"
@@ -941,6 +990,7 @@ if run_clicked:
         selected_config_label=selected_config_label,
         chart_mode=chart_mode,
         compute_metrics=compute_metrics,
+        visrag_enabled=visrag_enabled,
         spec_generation_max_attempts=spec_generation_max_attempts,
         semantic_feedback_loop_enabled=semantic_feedback_loop_enabled,
         semantic_feedback_max_attempts=semantic_feedback_max_attempts,
@@ -986,6 +1036,7 @@ locked_config_label = pending_run["config_label"]
 locked_config_path = path_from_config_label(locked_config_label, config_files)
 locked_chart_mode = pending_run["chart_mode"]
 locked_compute_metrics = bool(pending_run["compute_metrics"])
+locked_visrag_enabled = bool(pending_run.get("visrag_enabled", True))
 locked_spec_generation_max_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
 locked_semantic_feedback_loop_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
 locked_semantic_feedback_max_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
@@ -1000,6 +1051,7 @@ try:
     project_config = apply_streamlit_run_overrides(
         project_config=project_config,
         compute_metrics=locked_compute_metrics,
+        visrag_enabled=locked_visrag_enabled,
         spec_generation_max_attempts=locked_spec_generation_max_attempts,
         semantic_feedback_loop_enabled=locked_semantic_feedback_loop_enabled,
         semantic_feedback_max_attempts=locked_semantic_feedback_max_attempts,
@@ -1031,18 +1083,21 @@ live_steps: list[StepLog] = []
 live_model_calls: list[ModelCallLog] = []
 
 with status_slot.container():
-    st.info(
+    render_loading_status(
+        status_slot,
         "Pipeline started with locked settings: "
-        f"`{locked_config_label}` · `{locked_chart_mode}` · "
-        f"metrics `{METRICS_ENABLED if locked_compute_metrics else METRICS_DISABLED}` · "
-        f"spec attempts `{locked_spec_generation_max_attempts}` · "
-        f"semantic loop `{locked_semantic_feedback_loop_enabled}`"
+        f"<code>{locked_config_label}</code> · <code>{locked_chart_mode}</code> · "
+        f"metrics <code>{METRICS_ENABLED if locked_compute_metrics else METRICS_DISABLED}</code> · "
+        f"RAG <code>{locked_visrag_enabled}</code> · "
+        f"spec attempts <code>{locked_spec_generation_max_attempts}</code> · "
+        f"semantic loop <code>{locked_semantic_feedback_loop_enabled}</code>"
     )
 
 
 def on_step(step: StepLog) -> None:
     live_steps.append(step)
-    status_slot.info(f"Current step: {step.stage} — {step.title}")
+    duration = f" · {step.duration_seconds:.2f}s" if getattr(step, "duration_seconds", 0.0) else ""
+    render_loading_status(status_slot, f"Current step: <code>{step.stage}</code> — {step.title}{duration}")
     render_live(
         progress_slot=progress_slot,
         model_calls_slot=model_calls_slot,
@@ -1094,6 +1149,7 @@ st.session_state.last_run_settings = {
     "config_path": locked_config_label,
     "chart_mode": locked_chart_mode,
     "compute_metrics": locked_compute_metrics,
+    "visrag_enabled": locked_visrag_enabled,
     "spec_generation_max_attempts": locked_spec_generation_max_attempts,
     "semantic_feedback_loop_enabled": locked_semantic_feedback_loop_enabled,
     "semantic_feedback_max_attempts": locked_semantic_feedback_max_attempts,

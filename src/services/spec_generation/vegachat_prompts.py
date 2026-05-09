@@ -53,10 +53,12 @@ Hard rules:
 6. Use only safe Vega-Lite field names listed below.
 7. Do not invent fields.
 8. Do not copy axis titles, legend titles, scale domains, or sort arrays from retrieved examples unless they directly match current dataset fields.
-9. Prefer channel-level aggregate/bin/timeUnit/sort/stack over view-level transform when possible.
-10. If faceting is needed, prefer row/column encoding channels over the facet view-level operator.
-11. If previous validation feedback is provided, fix the listed validation errors and address the repair hints.
-12. If previous semantic visual feedback is provided, generate a new chart that addresses those comments.
+9. You may use the full Vega-Lite grammar when needed: unit specs, layer, facet, repeat, concat, hconcat, vconcat, params, transforms, composite marks, geographic channels, offset channels, and error channels.
+10. Prefer channel-level aggregate/bin/timeUnit/sort/stack over view-level transform when possible.
+11. If faceting is needed, prefer row/column encoding channels over the facet view-level operator, unless full facet composition is clearly more appropriate.
+12. Use layer/repeat/concat only when they materially improve the answer to the user request.
+13. If previous validation feedback is provided, fix the listed validation errors and address the repair hints.
+14. If previous semantic visual feedback is provided, generate a new chart that addresses those comments.
 """
 
 
@@ -236,8 +238,13 @@ Short explanation in English.
 <json>
 {{
   "$schema": "{VEGA_LITE_SCHEMA_URL}",
-  "mark": "...",
-  "encoding": {{}}
+  "mark": "bar",
+  "encoding": {{
+    "x": {{"field": "safe_dimension_name", "type": "nominal"}},
+    "y": {{"field": "safe_measure_name", "type": "quantitative", "aggregate": "mean"}}
+  }}
 }}
 </json>
+
+Layer/facet/repeat/concat specifications are also allowed when the user request requires them.
 """

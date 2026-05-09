@@ -13,7 +13,6 @@ from src.domain.models import (
     EmptyChartCheckResult,
     EvaluationSummaryResult,
     InsightReasoningResult,
-    InsightVerificationResult,
     InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
@@ -79,7 +78,6 @@ class PipelineState(TypedDict, total=False):
     vlm_analysis: NotRequired[VLMAnalysisResult]
     visual_facts: NotRequired[VisualFactExtractionResult]
     insight_reasoning: NotRequired[InsightReasoningResult]
-    insight_verification: NotRequired[InsightVerificationResult]
     insights: NotRequired[InsightsResult]
     structural_spec_metric: NotRequired[StructuralSpecMetric]
     visual_quality_metric: NotRequired[VisualQualityMetric]

@@ -38,8 +38,13 @@ class ChartGeneratorService(BaseService):
             previous_semantic_feedback: list[str] | None = None,
             previous_chart_facts: list[dict] | None = None,
     ) -> VegaLiteSpecArtifact:
-        if candidate_spec_set.selected_candidate_spec is None and not candidate_spec_set.candidate_specs:
-            raise RuntimeError("Chart generation requires at least one RAG candidate or retrieved context.")
+        backend = self._select_backend(runtime)
+        if (
+            backend.backend_name == "template"
+            and candidate_spec_set.selected_candidate_spec is None
+            and not candidate_spec_set.candidate_specs
+        ):
+            raise RuntimeError("Template chart generation requires at least one RAG candidate.")
 
         request = SpecGenerationRequest(
             query=query,
@@ -57,7 +62,6 @@ class ChartGeneratorService(BaseService):
             previous_semantic_feedback=list(previous_semantic_feedback or []),
             previous_chart_facts=list(previous_chart_facts or []),
         )
-        backend = self._select_backend(runtime)
         result = backend.generate(request, runtime)
         return VegaLiteSpecArtifact(
             spec_json=result.spec_json,

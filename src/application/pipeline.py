@@ -124,7 +124,6 @@ class ViRAGEPipeline:
             vlm_analysis=final_state.get('vlm_analysis'),
             visual_facts=final_state.get('visual_facts'),
             insight_reasoning=final_state.get('insight_reasoning'),
-            insight_verification=final_state.get('insight_verification'),
             insights=final_state.get('insights'),
             structural_spec_metric=final_state.get('structural_spec_metric'),
             visual_quality_metric=final_state.get('visual_quality_metric'),

@@ -12,7 +12,6 @@ from .scenegraph_check import ScenegraphCheckService
 from .spec_score import SpecScoreService
 from .spec_validator import SpecValidatorService
 from .vegalite_plot_drawing import VegaLitePlotDrawingService
-from .verifier import VerifierService
 from .vision_score import VisionScoreService
 from .visrag import VisRAGService
 from .vlm_analysis import VLMAnalysisService
@@ -32,7 +31,6 @@ __all__ = [
     "SpecScoreService",
     "SpecValidatorService",
     "VegaLitePlotDrawingService",
-    "VerifierService",
     "VisionScoreService",
     "VisRAGService",
     "VLMAnalysisService",

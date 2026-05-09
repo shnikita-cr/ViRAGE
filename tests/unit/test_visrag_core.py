@@ -64,13 +64,14 @@ def test_corpus_supports_json_and_validates_examples(tmp_path):
     assert examples[0].field_roles == {"x": "nominal", "y": "quantitative"}
 
 
-def test_invalid_corpus_example_is_rejected(tmp_path):
+def test_unknown_corpus_chart_type_is_kept_for_full_vegalite_support(tmp_path):
     corpus = tmp_path / "corpus"
     corpus.mkdir()
-    _write_jsonl(corpus / "bad.jsonl", [{**_bar_example(), "chart_type": "unknown"}])
+    _write_jsonl(corpus / "custom.jsonl", [{**_bar_example(), "chart_type": "custom_mark_or_composition"}])
 
-    with pytest.raises(ValueError, match="Unsupported chart type"):
-        VisRAGCorpus(corpus).load()
+    examples = VisRAGCorpus(corpus).load()
+
+    assert examples[0].chart_type == "custom_mark_or_composition"
 
 
 def test_visrag_service_uses_roles_materializes_template_and_score_breakdown(tmp_path):

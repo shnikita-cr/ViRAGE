@@ -62,6 +62,49 @@ def _artifact_paths_delta(state: PipelineState, output: dict[str, Any] | None) -
     return delta
 
 
+
+
+def _enrich_step_logs_with_duration(
+    *,
+    state: PipelineState,
+    output: dict[str, Any] | None,
+    duration_ms: float,
+    duration_seconds: float,
+) -> None:
+    if not isinstance(output, dict):
+        return
+    step_logs = output.get("step_logs")
+    if not isinstance(step_logs, list):
+        return
+    previous_count = len(state.get("step_logs", []))
+    if len(step_logs) <= previous_count:
+        return
+    enriched = list(step_logs)
+    for index in range(previous_count, len(enriched)):
+        log = enriched[index]
+        details = dict(getattr(log, "details", {}) or {})
+        details.setdefault("duration_ms", round(duration_ms, 6))
+        details.setdefault("duration_seconds", round(duration_seconds, 6))
+        if hasattr(log, "model_copy"):
+            enriched[index] = log.model_copy(update={
+                "duration_ms": round(duration_ms, 6),
+                "duration_seconds": round(duration_seconds, 6),
+                "details": details,
+            })
+        else:
+            enriched[index] = log
+        try:
+            # Emit the enriched log as the final completed-step update. The node may have already emitted
+            # an immediate start/update log; UI collapse keeps this latest one with duration.
+            from src.domain.models import StepLog
+
+            if isinstance(enriched[index], StepLog):
+                # Runtime is not available here; caller emits after this helper.
+                pass
+        except Exception:
+            pass
+    output["step_logs"] = enriched
+
 def _wrap_stage_node(
     *,
     name: str,
@@ -113,6 +156,18 @@ def _wrap_stage_node(
                 error=error,
             )
             enriched_log = runtime.add_stage_execution_log(log)
+            if isinstance(output, dict):
+                _enrich_step_logs_with_duration(
+                    state=state,
+                    output=output,
+                    duration_ms=log.duration_ms,
+                    duration_seconds=log.duration_seconds,
+                )
+                previous_count = len(state.get("step_logs", []))
+                step_logs = output.get("step_logs")
+                if isinstance(step_logs, list) and len(step_logs) > previous_count:
+                    for item in step_logs[previous_count:]:
+                        runtime.emit_step(item)
             if status == "succeeded" and isinstance(output, dict):
                 output["stage_execution_logs"] = [*state.get("stage_execution_logs", []), enriched_log]
 
@@ -175,7 +230,6 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("vlm_analysis", nodes.vlm_analysis_node),
         ("fact_extractor", nodes.fact_extractor_node),
         ("reasoner", nodes.reasoner_node),
-        ("verifier", nodes.verifier_node),
         ("insights", nodes.insights_node),
         ("vision_score", nodes.vision_score_node),
         ("evaluation_summary", nodes.evaluation_summary_node),
@@ -220,8 +274,7 @@ def build_pipeline_graph(runtime: RuntimeContext):
 
     graph.add_edge("vlm_analysis", "fact_extractor")
     graph.add_edge("fact_extractor", "reasoner")
-    graph.add_edge("reasoner", "verifier")
-    graph.add_edge("verifier", "insights")
+    graph.add_edge("reasoner", "insights")
     graph.add_edge("insights", "vision_score")
     graph.add_edge("vision_score", "evaluation_summary")
     graph.add_edge("evaluation_summary", "completed")

@@ -1,6 +1,7 @@
 mode = "streamlit"
 
 [settings]
+visrag_enabled = true
 artifact_root = "./artifacts"
 visrag_corpus_root = "./rag_corpus/data"
 visrag_top_k_examples = 5
@@ -52,12 +53,12 @@ timeout_seconds = 60.0
 
 [vlm_model]
 provider = "ollama"
-model = "qwen3.5:cloud"
+model = "qwen3-vl:235b-cloud"
 temperature = 0.0
 timeout_seconds = 60.0
 
 [vision_judge_model]
 provider = "ollama"
-model = "qwen3.5:cloud"
+model = "qwen3-vl:235b-cloud"
 temperature = 0.0
 timeout_seconds = 60.0

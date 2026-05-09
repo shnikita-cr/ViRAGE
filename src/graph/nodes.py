@@ -21,7 +21,6 @@ from src.services.scenegraph_check import ScenegraphCheckService
 from src.services.spec_score import SpecScoreService
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegalite_plot_drawing import VegaLitePlotDrawingService
-from src.services.verifier import VerifierService
 from src.services.vision_score import VisionScoreService
 from src.services.visrag import VisRAGService
 from src.services.vlm_analysis import VLMAnalysisService
@@ -49,7 +48,6 @@ class PipelineNodes:
         self.vlm_analysis = VLMAnalysisService()
         self.fact_extractor = FactExtractorService()
         self.reasoner = ReasonerService()
-        self.verifier = VerifierService()
         self.insights = InsightsService()
         self.spec_score = SpecScoreService()
         self.vision_score = VisionScoreService()
@@ -709,6 +707,39 @@ class PipelineNodes:
                 ),
             }
 
+        final_examples = list(state.get("visual_feedback_examples", []))
+        final_feedback_example_path = ""
+        final_corpus_path = ""
+        try:
+            final_example = self.feedback_corpus_writer.build_example(
+                run_id=state["run_id"],
+                attempt_number=attempt_number,
+                query=state["query"],
+                vega_spec=state["vega_spec"],
+                rendered_png_path=state["plot_image"]["image_path"],
+                vlm_description=state["vlm_chart_description"],
+                chart_facts=state["chart_fact_summary"],
+                judge_result=judge,
+                request_analysis=state.get("request_analysis"),
+            )
+            artifact_paths = self._save_into(
+                artifact_paths,
+                state["run_id"],
+                f"semantic_attempt_{attempt_number:03d}_feedback_example",
+                final_example.model_dump(),
+            )
+            final_feedback_example_path = artifact_paths.get(f"semantic_attempt_{attempt_number:03d}_feedback_example", "")
+            final_examples.append(final_example)
+            if self.runtime.settings.semantic_feedback_save_rejected_specs:
+                final_corpus_path = self.feedback_corpus_writer.append_to_corpus(final_example, self.runtime)
+        except Exception as exc:
+            artifact_paths = self._save_into(
+                artifact_paths,
+                state["run_id"],
+                f"semantic_attempt_{attempt_number:03d}_feedback_write_error",
+                {"error": f"{type(exc).__name__}: {exc}"},
+            )
+
         summary = SemanticFeedbackLoopSummary(
             enabled=True,
             max_attempts=max_attempts,
@@ -717,15 +748,16 @@ class PipelineNodes:
             accepted=False,
             final_status="failed",
             final_confidence=judge.confidence,
-            saved_feedback_count=len(state.get("visual_feedback_examples", [])),
+            saved_feedback_count=len(final_examples),
             missing_requirements=judge.missing_requirements,
             improvement_comments=judge.improvement_comments,
-            feedback_corpus_path=str(self.runtime.settings.semantic_feedback_corpus_path),
+            feedback_corpus_path=final_corpus_path or str(self.runtime.settings.semantic_feedback_corpus_path),
         )
         artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary", summary.model_dump())
         summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
         return {
             "semantic_status": "failed",
+            "visual_feedback_examples": final_examples,
             "semantic_feedback_loop_summary": summary,
             "stage": PipelineStage.VERIFICATION,
             "trace": self._trace(state, "semantic_decision_failed"),
@@ -847,31 +879,9 @@ class PipelineNodes:
             ),
         }
 
-    @traceable(name="virage.verifier")
-    def verifier_node(self, state: PipelineState) -> dict:
-        before = len(self.runtime.model_call_logs)
-        result = self.verifier.invoke(state["insight_reasoning"], runtime=self.runtime)
-        artifact_paths = self._save(state, "insight_verification", result.model_dump())
-        return {
-            "insight_verification": result,
-            "stage": PipelineStage.VERIFICATION,
-            "trace": self._trace(state, "verifier"),
-            "artifact_paths": artifact_paths,
-            "step_logs": self._append_log(
-                state,
-                stage="verifier",
-                title="Verification",
-                summary=result.insight_verification_summary,
-                inputs=["insight candidates"],
-                outputs=result.verified_insights[:3],
-                details=self._stage_details(before) | {"artifact": artifact_paths["insight_verification"],
-                                                       **result.model_dump()},
-            ),
-        }
-
     @traceable(name="virage.insights")
     def insights_node(self, state: PipelineState) -> dict:
-        result = self.insights.invoke(state["insight_verification"])
+        result = self.insights.invoke(state["insight_reasoning"])
         artifact_paths = self._save(state, "insights", result.model_dump())
         return {
             "insights": result,
@@ -883,7 +893,7 @@ class PipelineNodes:
                 stage="insights",
                 title="Final insights",
                 summary=f"{len(result.final_insights)} insights",
-                inputs=["verified insights"],
+                inputs=["insight candidates"],
                 outputs=result.final_insights[:3],
                 details={"artifact": artifact_paths["insights"], **result.model_dump()},
             ),
@@ -923,7 +933,7 @@ class PipelineNodes:
             state.get("structural_spec_metric"),
             state.get("visual_quality_metric"),
             state["empty_chart_check"],
-            state["insight_verification"],
+            state.get("insights"),
         )
         artifact_paths = self._save(state, "evaluation_summary", result.model_dump())
         return {

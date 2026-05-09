@@ -37,6 +37,17 @@ class VisRAGService(BaseService):
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGResult:
+        if not bool(getattr(runtime.settings, "visrag_enabled", True)):
+            empty_set = CandidateSpecSet(candidate_specs=[], retrieved_examples=[], ranking_hints=["VisRAG disabled by project settings."])
+            return VisRAGResult(
+                caveats=["VisRAG disabled by project settings."],
+                retrieved_examples=[],
+                corpus_status={"enabled": "false", "examples": "0"},
+                retrieval_strategy="disabled",
+                retrieval_query="",
+                candidate_spec_set=empty_set,
+            )
+
         request = self._to_core_request(query_understanding, request_analysis, data_profile, runtime)
         core = VisRAGCoreService(
             VisRAGConfig(

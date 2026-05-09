@@ -10,6 +10,7 @@ class ViRAGESettings(BaseModel):
     project_name: str = Field(default="ViRAGE")
     default_figure_dpi: int = Field(default=144)
 
+    visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/data"))
     visrag_top_k_examples: int = Field(default=5, ge=1)
     visrag_retriever_backend: str = Field(default="bm25")
