@@ -41,20 +41,19 @@ def _image_to_data_url(image_path: str) -> str:
 
 
 def _normalize_multimodal_prompt_input(prompt_text: str, image_path: str) -> Any:
-    """Build a LangChain-compatible multimodal message with image bytes."""
+    return _normalize_multimodal_prompt_input_many(prompt_text, [image_path])
+
+
+def _normalize_multimodal_prompt_input_many(prompt_text: str, image_paths: list[str]) -> Any:
+    """Build a LangChain-compatible multimodal message with one or more image attachments."""
     if not is_langchain_available():
         raise RuntimeError("Multimodal calls require langchain_core message support.")
     from langchain_core.messages import HumanMessage
 
-    data_url = _image_to_data_url(image_path)
-    return [
-        HumanMessage(
-            content=[
-                {"type": "text", "text": prompt_text},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ]
-        )
-    ]
+    content: list[dict[str, Any]] = [{"type": "text", "text": prompt_text}]
+    for image_path in image_paths:
+        content.append({"type": "image_url", "image_url": {"url": _image_to_data_url(image_path)}})
+    return [HumanMessage(content=content)]
 
 
 def _model_name(llm: Any) -> str:
@@ -390,15 +389,44 @@ def invoke_structured_multimodal(
         examples: list[dict[str, Any]] | None = None,
         max_attempts: int = 2,
 ) -> T:
-    path = Path(image_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Image path does not exist: {image_path}")
-    log_prompt = f"{prompt_text}\n\n[Image attached: {path.name}, {path.stat().st_size} bytes]"
+    return invoke_structured_multimodal_many(
+        llm,
+        prompt_text,
+        [image_path],
+        schema,
+        runtime=runtime,
+        stage=stage,
+        role=role,
+        examples=examples,
+        max_attempts=max_attempts,
+    )
+
+
+def invoke_structured_multimodal_many(
+        llm: Any,
+        prompt_text: str,
+        image_paths: list[str],
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
+) -> T:
+    paths = [Path(image_path) for image_path in image_paths]
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Image path does not exist: {path}")
+    attachments = ", ".join(f"{path.name}={path.stat().st_size} bytes" for path in paths)
+    log_prompt = f"{prompt_text}\n\n[Images attached: {attachments}]"
     return _invoke_structured_with_message_builder(
         llm,
         prompt_text,
         schema,
-        message_builder=lambda current_prompt: _normalize_multimodal_prompt_input(current_prompt, image_path),
+        message_builder=lambda current_prompt: _normalize_multimodal_prompt_input_many(
+            current_prompt, [path.as_posix() for path in paths]
+        ),
         log_prompt_text=log_prompt,
         runtime=runtime,
         stage=stage,
@@ -420,11 +448,36 @@ async def ainvoke_structured_multimodal(
         examples: list[dict[str, Any]] | None = None,
         max_attempts: int = 2,
 ) -> T:
-    return await asyncio.to_thread(
-        invoke_structured_multimodal,
+    return await ainvoke_structured_multimodal_many(
         llm,
         prompt_text,
-        image_path,
+        [image_path],
+        schema,
+        runtime=runtime,
+        stage=stage,
+        role=role,
+        examples=examples,
+        max_attempts=max_attempts,
+    )
+
+
+async def ainvoke_structured_multimodal_many(
+        llm: Any,
+        prompt_text: str,
+        image_paths: list[str],
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
+) -> T:
+    return await asyncio.to_thread(
+        invoke_structured_multimodal_many,
+        llm,
+        prompt_text,
+        image_paths,
         schema,
         runtime=runtime,
         stage=stage,

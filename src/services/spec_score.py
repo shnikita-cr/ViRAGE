@@ -2,84 +2,90 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.models import SpecValidationResult, StructuralSpecMetric
+from src.domain.models import EmptyChartCheckResult, SpecValidationResult, StructuralSpecMetric
 from src.services.base import BaseService
-from src.visrag_core import canonicalize_chart_type, normalize_aggregate
+from src.services.vegachat_spec_metrics import compute_vegachat_spec_score
 
 
 class SpecScoreService(BaseService):
-    """Benchmark metric comparing a generated spec with a ground-truth spec."""
+    """VegaChat Spec Score for generated Vega-Lite specifications.
 
-    def invoke(self, spec_validation: SpecValidationResult, ground_truth_spec: dict[str, Any]) -> StructuralSpecMetric:
-        if not spec_validation.is_valid:
-            return StructuralSpecMetric(score=0.0, details=["generated_spec_invalid"])
-        generated = spec_validation.validated_spec
-        mark_score = 1.0 if _mark(generated) == _mark(ground_truth_spec) else 0.0
-        encoding_score = _encoding_score(generated.get("encoding"), ground_truth_spec.get("encoding"))
-        transform_score = _transform_score(generated.get("transform"), ground_truth_spec.get("transform"))
-        score = round((0.2 * mark_score) + (0.65 * encoding_score) + (0.15 * transform_score), 4)
+    The formula mirrors VegaChat's deterministic Spec Score:
+    - a non-drawable chart receives 0;
+    - valid schema and drawable status receive a small positive contribution;
+    - empty charts receive a very large penalty in the denominator;
+    - marks are scored with F1 and partial equivalence for circle/point/square;
+    - encodings are scored with weighted F-beta, beta=2, x/y and row/column swaps allowed;
+    - view-level transforms are scored with F1 over normalized transform paths;
+    - unnecessary view-level transforms penalize the encoding component.
+    """
+
+    def invoke(
+        self,
+        spec_validation: SpecValidationResult,
+        ground_truth_spec: dict[str, Any],
+        *,
+        user_prompt: str | None = None,
+        empty_chart_check: EmptyChartCheckResult | None = None,
+    ) -> StructuralSpecMetric:
+        generated_spec = spec_validation.validated_spec or {}
+        is_drawable = bool(spec_validation.is_valid)
+        is_valid_schema = bool(spec_validation.is_valid)
+        is_empty = _is_empty(empty_chart_check)
+
+        if not generated_spec:
+            return StructuralSpecMetric(
+                score=0.0,
+                validity_score=0.0,
+                empty_chart_penalty=0.0,
+                details=["formula=vegachat_spec_score_impl", "generated_spec_missing"],
+            )
+
+        result = compute_vegachat_spec_score(
+            ground_truth_spec,
+            generated_spec,
+            utterance=user_prompt or "",
+            hyp_is_drawable=is_drawable,
+            hyp_is_empty_chart=is_empty,
+            hyp_is_valid_schema=is_valid_schema,
+        )
+        metrics = result.to_metrics_dict()
+        empty_penalty = 0.0 if is_empty else 1.0
         return StructuralSpecMetric(
-            score=score,
-            mark_score=mark_score,
-            encoding_score=round(encoding_score, 4),
-            transform_score=round(transform_score, 4),
-            task_alignment_score=0.0,
+            score=round(result.spec_score, 6),
+            mark_score=round(result.mark.f1, 6),
+            encoding_score=round(result.encoding.f1, 6),
+            transform_score=round(result.transform.f1, 6),
+            validity_score=1.0 if is_valid_schema else 0.0,
+            empty_chart_penalty=empty_penalty,
+            encoding_precision=round(result.encoding.precision, 6),
+            encoding_recall=round(result.encoding.recall, 6),
+            transform_precision=round(result.transform.precision, 6),
+            transform_recall=round(result.transform.recall, 6),
+            mark_precision=round(result.mark.precision, 6),
+            mark_recall=round(result.mark.recall, 6),
+            weights={
+                "drawable": 0.005,
+                "valid_schema": 0.005 if is_valid_schema else 1.0,
+                "not_empty": 1000.0 if is_empty else 0.005,
+                "encoding": 3.0,
+                "mark": 1.0 if _prompt_mentions_mark(user_prompt or "") else 0.5,
+                "transform": 1.0,
+            },
             details=[
-                f"mark_score={mark_score:.4f}",
-                f"encoding_score={encoding_score:.4f}",
-                f"transform_score={transform_score:.4f}",
+                *result.details,
+                *[f"{key}={value:.6f}" for key, value in metrics.items() if isinstance(value, float)],
             ],
         )
 
 
-def _mark(spec: dict[str, Any]) -> str:
-    mark = spec.get("mark")
-    value = mark.get("type") if isinstance(mark, dict) else mark
-    return canonicalize_chart_type(str(value or ""))
+def _is_empty(empty_chart_check: EmptyChartCheckResult | None) -> bool:
+    if empty_chart_check is None:
+        return False
+    return bool(empty_chart_check.empty_chart_signal or empty_chart_check.empty_chart_status == "empty")
 
 
-def _encoding_score(generated: Any, expected: Any) -> float:
-    generated_items = _encoding_items(generated)
-    expected_items = _encoding_items(expected)
-    if not expected_items:
-        return 1.0 if not generated_items else 0.0
-    return len(generated_items & expected_items) / len(expected_items)
+def _prompt_mentions_mark(prompt: str) -> bool:
+    from src.services.vegachat_spec_metrics import get_marks_in_utterance
 
-
-def _encoding_items(encoding: Any) -> set[tuple[str, str, str, str]]:
-    if not isinstance(encoding, dict):
-        return set()
-    items: set[tuple[str, str, str, str]] = set()
-    for channel, channel_spec in encoding.items():
-        if isinstance(channel_spec, dict):
-            items.add(_channel_item(str(channel), channel_spec))
-    return items
-
-
-def _channel_item(channel: str, channel_spec: dict[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        channel,
-        str(channel_spec.get("field") or ""),
-        str(channel_spec.get("type") or ""),
-        str(normalize_aggregate(channel_spec.get("aggregate")) or ""),
-    )
-
-
-def _transform_score(generated: Any, expected: Any) -> float:
-    generated_items = _transform_items(generated)
-    expected_items = _transform_items(expected)
-    if not expected_items:
-        return 1.0 if not generated_items else 0.0
-    return len(generated_items & expected_items) / len(expected_items)
-
-
-def _transform_items(transforms: Any) -> set[str]:
-    if not isinstance(transforms, list):
-        return set()
-    result: set[str] = set()
-    for transform in transforms:
-        if not isinstance(transform, dict):
-            continue
-        for key in sorted(transform.keys()):
-            result.add(str(key))
-    return result
+    return bool(get_marks_in_utterance(prompt))

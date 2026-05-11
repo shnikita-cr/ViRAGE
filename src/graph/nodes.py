@@ -505,7 +505,12 @@ class PipelineNodes:
         ground_truth = state.get("user_context", {}).get("ground_truth_spec")
         if not isinstance(ground_truth, dict):
             return {}
-        result = self.spec_score.invoke(state["spec_validation"], ground_truth)
+        result = self.spec_score.invoke(
+            state["spec_validation"],
+            ground_truth,
+            user_prompt=state.get("query"),
+            empty_chart_check=state.get("empty_chart_check"),
+        )
         artifact_paths = self._save(state, "structural_spec_metric", result.model_dump())
         return {
             "structural_spec_metric": result,
@@ -905,8 +910,15 @@ class PipelineNodes:
             return {}
         before = len(self.runtime.model_call_logs)
         plot_image = PlotImageArtifact(**state["plot_image"])
-        result = self.vision_score.invoke(plot_image, runtime=self.runtime,
-                                          query_understanding=state.get("query_understanding"))
+        user_context = state.get("user_context", {}) if isinstance(state.get("user_context"), dict) else {}
+        reference_image_path = user_context.get("reference_image_path")
+        result = self.vision_score.invoke(
+            plot_image,
+            runtime=self.runtime,
+            query_understanding=state.get("query_understanding"),
+            user_prompt=state.get("query"),
+            reference_image_path=reference_image_path if isinstance(reference_image_path, str) else None,
+        )
         artifact_paths = self._save(state, "visual_quality_metric", result.model_dump())
         return {
             "visual_quality_metric": result,
