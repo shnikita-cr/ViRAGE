@@ -368,6 +368,17 @@ def render_reasoning_trace(steps: list[StepLog], model_calls: list[ModelCallLog]
                 st.json(short_json_preview(latest_step.details))
 
 
+def render_token_usage_cards(token_usage: Any) -> None:
+    input_tokens = int(getattr(token_usage, "prompt_tokens", 0) or 0)
+    output_tokens = int(getattr(token_usage, "completion_tokens", 0) or 0)
+    total_tokens = int(getattr(token_usage, "total_tokens", 0) or 0)
+
+    col_input, col_output, col_total = st.columns(3)
+    col_input.metric("Input tokens", input_tokens)
+    col_output.metric("Output tokens", output_tokens)
+    col_total.metric("Total tokens", total_tokens)
+
+
 def render_model_calls(calls: list[ModelCallLog]) -> None:
     st.subheader("Model calls")
 
@@ -378,13 +389,16 @@ def render_model_calls(calls: list[ModelCallLog]) -> None:
     summary_rows = []
 
     for index, call in enumerate(calls, start=1):
+        usage = call.token_usage
         summary_rows.append(
             {
                 "idx": f"{call.call_index or index:03d}",
                 "stage": call.stage,
                 "role": call.model_role,
                 "model": call.model_name,
-                "tokens": call.token_usage.total_tokens,
+                "input_tokens": int(usage.prompt_tokens or 0),
+                "output_tokens": int(usage.completion_tokens or 0),
+                "total_tokens": int(usage.total_tokens or 0),
                 "duration_s": round(call.duration_seconds, 2),
                 "errors": len(call.parser_errors),
             }
@@ -400,7 +414,10 @@ def render_model_calls(calls: list[ModelCallLog]) -> None:
             st.caption(f"{call.model_role} · {call.model_name}")
 
             st.caption("Token usage")
-            st.json(call.token_usage.model_dump())
+            render_token_usage_cards(call.token_usage)
+
+            with st.expander("Token usage JSON", expanded=False):
+                st.json(call.token_usage.model_dump())
 
             st.caption("Prompt")
             st.code(call.prompt)
@@ -1262,7 +1279,9 @@ if not pending_run:
             st.json(run_settings)
 
             st.subheader("Token usage summary")
-            st.json(result.token_usage_summary.model_dump())
+            render_token_usage_cards(result.token_usage_summary)
+            with st.expander("Token usage summary JSON", expanded=False):
+                st.json(result.token_usage_summary.model_dump())
 
         try:
             with st.expander("Prepared table preview", expanded=False):
@@ -1460,7 +1479,9 @@ with top_right:
         st.warning(f"Could not preview prepared table: {exc}")
 
     st.subheader("Token usage summary")
-    st.json(result.token_usage_summary.model_dump())
+    render_token_usage_cards(result.token_usage_summary)
+    with st.expander("Token usage summary JSON", expanded=False):
+        st.json(result.token_usage_summary.model_dump())
 
 render_manual_feedback_form(result, st.session_state.last_run_settings)
 
