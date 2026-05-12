@@ -22,3 +22,4 @@ vl-convert-python
 openpyxl
 pyarrow
 rank-bm25
+torchvision
