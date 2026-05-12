@@ -61,15 +61,59 @@ class ChartAnswerJudgeService(BaseService):
             }],
             max_attempts=2,
         )
-        recommendation = str(parsed.retry_recommendation).strip().lower()
-        if recommendation not in {"accept", "retry", "reject"}:
-            recommendation = "retry"
+        missing_requirements = _clean_text_list(parsed.missing_requirements)
+        wrong_or_suspicious_parts = _clean_text_list(parsed.wrong_or_suspicious_parts)
+        improvement_comments = _clean_text_list(parsed.improvement_comments)
+        feedback_for_next_generation = str(parsed.feedback_for_next_generation or "").strip()
+        recommendation = _normalize_retry_recommendation(
+            parsed.retry_recommendation,
+            answers_user_query=bool(parsed.answers_user_query),
+            feedback_for_next_generation=feedback_for_next_generation,
+            missing_requirements=missing_requirements,
+            wrong_or_suspicious_parts=wrong_or_suspicious_parts,
+            improvement_comments=improvement_comments,
+        )
         return ChartAnswerJudgeResult(
             answers_user_query=bool(parsed.answers_user_query),
             confidence=max(0.0, min(1.0, float(parsed.confidence or 0.0))),
-            retry_recommendation=recommendation,  # type: ignore[arg-type]
-            missing_requirements=list(parsed.missing_requirements),
-            wrong_or_suspicious_parts=list(parsed.wrong_or_suspicious_parts),
-            improvement_comments=list(parsed.improvement_comments),
-            feedback_for_next_generation=parsed.feedback_for_next_generation,
+            retry_recommendation=recommendation,
+            missing_requirements=missing_requirements,
+            wrong_or_suspicious_parts=wrong_or_suspicious_parts,
+            improvement_comments=improvement_comments,
+            feedback_for_next_generation=feedback_for_next_generation,
         )
+
+
+def _clean_text_list(values: list[str]) -> list[str]:
+    return [str(item).strip() for item in values if str(item).strip()]
+
+
+def _normalize_retry_recommendation(
+    value: object,
+    *,
+    answers_user_query: bool,
+    feedback_for_next_generation: str,
+    missing_requirements: list[str],
+    wrong_or_suspicious_parts: list[str],
+    improvement_comments: list[str],
+) -> str:
+    raw = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    actionable_feedback_exists = bool(
+        feedback_for_next_generation
+        or missing_requirements
+        or wrong_or_suspicious_parts
+        or improvement_comments
+    )
+
+    if raw in {"accept", "accepted", "ok", "okay", "pass", "passed", "no_retry", "no_retries", "none", "not_retry", "do_not_retry"}:
+        return "accept"
+    if raw in {"retry", "revise", "regenerate", "needs_retry", "needs_improvement", "fix"}:
+        return "retry"
+    if raw in {"reject", "rejected", "fail", "failed"}:
+        return "reject"
+
+    # Be conservative only when the judge found concrete issues. Otherwise a positive answer should not
+    # trigger a silent retry just because the model used a non-standard recommendation token.
+    if answers_user_query and not actionable_feedback_exists:
+        return "accept"
+    return "retry" if actionable_feedback_exists else "reject"

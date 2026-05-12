@@ -52,6 +52,8 @@ class VisRAGService(BaseService):
         core = VisRAGCoreService(
             VisRAGConfig(
                 corpus_root=self._corpus_root(runtime),
+                feedback_corpus_path=getattr(runtime.settings, "semantic_feedback_corpus_path", None),
+                include_feedback_corpus=bool(getattr(runtime.settings, "visrag_include_feedback_corpus", True)),
                 retriever_backend=getattr(runtime.settings, "visrag_retriever_backend", "bm25"),
                 embedding_provider=getattr(runtime.settings, "visrag_embedding_provider", None),
                 embedding_model=getattr(runtime.settings, "visrag_embedding_model", None),

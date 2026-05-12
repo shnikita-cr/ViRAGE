@@ -34,11 +34,23 @@ class VisRAGCoreService:
     def _load_examples(self, caveats: list[str]) -> list[VisRAGExample]:
         if self._examples is not None:
             return self._examples
+        examples: list[VisRAGExample] = []
         try:
-            self._examples = VisRAGCorpus(self.config.corpus_root).load()
+            examples.extend(VisRAGCorpus(self.config.corpus_root).load())
         except FileNotFoundError:
             caveats.append(f"missing_corpus: {self.config.corpus_root.as_posix()} does not exist.")
-            self._examples = []
+        if self.config.include_feedback_corpus and self.config.feedback_corpus_path is not None:
+            feedback_path = self.config.feedback_corpus_path
+            try:
+                feedback_examples = VisRAGCorpus(feedback_path).load()
+                examples.extend(feedback_examples)
+                if feedback_examples:
+                    caveats.append(f"feedback_corpus_loaded: {len(feedback_examples)} examples from {feedback_path.as_posix()}.")
+            except FileNotFoundError:
+                pass
+            except ValueError as exc:
+                caveats.append(f"feedback_corpus_skipped: {exc}")
+        self._examples = examples
         return self._examples
 
     @staticmethod

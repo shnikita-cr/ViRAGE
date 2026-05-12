@@ -32,6 +32,8 @@ class VisRAGRequest(BaseModel):
 
 class VisRAGConfig(BaseModel):
     corpus_root: Path = Path("rag_corpus/data")
+    feedback_corpus_path: Path | None = None
+    include_feedback_corpus: bool = True
     retriever_backend: str = "bm25"
     embedding_provider: str | None = None
     embedding_model: str | None = None

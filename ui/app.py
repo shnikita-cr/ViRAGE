@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import tempfile
+from io import BytesIO
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
@@ -20,6 +22,8 @@ from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
 from src.application.project_config import DEFAULT_CONFIG_PATH, ProjectConfig, load_project_config
 from src.domain.models import ModelCallLog, StepLog
+from src.infrastructure.runtime import RuntimeContext
+from src.services.visual_feedback.feedback_corpus_writer import FeedbackCorpusWriterService
 
 
 CONFIG_DIR = PROJECT_ROOT / "ui" / "config"
@@ -91,6 +95,156 @@ def path_from_config_label(label: str, config_files: list[Path]) -> Path:
     if label not in by_label:
         raise ValueError(f"Unknown config label: {label}")
     return by_label[label]
+
+
+def read_table_preview_from_bytes(file_name: str, payload: bytes, *, max_rows: int = 20) -> pd.DataFrame:
+    suffix = Path(file_name).suffix.lower()
+    buffer = BytesIO(payload)
+    if suffix in {".xlsx", ".xls"}:
+        return pd.read_excel(buffer, nrows=max_rows)
+    return pd.read_csv(buffer, nrows=max_rows)
+
+
+def read_table_preview_from_path(path_value: str | Path, *, max_rows: int = 20) -> pd.DataFrame:
+    path = Path(path_value)
+    if path.suffix.lower() in {".xlsx", ".xls"}:
+        return pd.read_excel(path, nrows=max_rows)
+    return pd.read_csv(path, nrows=max_rows)
+
+
+def render_table_preview(title: str, data: pd.DataFrame) -> None:
+    st.subheader(title)
+    left, middle, right = st.columns(3)
+    with left:
+        st.metric("Preview rows", len(data))
+    with middle:
+        st.metric("Columns", len(data.columns))
+    with right:
+        st.metric("Missing values", int(data.isna().sum().sum()))
+    st.dataframe(data, use_container_width=True, hide_index=True)
+    with st.expander("Column types", expanded=False):
+        st.dataframe(
+            [{"column": name, "dtype": str(dtype)} for name, dtype in data.dtypes.items()],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+def final_data_path(result: Any) -> str:
+    if getattr(result, "data_preparation", None) and result.data_preparation.output_path:
+        return result.data_preparation.output_path
+    return result.data_path
+
+
+def save_manual_feedback_artifact(result: Any, example: Any, corpus_path: str) -> str:
+    run_dir = PROJECT_ROOT / "artifacts" / result.run_id
+    manual_dir = run_dir / "manual_feedback"
+    manual_dir.mkdir(parents=True, exist_ok=True)
+    index = len(sorted(manual_dir.glob("*_user_feedback.json"))) + 1
+    path = manual_dir / f"{index:03d}_user_feedback.json"
+    payload = example.model_dump() if hasattr(example, "model_dump") else dict(example)
+    payload["corpus_path"] = corpus_path
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    return path.as_posix()
+
+
+def save_manual_feedback_for_result(
+    *,
+    result: Any,
+    project_config: ProjectConfig,
+    comment: str,
+    needs_regeneration: bool,
+) -> tuple[str, str]:
+    writer = FeedbackCorpusWriterService()
+    runtime = RuntimeContext(settings=project_config.settings)
+    runtime.current_run_id = result.run_id
+    image_path = result.plot_image.get("image_path") if result.plot_image else ""
+    if result.vega_spec is None:
+        raise ValueError("Cannot save chart feedback because the run has no Vega-Lite specification.")
+    example = writer.build_user_feedback_example(
+        run_id=result.run_id,
+        query=result.query,
+        comment=comment,
+        needs_regeneration=needs_regeneration,
+        vega_spec=result.vega_spec,
+        rendered_png_path=image_path or "",
+        request_analysis=result.request_analysis,
+        attempt_number=(result.semantic_feedback_loop_summary.attempt_count if result.semantic_feedback_loop_summary else 1),
+    )
+    corpus_path = writer.append_to_corpus(example, runtime)
+    artifact_path = save_manual_feedback_artifact(result, example, corpus_path)
+    return corpus_path, artifact_path
+
+
+def build_manual_rerun_payload(
+    *,
+    previous_result: Any,
+    previous_settings: dict[str, Any],
+    manual_feedback: str,
+) -> dict[str, Any]:
+    return {
+        "config_label": previous_settings["config_path"],
+        "chart_mode": previous_settings["chart_mode"],
+        "compute_metrics": bool(previous_settings["compute_metrics"]),
+        "visrag_enabled": bool(previous_settings.get("visrag_enabled", True)),
+        "spec_generation_max_attempts": int(previous_settings.get("spec_generation_max_attempts", 3)),
+        "semantic_feedback_loop_enabled": bool(previous_settings.get("semantic_feedback_loop_enabled", False)),
+        "semantic_feedback_max_attempts": int(previous_settings.get("semantic_feedback_max_attempts", 2)),
+        "semantic_feedback_min_accept_confidence": float(previous_settings.get("semantic_feedback_min_accept_confidence", 0.75)),
+        "semantic_feedback_save_rejected_specs": bool(previous_settings.get("semantic_feedback_save_rejected_specs", True)),
+        "data_path": final_data_path(previous_result),
+        "query": previous_result.query,
+        "manual_feedback": manual_feedback,
+    }
+
+
+def render_manual_feedback_form(result: Any, run_settings: dict[str, Any]) -> None:
+    st.subheader("Manual chart feedback")
+    with st.form("manual_chart_feedback_form", clear_on_submit=False):
+        comment = st.text_area(
+            "Comment or correction",
+            height=120,
+            placeholder="Например: Сделай горизонтальные столбцы и раздели метрики по независимым шкалам.",
+        )
+        needs_regeneration = st.checkbox("Regenerate chart using this comment", value=False)
+        submitted = st.form_submit_button("Save feedback")
+
+    if not submitted:
+        return
+
+    if not comment.strip():
+        st.warning("Write a comment before saving feedback.")
+        return
+
+    config_path = path_from_config_label(run_settings["config_path"], config_files)
+    project_config = load_project_config(config_path)
+    project_config = apply_streamlit_run_overrides(
+        project_config=project_config,
+        compute_metrics=bool(run_settings["compute_metrics"]),
+        visrag_enabled=bool(run_settings.get("visrag_enabled", True)),
+        spec_generation_max_attempts=int(run_settings.get("spec_generation_max_attempts", 3)),
+        semantic_feedback_loop_enabled=bool(run_settings.get("semantic_feedback_loop_enabled", False)),
+        semantic_feedback_max_attempts=int(run_settings.get("semantic_feedback_max_attempts", 2)),
+        semantic_feedback_min_accept_confidence=float(run_settings.get("semantic_feedback_min_accept_confidence", 0.75)),
+        semantic_feedback_save_rejected_specs=bool(run_settings.get("semantic_feedback_save_rejected_specs", True)),
+    )
+    corpus_path, artifact_path = save_manual_feedback_for_result(
+        result=result,
+        project_config=project_config,
+        comment=comment,
+        needs_regeneration=needs_regeneration,
+    )
+    st.success(f"Feedback saved to corpus: {corpus_path}")
+    st.caption(f"Run artifact: {artifact_path}")
+
+    if needs_regeneration:
+        st.session_state.pending_run = build_manual_rerun_payload(
+            previous_result=result,
+            previous_settings=run_settings,
+            manual_feedback=comment.strip(),
+        )
+        st.session_state.pipeline_running = True
+        st.rerun()
 
 
 def apply_streamlit_run_overrides(
@@ -794,6 +948,7 @@ def build_pending_run_payload(
         "uploaded_file_name": uploaded_file.name,
         "uploaded_file_bytes": uploaded_file.getvalue(),
         "query": query,
+        "manual_feedback": "",
     }
 
 
@@ -964,6 +1119,14 @@ uploaded_file = st.file_uploader(
     disabled=controls_disabled,
 )
 
+if uploaded_file is not None and not controls_disabled:
+    try:
+        preview_df = read_table_preview_from_bytes(uploaded_file.name, uploaded_file.getvalue())
+        with st.expander("Table preview", expanded=True):
+            render_table_preview("Uploaded table preview", preview_df)
+    except Exception as exc:
+        st.warning(f"Could not preview the uploaded table: {exc}")
+
 query = st.text_area(
     "Request",
     height=120,
@@ -1027,6 +1190,14 @@ if not pending_run:
             st.subheader("Token usage summary")
             st.json(result.token_usage_summary.model_dump())
 
+        try:
+            with st.expander("Prepared table preview", expanded=False):
+                render_table_preview("Prepared table preview", read_table_preview_from_path(final_data_path(result)))
+        except Exception as exc:
+            st.warning(f"Could not preview prepared table: {exc}")
+
+        render_manual_feedback_form(result, run_settings)
+
         render_metrics(result, run_settings["compute_metrics"])
 
     st.stop()
@@ -1043,8 +1214,10 @@ locked_semantic_feedback_max_attempts = int(pending_run.get("semantic_feedback_m
 locked_semantic_feedback_min_accept_confidence = float(pending_run.get("semantic_feedback_min_accept_confidence", 0.75))
 locked_semantic_feedback_save_rejected_specs = bool(pending_run.get("semantic_feedback_save_rejected_specs", True))
 locked_query = pending_run["query"]
-uploaded_file_name = pending_run["uploaded_file_name"]
-uploaded_file_bytes = pending_run["uploaded_file_bytes"]
+uploaded_file_name = pending_run.get("uploaded_file_name", "uploaded.csv")
+uploaded_file_bytes = pending_run.get("uploaded_file_bytes")
+locked_data_path = pending_run.get("data_path")
+locked_manual_feedback = str(pending_run.get("manual_feedback") or "").strip()
 
 try:
     project_config = load_project_config(locked_config_path)
@@ -1066,10 +1239,25 @@ except Exception as exc:
     st.exception(exc)
     st.stop()
 
-suffix = Path(uploaded_file_name).suffix or ".csv"
-temp_dir = Path(tempfile.mkdtemp(prefix="virage_streamlit_"))
-data_path = temp_dir / f"uploaded{suffix}"
-data_path.write_bytes(uploaded_file_bytes)
+temp_dir: Path | None = None
+if uploaded_file_bytes is not None:
+    suffix = Path(uploaded_file_name).suffix or ".csv"
+    temp_dir = Path(tempfile.mkdtemp(prefix="virage_streamlit_"))
+    data_path = temp_dir / f"uploaded{suffix}"
+    data_path.write_bytes(uploaded_file_bytes)
+elif locked_data_path:
+    data_path = resolve_project_path(locked_data_path)
+else:
+    st.session_state.pipeline_running = False
+    st.session_state.pending_run = None
+    st.error("No dataset is available for this run.")
+    st.stop()
+
+try:
+    with st.expander("Input table preview", expanded=False):
+        render_table_preview("Input table preview", read_table_preview_from_path(data_path))
+except Exception as exc:
+    st.warning(f"Could not preview input table: {exc}")
 
 top_left, top_right = st.columns([1.2, 1])
 chart_slot = top_left.empty()
@@ -1121,6 +1309,11 @@ try:
         PipelineRequest(
             query=locked_query,
             data_path=data_path.as_posix(),
+            user_context={
+                "manual_semantic_feedback": [locked_manual_feedback] if locked_manual_feedback else [],
+                "feedback_source": "manual_user_comment" if locked_manual_feedback else "",
+                "rerun_from_user_feedback": bool(locked_manual_feedback),
+            },
         ),
         step_callback=on_step,
         model_call_callback=on_model_call,
@@ -1136,11 +1329,13 @@ except Exception as exc:
     st.session_state.pipeline_running = False
     st.session_state.pending_run = None
     st.exception(exc)
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    if temp_dir is not None:
+        shutil.rmtree(temp_dir, ignore_errors=True)
     st.stop()
 
 finally:
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    if temp_dir is not None:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 st.session_state.pipeline_running = False
 st.session_state.pending_run = None
@@ -1177,7 +1372,15 @@ with top_right:
 
     render_spec_generation_validation_details(result)
 
+    try:
+        with st.expander("Prepared table preview", expanded=False):
+            render_table_preview("Prepared table preview", read_table_preview_from_path(final_data_path(result)))
+    except Exception as exc:
+        st.warning(f"Could not preview prepared table: {exc}")
+
     st.subheader("Token usage summary")
     st.json(result.token_usage_summary.model_dump())
+
+render_manual_feedback_form(result, st.session_state.last_run_settings)
 
 render_metrics(result, locked_compute_metrics)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
@@ -30,6 +31,67 @@ from src.services.visual_feedback import (
     FeedbackCorpusWriterService,
     VLMChartDescriptionService,
 )
+
+
+def _clean_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _merge_unique_texts(*groups: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for group in groups:
+        for item in group:
+            text = _clean_text(item)
+            if text and text not in seen:
+                seen.add(text)
+                result.append(text)
+    return result
+
+
+def _manual_feedback_items(user_context: Any) -> list[str]:
+    if not isinstance(user_context, dict):
+        return []
+    values: list[str] = []
+    for key in ("manual_feedback", "manual_semantic_feedback", "user_chart_feedback", "user_feedback_for_next_generation"):
+        value = user_context.get(key)
+        if isinstance(value, str):
+            values.append(value)
+        elif isinstance(value, list):
+            values.extend(str(item) for item in value if str(item).strip())
+    return _merge_unique_texts(values)
+
+
+def _actionable_semantic_feedback(judge: Any) -> list[str]:
+    return _merge_unique_texts(
+        [getattr(judge, "feedback_for_next_generation", "")],
+        list(getattr(judge, "missing_requirements", []) or []),
+        list(getattr(judge, "wrong_or_suspicious_parts", []) or []),
+        list(getattr(judge, "improvement_comments", []) or []),
+    )
+
+
+def _semantic_feedback_text(judge: Any) -> str:
+    direct = _clean_text(getattr(judge, "feedback_for_next_generation", ""))
+    if direct:
+        return direct
+    return "\n".join(_actionable_semantic_feedback(judge))
+
+
+def _merge_generation_artifacts(
+    artifact_paths: dict[str, str],
+    generation_artifacts: dict[str, str],
+    *,
+    semantic_attempt: int,
+    technical_attempt: int,
+) -> dict[str, str]:
+    if not generation_artifacts:
+        return artifact_paths
+    merged = dict(artifact_paths)
+    for key, value in generation_artifacts.items():
+        stable_key = f"semantic_{semantic_attempt:03d}_technical_{technical_attempt:03d}_{key}"
+        merged[stable_key] = value
+    return merged
 
 
 class PipelineNodes:
@@ -239,7 +301,10 @@ class PipelineNodes:
         technical_attempt = max(1, int(state.get("technical_attempt_number", 1) or 1))
         semantic_attempt = max(1, int(state.get("semantic_attempt_number", 1) or 1))
         max_generation_attempts = max(1, int(self.runtime.settings.spec_generation_max_attempts))
-        semantic_feedback_items = list(state.get("semantic_feedback_items", []))
+        semantic_feedback_items = _merge_unique_texts(
+            _manual_feedback_items(state.get("user_context", {})),
+            list(state.get("semantic_feedback_items", [])),
+        )
         semantic_chart_fact_history = list(state.get("semantic_chart_fact_history", []))
         technical_feedback = state.get("technical_retry_feedback") or {}
 
@@ -261,10 +326,17 @@ class PipelineNodes:
             previous_chart_facts=semantic_chart_fact_history,
         )
         artifact_paths = self._save(state, f"vega_spec_technical_{technical_attempt:03d}_semantic_{semantic_attempt:03d}", result.model_dump())
+        artifact_paths = _merge_generation_artifacts(
+            artifact_paths,
+            result.generation_artifacts,
+            semantic_attempt=semantic_attempt,
+            technical_attempt=technical_attempt,
+        )
         selected = state["candidate_spec_set"].selected_candidate_spec if state.get("candidate_spec_set") else None
         return {
             "vega_spec": result,
             "technical_status": "generated",
+            "semantic_feedback_items": semantic_feedback_items,
             "stage": PipelineStage.CHART_GENERATION,
             "trace": self._trace(state, "chart_generator"),
             "artifact_paths": artifact_paths,
@@ -609,6 +681,7 @@ class PipelineNodes:
 
     @traceable(name="virage.chart_answer_judge")
     def chart_answer_judge_node(self, state: PipelineState) -> dict:
+        before = len(self.runtime.model_call_logs)
         result = self.chart_answer_judge.invoke(
             query=state["query"],
             chart_facts=state["chart_fact_summary"],
@@ -617,6 +690,14 @@ class PipelineNodes:
         )
         attempt_number = max(1, int(state.get("semantic_attempt_number", 1) or 1))
         artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_answer_judge", result.model_dump())
+        judge_model_calls = [item.model_dump() for item in self.runtime.model_call_logs[before:]]
+        if judge_model_calls:
+            artifact_paths = self._save_into(
+                artifact_paths,
+                state["run_id"],
+                f"semantic_attempt_{attempt_number:03d}_answer_judge_model_calls",
+                judge_model_calls,
+            )
         return {
             "chart_answer_judge": result,
             "stage": PipelineStage.VERIFICATION,
@@ -639,7 +720,12 @@ class PipelineNodes:
         attempt_number = max(1, int(state.get("semantic_attempt_number", 1) or 1))
         max_attempts = max(1, int(self.runtime.settings.semantic_feedback_max_attempts))
         min_confidence = float(self.runtime.settings.semantic_feedback_min_accept_confidence)
-        accepted = bool(judge.answers_user_query and judge.confidence >= min_confidence and judge.retry_recommendation == "accept")
+        actionable_feedback = _actionable_semantic_feedback(judge)
+        accepted = bool(
+            judge.answers_user_query
+            and judge.confidence >= min_confidence
+            and (judge.retry_recommendation == "accept" or not actionable_feedback)
+        )
         artifact_paths = dict(state.get("artifact_paths", {}))
 
         if accepted:
@@ -675,7 +761,7 @@ class PipelineNodes:
                 ),
             }
 
-        feedback_text = judge.feedback_for_next_generation or "\n".join(judge.improvement_comments or judge.missing_requirements)
+        feedback_text = _semantic_feedback_text(judge)
         feedback_items = [*state.get("semantic_feedback_items", [])]
         if feedback_text:
             feedback_items.append(feedback_text)
@@ -687,7 +773,12 @@ class PipelineNodes:
                 "next_semantic_attempt": attempt_number + 1,
                 "max_attempts": max_attempts,
                 "confidence": judge.confidence,
+                "answers_user_query": judge.answers_user_query,
+                "retry_recommendation": judge.retry_recommendation,
+                "actionable_feedback_exists": bool(actionable_feedback),
+                "decision_reason": "retry_requested_by_judge_with_actionable_feedback" if actionable_feedback else "retry_requested_by_judge_without_actionable_feedback",
                 "missing_requirements": judge.missing_requirements,
+                "wrong_or_suspicious_parts": judge.wrong_or_suspicious_parts,
                 "improvement_comments": judge.improvement_comments,
                 "feedback_for_next_generation": feedback_text,
             }

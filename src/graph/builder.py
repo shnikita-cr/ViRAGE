@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import StageExecutionLog, TokenUsage
+from src.domain.models import StageExecutionLog, StepLog, TokenUsage
 from src.graph.nodes import PipelineNodes
 from src.infrastructure.runtime import RuntimeContext
 
@@ -105,6 +105,46 @@ def _enrich_step_logs_with_duration(
             pass
     output["step_logs"] = enriched
 
+_STAGE_TITLES = {
+    "data_profiler": "Data profiling",
+    "query_understanding": "Query understanding",
+    "request_analyzer": "Request analysis",
+    "data_preparation": "Data preparation",
+    "visrag": "Spec retrieval",
+    "chart_generator": "Chart generation",
+    "spec_validator": "Spec validation",
+    "technical_decision": "Technical retry decision",
+    "vegalite_plot_drawing": "Vega-Lite rendering",
+    "scenegraph_check": "Scenegraph check",
+    "empty_chart_check": "Empty chart check",
+    "spec_score": "Spec score",
+    "semantic_loop_gate": "Semantic VLM gate",
+    "vlm_chart_description": "PNG-only VLM description",
+    "chart_fact_summary": "Chart fact summary",
+    "chart_answer_judge": "Semantic answer judge",
+    "semantic_decision": "Semantic retry decision",
+    "feedback_corpus_writer": "Feedback corpus writer",
+    "vlm_analysis": "VLM analysis",
+    "fact_extractor": "Visual fact extraction",
+    "reasoner": "Insight reasoning",
+    "insights": "Insight formatting",
+    "vision_score": "Vision score",
+    "evaluation_summary": "Evaluation summary",
+    "completed": "Completed",
+}
+
+
+def _emit_stage_started(runtime: RuntimeContext, name: str) -> None:
+    runtime.emit_step(
+        StepLog(
+            stage=name,
+            title=_STAGE_TITLES.get(name, name.replace("_", " ").title()),
+            summary="Running now",
+            details={"status": "running"},
+        )
+    )
+
+
 def _wrap_stage_node(
     *,
     name: str,
@@ -120,6 +160,7 @@ def _wrap_stage_node(
         error: str | None = None
 
         try:
+            _emit_stage_started(runtime, name)
             output = callable_node(state)
             if output is None:
                 output = {}

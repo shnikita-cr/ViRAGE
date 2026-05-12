@@ -122,3 +122,51 @@ def test_failed_field_mapping_returns_caveat(tmp_path):
 def test_retriever_interface_is_available():
     retriever: VisRAGRetriever = KeywordVisRAGRetriever()
     assert hasattr(retriever, "search")
+
+
+def test_visrag_loads_feedback_examples_and_applies_weight(tmp_path: Path) -> None:
+    import json
+    from src.visrag_core.corpus import VisRAGCorpus
+    from src.visrag_core.models import VisRAGConfig, VisRAGDataProfile, VisRAGRequest
+    from src.visrag_core.service import VisRAGCoreService
+
+    corpus_dir = tmp_path / "data"
+    corpus_dir.mkdir()
+    (corpus_dir / "base.jsonl").write_text(
+        json.dumps({
+            "id": "base",
+            "instruction": "compare methods",
+            "chart_type": "bar",
+            "field_roles": {},
+            "spec": {"mark": "bar"},
+        }),
+        encoding="utf-8",
+    )
+    feedback_path = tmp_path / "feedback.jsonl"
+    feedback_path.write_text(
+        json.dumps({
+            "record_type": "visual_feedback",
+            "source": "virage_user_feedback",
+            "user_query": "compare methods",
+            "user_comment": "Use readable horizontal bars.",
+            "feedback_weight": 3.0,
+            "generated_spec": {"mark": "bar"},
+            "field_roles": {},
+        }),
+        encoding="utf-8",
+    )
+
+    examples = VisRAGCorpus(feedback_path).load()
+    assert examples[0].metadata["feedback_weight"] == 3.0
+
+    result = VisRAGCoreService(
+        VisRAGConfig(
+            corpus_root=corpus_dir,
+            feedback_corpus_path=feedback_path,
+            retriever_backend="keyword",
+        )
+    ).search(VisRAGRequest(query="compare methods readable", data_profile=VisRAGDataProfile(columns=[])))
+
+    assert result.candidates
+    assert result.candidates[0].example.source == "virage_user_feedback"
+    assert result.candidates[0].score_breakdown["feedback_weight"] == 3.0

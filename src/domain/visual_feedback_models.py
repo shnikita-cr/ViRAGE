@@ -55,6 +55,9 @@ class VisualFeedbackExample(BaseModel):
     run_id: str
     attempt_number: int
     user_query: str
+    user_comment: str = ""
+    requested_regeneration: bool = False
+    feedback_weight: float = 1.0
     request_analysis_summary: dict[str, Any] = Field(default_factory=dict)
     generated_spec: dict[str, Any] = Field(default_factory=dict)
     rendered_png_path: str = ""

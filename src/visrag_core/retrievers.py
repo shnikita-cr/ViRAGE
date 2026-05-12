@@ -183,13 +183,27 @@ def _embedding_provider(config: VisRAGConfig) -> str:
 
 
 def _candidate(example: VisRAGExample, score: float, backend: str) -> VisRAGCandidate:
-    bounded = _clamp(score)
+    weight = _feedback_weight(example)
+    weighted_score = float(score) * weight
+    bounded = _clamp(weighted_score)
     return VisRAGCandidate(
         example=example,
-        score=round(float(score), 6),
+        score=round(weighted_score, 6),
         confidence=bounded,
-        score_breakdown={"text": bounded, "retriever": backend},
+        score_breakdown={"text": bounded, "retriever": backend, "feedback_weight": weight},
     )
+
+
+def _feedback_weight(example: VisRAGExample) -> float:
+    metadata = example.metadata or {}
+    raw_weight = metadata.get("feedback_weight")
+    if raw_weight is None and isinstance(metadata.get("rag_usage"), dict):
+        raw_weight = metadata["rag_usage"].get("weight")
+    try:
+        weight = float(raw_weight) if raw_weight is not None else 1.0
+    except (TypeError, ValueError):
+        weight = 1.0
+    return max(0.25, min(weight, 5.0))
 
 
 def _normalize_scores(candidates: list[VisRAGCandidate]) -> list[VisRAGCandidate]:

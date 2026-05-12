@@ -102,3 +102,23 @@ def test_wrapped_graph_node_records_stage_execution_log(tmp_path: Path) -> None:
     assert len(rows) == 1
     assert rows[0]["node_name"] == "data_preparation"
     assert not sorted((tmp_path / "run-1" / "artifacts").glob("*stage_execution*.json"))
+
+
+def test_wrapped_graph_node_emits_started_step_before_execution(tmp_path: Path) -> None:
+    from src.graph.builder import _wrap_stage_node
+
+    emitted = []
+    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path))
+    runtime.current_run_id = "run-1"
+    runtime.step_callback = emitted.append
+
+    def node(state):
+        assert emitted
+        assert emitted[-1].stage == "chart_generator"
+        assert emitted[-1].summary == "Running now"
+        return {"value": 1}
+
+    wrapped = _wrap_stage_node(name="chart_generator", callable_node=node, runtime=runtime)
+    wrapped({"run_id": "run-1", "stage_execution_logs": []})
+
+    assert emitted[0].title == "Chart generation"

@@ -20,25 +20,36 @@ class VisRAGCorpus:
 
     def load(self) -> list[VisRAGExample]:
         if not self.root.exists():
-            raise FileNotFoundError(f"RAG corpus directory does not exist: {self.root}")
+            raise FileNotFoundError(f"RAG corpus path does not exist: {self.root}")
         rows: list[tuple[dict[str, Any], Path]] = []
-        paths = sorted(
-            path for path in self.root.glob("*")
-            if path.is_file()
-            and path.name not in _CONTROL_FILES
-            and path.suffix.lower() in {".jsonl", ".ndjson", ".json"}
-        )
+        if self.root.is_file():
+            paths = [self.root]
+        else:
+            paths = sorted(
+                path for path in self.root.glob("*")
+                if path.is_file()
+                and path.name not in _CONTROL_FILES
+                and path.suffix.lower() in {".jsonl", ".ndjson", ".json"}
+            )
         for path in paths:
             rows.extend((row, path) for row in _read_json_records(path))
         return [self._to_example(row, path) for row, path in rows]
 
     @staticmethod
     def _to_example(row: dict[str, Any], path: Path) -> VisRAGExample:
-        spec_template = row.get("spec_template") or row.get("spec") or {}
+        spec_template = row.get("spec_template") or row.get("spec") or row.get("generated_spec") or row.get("revised_spec") or {}
         chart_type = require_supported_chart_type(
             row.get("chart_type") or row.get("mark_type") or row.get("mark") or _mark_from_spec(spec_template)
         )
-        instruction = row.get("instruction") or row.get("query") or row.get("utterance") or row.get("description")
+        instruction = (
+            row.get("instruction")
+            or row.get("query")
+            or row.get("utterance")
+            or row.get("user_query")
+            or row.get("feedback_for_next_generation")
+            or row.get("user_comment")
+            or row.get("description")
+        )
         if not isinstance(instruction, str) or not instruction.strip():
             raise ValueError(f"Corpus row in {path} has no instruction/query/utterance/description.")
         field_roles = _validate_field_roles(row.get("field_roles") or row.get("encoding_roles") or {}, path)
@@ -51,12 +62,12 @@ class VisRAGCorpus:
             corpus=str(row.get("corpus") or row.get("corpus_type") or path.stem),
             instruction=instruction.strip(),
             chart_type=chart_type,
-            description=row.get("description") if isinstance(row.get("description"), str) else None,
+            description=_description_from_row(row),
             keywords=[str(item).lower() for item in row.get("keywords", row.get("tags", [])) if item],
             field_roles=field_roles,
             transform_types=[str(item) for item in row.get("transform_types", row.get("transforms", [])) if item],
             spec_template=spec_template,
-            metadata=dict(row.get("metadata") or {}),
+            metadata=_metadata_from_row(row),
         )
 
 
@@ -98,6 +109,42 @@ def _unpack_payload(payload: Any, path: Path) -> Iterable[dict[str, Any]]:
         yield payload
         return
     raise ValueError(f"Unsupported JSON corpus root in {path}")
+
+
+def _description_from_row(row: dict[str, Any]) -> str | None:
+    description = row.get("description")
+    if isinstance(description, str) and description.strip():
+        return description.strip()
+    comment = row.get("feedback_for_next_generation") or row.get("user_comment")
+    if isinstance(comment, str) and comment.strip():
+        return comment.strip()
+    judge = row.get("judge_result")
+    if isinstance(judge, dict):
+        comments = judge.get("improvement_comments") or judge.get("missing_requirements") or []
+        if isinstance(comments, list):
+            cleaned = [str(item).strip() for item in comments if str(item).strip()]
+            if cleaned:
+                return " ".join(cleaned)
+    return None
+
+
+def _metadata_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    metadata = dict(row.get("metadata") or {})
+    for key in (
+        "record_type",
+        "source",
+        "status",
+        "created_at",
+        "run_id",
+        "attempt_number",
+        "user_comment",
+        "requested_regeneration",
+        "feedback_weight",
+        "rag_usage",
+    ):
+        if key in row:
+            metadata[key] = row[key]
+    return metadata
 
 
 def _validate_field_roles(value: Any, path: Path) -> dict[str, str]:
