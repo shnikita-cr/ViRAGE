@@ -39,26 +39,26 @@ show_step_logs = true
 
 [reasoning_model]
 provider = "ollama"
-model = "gemma3:5b"
+model = "gemma3:4b"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 60.0
 
 [spec_model]
 provider = "ollama"
-model = "gemma3:5b"
+model = "gemma3:4b"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 60.0
 
 [vlm_model]
 provider = "ollama"
-model = "gemma3:5b"
+model = "gemma3:4b"
 temperature = 0.0
 timeout_seconds = 60.0
 
 [vision_judge_model]
 provider = "ollama"
-model = "gemma3:5b"
+model = "gemma3:4b"
 temperature = 0.0
 timeout_seconds = 60.0
