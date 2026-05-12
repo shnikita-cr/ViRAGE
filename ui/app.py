@@ -530,6 +530,80 @@ def render_chart(result: Any, chart_mode: str) -> None:
     render_png_chart(result)
 
 
+def live_chart_preview_from_step(step: StepLog) -> dict[str, Any] | None:
+    details = getattr(step, "details", {}) or {}
+    if not isinstance(details, dict):
+        return None
+
+    preview = details.get("live_chart_preview")
+    if not isinstance(preview, dict):
+        return None
+
+    image_path = preview.get("image_path")
+    if not image_path:
+        return None
+
+    preview_id = str(preview.get("artifact") or image_path)
+    return {**preview, "_preview_id": preview_id}
+
+
+def append_live_chart_preview_once(previews: list[dict[str, Any]], preview: dict[str, Any]) -> None:
+    preview_id = str(preview.get("_preview_id") or "")
+    if preview_id and any(str(item.get("_preview_id") or "") == preview_id for item in previews):
+        return
+    previews.append(preview)
+
+
+def render_live_chart_previews(chart_slot: Any, previews: list[dict[str, Any]]) -> None:
+    if not previews:
+        return
+
+    latest = previews[-1]
+    image_path = resolve_existing_path(str(latest.get("image_path") or ""))
+    semantic_attempt = int(latest.get("semantic_attempt_number") or 1)
+    technical_attempt = int(latest.get("technical_attempt_number") or 1)
+    empty_status = (latest.get("empty_chart_check") or {}).get("empty_chart_status", "unknown")
+    scenegraph = latest.get("scenegraph_check") or {}
+
+    with chart_slot.container():
+        st.subheader("Current chart preview")
+        st.caption(
+            "Shown after successful technical validation, before semantic/VLM validation. "
+            f"Semantic attempt {semantic_attempt}, technical attempt {technical_attempt}."
+        )
+
+        if image_path is not None:
+            st.image(image_path.as_posix(), use_container_width=True)
+        else:
+            st.warning(f"Preview image was produced, but the file was not found: {latest.get('image_path')}")
+
+        left, middle, right = st.columns(3)
+        with left:
+            st.metric("Empty check", empty_status)
+        with middle:
+            st.metric("Marks", "yes" if scenegraph.get("has_marks") else "unknown")
+        with right:
+            st.metric("Axes", "yes" if scenegraph.get("has_axes") else "unknown")
+
+        if len(previews) > 1:
+            with st.expander("Preview history", expanded=False):
+                rows = []
+                for index, item in enumerate(previews, start=1):
+                    rows.append({
+                        "preview": index,
+                        "semantic_attempt": item.get("semantic_attempt_number"),
+                        "technical_attempt": item.get("technical_attempt_number"),
+                        "empty_status": (item.get("empty_chart_check") or {}).get("empty_chart_status", "unknown"),
+                        "image_path": item.get("image_path"),
+                        "artifact": item.get("artifact"),
+                    })
+                st.dataframe(rows, use_container_width=True, hide_index=True)
+
+        spec = latest.get("validated_spec")
+        if isinstance(spec, dict) and spec:
+            with st.expander("Current validated Vega-Lite spec", expanded=False):
+                st.json(spec)
+
 
 def payload_from_model(value: Any) -> dict[str, Any]:
     if value is None:
@@ -1269,6 +1343,7 @@ model_calls_slot = st.empty()
 
 live_steps: list[StepLog] = []
 live_model_calls: list[ModelCallLog] = []
+live_chart_previews: list[dict[str, Any]] = []
 
 with status_slot.container():
     render_loading_status(
@@ -1286,6 +1361,12 @@ def on_step(step: StepLog) -> None:
     live_steps.append(step)
     duration = f" · {step.duration_seconds:.2f}s" if getattr(step, "duration_seconds", 0.0) else ""
     render_loading_status(status_slot, f"Current step: <code>{step.stage}</code> — {step.title}{duration}")
+
+    preview = live_chart_preview_from_step(step)
+    if preview is not None:
+        append_live_chart_preview_once(live_chart_previews, preview)
+        render_live_chart_previews(chart_slot, live_chart_previews)
+
     render_live(
         progress_slot=progress_slot,
         model_calls_slot=model_calls_slot,

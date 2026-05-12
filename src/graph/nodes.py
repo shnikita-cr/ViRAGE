@@ -94,6 +94,44 @@ def _merge_generation_artifacts(
     return merged
 
 
+def _model_dump_or_dict(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        dumped = value.model_dump()
+        return dumped if isinstance(dumped, dict) else {"value": dumped}
+    if isinstance(value, dict):
+        return value
+    return {"value": value}
+
+
+def _build_live_chart_preview_payload(state: PipelineState, empty_chart_check: Any) -> dict[str, Any]:
+    plot_image = state.get("plot_image")
+    if hasattr(plot_image, "model_dump"):
+        plot_image_payload = plot_image.model_dump()
+    elif isinstance(plot_image, dict):
+        plot_image_payload = dict(plot_image)
+    else:
+        plot_image_payload = {}
+
+    spec_validation = state.get("spec_validation")
+    data_preparation = state.get("data_preparation")
+    scenegraph_check = state.get("scenegraph_check")
+
+    return {
+        "status": "ready_after_technical_validation",
+        "image_path": str(plot_image_payload.get("image_path") or ""),
+        "image": plot_image_payload,
+        "validated_spec": _model_dump_or_dict(spec_validation).get("validated_spec", {}),
+        "data_path": state.get("data_path", ""),
+        "prepared_data_path": _model_dump_or_dict(data_preparation).get("output_path", ""),
+        "semantic_attempt_number": int(state.get("semantic_attempt_number") or 1),
+        "technical_attempt_number": int(state.get("technical_attempt_number") or 1),
+        "scenegraph_check": _model_dump_or_dict(scenegraph_check),
+        "empty_chart_check": _model_dump_or_dict(empty_chart_check),
+    }
+
+
 class PipelineNodes:
     def __init__(self, runtime: RuntimeContext) -> None:
         self.runtime = runtime
@@ -554,6 +592,16 @@ class PipelineNodes:
                                             run_id=state["run_id"], numbered=True)
             raise RuntimeError(
                 "Rendered chart is empty or unusable. See run artifacts and errors directory for numbered details.")
+
+        live_preview = _build_live_chart_preview_payload(state, result)
+        preview_key = (
+            "live_chart_preview_"
+            f"semantic_{live_preview['semantic_attempt_number']:03d}_"
+            f"technical_{live_preview['technical_attempt_number']:03d}"
+        )
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], preview_key, live_preview)
+        live_preview = {**live_preview, "artifact": artifact_paths[preview_key]}
+
         return {
             "empty_chart_check": result,
             "stage": PipelineStage.EMPTY_CHART_CHECK,
@@ -565,8 +613,12 @@ class PipelineNodes:
                 title="Empty chart check",
                 summary=result.empty_chart_status,
                 inputs=["scenegraph_status"],
-                outputs=[str(result.empty_chart_signal)],
-                details={"artifact": artifact_paths["empty_chart_check"], **result.model_dump()},
+                outputs=[str(result.empty_chart_signal), "live_preview_ready"],
+                details={
+                    "artifact": artifact_paths["empty_chart_check"],
+                    "live_chart_preview": live_preview,
+                    **result.model_dump(),
+                },
             ),
         }
 
