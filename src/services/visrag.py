@@ -38,7 +38,8 @@ class VisRAGService(BaseService):
             runtime: RuntimeContext,
     ) -> VisRAGResult:
         if not bool(getattr(runtime.settings, "visrag_enabled", True)):
-            empty_set = CandidateSpecSet(candidate_specs=[], retrieved_examples=[], ranking_hints=["VisRAG disabled by project settings."])
+            empty_set = CandidateSpecSet(candidate_specs=[], retrieved_examples=[],
+                                         ranking_hints=["VisRAG disabled by project settings."])
             return VisRAGResult(
                 caveats=["VisRAG disabled by project settings."],
                 retrieved_examples=[],

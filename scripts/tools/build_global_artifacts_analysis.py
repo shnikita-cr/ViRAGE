@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_OUTPUT_NAME = "global_analysis.csv"
 
 NUMBERED_PREFIX_RE = re.compile(r"^\d{3,6}_")
@@ -125,8 +124,6 @@ def find_json_by_logical_name(run_dir: Path, logical_name: str) -> tuple[Path | 
     return None, None
 
 
-
-
 def find_jsons_by_predicate(run_dir: Path, predicate) -> list[tuple[Path, Any]]:
     ignored_parts = {"model_calls", "stage_executions"}
     matches: list[tuple[Path, Any]] = []
@@ -140,6 +137,7 @@ def find_jsons_by_predicate(run_dir: Path, predicate) -> list[tuple[Path, Any]]:
                 matches.append((path, payload))
     return matches
 
+
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -150,10 +148,11 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
     except Exception:
         return []
 
+
 def merge_csv_rows_by_key(
-    primary_rows: list[dict[str, Any]],
-    secondary_rows: list[dict[str, Any]],
-    key: str,
+        primary_rows: list[dict[str, Any]],
+        secondary_rows: list[dict[str, Any]],
+        key: str,
 ) -> list[dict[str, Any]]:
     merged: dict[str, dict[str, Any]] = {}
 
@@ -293,6 +292,7 @@ def collect_model_calls(run_dir: Path) -> list[dict[str, Any]]:
 
     return calls
 
+
 def collect_stage_logs(run_dir: Path) -> list[dict[str, Any]]:
     logs: list[dict[str, Any]] = []
 
@@ -351,6 +351,7 @@ def collect_stage_logs(run_dir: Path) -> list[dict[str, Any]]:
                 logs.append(payload)
 
     return logs
+
 
 def collect_errors(run_dir: Path) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
@@ -452,9 +453,9 @@ def extract_chart_metadata(run_dir: Path) -> dict[str, Any]:
     _, candidate_set = find_json_by_logical_name(run_dir, "candidate_spec_set")
     if isinstance(candidate_set, dict):
         selected = (
-            candidate_set.get("selected_candidate_spec")
-            or candidate_set.get("selected")
-            or candidate_set.get("selected_candidate")
+                candidate_set.get("selected_candidate_spec")
+                or candidate_set.get("selected")
+                or candidate_set.get("selected_candidate")
         )
 
         if isinstance(selected, dict):
@@ -540,8 +541,10 @@ def extract_data_profile(run_dir: Path) -> dict[str, Any]:
     row["data_profile_col_count"] = payload.get("col_count")
     row["data_profile_status"] = payload.get("profile_status")
     row["data_profile_complexity"] = payload.get("data_complexity")
-    row["data_profile_column_errors_count"] = len(payload.get("column_errors") or []) if isinstance(payload.get("column_errors"), list) else 0
-    row["data_profile_quality_notes_count"] = len(payload.get("quality_notes") or []) if isinstance(payload.get("quality_notes"), list) else 0
+    row["data_profile_column_errors_count"] = len(payload.get("column_errors") or []) if isinstance(
+        payload.get("column_errors"), list) else 0
+    row["data_profile_quality_notes_count"] = len(payload.get("quality_notes") or []) if isinstance(
+        payload.get("quality_notes"), list) else 0
     row["data_profile_column_name_map_json"] = dump_json_cell(payload.get("column_name_map"))
 
     columns = payload.get("columns")
@@ -626,7 +629,8 @@ def extract_data_preparation(run_dir: Path) -> dict[str, Any]:
     _, payload = find_json_by_logical_name(run_dir, "data_preparation")
     if isinstance(payload, dict):
         column_name_map = payload.get("column_name_map") if isinstance(payload.get("column_name_map"), dict) else {}
-        reverse_column_name_map = payload.get("reverse_column_name_map") if isinstance(payload.get("reverse_column_name_map"), dict) else {}
+        reverse_column_name_map = payload.get("reverse_column_name_map") if isinstance(
+            payload.get("reverse_column_name_map"), dict) else {}
         original_columns = payload.get("original_columns") if isinstance(payload.get("original_columns"), list) else []
         safe_columns = payload.get("safe_columns") if isinstance(payload.get("safe_columns"), list) else []
         renamed_column_count = payload.get("renamed_column_count")
@@ -647,7 +651,6 @@ def extract_data_preparation(run_dir: Path) -> dict[str, Any]:
         row["safe_columns_json"] = dump_json_cell(safe_columns)
 
     return row
-
 
 
 def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
@@ -679,7 +682,8 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
     attempts = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
     warnings = payload.get("warning_messages") if isinstance(payload.get("warning_messages"), list) else []
     artifact_paths = payload.get("artifact_paths") if isinstance(payload.get("artifact_paths"), dict) else {}
-    spec_without_data = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"), dict) else {}
+    spec_without_data = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"),
+                                                                               dict) else {}
 
     all_attempt_payloads = [item for _, item in attempt_results if isinstance(item, dict)]
     response_attempt_count = sum(len(item.get("attempts") or []) for item in all_attempt_payloads)
@@ -708,7 +712,8 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
     row["spec_generation_spec_without_data_fields_json"] = dump_json_cell(extract_spec_fields(spec_without_data))
     row["spec_generation_final_generation_attempt_number"] = payload.get("generation_attempt_number") or ""
     row["spec_generation_max_generation_attempts"] = payload.get("max_generation_attempts") or ""
-    row["spec_generation_previous_validation_errors_json"] = dump_json_cell(payload.get("previous_validation_errors") or [])
+    row["spec_generation_previous_validation_errors_json"] = dump_json_cell(
+        payload.get("previous_validation_errors") or [])
     row["spec_generation_previous_repair_hints_json"] = dump_json_cell(payload.get("previous_repair_hints") or [])
 
     prompt_paths: list[str] = []
@@ -721,7 +726,8 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
                 prompt_paths.append(str(value))
             if key.endswith("_raw_response") or key.endswith("raw_response") or key == "spec_generation_raw_response":
                 raw_response_paths.append(str(value))
-            if key.endswith("_parsed_response") or key.endswith("parsed_response") or key == "spec_generation_parsed_response":
+            if key.endswith("_parsed_response") or key.endswith(
+                    "parsed_response") or key == "spec_generation_parsed_response":
                 parsed_response_paths.append(str(value))
 
     row["spec_generation_prompt_path"] = prompt_paths[-1] if prompt_paths else ""
@@ -737,7 +743,8 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
 def extract_spec_validation_retry(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
     summary_path, summary = find_json_by_logical_name(run_dir, "spec_validation_retry_summary")
-    attempts = summary.get("attempts") if isinstance(summary, dict) and isinstance(summary.get("attempts"), list) else []
+    attempts = summary.get("attempts") if isinstance(summary, dict) and isinstance(summary.get("attempts"),
+                                                                                   list) else []
 
     row["has_spec_validation_retry_summary"] = isinstance(summary, dict)
     if not isinstance(summary, dict):
@@ -752,7 +759,8 @@ def extract_spec_validation_retry(run_dir: Path) -> dict[str, Any]:
     row["spec_validation_attempt_valid_flags_json"] = dump_json_cell(valid_flags)
 
     final_attempt = attempts[-1] if attempts and isinstance(attempts[-1], dict) else {}
-    final_errors = final_attempt.get("validation_errors") if isinstance(final_attempt.get("validation_errors"), list) else []
+    final_errors = final_attempt.get("validation_errors") if isinstance(final_attempt.get("validation_errors"),
+                                                                        list) else []
     final_hints = final_attempt.get("repair_hints") if isinstance(final_attempt.get("repair_hints"), list) else []
     row["spec_validation_final_error_count"] = len(final_errors)
     row["spec_validation_final_repair_hint_count"] = len(final_hints)
@@ -765,6 +773,7 @@ def extract_spec_validation_retry(run_dir: Path) -> dict[str, Any]:
     ]
     row["spec_validation_attempt_report_paths_json"] = dump_json_cell(reports)
     return row
+
 
 def extract_semantic_feedback(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
@@ -793,19 +802,26 @@ def extract_semantic_feedback(run_dir: Path) -> dict[str, Any]:
         row["semantic_final_confidence"] = ""
         row["semantic_saved_feedback_count"] = 0
 
-    descriptions = find_jsons_by_predicate(run_dir, lambda name: "semantic_attempt_" in name and name.endswith("vlm_chart_description"))
-    facts = find_jsons_by_predicate(run_dir, lambda name: "semantic_attempt_" in name and name.endswith("chart_fact_summary"))
-    judges = find_jsons_by_predicate(run_dir, lambda name: "semantic_attempt_" in name and name.endswith("answer_judge"))
-    examples = find_jsons_by_predicate(run_dir, lambda name: "semantic_attempt_" in name and name.endswith("feedback_example"))
+    descriptions = find_jsons_by_predicate(run_dir, lambda name: "semantic_attempt_" in name and name.endswith(
+        "vlm_chart_description"))
+    facts = find_jsons_by_predicate(run_dir,
+                                    lambda name: "semantic_attempt_" in name and name.endswith("chart_fact_summary"))
+    judges = find_jsons_by_predicate(run_dir,
+                                     lambda name: "semantic_attempt_" in name and name.endswith("answer_judge"))
+    examples = find_jsons_by_predicate(run_dir,
+                                       lambda name: "semantic_attempt_" in name and name.endswith("feedback_example"))
 
     row["semantic_vlm_description_count"] = len(descriptions)
     row["semantic_chart_fact_summary_count"] = len(facts)
     row["semantic_answer_judge_count"] = len(judges)
     row["semantic_feedback_example_count"] = len(examples)
-    row["semantic_vlm_description_paths_json"] = dump_json_cell([p.relative_to(run_dir).as_posix() for p, _ in descriptions])
-    row["semantic_chart_fact_summary_paths_json"] = dump_json_cell([p.relative_to(run_dir).as_posix() for p, _ in facts])
+    row["semantic_vlm_description_paths_json"] = dump_json_cell(
+        [p.relative_to(run_dir).as_posix() for p, _ in descriptions])
+    row["semantic_chart_fact_summary_paths_json"] = dump_json_cell(
+        [p.relative_to(run_dir).as_posix() for p, _ in facts])
     row["semantic_answer_judge_paths_json"] = dump_json_cell([p.relative_to(run_dir).as_posix() for p, _ in judges])
-    row["semantic_feedback_example_paths_json"] = dump_json_cell([p.relative_to(run_dir).as_posix() for p, _ in examples])
+    row["semantic_feedback_example_paths_json"] = dump_json_cell(
+        [p.relative_to(run_dir).as_posix() for p, _ in examples])
 
     if judges and isinstance(judges[-1][1], dict):
         final = judges[-1][1]
@@ -951,7 +967,8 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["stage_logs_json"] = dump_json_cell(stage_logs)
     row["has_stages_csv"] = (run_dir / "stages.csv").exists()
     row["stages_csv_path"] = "stages.csv" if (run_dir / "stages.csv").exists() else ""
-    row["has_legacy_stage_split_csv"] = (run_dir / "stage_timings.csv").exists() or (run_dir / "stage_tokens.csv").exists()
+    row["has_legacy_stage_split_csv"] = (run_dir / "stage_timings.csv").exists() or (
+                run_dir / "stage_tokens.csv").exists()
     row["has_legacy_stage_execution_json"] = any("stage_execution" in str(path) for path in files)
 
     row["model_call_count"] = len(model_calls)
@@ -970,7 +987,8 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["model_calls_json"] = dump_json_cell(model_calls)
     row["has_model_calls_csv"] = (run_dir / "model_calls.csv").exists()
     row["model_calls_csv_path"] = "model_calls.csv" if (run_dir / "model_calls.csv").exists() else ""
-    row["has_legacy_model_call_split_csv"] = (run_dir / "model_call_tokens.csv").exists() or (run_dir / "model_call_timings.csv").exists()
+    row["has_legacy_model_call_split_csv"] = (run_dir / "model_call_tokens.csv").exists() or (
+                run_dir / "model_call_timings.csv").exists()
 
     row["has_png"] = has_png
     row["has_plot_png"] = has_plot_png

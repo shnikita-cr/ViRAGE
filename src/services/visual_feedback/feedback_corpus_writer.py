@@ -8,7 +8,6 @@ from src.domain.models import (
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
     RequestAnalysisResult,
-    SemanticFeedbackLoopSummary,
     VLMChartDescriptionResult,
     VegaLiteSpecArtifact,
     VisualFeedbackExample,
@@ -22,17 +21,17 @@ class FeedbackCorpusWriterService(BaseService):
         raise NotImplementedError("Use build_example() and append_to_corpus() for explicit graph-node writes.")
 
     def build_example(
-        self,
-        *,
-        run_id: str,
-        attempt_number: int,
-        query: str,
-        vega_spec: VegaLiteSpecArtifact,
-        rendered_png_path: str,
-        vlm_description: VLMChartDescriptionResult,
-        chart_facts: ChartFactSummaryResult,
-        judge_result: ChartAnswerJudgeResult,
-        request_analysis: RequestAnalysisResult | None = None,
+            self,
+            *,
+            run_id: str,
+            attempt_number: int,
+            query: str,
+            vega_spec: VegaLiteSpecArtifact,
+            rendered_png_path: str,
+            vlm_description: VLMChartDescriptionResult,
+            chart_facts: ChartFactSummaryResult,
+            judge_result: ChartAnswerJudgeResult,
+            request_analysis: RequestAnalysisResult | None = None,
     ) -> VisualFeedbackExample:
         return VisualFeedbackExample(
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -49,16 +48,16 @@ class FeedbackCorpusWriterService(BaseService):
         )
 
     def build_user_feedback_example(
-        self,
-        *,
-        run_id: str,
-        query: str,
-        comment: str,
-        needs_regeneration: bool,
-        vega_spec: VegaLiteSpecArtifact,
-        rendered_png_path: str,
-        request_analysis: RequestAnalysisResult | None = None,
-        attempt_number: int = 1,
+            self,
+            *,
+            run_id: str,
+            query: str,
+            comment: str,
+            needs_regeneration: bool,
+            vega_spec: VegaLiteSpecArtifact,
+            rendered_png_path: str,
+            request_analysis: RequestAnalysisResult | None = None,
+            attempt_number: int = 1,
     ) -> VisualFeedbackExample:
         cleaned_comment = comment.strip()
         judge_result = ChartAnswerJudgeResult(

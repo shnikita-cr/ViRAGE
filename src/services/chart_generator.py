@@ -40,9 +40,9 @@ class ChartGeneratorService(BaseService):
     ) -> VegaLiteSpecArtifact:
         backend = self._select_backend(runtime)
         if (
-            backend.backend_name == "template"
-            and candidate_spec_set.selected_candidate_spec is None
-            and not candidate_spec_set.candidate_specs
+                backend.backend_name == "template"
+                and candidate_spec_set.selected_candidate_spec is None
+                and not candidate_spec_set.candidate_specs
         ):
             raise RuntimeError("Template chart generation requires at least one RAG candidate.")
 

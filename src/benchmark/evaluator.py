@@ -7,13 +7,13 @@ from typing import Any
 
 from src.application.contracts import PipelineResult
 from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
-from src.domain.models import EmptyChartCheckResult, PlotImageArtifact, SpecValidationResult, VegaLiteSpecArtifact
+from src.domain.models import EmptyChartCheckResult, PlotImageArtifact, VegaLiteSpecArtifact
 from src.infrastructure.runtime import RuntimeContext
 from src.services.data import read_dataframe
 from src.services.spec_score import SpecScoreService
 from src.services.spec_validator import SpecValidatorService
-from src.services.vision_score import VisionScoreService
 from src.services.vegachat_spec_metrics import compute_vegachat_spec_score
+from src.services.vision_score import VisionScoreService
 
 
 class VegaChatBenchmarkEvaluator:
@@ -25,14 +25,14 @@ class VegaChatBenchmarkEvaluator:
         self.spec_validator = SpecValidatorService()
 
     def evaluate_pipeline_result(
-        self,
-        *,
-        case: BenchmarkCase,
-        case_root: Path,
-        pipeline_result: PipelineResult,
-        runtime: RuntimeContext,
-        output_dir: Path,
-        duration_seconds: float | None = None,
+            self,
+            *,
+            case: BenchmarkCase,
+            case_root: Path,
+            pipeline_result: PipelineResult,
+            runtime: RuntimeContext,
+            output_dir: Path,
+            duration_seconds: float | None = None,
     ) -> BenchmarkCaseResult:
         generated_spec = pipeline_result.spec_validation.validated_spec if pipeline_result.spec_validation else {}
         generated_image_path = self._generated_image_path(pipeline_result)
@@ -108,20 +108,21 @@ class VegaChatBenchmarkEvaluator:
         )
 
     def evaluate_spec_and_image(
-        self,
-        *,
-        case: BenchmarkCase,
-        case_root: Path,
-        generated_spec: dict[str, Any],
-        generated_image_path: str | None,
-        runtime: RuntimeContext | None,
-        output_dir: Path,
-        user_prompt: str | None = None,
+            self,
+            *,
+            case: BenchmarkCase,
+            case_root: Path,
+            generated_spec: dict[str, Any],
+            generated_image_path: str | None,
+            runtime: RuntimeContext | None,
+            output_dir: Path,
+            user_prompt: str | None = None,
     ) -> BenchmarkCaseResult:
         """Evaluate already generated artifacts without running the full ViRAGE pipeline."""
 
         data_path = case.resolved_data_path(case_root)
-        validation = self.spec_validator.invoke(VegaLiteSpecArtifact(spec_json=self._spec_with_data_url(generated_spec, data_path)))
+        validation = self.spec_validator.invoke(
+            VegaLiteSpecArtifact(spec_json=self._spec_with_data_url(generated_spec, data_path)))
         empty_check = EmptyChartCheckResult(empty_chart_signal=False, empty_chart_status="not_checked")
         spec_metric = None
         if case.reference_spec:
@@ -179,15 +180,15 @@ class VegaChatBenchmarkEvaluator:
 
     @staticmethod
     def _case_metrics(
-        *,
-        reference_spec: dict[str, Any],
-        generated_spec: dict[str, Any],
-        user_prompt: str,
-        is_valid: bool,
-        is_empty: bool,
-        spec_score: float | None,
-        vision_score: float | None,
-        vision_is_blank: bool | None,
+            *,
+            reference_spec: dict[str, Any],
+            generated_spec: dict[str, Any],
+            user_prompt: str,
+            is_valid: bool,
+            is_empty: bool,
+            spec_score: float | None,
+            vision_score: float | None,
+            vision_is_blank: bool | None,
     ) -> dict[str, float]:
         metrics: dict[str, float] = {
             "visualization_error_rate": 0.0 if is_valid else 1.0,

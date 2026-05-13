@@ -62,14 +62,12 @@ def _artifact_paths_delta(state: PipelineState, output: dict[str, Any] | None) -
     return delta
 
 
-
-
 def _enrich_step_logs_with_duration(
-    *,
-    state: PipelineState,
-    output: dict[str, Any] | None,
-    duration_ms: float,
-    duration_seconds: float,
+        *,
+        state: PipelineState,
+        output: dict[str, Any] | None,
+        duration_ms: float,
+        duration_seconds: float,
 ) -> None:
     if not isinstance(output, dict):
         return
@@ -104,6 +102,7 @@ def _enrich_step_logs_with_duration(
         except Exception:
             pass
     output["step_logs"] = enriched
+
 
 _STAGE_TITLES = {
     "data_profiler": "Data profiling",
@@ -146,10 +145,10 @@ def _emit_stage_started(runtime: RuntimeContext, name: str) -> None:
 
 
 def _wrap_stage_node(
-    *,
-    name: str,
-    callable_node: Callable[[PipelineState], dict[str, Any]],
-    runtime: RuntimeContext,
+        *,
+        name: str,
+        callable_node: Callable[[PipelineState], dict[str, Any]],
+        runtime: RuntimeContext,
 ) -> Callable[[PipelineState], dict[str, Any]]:
     def wrapped(state: PipelineState) -> dict[str, Any]:
         started = datetime.now(timezone.utc)
@@ -213,7 +212,6 @@ def _wrap_stage_node(
                 output["stage_execution_logs"] = [*state.get("stage_execution_logs", []), enriched_log]
 
     return wrapped
-
 
 
 def _route_technical_decision(state: PipelineState) -> str:

@@ -45,4 +45,3 @@ class ViRAGESettings(BaseModel):
     semantic_feedback_save_rejected_specs: bool = Field(default=True)
     semantic_feedback_corpus_path: Path = Field(default=Path("./rag_corpus/feedback/visual_feedback.jsonl"))
     semantic_feedback_include_png_path: bool = Field(default=True)
-

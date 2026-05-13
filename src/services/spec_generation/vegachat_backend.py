@@ -141,12 +141,12 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
 
     @staticmethod
     def _save_artifacts(
-        *,
-        runtime: RuntimeContext,
-        result: SpecGenerationResult,
-        final_prompt: str,
-        final_raw_response: str,
-        generation_attempt_number: int,
+            *,
+            runtime: RuntimeContext,
+            result: SpecGenerationResult,
+            final_prompt: str,
+            final_raw_response: str,
+            generation_attempt_number: int,
     ) -> dict[str, str]:
         artifact_paths: dict[str, str] = {}
         if not runtime.current_run_id:

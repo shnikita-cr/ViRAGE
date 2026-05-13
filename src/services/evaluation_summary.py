@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from src.domain.models import EmptyChartCheckResult, EvaluationSummaryResult, InsightsResult, StructuralSpecMetric, VisualQualityMetric
+from src.domain.models import EmptyChartCheckResult, EvaluationSummaryResult, InsightsResult, StructuralSpecMetric, \
+    VisualQualityMetric
 from src.services.base import BaseService
 
 

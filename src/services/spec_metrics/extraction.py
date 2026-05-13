@@ -159,7 +159,8 @@ def _transform_items_from_dict(transform: dict[str, Any]) -> list[TransformItem]
         if key in transform:
             return [TransformItem(key, _first_field(transform), "", str(transform.get("as") or ""),
                                   _tuple_strings(transform.get("groupby")), stable_json(transform))]
-    return [TransformItem("unknown", _first_field(transform), "", str(transform.get("as") or ""), (), stable_json(transform))]
+    return [TransformItem("unknown", _first_field(transform), "", str(transform.get("as") or ""), (),
+                          stable_json(transform))]
 
 
 def _aggregate_transform_items(transform: dict[str, Any], key: str) -> list[TransformItem]:

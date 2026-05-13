@@ -54,7 +54,8 @@ class SpecValidatorService(BaseService):
                 errors.append(validity['scenegraph_error'] or 'Vega-Lite runtime could not compile the specification.')
             if validity['is_empty_scenegraph']:
                 errors.append('Validated specification renders an empty scenegraph.')
-                repair_hints.append('Change fields, filters, transforms, or chart type so at least one visible mark is rendered.')
+                repair_hints.append(
+                    'Change fields, filters, transforms, or chart type so at least one visible mark is rendered.')
 
             # Schema validation is logged as a hint unless rendering also fails. Vega-Lite/Vega can render some specs that
             # Altair rejects because of wrapper limitations; these should not be treated as ViRAGE subset failures.
@@ -110,7 +111,8 @@ class SpecValidatorService(BaseService):
         if '$schema' not in spec:
             errors.append('Missing required key: $schema.')
         if not SpecValidatorService._has_any_view_spec(spec):
-            errors.append('Specification must contain a Vega-Lite view: mark/encoding or one of layer/facet/repeat/concat/hconcat/vconcat.')
+            errors.append(
+                'Specification must contain a Vega-Lite view: mark/encoding or one of layer/facet/repeat/concat/hconcat/vconcat.')
 
     @staticmethod
     def _has_any_view_spec(node: Any) -> bool:
@@ -138,11 +140,11 @@ class SpecValidatorService(BaseService):
 
     @classmethod
     def _validate_referenced_fields(
-        cls,
-        spec: dict[str, Any],
-        dataset_columns: set[str],
-        errors: list[str],
-        repair_hints: list[str],
+            cls,
+            spec: dict[str, Any],
+            dataset_columns: set[str],
+            errors: list[str],
+            repair_hints: list[str],
     ) -> None:
         derived_fields = cls._derived_fields_from_spec(spec)
         allowed_fields = dataset_columns | derived_fields

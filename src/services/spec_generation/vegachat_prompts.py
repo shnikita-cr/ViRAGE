@@ -3,19 +3,19 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from src.domain.models import CandidateSpecSet, DataPreparationResult, DataProfile, RequestAnalysisResult, SpecGenerationRequest
+from src.domain.models import CandidateSpecSet, DataPreparationResult, DataProfile, SpecGenerationRequest
 
 VEGA_LITE_SCHEMA_URL = "https://vega.github.io/schema/vega-lite/v5.json"
 
 
 def build_vegachat_codegen_prompt(
-    request: SpecGenerationRequest,
-    *,
-    prompt_version: str,
-    max_context_chars: int,
-    include_visrag_context: bool = True,
-    previous_error: str | None = None,
-    previous_response: str | None = None,
+        request: SpecGenerationRequest,
+        *,
+        prompt_version: str,
+        max_context_chars: int,
+        include_visrag_context: bool = True,
+        previous_error: str | None = None,
+        previous_response: str | None = None,
 ) -> str:
     parts = [
         _system_contract(prompt_version),
@@ -23,7 +23,8 @@ def build_vegachat_codegen_prompt(
         _request_contract(request),
         _validation_feedback_contract(request),
         _semantic_feedback_contract(request),
-        _visrag_context(request.candidate_spec_set, max_context_chars=max_context_chars) if include_visrag_context else "VisRAG context is disabled for this generation run.",
+        _visrag_context(request.candidate_spec_set,
+                        max_context_chars=max_context_chars) if include_visrag_context else "VisRAG context is disabled for this generation run.",
         _output_contract(),
     ]
 
@@ -88,7 +89,8 @@ def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparatio
                 stats.append(f"max={column.max_value}")
             stat_text = "; ".join(stats)
             lines.append(f"- original: {original!r}; safe: {safe!r}; type: {dtype}; role: {role}; {stat_text}")
-        lines.append(f"Rows: {data_profile.row_count}; columns: {data_profile.col_count}; complexity: {data_profile.data_complexity or 'unknown'}")
+        lines.append(
+            f"Rows: {data_profile.row_count}; columns: {data_profile.col_count}; complexity: {data_profile.data_complexity or 'unknown'}")
         if data_profile.quality_notes:
             lines.append("Quality notes:")
             for note in data_profile.quality_notes[:8]:
@@ -129,7 +131,6 @@ def _to_safe(field: str, prepared: DataPreparationResult) -> str:
     return prepared.column_name_map.get(field, field)
 
 
-
 def _validation_feedback_contract(request: SpecGenerationRequest) -> str:
     if not request.previous_validation_errors and not request.previous_repair_hints and not request.previous_invalid_spec:
         return (
@@ -145,10 +146,11 @@ def _validation_feedback_contract(request: SpecGenerationRequest) -> str:
         "previous_invalid_spec_without_large_data": _strip_data(request.previous_invalid_spec or {}),
     }
     return (
-        "Previous spec validation failed. Generate a corrected Vega-Lite spec.\n"
-        "Validation feedback for this retry:\n"
-        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+            "Previous spec validation failed. Generate a corrected Vega-Lite spec.\n"
+            "Validation feedback for this retry:\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
     )
+
 
 def _semantic_feedback_contract(request: SpecGenerationRequest) -> str:
     if not request.previous_semantic_feedback and not request.previous_chart_facts:
@@ -161,9 +163,9 @@ def _semantic_feedback_contract(request: SpecGenerationRequest) -> str:
         "previous_chart_facts": request.previous_chart_facts[-3:],
     }
     return (
-        "Previous rendered chart was technically valid but did not sufficiently answer the user request. "
-        "Generate a new Vega-Lite spec that addresses the semantic feedback below.\n"
-        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+            "Previous rendered chart was technically valid but did not sufficiently answer the user request. "
+            "Generate a new Vega-Lite spec that addresses the semantic feedback below.\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
     )
 
 
@@ -196,8 +198,8 @@ def _visrag_context(candidate_spec_set: CandidateSpecSet, *, max_context_chars: 
         )
 
     text = (
-        "Retrieved VisRAG context. Use this as guidance, not as a template to copy blindly.\n"
-        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+            "Retrieved VisRAG context. Use this as guidance, not as a template to copy blindly.\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
     )
     if len(text) > max_context_chars:
         return text[:max_context_chars] + "\n[VisRAG context truncated]"

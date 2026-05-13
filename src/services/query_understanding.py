@@ -67,11 +67,11 @@ class _QueryUnderstandingSchema(BaseModel):
 
 class QueryUnderstandingService(BaseService):
     def invoke(
-        self,
-        query: str,
-        user_context: dict[str, Any],
-        runtime: RuntimeContext,
-        data_profile: DataProfile | None = None,
+            self,
+            query: str,
+            user_context: dict[str, Any],
+            runtime: RuntimeContext,
+            data_profile: DataProfile | None = None,
     ) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
@@ -90,11 +90,11 @@ class QueryUnderstandingService(BaseService):
         return self._build_result(parsed, query)
 
     async def ainvoke(
-        self,
-        query: str,
-        user_context: dict[str, Any],
-        runtime: RuntimeContext,
-        data_profile: DataProfile | None = None,
+            self,
+            query: str,
+            user_context: dict[str, Any],
+            runtime: RuntimeContext,
+            data_profile: DataProfile | None = None,
     ) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
@@ -113,10 +113,10 @@ class QueryUnderstandingService(BaseService):
         return self._build_result(parsed, query)
 
     def _build_prompt(
-        self,
-        query: str,
-        user_context: dict[str, Any],
-        data_profile: DataProfile | None = None,
+            self,
+            query: str,
+            user_context: dict[str, Any],
+            data_profile: DataProfile | None = None,
     ) -> str:
         context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
         schema_lines = self._schema_context(data_profile)

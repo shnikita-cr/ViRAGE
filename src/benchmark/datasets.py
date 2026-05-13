@@ -7,7 +7,6 @@ from typing import Any, Iterable
 
 from src.benchmark.models import BenchmarkCase
 
-
 _CASE_LIST_KEYS = ("cases", "examples", "data", "items", "records")
 _QUERY_KEYS = ("query", "prompt", "utterance", "nl_query", "question", "instruction")
 _DATA_PATH_KEYS = ("data_path", "dataset_path", "csv_path", "table_path", "data")
@@ -201,7 +200,8 @@ def _extract_data_path(payload: dict[str, Any], root: Path) -> str:
             return value.strip()
         if isinstance(value, dict):
             url = value.get("url") or value.get("path") or value.get("name")
-            if isinstance(url, str) and url.strip() and Path(url).suffix.lower() in {".csv", ".xlsx", ".xls", ".parquet"}:
+            if isinstance(url, str) and url.strip() and Path(url).suffix.lower() in {".csv", ".xlsx", ".xls",
+                                                                                     ".parquet"}:
                 return url.strip()
     # Vega-Lite specs often carry the data path inside reference spec.data.url.
     reference_spec = _first_dict(payload, _REFERENCE_SPEC_KEYS)

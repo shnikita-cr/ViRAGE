@@ -20,11 +20,11 @@ class VegaChatBenchmarkRunner:
         self.evaluator = evaluator or VegaChatBenchmarkEvaluator()
 
     def run_dataset(
-        self,
-        *,
-        cases_path: str | Path,
-        output_dir: str | Path,
-        limit: int | None = None,
+            self,
+            *,
+            cases_path: str | Path,
+            output_dir: str | Path,
+            limit: int | None = None,
     ) -> BenchmarkAggregateReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
@@ -36,6 +36,7 @@ class VegaChatBenchmarkRunner:
 
         results: list[BenchmarkCaseResult] = []
         for case in cases:
+            print(case.difficulty, case.utterance_type, case.query)
             results.append(self.run_case(case=case, case_root=case_root, output_dir=output))
             self._write_incremental_results(results, output)
 

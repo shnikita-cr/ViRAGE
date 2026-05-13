@@ -172,40 +172,43 @@ class RuntimeContext:
         )
 
     def save_json_artifact(
-        self,
-        relative_path: str,
-        payload: Any,
-        *,
-        run_id: str | None = None,
-        numbered: bool = False,
+            self,
+            relative_path: str,
+            payload: Any,
+            *,
+            run_id: str | None = None,
+            numbered: bool = False,
     ) -> str:
-        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(run_id) / relative_path
+        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(
+            run_id) / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         return path.as_posix()
 
     def save_text_artifact(
-        self,
-        relative_path: str,
-        text: str,
-        *,
-        run_id: str | None = None,
-        numbered: bool = False,
+            self,
+            relative_path: str,
+            text: str,
+            *,
+            run_id: str | None = None,
+            numbered: bool = False,
     ) -> str:
-        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(run_id) / relative_path
+        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(
+            run_id) / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return path.as_posix()
 
     def save_bytes_artifact(
-        self,
-        relative_path: str,
-        data: bytes,
-        *,
-        run_id: str | None = None,
-        numbered: bool = False,
+            self,
+            relative_path: str,
+            data: bytes,
+            *,
+            run_id: str | None = None,
+            numbered: bool = False,
     ) -> str:
-        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(run_id) / relative_path
+        path = self.next_artifact_path(relative_path, run_id=run_id) if numbered else self.ensure_run_dir(
+            run_id) / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return path.as_posix()

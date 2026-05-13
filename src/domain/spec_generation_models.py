@@ -8,7 +8,6 @@ from src.domain.data_models import DataPreparationResult, DataProfile, RequestAn
 from src.domain.query_models import QueryUnderstandingResult
 from src.domain.visrag_models import CandidateSpecSet, VisRAGResult
 
-
 SpecGenerationBackendName = Literal["template", "vegachat_codegen"]
 
 

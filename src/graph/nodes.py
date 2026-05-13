@@ -24,13 +24,13 @@ from src.services.spec_validator import SpecValidatorService
 from src.services.vegalite_plot_drawing import VegaLitePlotDrawingService
 from src.services.vision_score import VisionScoreService
 from src.services.visrag import VisRAGService
-from src.services.vlm_analysis import VLMAnalysisService
 from src.services.visual_feedback import (
     ChartAnswerJudgeService,
     ChartFactSummaryService,
     FeedbackCorpusWriterService,
     VLMChartDescriptionService,
 )
+from src.services.vlm_analysis import VLMAnalysisService
 
 
 def _clean_text(value: Any) -> str:
@@ -53,7 +53,8 @@ def _manual_feedback_items(user_context: Any) -> list[str]:
     if not isinstance(user_context, dict):
         return []
     values: list[str] = []
-    for key in ("manual_feedback", "manual_semantic_feedback", "user_chart_feedback", "user_feedback_for_next_generation"):
+    for key in (
+    "manual_feedback", "manual_semantic_feedback", "user_chart_feedback", "user_feedback_for_next_generation"):
         value = user_context.get(key)
         if isinstance(value, str):
             values.append(value)
@@ -79,11 +80,11 @@ def _semantic_feedback_text(judge: Any) -> str:
 
 
 def _merge_generation_artifacts(
-    artifact_paths: dict[str, str],
-    generation_artifacts: dict[str, str],
-    *,
-    semantic_attempt: int,
-    technical_attempt: int,
+        artifact_paths: dict[str, str],
+        generation_artifacts: dict[str, str],
+        *,
+        semantic_attempt: int,
+        technical_attempt: int,
 ) -> dict[str, str]:
     if not generation_artifacts:
         return artifact_paths
@@ -363,7 +364,9 @@ class PipelineNodes:
             previous_semantic_feedback=semantic_feedback_items,
             previous_chart_facts=semantic_chart_fact_history,
         )
-        artifact_paths = self._save(state, f"vega_spec_technical_{technical_attempt:03d}_semantic_{semantic_attempt:03d}", result.model_dump())
+        artifact_paths = self._save(state,
+                                    f"vega_spec_technical_{technical_attempt:03d}_semantic_{semantic_attempt:03d}",
+                                    result.model_dump())
         artifact_paths = _merge_generation_artifacts(
             artifact_paths,
             result.generation_artifacts,
@@ -424,7 +427,8 @@ class PipelineNodes:
         validation_result = self.spec_validator.invoke(current_spec)
         payload = self._validation_attempt_payload(attempt_number, current_spec, validation_result)
         artifact_paths = dict(state.get("artifact_paths", {}))
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"spec_validation_attempt_{attempt_number:03d}", payload)
+        artifact_paths = self._save_into(artifact_paths, state["run_id"],
+                                         f"spec_validation_attempt_{attempt_number:03d}", payload)
         artifact_paths = self._save_text_into(
             artifact_paths,
             state["run_id"],
@@ -432,7 +436,8 @@ class PipelineNodes:
             self._validation_attempt_report(attempt_number, payload),
         )
         if validation_result.is_valid:
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "spec_validation", validation_result.model_dump())
+            artifact_paths = self._save_into(artifact_paths, state["run_id"], "spec_validation",
+                                             validation_result.model_dump())
 
         return {
             "spec_validation": validation_result,
@@ -448,7 +453,8 @@ class PipelineNodes:
                 inputs=["vega_spec"],
                 outputs=["validated_spec" if validation_result.is_valid else "validation_errors"],
                 details={
-                    "artifact": artifact_paths.get("spec_validation") or artifact_paths.get(f"spec_validation_attempt_{attempt_number:03d}"),
+                    "artifact": artifact_paths.get("spec_validation") or artifact_paths.get(
+                        f"spec_validation_attempt_{attempt_number:03d}"),
                     "attempt_count": attempt_number,
                     "max_generation_attempts": int(self.runtime.settings.spec_generation_max_attempts),
                     "validated_spec": validation_result.validated_spec,
@@ -503,7 +509,8 @@ class PipelineNodes:
                 "validation_errors": validation.validation_errors,
                 "repair_hints": validation.repair_hints,
             }
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], f"technical_retry_decision_{attempt_number:03d}", summary)
+            artifact_paths = self._save_into(artifact_paths, state["run_id"],
+                                             f"technical_retry_decision_{attempt_number:03d}", summary)
             return {
                 "technical_status": "retry",
                 "technical_attempt_number": attempt_number + 1,
@@ -691,7 +698,8 @@ class PipelineNodes:
         plot_image = PlotImageArtifact(**state["plot_image"])
         result = self.vlm_chart_description.invoke(plot_image, runtime=self.runtime)
         attempt_number = max(1, int(state.get("semantic_attempt_number", 1) or 1))
-        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_vlm_chart_description", result.model_dump())
+        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_vlm_chart_description",
+                                    result.model_dump())
         return {
             "vlm_chart_description": result,
             "stage": PipelineStage.VLM_ANALYSIS,
@@ -704,7 +712,8 @@ class PipelineNodes:
                 summary="described rendered PNG only",
                 inputs=[state["plot_image"]["image_path"]],
                 outputs=[result.detected_chart_type or "unknown"],
-                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_vlm_chart_description"], **result.model_dump()},
+                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_vlm_chart_description"],
+                         **result.model_dump()},
             ),
         }
 
@@ -712,7 +721,8 @@ class PipelineNodes:
     def chart_fact_summary_node(self, state: PipelineState) -> dict:
         result = self.chart_fact_summary.invoke(state["vlm_chart_description"], runtime=self.runtime)
         attempt_number = max(1, int(state.get("semantic_attempt_number", 1) or 1))
-        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_chart_fact_summary", result.model_dump())
+        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_chart_fact_summary",
+                                    result.model_dump())
         history = [*state.get("semantic_chart_fact_history", []), result.model_dump()]
         return {
             "chart_fact_summary": result,
@@ -727,7 +737,8 @@ class PipelineNodes:
                 summary=f"{len(result.facts)} facts",
                 inputs=["png-only VLM description"],
                 outputs=result.facts[:3],
-                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_chart_fact_summary"], **result.model_dump()},
+                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_chart_fact_summary"],
+                         **result.model_dump()},
             ),
         }
 
@@ -762,7 +773,8 @@ class PipelineNodes:
                 summary=f"answers={result.answers_user_query}; confidence={result.confidence:.3f}",
                 inputs=["user_query", "chart_facts"],
                 outputs=[result.retry_recommendation],
-                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_answer_judge"], **result.model_dump()},
+                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_answer_judge"],
+                         **result.model_dump()},
             ),
         }
 
@@ -795,7 +807,8 @@ class PipelineNodes:
                 improvement_comments=judge.improvement_comments,
                 feedback_corpus_path=str(self.runtime.settings.semantic_feedback_corpus_path),
             )
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary", summary.model_dump())
+            artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary",
+                                             summary.model_dump())
             summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
             return {
                 "semantic_status": "accept",
@@ -834,7 +847,8 @@ class PipelineNodes:
                 "improvement_comments": judge.improvement_comments,
                 "feedback_for_next_generation": feedback_text,
             }
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_retry_decision_{attempt_number:03d}", summary)
+            artifact_paths = self._save_into(artifact_paths, state["run_id"],
+                                             f"semantic_retry_decision_{attempt_number:03d}", summary)
             return {
                 "semantic_status": "retry",
                 "semantic_attempt_number": attempt_number + 1,
@@ -876,7 +890,8 @@ class PipelineNodes:
                 f"semantic_attempt_{attempt_number:03d}_feedback_example",
                 final_example.model_dump(),
             )
-            final_feedback_example_path = artifact_paths.get(f"semantic_attempt_{attempt_number:03d}_feedback_example", "")
+            final_feedback_example_path = artifact_paths.get(f"semantic_attempt_{attempt_number:03d}_feedback_example",
+                                                             "")
             final_examples.append(final_example)
             if self.runtime.settings.semantic_feedback_save_rejected_specs:
                 final_corpus_path = self.feedback_corpus_writer.append_to_corpus(final_example, self.runtime)
@@ -901,7 +916,8 @@ class PipelineNodes:
             improvement_comments=judge.improvement_comments,
             feedback_corpus_path=final_corpus_path or str(self.runtime.settings.semantic_feedback_corpus_path),
         )
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary", summary.model_dump())
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary",
+                                         summary.model_dump())
         summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
         return {
             "semantic_status": "failed",
@@ -934,13 +950,16 @@ class PipelineNodes:
             judge_result=state["chart_answer_judge"],
             request_analysis=state.get("request_analysis"),
         )
-        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_feedback_example", example.model_dump())
+        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_feedback_example",
+                                    example.model_dump())
         corpus_path = ""
         if self.runtime.settings.semantic_feedback_save_rejected_specs:
             corpus_path = self.feedback_corpus_writer.append_to_corpus(example, self.runtime)
         feedback_block = example.feedback_for_next_generation
         if feedback_block:
-            artifact_paths = self._save_text_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_feedback_prompt_block", feedback_block)
+            artifact_paths = self._save_text_into(artifact_paths, state["run_id"],
+                                                  f"semantic_attempt_{attempt_number:03d}_feedback_prompt_block",
+                                                  feedback_block)
         examples = [*state.get("visual_feedback_examples", []), example]
         feedback_items = list(state.get("semantic_feedback_items", []))
         if feedback_block and (not feedback_items or feedback_items[-1] != feedback_block):
@@ -958,7 +977,8 @@ class PipelineNodes:
                 summary=f"saved feedback example; corpus={bool(corpus_path)}",
                 inputs=["spec", "comments"],
                 outputs=[corpus_path or "artifact-only"],
-                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_feedback_example"], "corpus_path": corpus_path},
+                details={"artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_feedback_example"],
+                         "corpus_path": corpus_path},
             ),
         }
 

@@ -54,13 +54,13 @@ class VisionScoreService(BaseService):
     }
 
     def invoke(
-        self,
-        plot_image: PlotImageArtifact,
-        runtime: RuntimeContext,
-        query_understanding: QueryUnderstandingResult | None = None,
-        *,
-        user_prompt: str | None = None,
-        reference_image_path: str | None = None,
+            self,
+            plot_image: PlotImageArtifact,
+            runtime: RuntimeContext,
+            query_understanding: QueryUnderstandingResult | None = None,
+            *,
+            user_prompt: str | None = None,
+            reference_image_path: str | None = None,
     ) -> VisualQualityMetric:
         if runtime.vision_judge_llm is None:
             raise RuntimeError("Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.")
@@ -94,13 +94,13 @@ class VisionScoreService(BaseService):
         return self._to_metric(parsed, weights=self.SELF_WEIGHTS, mode="self")
 
     async def ainvoke(
-        self,
-        plot_image: PlotImageArtifact,
-        runtime: RuntimeContext,
-        query_understanding: QueryUnderstandingResult | None = None,
-        *,
-        user_prompt: str | None = None,
-        reference_image_path: str | None = None,
+            self,
+            plot_image: PlotImageArtifact,
+            runtime: RuntimeContext,
+            query_understanding: QueryUnderstandingResult | None = None,
+            *,
+            user_prompt: str | None = None,
+            reference_image_path: str | None = None,
     ) -> VisualQualityMetric:
         if runtime.vision_judge_llm is None:
             raise RuntimeError("Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.")
@@ -135,8 +135,8 @@ class VisionScoreService(BaseService):
 
     @staticmethod
     def _build_reference_prompt(
-        query_understanding: QueryUnderstandingResult | None,
-        user_prompt: str | None,
+            query_understanding: QueryUnderstandingResult | None,
+            user_prompt: str | None,
     ) -> str:
         intent = query_understanding.intent if query_understanding else "unknown"
         goal = query_understanding.analysis_goal if query_understanding else "unknown"
@@ -168,8 +168,8 @@ class VisionScoreService(BaseService):
 
     @staticmethod
     def _build_self_prompt(
-        query_understanding: QueryUnderstandingResult | None,
-        user_prompt: str | None,
+            query_understanding: QueryUnderstandingResult | None,
+            user_prompt: str | None,
     ) -> str:
         intent = query_understanding.intent if query_understanding else "unknown"
         goal = query_understanding.analysis_goal if query_understanding else "unknown"

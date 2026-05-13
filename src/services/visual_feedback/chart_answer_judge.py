@@ -22,12 +22,12 @@ class _ChartAnswerJudgeSchema(BaseModel):
 
 class ChartAnswerJudgeService(BaseService):
     def invoke(
-        self,
-        *,
-        query: str,
-        chart_facts: ChartFactSummaryResult,
-        runtime: RuntimeContext,
-        request_analysis: RequestAnalysisResult | None = None,
+            self,
+            *,
+            query: str,
+            chart_facts: ChartFactSummaryResult,
+            runtime: RuntimeContext,
+            request_analysis: RequestAnalysisResult | None = None,
     ) -> ChartAnswerJudgeResult:
         if runtime.reasoning_llm is None:
             raise RuntimeError("Chart answer judge requires runtime.reasoning_llm.")
@@ -89,13 +89,13 @@ def _clean_text_list(values: list[str]) -> list[str]:
 
 
 def _normalize_retry_recommendation(
-    value: object,
-    *,
-    answers_user_query: bool,
-    feedback_for_next_generation: str,
-    missing_requirements: list[str],
-    wrong_or_suspicious_parts: list[str],
-    improvement_comments: list[str],
+        value: object,
+        *,
+        answers_user_query: bool,
+        feedback_for_next_generation: str,
+        missing_requirements: list[str],
+        wrong_or_suspicious_parts: list[str],
+        improvement_comments: list[str],
 ) -> str:
     raw = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
     actionable_feedback_exists = bool(
@@ -105,7 +105,8 @@ def _normalize_retry_recommendation(
         or improvement_comments
     )
 
-    if raw in {"accept", "accepted", "ok", "okay", "pass", "passed", "no_retry", "no_retries", "none", "not_retry", "do_not_retry"}:
+    if raw in {"accept", "accepted", "ok", "okay", "pass", "passed", "no_retry", "no_retries", "none", "not_retry",
+               "do_not_retry"}:
         return "accept"
     if raw in {"retry", "revise", "regenerate", "needs_retry", "needs_improvement", "fix"}:
         return "retry"

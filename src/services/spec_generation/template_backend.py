@@ -108,7 +108,8 @@ class TemplateSpecBackend(SpecGenerationBackend):
                     continue
 
                 if key in {"groupby", "fields"} and isinstance(item, list):
-                    value[key] = [column_name_map.get(entry, entry) if isinstance(entry, str) else entry for entry in item]
+                    value[key] = [column_name_map.get(entry, entry) if isinstance(entry, str) else entry for entry in
+                                  item]
                     continue
 
                 cls._apply_safe_field_mapping(item, column_name_map)

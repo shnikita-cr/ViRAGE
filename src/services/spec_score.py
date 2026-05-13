@@ -21,12 +21,12 @@ class SpecScoreService(BaseService):
     """
 
     def invoke(
-        self,
-        spec_validation: SpecValidationResult,
-        ground_truth_spec: dict[str, Any],
-        *,
-        user_prompt: str | None = None,
-        empty_chart_check: EmptyChartCheckResult | None = None,
+            self,
+            spec_validation: SpecValidationResult,
+            ground_truth_spec: dict[str, Any],
+            *,
+            user_prompt: str | None = None,
+            empty_chart_check: EmptyChartCheckResult | None = None,
     ) -> StructuralSpecMetric:
         generated_spec = spec_validation.validated_spec or {}
         is_drawable = bool(spec_validation.is_valid)

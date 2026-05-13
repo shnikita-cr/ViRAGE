@@ -4,7 +4,7 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple
+from typing import Any, NamedTuple
 
 SpecType = dict[str, Any]
 
@@ -100,7 +100,7 @@ def compute_f1(list_ref: list[Any], list_hyp: list[Any], beta: float = 1.0) -> F
 
 
 def compute_f1_weighted(
-    list_ref: list[tuple[Any, float]], list_hyp: list[tuple[Any, float]], beta: float = 1.0
+        list_ref: list[tuple[Any, float]], list_hyp: list[tuple[Any, float]], beta: float = 1.0
 ) -> F1Score:
     ref: Counter[Any] = Counter()
     hyp: Counter[Any] = Counter()
@@ -221,10 +221,10 @@ def spec_f1_correctness_mark(spec_ref: SpecType, spec_hyp: SpecType) -> F1Score:
 
 def get_my_encoding_fields(spec: SpecType, *, include_titles: bool = False) -> list[tuple[str, str, Any]]:
     channels = (
-        ["x", "y", "x2", "y2", "xError", "yError", "xError2", "yError2"]
-        + ["color", "row", "column"]
-        + ["theta", "theta2", "radius", "radius2"]
-        + ["longitude", "latitude", "longitude2", "latitude2"]
+            ["x", "y", "x2", "y2", "xError", "yError", "xError2", "yError2"]
+            + ["color", "row", "column"]
+            + ["theta", "theta2", "radius", "radius2"]
+            + ["longitude", "latitude", "longitude2", "latitude2"]
     )
     properties = ["field", "type", "aggregate", "bin", "timeUnit"] + (["title", "axis"] if include_titles else [])
     values: list[tuple[str, str, Any]] = []
@@ -267,15 +267,15 @@ def _normalize_value(value: Any) -> Any:
 
 
 def spec_f1_correctness_encoding(
-    spec_ref: SpecType,
-    spec_hyp: SpecType,
-    *,
-    swappable_xy: bool = True,
-    swappable_faceting: bool = True,
-    include_titles: bool = False,
-    types_weight: float = 0.5,
-    time_unit_weight: float = 0.5,
-    beta: float = 2.0,
+        spec_ref: SpecType,
+        spec_hyp: SpecType,
+        *,
+        swappable_xy: bool = True,
+        swappable_faceting: bool = True,
+        include_titles: bool = False,
+        types_weight: float = 0.5,
+        time_unit_weight: float = 0.5,
+        beta: float = 2.0,
 ) -> F1Score:
     def do_swappable_fields(values: list[tuple[str, str, Any]]) -> list[tuple[str, str, Any]]:
         out: list[tuple[str, str, Any]] = []
@@ -347,13 +347,13 @@ def _prompt_mentions_mark_fallback(utterance: str) -> bool:
 
 
 def spec_score_impl(
-    spec_ref: SpecType,
-    spec_hyp: SpecType,
-    *,
-    utterance: str,
-    hyp_is_drawable: bool,
-    hyp_is_empty_chart: bool,
-    hyp_is_valid_schema: bool,
+        spec_ref: SpecType,
+        spec_hyp: SpecType,
+        *,
+        utterance: str,
+        hyp_is_drawable: bool,
+        hyp_is_empty_chart: bool,
+        hyp_is_valid_schema: bool,
 ) -> float:
     if not hyp_is_drawable:
         return 0.0
@@ -415,13 +415,13 @@ def compute_spec_metrics(spec_ref: SpecType, spec_hyp: SpecType) -> dict[str, fl
 
 
 def compute_vegachat_spec_score(
-    spec_ref: SpecType,
-    spec_hyp: SpecType,
-    *,
-    utterance: str,
-    hyp_is_drawable: bool,
-    hyp_is_empty_chart: bool,
-    hyp_is_valid_schema: bool,
+        spec_ref: SpecType,
+        spec_hyp: SpecType,
+        *,
+        utterance: str,
+        hyp_is_drawable: bool,
+        hyp_is_empty_chart: bool,
+        hyp_is_valid_schema: bool,
 ) -> VegaChatSpecScoreResult:
     mark = spec_f1_correctness_mark(spec_ref, spec_hyp)
     encoding = spec_f1_correctness_encoding(spec_ref, spec_hyp)

@@ -37,18 +37,19 @@ class VisRAGCorpus:
 
     @staticmethod
     def _to_example(row: dict[str, Any], path: Path) -> VisRAGExample:
-        spec_template = row.get("spec_template") or row.get("spec") or row.get("generated_spec") or row.get("revised_spec") or {}
+        spec_template = row.get("spec_template") or row.get("spec") or row.get("generated_spec") or row.get(
+            "revised_spec") or {}
         chart_type = require_supported_chart_type(
             row.get("chart_type") or row.get("mark_type") or row.get("mark") or _mark_from_spec(spec_template)
         )
         instruction = (
-            row.get("instruction")
-            or row.get("query")
-            or row.get("utterance")
-            or row.get("user_query")
-            or row.get("feedback_for_next_generation")
-            or row.get("user_comment")
-            or row.get("description")
+                row.get("instruction")
+                or row.get("query")
+                or row.get("utterance")
+                or row.get("user_query")
+                or row.get("feedback_for_next_generation")
+                or row.get("user_comment")
+                or row.get("description")
         )
         if not isinstance(instruction, str) or not instruction.strip():
             raise ValueError(f"Corpus row in {path} has no instruction/query/utterance/description.")
@@ -131,16 +132,16 @@ def _description_from_row(row: dict[str, Any]) -> str | None:
 def _metadata_from_row(row: dict[str, Any]) -> dict[str, Any]:
     metadata = dict(row.get("metadata") or {})
     for key in (
-        "record_type",
-        "source",
-        "status",
-        "created_at",
-        "run_id",
-        "attempt_number",
-        "user_comment",
-        "requested_regeneration",
-        "feedback_weight",
-        "rag_usage",
+            "record_type",
+            "source",
+            "status",
+            "created_at",
+            "run_id",
+            "attempt_number",
+            "user_comment",
+            "requested_regeneration",
+            "feedback_weight",
+            "rag_usage",
     ):
         if key in row:
             metadata[key] = row[key]

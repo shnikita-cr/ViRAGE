@@ -127,12 +127,12 @@ class DataProfilerService(BaseService):
         return profile
 
     def _profile_column(
-        self,
-        *,
-        column_name: str,
-        safe_name: str,
-        series: pd.Series,
-        row_count: int,
+            self,
+            *,
+            column_name: str,
+            safe_name: str,
+            series: pd.Series,
+            row_count: int,
     ) -> tuple[DataColumnProfile, list[str]]:
         quality_notes: list[str] = []
         missing_ratio = float(series.isna().mean()) if row_count else 0.0
@@ -263,7 +263,8 @@ class DataProfilerService(BaseService):
                         return rounded
 
                     years = numeric.map(expand_year)
-                    converted = pd.to_datetime(years.astype("Int64").astype("string") + "-01-01", errors="coerce").dropna()
+                    converted = pd.to_datetime(years.astype("Int64").astype("string") + "-01-01",
+                                               errors="coerce").dropna()
                 else:
                     converted = pd.to_datetime(non_null.head(1000), errors="coerce").dropna()
                 if converted.empty:
@@ -350,12 +351,12 @@ class DataProfilerService(BaseService):
         return copy
 
     def _degraded_column_profile(
-        self,
-        *,
-        column_name: str,
-        safe_name: str,
-        series: pd.Series,
-        row_count: int,
+            self,
+            *,
+            column_name: str,
+            safe_name: str,
+            series: pd.Series,
+            row_count: int,
     ) -> DataColumnProfile:
         return DataColumnProfile(
             name=column_name,

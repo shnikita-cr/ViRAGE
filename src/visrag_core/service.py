@@ -45,7 +45,8 @@ class VisRAGCoreService:
                 feedback_examples = VisRAGCorpus(feedback_path).load()
                 examples.extend(feedback_examples)
                 if feedback_examples:
-                    caveats.append(f"feedback_corpus_loaded: {len(feedback_examples)} examples from {feedback_path.as_posix()}.")
+                    caveats.append(
+                        f"feedback_corpus_loaded: {len(feedback_examples)} examples from {feedback_path.as_posix()}.")
             except FileNotFoundError:
                 pass
             except ValueError as exc:
