@@ -3,6 +3,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+ROOT = Path(".").resolve()
+print(ROOT)
+import sys
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from src.application.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.runner import VegaChatBenchmarkRunner
