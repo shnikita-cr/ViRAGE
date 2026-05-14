@@ -16,6 +16,7 @@ class SpecGenerationRequest(BaseModel):
     prepared: DataPreparationResult
     candidate_spec_set: CandidateSpecSet
     data_profile: DataProfile | None = None
+    compact_data_profile: dict[str, Any] | None = None
     request_analysis: RequestAnalysisResult | None = None
     query_understanding: QueryUnderstandingResult | None = None
     visrag: VisRAGResult | None = None

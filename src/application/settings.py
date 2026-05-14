@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,7 @@ class ViRAGESettings(BaseModel):
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/data"))
     visrag_top_k_examples: int = Field(default=5, ge=1)
+    visrag_prompt_top_k_examples: int = Field(default=2, ge=1)
     visrag_include_feedback_corpus: bool = Field(default=True)
     visrag_retriever_backend: str = Field(default="bm25")
     visrag_embedding_provider: str | None = Field(default=None)
@@ -38,6 +40,10 @@ class ViRAGESettings(BaseModel):
     spec_generation_prompt_version: str = Field(default="vega_chat_v1")
     spec_generation_include_visrag_context: bool = Field(default=True)
     spec_generation_max_context_chars: int = Field(default=3000, ge=256)
+    spec_generation_use_compact_profile: bool = Field(default=True)
+    spec_generation_max_profile_columns: int = Field(default=30, ge=3)
+    spec_generation_max_quality_notes: int = Field(default=10, ge=0)
+    spec_generation_max_sample_values: int = Field(default=3, ge=0)
 
     semantic_feedback_loop_enabled: bool = Field(default=False)
     semantic_feedback_max_attempts: int = Field(default=2, ge=1)
@@ -45,3 +51,7 @@ class ViRAGESettings(BaseModel):
     semantic_feedback_save_rejected_specs: bool = Field(default=True)
     semantic_feedback_corpus_path: Path = Field(default=Path("./rag_corpus/feedback/visual_feedback.jsonl"))
     semantic_feedback_include_png_path: bool = Field(default=True)
+    semantic_feedback_mode: Literal["strict", "debug_full_chain"] = Field(default="strict")
+
+    model_health_check_enabled: bool = Field(default=False)
+    model_health_check_timeout_seconds: float = Field(default=10.0, ge=1.0)

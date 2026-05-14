@@ -16,15 +16,17 @@ def build_vegachat_codegen_prompt(
         include_visrag_context: bool = True,
         previous_error: str | None = None,
         previous_response: str | None = None,
+        rag_prompt_top_k: int = 2,
 ) -> str:
     parts = [
         _system_contract(prompt_version),
-        _dataset_contract(request.data_profile, request.prepared),
+        _dataset_contract(request.data_profile, request.prepared, request.compact_data_profile),
         _request_contract(request),
         _validation_feedback_contract(request),
         _semantic_feedback_contract(request),
         _visrag_context(request.candidate_spec_set,
-                        max_context_chars=max_context_chars) if include_visrag_context else "VisRAG context is disabled for this generation run.",
+                        max_context_chars=max_context_chars,
+                        top_k=rag_prompt_top_k) if include_visrag_context else "VisRAG context is disabled for this generation run.",
         _output_contract(),
     ]
 
@@ -63,8 +65,12 @@ Hard rules:
 """
 
 
-def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult) -> str:
+def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult, compact_profile: dict[str, Any] | None = None) -> str:
     lines = ["Dataset schema and safe field names:"]
+    if compact_profile:
+        lines.append("Compact LLM-facing profile. Use only these safe field names unless validation feedback explicitly requires another listed field.")
+        lines.append(json.dumps(compact_profile, ensure_ascii=False, indent=2, default=str))
+        return "\n".join(lines)
     if data_profile is None:
         for safe in prepared.safe_columns:
             original = prepared.reverse_column_name_map.get(safe, safe)
@@ -169,22 +175,22 @@ def _semantic_feedback_contract(request: SpecGenerationRequest) -> str:
     )
 
 
-def _visrag_context(candidate_spec_set: CandidateSpecSet, *, max_context_chars: int) -> str:
+def _visrag_context(candidate_spec_set: CandidateSpecSet, *, max_context_chars: int, top_k: int = 2) -> str:
     payload: dict[str, Any] = {
         "selected_candidate": None,
         "candidate_specs": [],
         "retrieved_examples": [],
-        "ranking_hints": candidate_spec_set.ranking_hints[:10],
+        "ranking_hints": candidate_spec_set.ranking_hints[:5],
     }
 
     selected = candidate_spec_set.selected_candidate_spec
     if selected is not None:
         payload["selected_candidate"] = _candidate_payload(selected)
 
-    for candidate in candidate_spec_set.candidate_specs[:5]:
+    for candidate in candidate_spec_set.candidate_specs[:top_k]:
         payload["candidate_specs"].append(_candidate_payload(candidate))
 
-    for example in candidate_spec_set.retrieved_examples[:5]:
+    for example in candidate_spec_set.retrieved_examples[:top_k]:
         payload["retrieved_examples"].append(
             {
                 "example_id": example.example_id,
@@ -207,19 +213,27 @@ def _visrag_context(candidate_spec_set: CandidateSpecSet, *, max_context_chars: 
 
 
 def _candidate_payload(candidate) -> dict[str, Any]:
-    spec_template = candidate.spec_template or {}
-    compact_template = _strip_data(spec_template)
+    spec_template = _strip_data(candidate.spec_template or {})
     return {
         "spec_id": candidate.spec_id,
         "chart_family": candidate.chart_family,
         "summary": candidate.summary,
         "score": candidate.score,
-        "rationale": candidate.rationale,
         "encoding_roles": candidate.encoding_roles,
         "transform_types": candidate.transform_types,
         "field_mapping": candidate.field_mapping,
-        "spec_template_without_data": compact_template,
+        "pattern_summary": _spec_pattern_summary(spec_template),
     }
+
+
+def _spec_pattern_summary(spec: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(spec, dict):
+        return {}
+    summary: dict[str, Any] = {}
+    for key in ("mark", "encoding", "transform", "layer", "facet", "repeat", "concat", "hconcat", "vconcat", "resolve"):
+        if key in spec:
+            summary[key] = spec[key]
+    return summary
 
 
 def _strip_data(value: Any) -> Any:

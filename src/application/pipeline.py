@@ -13,6 +13,7 @@ from src.domain.models import ModelCallLog, StepLog
 from src.graph.builder import build_pipeline_graph
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.factory import build_chat_model
+from src.llm.healthcheck import check_required_models, raise_for_failed_health_checks
 from src.observability import traceable
 
 
@@ -45,12 +46,24 @@ class ViRAGEPipeline:
             settings.enable_evaluation_summary = False
         settings.streamlit_compute_metrics = config.streamlit.compute_metrics
         settings.streamlit_show_step_logs = config.streamlit.show_step_logs
+        models = {
+            "reasoning": build_chat_model(config.reasoning_model),
+            "spec": build_chat_model(config.spec_model),
+            "vlm": build_chat_model(config.vlm_model),
+            "vision_judge": build_chat_model(config.vision_judge_model),
+        }
+        if bool(getattr(settings, "model_health_check_enabled", False)):
+            results = check_required_models(
+                models,
+                timeout_seconds=float(getattr(settings, "model_health_check_timeout_seconds", 10.0)),
+            )
+            raise_for_failed_health_checks(results)
         return cls(
             settings=settings,
-            reasoning_llm=build_chat_model(config.reasoning_model),
-            spec_llm=build_chat_model(config.spec_model),
-            vlm=build_chat_model(config.vlm_model),
-            vision_judge_llm=build_chat_model(config.vision_judge_model),
+            reasoning_llm=models["reasoning"],
+            spec_llm=models["spec"],
+            vlm=models["vlm"],
+            vision_judge_llm=models["vision_judge"],
         )
 
     @traceable(name='virage.pipeline.invoke')

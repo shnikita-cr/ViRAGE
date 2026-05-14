@@ -13,6 +13,42 @@ from src.llm.helpers import (
 from src.services.base import BaseService
 
 
+def compute_vegachat_vision_score(
+    *,
+    visualization_type: int,
+    data_encoding: int,
+    data_transformation: int,
+    aesthetics: int,
+    prompt_compliance: int,
+    is_blank: bool,
+) -> tuple[float, dict[str, float]]:
+    """Deterministic VegaChat-compatible VisionScore aggregation.
+
+    Criterion values use the VegaChat 0/1/2 scale. Blank charts receive the same large-denominator
+    penalty used by the project-level VegaChat-compatible metric implementation.
+    """
+    weights = {
+        "visualization_type": 1.0,
+        "data_encoding": 2.0,
+        "data_transformation": 1.0,
+        "aesthetics": 0.75,
+        "prompt_compliance": 1.5,
+    }
+    values = {
+        "visualization_type": visualization_type,
+        "data_encoding": data_encoding,
+        "data_transformation": data_transformation,
+        "aesthetics": aesthetics,
+        "prompt_compliance": prompt_compliance,
+    }
+    numerator = sum((max(0, min(2, int(values[name]))) / 2.0) * weight for name, weight in weights.items())
+    denominator = sum(weights.values())
+    if is_blank:
+        denominator += 1000.0
+    score = numerator / denominator if denominator else 0.0
+    return round(max(0.0, min(1.0, score)), 6), weights
+
+
 class _VisionScoreSchema(BaseModel):
     visualization_type: int = Field(default=0, ge=0, le=2)
     data_encoding: int = Field(default=0, ge=0, le=2)
@@ -219,21 +255,34 @@ class VisionScoreService(BaseService):
     def _to_metric(self, parsed: _VisionScoreSchema, *, weights: dict[str, float], mode: str) -> VisualQualityMetric:
         rationales = dict(parsed.rationales)
         details = [f"mode={mode}", *parsed.details]
-        weighted_sum = 0.0
-        max_sum = 0.0
+        if mode == "reference":
+            score, reference_weights = compute_vegachat_vision_score(
+                visualization_type=parsed.visualization_type,
+                data_encoding=parsed.data_encoding,
+                data_transformation=parsed.data_transformation,
+                aesthetics=parsed.aesthetics,
+                prompt_compliance=parsed.prompt_compliance,
+                is_blank=parsed.is_blank,
+            )
+            weights = reference_weights
+        else:
+            weighted_sum = 0.0
+            max_sum = 0.0
+            for name, weight in weights.items():
+                value = getattr(parsed, name)
+                weighted_sum += (float(value) / 2.0) * weight
+                max_sum += weight
+            if parsed.is_blank:
+                max_sum += 1000.0
+            score = weighted_sum / max_sum if max_sum else 0.0
         for name, weight in weights.items():
             value = getattr(parsed, name)
-            weighted_sum += (float(value) / 2.0) * weight
-            max_sum += weight
             details.append(f"{name}={value}/2")
         if parsed.is_blank:
-            # VegaChat treats blank charts as a huge denominator penalty instead of a hard early return.
-            max_sum += 1000.0
             details.append("is_blank=1/1")
             details.append("blank_weight=1000")
         else:
             details.append("is_blank=0/1")
-        score = weighted_sum / max_sum if max_sum else 0.0
         return VisualQualityMetric(
             score=round(max(0.0, min(1.0, score)), 6),
             prompt_compliance=round(parsed.prompt_compliance / 2.0, 6),

@@ -33,6 +33,9 @@ from src.domain.models import (
     VLMAnalysisResult,
     VLMChartDescriptionResult,
     VisualFeedbackExample,
+    SemanticChartJudgeResult,
+    ChartGroundedAnalysisRecord,
+    ChartRevisionRecord,
 )
 
 
@@ -55,6 +58,7 @@ class PipelineState(TypedDict, total=False):
     semantic_chart_fact_history: NotRequired[list[dict[str, Any]]]
     semantic_status: NotRequired[str]
     semantic_retry_feedback: NotRequired[str]
+    semantic_retry_reasons: NotRequired[list[str]]
 
     query_understanding: NotRequired[QueryUnderstandingResult]
     query_intent_bundle: NotRequired[QueryIntentBundle]
@@ -62,6 +66,7 @@ class PipelineState(TypedDict, total=False):
     analysis_rubric: NotRequired[AnalysisRubric]
     data_profile: NotRequired[DataProfile]
     data_preparation: NotRequired[DataPreparationResult]
+    compact_data_profile: NotRequired[dict[str, Any]]
     visrag: NotRequired[VisRAGResult]
     candidate_spec_set: NotRequired[CandidateSpecSet]
     vega_spec: NotRequired[VegaLiteSpecArtifact]
@@ -73,6 +78,9 @@ class PipelineState(TypedDict, total=False):
     vlm_chart_description: NotRequired[VLMChartDescriptionResult]
     chart_fact_summary: NotRequired[ChartFactSummaryResult]
     chart_answer_judge: NotRequired[ChartAnswerJudgeResult]
+    semantic_chart_judge: NotRequired[SemanticChartJudgeResult]
+    chart_analysis: NotRequired[ChartGroundedAnalysisRecord]
+    chart_revision_record: NotRequired[ChartRevisionRecord]
     visual_feedback_examples: NotRequired[list[VisualFeedbackExample]]
     semantic_feedback_loop_summary: NotRequired[SemanticFeedbackLoopSummary]
     vlm_analysis: NotRequired[VLMAnalysisResult]

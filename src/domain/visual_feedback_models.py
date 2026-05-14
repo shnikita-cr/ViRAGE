@@ -47,6 +47,55 @@ class ChartAnswerJudgeResult(BaseModel):
     feedback_for_next_generation: str = ""
 
 
+class SemanticChartJudgeResult(BaseModel):
+    """Strict one-call VLM judge for chart-grounded semantic feedback."""
+
+    input_scope: Literal["png_query_spec_context"] = "png_query_spec_context"
+    chart_description: str = ""
+    detected_chart_type: str | None = None
+    visible_axes: dict[str, str] = Field(default_factory=dict)
+    visible_legend: dict[str, Any] = Field(default_factory=dict)
+    visible_labels: list[str] = Field(default_factory=list)
+    visible_fields: list[str] = Field(default_factory=list)
+    observed_facts: list[str] = Field(default_factory=list)
+    answers_user_query: bool = False
+    supports_visible_claims: bool = True
+    confidence: float = 0.0
+    retry_recommendation: Literal["accept", "retry", "reject"] = "retry"
+    missing_requirements: list[str] = Field(default_factory=list)
+    wrong_or_suspicious_parts: list[str] = Field(default_factory=list)
+    readability_issues: list[str] = Field(default_factory=list)
+    improvement_comments: list[str] = Field(default_factory=list)
+    feedback_for_next_generation: str = ""
+    is_blank_or_unreadable: bool = False
+    rationales: dict[str, str] = Field(default_factory=dict)
+
+
+class ChartGroundedAnalysisRecord(BaseModel):
+    record_type: Literal["chart_grounded_analysis"] = "chart_grounded_analysis"
+    user_query: str
+    used_fields: list[str] = Field(default_factory=list)
+    chart_type: str | None = None
+    observed_facts: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    feedback_for_next_generation: str = ""
+    accepted: bool = False
+    retry_recommendation: str = "retry"
+    confidence: float = 0.0
+
+
+class ChartRevisionRecord(BaseModel):
+    record_type: Literal["chart_revision_record"] = "chart_revision_record"
+    attempt_number: int
+    user_query: str
+    accepted: bool = False
+    retry_recommendation: str = "retry"
+    retry_reasons: list[str] = Field(default_factory=list)
+    feedback_for_next_generation: str = ""
+    generated_spec: dict[str, Any] = Field(default_factory=dict)
+    rendered_png_path: str = ""
+
+
 class VisualFeedbackExample(BaseModel):
     record_type: Literal["visual_feedback"] = "visual_feedback"
     source: str = "virage_semantic_loop"

@@ -118,6 +118,7 @@ _STAGE_TITLES = {
     "empty_chart_check": "Empty chart check",
     "spec_score": "Spec score",
     "semantic_loop_gate": "Semantic VLM gate",
+    "semantic_chart_judge": "Strict semantic chart judge",
     "vlm_chart_description": "PNG-only VLM description",
     "chart_fact_summary": "Chart fact summary",
     "chart_answer_judge": "Semantic answer judge",
@@ -223,9 +224,12 @@ def _route_technical_decision(state: PipelineState) -> str:
 
 def _route_semantic_gate(state: PipelineState) -> str:
     status = str(state.get("semantic_status") or "")
-    if status == "enabled":
-        return "enabled"
-    return "disabled"
+    if status != "enabled":
+        return "disabled"
+    mode = str(state.get("semantic_feedback_mode") or "strict")
+    if mode == "debug_full_chain":
+        return "debug_full_chain"
+    return "strict"
 
 
 def _route_semantic_decision(state: PipelineState) -> str:
@@ -261,6 +265,7 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("empty_chart_check", nodes.empty_chart_check_node),
         ("spec_score", nodes.spec_score_node),
         ("semantic_loop_gate", nodes.semantic_loop_gate_node),
+        ("semantic_chart_judge", nodes.semantic_chart_judge_node),
         ("vlm_chart_description", nodes.vlm_chart_description_node),
         ("chart_fact_summary", nodes.chart_fact_summary_node),
         ("chart_answer_judge", nodes.chart_answer_judge_node),
@@ -299,8 +304,9 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph.add_conditional_edges(
         "semantic_loop_gate",
         _route_semantic_gate,
-        {"enabled": "vlm_chart_description", "disabled": "vlm_analysis"},
+        {"strict": "semantic_chart_judge", "debug_full_chain": "vlm_chart_description", "disabled": "vlm_analysis"},
     )
+    graph.add_edge("semantic_chart_judge", "semantic_decision")
     graph.add_edge("vlm_chart_description", "chart_fact_summary")
     graph.add_edge("chart_fact_summary", "chart_answer_judge")
     graph.add_edge("chart_answer_judge", "semantic_decision")

@@ -34,6 +34,7 @@ class FeedbackCorpusWriterService(BaseService):
             request_analysis: RequestAnalysisResult | None = None,
     ) -> VisualFeedbackExample:
         return VisualFeedbackExample(
+            status="accepted" if judge_result.retry_recommendation == "accept" else "rejected_or_needs_improvement",
             created_at=datetime.now(timezone.utc).isoformat(),
             run_id=run_id,
             attempt_number=attempt_number,
@@ -45,6 +46,14 @@ class FeedbackCorpusWriterService(BaseService):
             chart_fact_summary=chart_facts,
             judge_result=judge_result,
             feedback_for_next_generation=judge_result.feedback_for_next_generation,
+            feedback_weight=1.5 if judge_result.feedback_for_next_generation else 1.0,
+            rag_usage={
+                "approved_for_rag": False,
+                "exported_to_rag": False,
+                "approved_for_retrieval": False,
+                "source_quality": "vlm_structured_feedback",
+                "weight": 1.5 if judge_result.feedback_for_next_generation else 1.0,
+            },
         )
 
     def build_user_feedback_example(
@@ -95,6 +104,7 @@ class FeedbackCorpusWriterService(BaseService):
             rag_usage={
                 "approved_for_rag": True,
                 "exported_to_rag": True,
+                "approved_for_retrieval": True,
                 "priority": "high",
                 "weight": 3.0 if needs_regeneration else 2.0,
             },

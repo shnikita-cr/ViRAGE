@@ -5,12 +5,13 @@ from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog
+from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, VisualQualityMetric
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
 from src.services.chart_generator import ChartGeneratorService
 from src.services.data_preparation import DataPreparationService
 from src.services.data_profiler import DataProfilerService
+from src.services.compact_data_profile import CompactDataProfileService
 from src.services.empty_chart_check import EmptyChartCheckService
 from src.services.evaluation_summary import EvaluationSummaryService
 from src.services.fact_extractor import FactExtractorService
@@ -28,6 +29,8 @@ from src.services.visual_feedback import (
     ChartAnswerJudgeService,
     ChartFactSummaryService,
     FeedbackCorpusWriterService,
+    SemanticChartJudgeAdapters,
+    SemanticChartJudgeService,
     VLMChartDescriptionService,
 )
 from src.services.vlm_analysis import VLMAnalysisService
@@ -70,6 +73,15 @@ def _actionable_semantic_feedback(judge: Any) -> list[str]:
         list(getattr(judge, "wrong_or_suspicious_parts", []) or []),
         list(getattr(judge, "improvement_comments", []) or []),
     )
+
+
+def _semantic_retry_reasons(judge: Any) -> list[str]:
+    reasons = _actionable_semantic_feedback(judge)
+    if bool(getattr(judge, "answers_user_query", False)) is False:
+        reasons = _merge_unique_texts(["The chart does not fully answer the user query."], reasons)
+    if str(getattr(judge, "retry_recommendation", "")).strip().lower() == "reject":
+        reasons = _merge_unique_texts(["The semantic judge rejected the rendered chart."], reasons)
+    return reasons
 
 
 def _semantic_feedback_text(judge: Any) -> str:
@@ -133,6 +145,35 @@ def _build_live_chart_preview_payload(state: PipelineState, empty_chart_check: A
     }
 
 
+def _adjust_visual_quality_with_semantic(metric: VisualQualityMetric, state: PipelineState) -> VisualQualityMetric:
+    summary = state.get("semantic_feedback_loop_summary")
+    if summary is None:
+        return metric
+    final_status = getattr(summary, "final_status", None)
+    if final_status in {None, "disabled", "skipped", "accepted"}:
+        return metric
+
+    details = list(metric.details)
+    details.append(f"semantic_status_adjustment={final_status}")
+    adjusted_score = float(metric.score)
+    if final_status == "failed":
+        adjusted_score = min(adjusted_score, 0.6)
+    missing = list(getattr(summary, "missing_requirements", []) or [])
+    comments = list(getattr(summary, "improvement_comments", []) or [])
+    penalty = min(0.3, 0.05 * len(missing) + 0.03 * len(comments))
+    adjusted_score = max(0.0, adjusted_score - penalty)
+    if penalty > 0:
+        details.append(f"semantic_issue_penalty={penalty:.3f}")
+    rationales = dict(metric.rationales)
+    rationales["semantic_status"] = f"Visual quality was capped/penalized because semantic feedback loop ended as {final_status}."
+    return metric.model_copy(update={
+        "score": round(adjusted_score, 6),
+        "prompt_compliance": min(metric.prompt_compliance, round(adjusted_score, 6)),
+        "rationales": rationales,
+        "details": details,
+    })
+
+
 class PipelineNodes:
     def __init__(self, runtime: RuntimeContext) -> None:
         self.runtime = runtime
@@ -140,6 +181,7 @@ class PipelineNodes:
         self.data_profiler = DataProfilerService()
         self.request_analyzer = RequestAnalyzerService()
         self.data_preparation = DataPreparationService()
+        self.compact_data_profile = CompactDataProfileService()
         self.visrag = VisRAGService()
         self.chart_generator = ChartGeneratorService()
         self.spec_validator = SpecValidatorService()
@@ -156,6 +198,7 @@ class PipelineNodes:
         self.vlm_chart_description = VLMChartDescriptionService()
         self.chart_fact_summary = ChartFactSummaryService()
         self.chart_answer_judge = ChartAnswerJudgeService()
+        self.semantic_chart_judge = SemanticChartJudgeService()
         self.feedback_corpus_writer = FeedbackCorpusWriterService()
 
     @staticmethod
@@ -292,8 +335,18 @@ class PipelineNodes:
             query_understanding=state.get("query_understanding"),
         )
         artifact_paths = self._save(state, "data_preparation", result.model_dump())
+        compact_profile = None
+        if bool(getattr(self.runtime.settings, "spec_generation_use_compact_profile", True)):
+            compact_profile = self.compact_data_profile.invoke(
+                state["data_profile"],
+                result,
+                state.get("request_analysis"),
+                settings=self.runtime.settings,
+            )
+            artifact_paths = self._save_into(artifact_paths, state["run_id"], "data_profile_compact", compact_profile)
         return {
             "data_preparation": result,
+            "compact_data_profile": compact_profile,
             "stage": PipelineStage.DATA_PREPARATION,
             "trace": self._trace(state, "data_preparation"),
             "artifact_paths": artifact_paths,
@@ -304,7 +357,11 @@ class PipelineNodes:
                 summary=f"Prepared rows={result.row_count}",
                 inputs=[state["data_path"]],
                 outputs=result.operations[:5],
-                details={"artifact": artifact_paths["data_preparation"], "prepared_path": result.output_path},
+                details={
+                    "artifact": artifact_paths["data_preparation"],
+                    "compact_profile_artifact": artifact_paths.get("data_profile_compact"),
+                    "prepared_path": result.output_path,
+                },
             ),
         }
 
@@ -353,6 +410,7 @@ class PipelineNodes:
             runtime=self.runtime,
             query=state["query"],
             data_profile=state.get("data_profile"),
+            compact_data_profile=state.get("compact_data_profile"),
             request_analysis=state.get("request_analysis"),
             query_understanding=state.get("query_understanding"),
             visrag=state.get("visrag"),
@@ -679,8 +737,10 @@ class PipelineNodes:
                     details={"artifact": artifact_paths["semantic_feedback_loop_summary"]},
                 ),
             }
+        mode = str(getattr(self.runtime.settings, "semantic_feedback_mode", "strict") or "strict")
         return {
             "semantic_status": "enabled",
+            "semantic_feedback_mode": mode,
             "semantic_attempt_number": max(1, int(state.get("semantic_attempt_number", 1) or 1)),
             "stage": PipelineStage.EVALUATION,
             "trace": self._trace(state, "semantic_loop_gate_enabled"),
@@ -688,10 +748,86 @@ class PipelineNodes:
                 state,
                 stage="semantic_loop_gate",
                 title="Semantic VLM loop",
-                summary="enabled",
-                outputs=["enabled"],
+                summary=f"enabled ({mode})",
+                outputs=[mode],
             ),
         }
+
+    @traceable(name="virage.semantic_chart_judge")
+    def semantic_chart_judge_node(self, state: PipelineState) -> dict:
+        before = len(self.runtime.model_call_logs)
+        attempt_number = max(1, int(state.get("semantic_attempt_number", 1) or 1))
+        plot_image = PlotImageArtifact(**state["plot_image"])
+        result = self.semantic_chart_judge.invoke(
+            query=state["query"],
+            plot_image=plot_image,
+            vega_spec=state["vega_spec"],
+            runtime=self.runtime,
+            request_analysis=state.get("request_analysis"),
+            data_profile=state.get("data_profile"),
+            compact_data_profile=state.get("compact_data_profile"),
+        )
+        vlm_description = SemanticChartJudgeAdapters.to_vlm_description(result)
+        chart_facts = SemanticChartJudgeAdapters.to_fact_summary(result)
+        answer_judge = SemanticChartJudgeAdapters.to_answer_judge(result)
+        retry_reasons = _semantic_retry_reasons(answer_judge)
+        used_fields = []
+        if state.get("request_analysis") is not None:
+            used_fields = list(state["request_analysis"].selected_fields)
+        chart_analysis = SemanticChartJudgeAdapters.to_chart_analysis_record(
+            query=state["query"],
+            result=result,
+            used_fields=used_fields,
+        )
+        revision = SemanticChartJudgeAdapters.to_revision_record(
+            attempt_number=attempt_number,
+            query=state["query"],
+            result=result,
+            vega_spec=state["vega_spec"],
+            rendered_png_path=state["plot_image"].get("image_path", ""),
+            retry_reasons=retry_reasons,
+        )
+        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_semantic_chart_judge", result.model_dump())
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_chart_analysis", chart_analysis.model_dump())
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_chart_feedback", answer_judge.model_dump())
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_chart_revision_record", revision.model_dump())
+        judge_model_calls = [item.model_dump() for item in self.runtime.model_call_logs[before:]]
+        if judge_model_calls:
+            artifact_paths = self._save_into(
+                artifact_paths,
+                state["run_id"],
+                f"semantic_attempt_{attempt_number:03d}_semantic_chart_judge_model_calls",
+                judge_model_calls,
+            )
+        history = [*state.get("semantic_chart_fact_history", []), chart_facts.model_dump()]
+        return {
+            "semantic_chart_judge": result,
+            "vlm_chart_description": vlm_description,
+            "chart_fact_summary": chart_facts,
+            "semantic_chart_fact_history": history,
+            "chart_answer_judge": answer_judge,
+            "chart_analysis": chart_analysis,
+            "chart_revision_record": revision,
+            "semantic_retry_reasons": retry_reasons,
+            "stage": PipelineStage.VERIFICATION,
+            "trace": self._trace(state, "semantic_chart_judge"),
+            "artifact_paths": artifact_paths,
+            "step_logs": self._append_log(
+                state,
+                stage="semantic_chart_judge",
+                title="Strict semantic chart judge",
+                summary=f"answers={result.answers_user_query}; recommendation={result.retry_recommendation}; confidence={result.confidence:.3f}",
+                inputs=[state["plot_image"].get("image_path", ""), "user_query", "validated_spec"],
+                outputs=[result.retry_recommendation, *retry_reasons[:2]],
+                details=self._stage_details(before) | {
+                    "artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_semantic_chart_judge"],
+                    "chart_analysis_artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_chart_analysis"],
+                    "chart_revision_artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_chart_revision_record"],
+                    **result.model_dump(),
+                },
+            ),
+        }
+
 
     @traceable(name="virage.vlm_chart_description")
     def vlm_chart_description_node(self, state: PipelineState) -> dict:
@@ -785,6 +921,7 @@ class PipelineNodes:
         max_attempts = max(1, int(self.runtime.settings.semantic_feedback_max_attempts))
         min_confidence = float(self.runtime.settings.semantic_feedback_min_accept_confidence)
         actionable_feedback = _actionable_semantic_feedback(judge)
+        retry_reasons = _semantic_retry_reasons(judge)
         accepted = bool(
             judge.answers_user_query
             and judge.confidence >= min_confidence
@@ -827,11 +964,13 @@ class PipelineNodes:
             }
 
         feedback_text = _semantic_feedback_text(judge)
+        if not feedback_text and retry_reasons:
+            feedback_text = "\n".join(retry_reasons)
         feedback_items = [*state.get("semantic_feedback_items", [])]
         if feedback_text:
             feedback_items.append(feedback_text)
 
-        if attempt_number < max_attempts:
+        if retry_reasons and attempt_number < max_attempts:
             summary = {
                 "status": "retry",
                 "attempt_number": attempt_number,
@@ -841,7 +980,8 @@ class PipelineNodes:
                 "answers_user_query": judge.answers_user_query,
                 "retry_recommendation": judge.retry_recommendation,
                 "actionable_feedback_exists": bool(actionable_feedback),
-                "decision_reason": "retry_requested_by_judge_with_actionable_feedback" if actionable_feedback else "retry_requested_by_judge_without_actionable_feedback",
+                "retry_reasons": retry_reasons,
+                "decision_reason": "retry_with_concrete_reasons",
                 "missing_requirements": judge.missing_requirements,
                 "wrong_or_suspicious_parts": judge.wrong_or_suspicious_parts,
                 "improvement_comments": judge.improvement_comments,
@@ -856,6 +996,7 @@ class PipelineNodes:
                 "technical_retry_feedback": {},
                 "semantic_feedback_items": feedback_items,
                 "semantic_retry_feedback": feedback_text,
+                "semantic_retry_reasons": retry_reasons,
                 "stage": PipelineStage.VERIFICATION,
                 "trace": self._trace(state, "semantic_decision_retry"),
                 "artifact_paths": artifact_paths,
@@ -1075,13 +1216,16 @@ class PipelineNodes:
         plot_image = PlotImageArtifact(**state["plot_image"])
         user_context = state.get("user_context", {}) if isinstance(state.get("user_context"), dict) else {}
         reference_image_path = user_context.get("reference_image_path")
+        reference_image = reference_image_path if isinstance(reference_image_path, str) else None
         result = self.vision_score.invoke(
             plot_image,
             runtime=self.runtime,
             query_understanding=state.get("query_understanding"),
             user_prompt=state.get("query"),
-            reference_image_path=reference_image_path if isinstance(reference_image_path, str) else None,
+            reference_image_path=reference_image,
         )
+        if reference_image is None:
+            result = _adjust_visual_quality_with_semantic(result, state)
         artifact_paths = self._save(state, "visual_quality_metric", result.model_dump())
         return {
             "visual_quality_metric": result,

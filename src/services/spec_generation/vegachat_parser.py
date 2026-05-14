@@ -22,7 +22,21 @@ def parse_vegachat_response(raw_response: str) -> tuple[str | None, dict[str, An
         raise VegaChatResponseParseError(f"Could not parse Vega-Lite JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise VegaChatResponseParseError("Parsed Vega-Lite JSON must be an object.")
+    payload = _unwrap_spec_payload(payload)
     return explanation, payload
+
+
+def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Accept common LLM wrappers while keeping the VegaChat <json> contract strict.
+
+    Some models return {"json": {...}}, {"spec": {...}} or {"vega_lite_spec": {...}} inside the
+    <json> block. The generator expects the inner Vega-Lite object, not the wrapper.
+    """
+    for key in ("json", "spec", "vega_lite_spec", "vegalite_spec", "vl_spec"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            return value
+    return payload
 
 
 def _extract_explanation(raw_response: str) -> str | None:

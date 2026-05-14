@@ -45,6 +45,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                 include_visrag_context=bool(runtime.settings.spec_generation_include_visrag_context),
                 previous_error=previous_error,
                 previous_response=previous_response,
+                rag_prompt_top_k=int(getattr(runtime.settings, "visrag_prompt_top_k_examples", 2)),
             )
             final_prompt = prompt
             try:
