@@ -72,6 +72,7 @@ class QueryUnderstandingService(BaseService):
             user_context: dict[str, Any],
             runtime: RuntimeContext,
             data_profile: DataProfile | None = None,
+            compact_data_profile: dict[str, Any] | None = None,
     ) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
@@ -79,7 +80,7 @@ class QueryUnderstandingService(BaseService):
                 "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = invoke_structured(
             reasoning_llm,
-            self._build_prompt(query, user_context, data_profile),
+            self._build_prompt(query, user_context, data_profile, compact_data_profile),
             _QueryUnderstandingSchema,
             runtime=runtime,
             stage="query_understanding",
@@ -95,6 +96,7 @@ class QueryUnderstandingService(BaseService):
             user_context: dict[str, Any],
             runtime: RuntimeContext,
             data_profile: DataProfile | None = None,
+            compact_data_profile: dict[str, Any] | None = None,
     ) -> QueryUnderstandingResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
@@ -102,7 +104,7 @@ class QueryUnderstandingService(BaseService):
                 "QueryUnderstandingService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = await ainvoke_structured(
             reasoning_llm,
-            self._build_prompt(query, user_context, data_profile),
+            self._build_prompt(query, user_context, data_profile, compact_data_profile),
             _QueryUnderstandingSchema,
             runtime=runtime,
             stage="query_understanding",
@@ -117,9 +119,10 @@ class QueryUnderstandingService(BaseService):
             query: str,
             user_context: dict[str, Any],
             data_profile: DataProfile | None = None,
+            compact_data_profile: dict[str, Any] | None = None,
     ) -> str:
         context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
-        schema_lines = self._schema_context(data_profile)
+        schema_lines = self._schema_context(data_profile, compact_data_profile)
         return (
             "You analyze requests for an NL2VIS system.\n"
             "Use the exact field names required by the schema.\n"
@@ -132,12 +135,31 @@ class QueryUnderstandingService(BaseService):
         )
 
     @staticmethod
-    def _schema_context(data_profile: DataProfile | None) -> str:
+    def _schema_context(data_profile: DataProfile | None, compact_data_profile: dict[str, Any] | None = None) -> str:
+        if compact_data_profile:
+            lines = [
+                f"Rows={compact_data_profile.get('row_count')}, "
+                f"columns={compact_data_profile.get('column_count')}, "
+                f"included_columns={compact_data_profile.get('included_column_count')}"
+            ]
+            for column in compact_data_profile.get("columns", []):
+                if not isinstance(column, dict):
+                    continue
+                lines.append(
+                    f"- {column.get('original')} | safe={column.get('safe')} | "
+                    f"dtype={column.get('type')} | role={column.get('role')} | "
+                    f"missing_ratio={column.get('missing_ratio')} | unique_count={column.get('unique_count')}"
+                )
+            notes = compact_data_profile.get("quality_notes_top") or []
+            if notes:
+                lines.append("Quality notes: " + "; ".join(str(item) for item in notes[:5]))
+            return "\n".join(lines) or "- none"
+
         if data_profile is None:
             return "- none"
 
         lines = []
-        for column in data_profile.columns:
+        for column in data_profile.columns[:30]:
             role = data_profile.field_roles.get(column.name, "unknown")
             lines.append(
                 f"- {column.name} | dtype={column.dtype} | role={role} | "

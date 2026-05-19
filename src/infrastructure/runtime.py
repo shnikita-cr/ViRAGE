@@ -171,6 +171,30 @@ class RuntimeContext:
             run_id=run_id,
         )
 
+
+    def save_run_status(
+            self,
+            *,
+            run_id: str | None = None,
+            status: str,
+            final_stage: str | None = None,
+            semantic_status: str | None = None,
+            error_type: str | None = None,
+            error: str | None = None,
+            extra: dict[str, Any] | None = None,
+    ) -> str:
+        payload = {
+            "status": status,
+            "final_stage": final_stage,
+            "semantic_status": semantic_status,
+            "error_type": error_type,
+            "error": error,
+            "has_model_calls_csv": (self.ensure_run_dir(run_id) / "model_calls.csv").exists(),
+            "has_stages_csv": (self.ensure_run_dir(run_id) / "stages.csv").exists(),
+            **(extra or {}),
+        }
+        return self.save_json_artifact("run_status.json", payload, run_id=run_id)
+
     def save_json_artifact(
             self,
             relative_path: str,

@@ -77,6 +77,7 @@ class VegaChatBenchmarkEvaluator:
             spec_score=spec_metric.score if spec_metric else None,
             vision_score=vision_metric.score if vision_metric else None,
             vision_is_blank=vision_metric.is_blank if vision_metric else None,
+            vision_metric=vision_metric,
         )
         return BenchmarkCaseResult(
             case_id=case.case_id,
@@ -157,6 +158,7 @@ class VegaChatBenchmarkEvaluator:
             spec_score=spec_metric.score if spec_metric else None,
             vision_score=vision_metric.score if vision_metric else None,
             vision_is_blank=vision_metric.is_blank if vision_metric else None,
+            vision_metric=vision_metric,
         )
         return BenchmarkCaseResult(
             case_id=case.case_id,
@@ -189,6 +191,7 @@ class VegaChatBenchmarkEvaluator:
             spec_score: float | None,
             vision_score: float | None,
             vision_is_blank: bool | None,
+            vision_metric: Any | None = None,
     ) -> dict[str, float]:
         metrics: dict[str, float] = {
             "visualization_error_rate": 0.0 if is_valid else 1.0,
@@ -208,6 +211,14 @@ class VegaChatBenchmarkEvaluator:
             metrics["spec_score"] = float(spec_score)
         if vision_score is not None:
             metrics["vision_judge"] = float(vision_score)
+        if vision_metric is not None:
+            metrics.update({
+                "vision_visualization_type": float(getattr(vision_metric, "visualization_type", 0.0) or 0.0),
+                "vision_data_encoding": float(getattr(vision_metric, "data_encoding", 0.0) or 0.0),
+                "vision_data_transformation": float(getattr(vision_metric, "data_transformation", 0.0) or 0.0),
+                "vision_aesthetics": float(getattr(vision_metric, "aesthetics", 0.0) or 0.0),
+                "vision_prompt_compliance": float(getattr(vision_metric, "prompt_compliance", 0.0) or 0.0),
+            })
         if vision_is_blank is not None:
             metrics["vision_judge_is_empty_chart"] = 1.0 if vision_is_blank else 0.0
         return metrics

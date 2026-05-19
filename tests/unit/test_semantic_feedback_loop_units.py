@@ -130,3 +130,20 @@ def test_feedback_corpus_writer_appends_user_feedback_with_high_weight(tmp_path:
     assert payload["feedback_weight"] == 3.0
     assert payload["rag_usage"]["approved_for_rag"] is True
     assert payload["feedback_for_next_generation"] == "Use a horizontal bar chart with readable labels."
+
+
+def test_semantic_chart_judge_prompt_accepts_spec_artifact_without_stripped_spec_field() -> None:
+    from src.services.visual_feedback.semantic_chart_judge import SemanticChartJudgeService
+
+    prompt = SemanticChartJudgeService._prompt(
+        query="compare values",
+        vega_spec=VegaLiteSpecArtifact(spec_json={"mark": "bar", "data": {"values": [{"x": 1}]}}),
+        request_analysis=None,
+        data_profile=None,
+        compact_data_profile=None,
+    )
+
+    assert "generated_vega_lite_spec_without_runtime_data" in prompt
+    assert "compare values" in prompt
+    assert '"data"' not in prompt
+    assert '[{"x": 1}]' not in prompt

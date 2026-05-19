@@ -206,9 +206,87 @@ async def ainvoke_text(
     return await asyncio.to_thread(invoke_text, llm, prompt_text, runtime=runtime, stage=stage, role=role)
 
 
+_VEGA_LITE_TOP_LEVEL_KEYS = {
+    "$schema",
+    "mark",
+    "encoding",
+    "transform",
+    "data",
+    "datasets",
+    "layer",
+    "facet",
+    "repeat",
+    "concat",
+    "hconcat",
+    "vconcat",
+}
+
+
+def _is_vega_lite_spec_payload(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
+
+
+def _strip_json_wrapper(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+    if _is_vega_lite_spec_payload(payload):
+        return payload
+    for key in ("json", "spec", "vega_lite_spec", "vegalite_spec", "chart_spec"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            if _is_vega_lite_spec_payload(value):
+                return value
+            return _strip_json_wrapper(value)
+    return payload
+
+
+def _iter_balanced_json_candidates(text: str) -> list[str]:
+    candidates: list[str] = []
+    stack = 0
+    in_string = False
+    escaped = False
+    start_index: int | None = None
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            if stack == 0:
+                start_index = index
+            stack += 1
+        elif char == "}" and stack > 0:
+            stack -= 1
+            if stack == 0 and start_index is not None:
+                candidates.append(text[start_index:index + 1])
+                start_index = None
+    return candidates
+
+
 def extract_json_block(raw_text: str) -> str:
     text = raw_text.strip()
-    if text.startswith("```"):
+    if not text:
+        return text
+
+    tag_match = re.search(r"<json[^>]*>(.*?)</json>", text, flags=re.IGNORECASE | re.DOTALL)
+    if tag_match:
+        candidate = tag_match.group(1).strip()
+        try:
+            payload = _strip_json_wrapper(json.loads(candidate))
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            return candidate
+
+    if "```" in text:
         parts = text.split("```")
         for block in parts:
             cleaned = block.strip()
@@ -216,15 +294,29 @@ def extract_json_block(raw_text: str) -> str:
                 continue
             lowered = cleaned.lower()
             if lowered.startswith("json"):
-                return cleaned[4:].strip()
-            if lowered.startswith("python"):
+                candidate = cleaned[4:].strip()
+            elif lowered.startswith(("python", "xml", "html", "text")):
                 continue
-            return cleaned
+            else:
+                candidate = cleaned
+            try:
+                payload = _strip_json_wrapper(json.loads(candidate))
+                return json.dumps(payload, ensure_ascii=False)
+            except Exception:
+                if candidate.startswith("{"):
+                    return candidate
+
+    for candidate in _iter_balanced_json_candidates(text):
+        try:
+            payload = _strip_json_wrapper(json.loads(candidate))
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            continue
+
     match = _JSON_BLOCK_RE.search(text)
     if match:
         return match.group(0)
     return text
-
 
 def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
     example_block = ""

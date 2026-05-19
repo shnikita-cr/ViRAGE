@@ -95,6 +95,8 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
     assert artifact.generation_backend == "vegachat_codegen"
     assert artifact.generation_explanation == "Compare mean metric by region."
     assert artifact.spec_json["data"] == {"url": "prepared.csv"}
+    assert "data" not in artifact.spec_without_runtime_data
+    assert artifact.spec_without_runtime_data["encoding"]["x"]["field"] == "Region_Name"
     assert artifact.spec_json["encoding"]["x"]["field"] == "Region_Name"
     assert artifact.spec_json["encoding"]["y"]["field"] == "Metric_Value"
     assert (tmp_path / "artifacts" / "run" / "model_calls.csv").exists()

@@ -26,16 +26,41 @@ def parse_vegachat_response(raw_response: str) -> tuple[str | None, dict[str, An
     return explanation, payload
 
 
-def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Accept common LLM wrappers while keeping the VegaChat <json> contract strict.
+_VEGA_LITE_TOP_LEVEL_KEYS = {
+    "$schema",
+    "mark",
+    "encoding",
+    "transform",
+    "data",
+    "datasets",
+    "layer",
+    "facet",
+    "repeat",
+    "concat",
+    "hconcat",
+    "vconcat",
+}
 
-    Some models return {"json": {...}}, {"spec": {...}} or {"vega_lite_spec": {...}} inside the
-    <json> block. The generator expects the inner Vega-Lite object, not the wrapper.
+
+def _is_vega_lite_spec_payload(payload: Any) -> bool:
+    return isinstance(payload, dict) and any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
+
+
+def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Accept common LLM wrappers without unwrapping valid Vega-Lite composition specs.
+
+    Vega-Lite repeat/facet/concat specs legitimately contain a top-level ``spec`` key.
+    That key is not a wrapper when the same object also contains top-level Vega-Lite
+    keys such as ``repeat``, ``facet``, ``layer`` or ``$schema``.
     """
+    if _is_vega_lite_spec_payload(payload):
+        return payload
     for key in ("json", "spec", "vega_lite_spec", "vegalite_spec", "vl_spec"):
         value = payload.get(key)
         if isinstance(value, dict):
-            return value
+            if _is_vega_lite_spec_payload(value):
+                return value
+            return _unwrap_spec_payload(value)
     return payload
 
 

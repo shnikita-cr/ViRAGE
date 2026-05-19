@@ -130,7 +130,7 @@ class SemanticChartJudgeService(BaseService):
         data_profile: DataProfile | None,
         compact_data_profile: dict[str, Any] | None,
     ) -> str:
-        spec = vega_spec.spec_without_runtime_data or vega_spec.spec_json
+        spec = getattr(vega_spec, "spec_without_runtime_data", None) or vega_spec.spec_json
         context = {
             "user_query": query,
             "request_analysis": request_analysis.model_dump() if request_analysis is not None else None,

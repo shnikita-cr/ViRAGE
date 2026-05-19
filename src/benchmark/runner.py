@@ -12,6 +12,18 @@ from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
 from src.benchmark.models import BenchmarkAggregateReport, BenchmarkCase, BenchmarkCaseResult
 
 
+
+
+def _classify_benchmark_error(exc: BaseException) -> str:
+    text = f"{type(exc).__name__}: {exc}".lower()
+    if "health check" in text or ("model" in text and "not found" in text) or "503" in text or "overloaded" in text:
+        return "model_unavailable"
+    if "timeout" in text or "timed out" in text:
+        return "model_timeout"
+    if "parse" in text or "json" in text:
+        return "parse_failed"
+    return "failed"
+
 class VegaChatBenchmarkRunner:
     """Run ViRAGE on VegaChat/NLV/ChartLLM-style benchmark cases and write evaluation artifacts."""
 
@@ -75,6 +87,7 @@ class VegaChatBenchmarkRunner:
             return case_result
         except Exception as exc:
             duration = time.perf_counter() - started
+            error_type = _classify_benchmark_error(exc)
             failed = BenchmarkCaseResult(
                 case_id=case.case_id,
                 dataset_name=case.dataset_name,
@@ -88,7 +101,12 @@ class VegaChatBenchmarkRunner:
                 duration_seconds=round(duration, 6),
                 metrics={"visualization_error_rate": 1.0, "empty_plot_rate": 1.0},
                 error=f"{type(exc).__name__}: {exc}",
-                metadata={"difficulty": case.difficulty, "utterance_type": case.utterance_type, **case.metadata},
+                metadata={
+                    "difficulty": case.difficulty,
+                    "utterance_type": case.utterance_type,
+                    "error_type": error_type,
+                    **case.metadata,
+                },
             )
             self._write_case_artifacts(failed, output_dir)
             return failed

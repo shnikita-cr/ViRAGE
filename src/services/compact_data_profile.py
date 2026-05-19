@@ -23,32 +23,46 @@ class CompactDataProfileService(BaseService):
     def invoke(
         self,
         data_profile: DataProfile,
-        prepared: DataPreparationResult,
-        request_analysis: RequestAnalysisResult | None,
+        prepared: DataPreparationResult | None = None,
+        request_analysis: RequestAnalysisResult | None = None,
         *,
         settings: ViRAGESettings,
     ) -> dict[str, Any]:
         selected_original = list(request_analysis.selected_fields if request_analysis is not None else [])
-        selected_safe = [prepared.column_name_map.get(field, field) for field in selected_original]
+        if prepared is not None:
+            selected_safe = [prepared.column_name_map.get(field, field) for field in selected_original]
+            safe_columns = list(prepared.safe_columns)
+            reverse_map = dict(prepared.reverse_column_name_map)
+            column_map = dict(prepared.column_name_map)
+        else:
+            column_map = dict(data_profile.column_name_map or {})
+            reverse_map = {safe: original for original, safe in column_map.items()}
+            safe_columns = [column_map.get(column.name, column.safe_name or column.name) for column in data_profile.columns]
+            selected_safe = [column_map.get(field, field) for field in selected_original]
+
         by_original = {column.original_name or column.name: column for column in data_profile.columns}
-        by_safe = {column.safe_name or data_profile.column_name_map.get(column.name, column.name): column for column in data_profile.columns}
+        by_name = {column.name: column for column in data_profile.columns}
+        by_safe = {
+            column.safe_name or data_profile.column_name_map.get(column.name, column.name): column
+            for column in data_profile.columns
+        }
 
         preferred_safe = list(dict.fromkeys([
             *selected_safe,
             *[data_profile.column_name_map.get(name, name) for name in data_profile.likely_time_columns],
             *[data_profile.column_name_map.get(name, name) for name in data_profile.likely_categorical_columns],
             *[data_profile.column_name_map.get(name, name) for name in data_profile.likely_numeric_columns],
-            *prepared.safe_columns,
+            *safe_columns,
         ]))
 
         max_columns = int(settings.spec_generation_max_profile_columns)
         included: list[dict[str, Any]] = []
         excluded: list[dict[str, str]] = []
         for safe in preferred_safe:
-            if safe not in prepared.safe_columns:
+            if safe not in safe_columns:
                 continue
-            original = prepared.reverse_column_name_map.get(safe, safe)
-            column = by_original.get(original) or by_safe.get(safe)
+            original = reverse_map.get(safe, safe)
+            column = by_original.get(original) or by_name.get(original) or by_safe.get(safe)
             if self._should_exclude(original, safe, column, selected_original):
                 excluded.append({"original": original, "safe": safe, "reason": self._exclude_reason(original, safe, column)})
                 continue
@@ -74,10 +88,19 @@ class CompactDataProfileService(BaseService):
             "columns": included,
             "excluded_columns": excluded[: max_columns * 2],
             "quality_notes_top": list(data_profile.quality_notes[: int(settings.spec_generation_max_quality_notes)]),
+            "schema_hints_top": list(data_profile.schema_hints[: int(settings.spec_generation_max_quality_notes)]),
             "column_mapping_original_to_safe": {
                 item["original"]: item["safe"] for item in included if item.get("original") != item.get("safe")
             },
         }
+
+    def invoke_from_profile(
+        self,
+        data_profile: DataProfile,
+        *,
+        settings: ViRAGESettings,
+    ) -> dict[str, Any]:
+        return self.invoke(data_profile, prepared=None, request_analysis=None, settings=settings)
 
     @staticmethod
     def _should_exclude(original: str, safe: str, column: Any, selected_original: list[str]) -> bool:
@@ -107,7 +130,7 @@ class CompactDataProfileService(BaseService):
         data_profile: DataProfile,
         settings: ViRAGESettings,
     ) -> dict[str, Any]:
-        role = data_profile.field_roles.get(original, "unknown")
+        role = data_profile.field_roles.get(original, data_profile.field_roles.get(safe, "unknown"))
         payload: dict[str, Any] = {
             "original": original,
             "safe": safe,

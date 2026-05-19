@@ -25,12 +25,23 @@ spec_generation_response_parse_retries = 0
 spec_generation_prompt_version = "vega_chat_v1"
 spec_generation_include_visrag_context = true
 spec_generation_max_context_chars = 3000
+spec_generation_use_compact_profile = true
+spec_generation_max_profile_columns = 30
+spec_generation_max_quality_notes = 10
+spec_generation_max_sample_values = 3
+visrag_prompt_top_k_examples = 2
+model_health_check_enabled = false
+model_health_check_timeout_seconds = 10.0
+vlm_fail_soft = true
+reuse_semantic_judge_for_insights = true
+vision_score_skip_self_when_semantic_judge_available = true
 semantic_feedback_loop_enabled = true
 semantic_feedback_max_attempts = 2
 semantic_feedback_min_accept_confidence = 0.75
 semantic_feedback_save_rejected_specs = true
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback.jsonl"
 semantic_feedback_include_png_path = true
+semantic_feedback_mode = "strict"
 
 
 [streamlit]

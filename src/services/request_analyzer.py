@@ -39,14 +39,14 @@ class _RequestAnalysisSchema(BaseModel):
 
 class RequestAnalyzerService(BaseService):
     def invoke(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile,
-               runtime: RuntimeContext) -> RequestAnalysisResult:
+               runtime: RuntimeContext, compact_data_profile: dict[str, Any] | None = None) -> RequestAnalysisResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
             raise RuntimeError(
                 "RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = invoke_structured(
             reasoning_llm,
-            self._prompt(query, query_understanding, data_profile),
+            self._prompt(query, query_understanding, data_profile, compact_data_profile),
             _RequestAnalysisSchema,
             runtime=runtime,
             stage="request_analyzer",
@@ -57,14 +57,14 @@ class RequestAnalyzerService(BaseService):
         return self._build_result(parsed)
 
     async def ainvoke(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile,
-                      runtime: RuntimeContext) -> RequestAnalysisResult:
+                      runtime: RuntimeContext, compact_data_profile: dict[str, Any] | None = None) -> RequestAnalysisResult:
         reasoning_llm = runtime.reasoning_llm
         if reasoning_llm is None:
             raise RuntimeError(
                 "RequestAnalyzerService requires runtime.reasoning_llm. No reasoning model was provided.")
         parsed = await ainvoke_structured(
             reasoning_llm,
-            self._prompt(query, query_understanding, data_profile),
+            self._prompt(query, query_understanding, data_profile, compact_data_profile),
             _RequestAnalysisSchema,
             runtime=runtime,
             stage="request_analyzer",
@@ -74,28 +74,60 @@ class RequestAnalyzerService(BaseService):
         )
         return self._build_result(parsed)
 
-    def _prompt(self, query: str, query_understanding: QueryUnderstandingResult, data_profile: DataProfile) -> str:
-        column_lines = []
-        for column in data_profile.columns:
-            role = data_profile.field_roles.get(column.name, "unknown")
-            column_lines.append(
-                f"- {column.name} | dtype={column.dtype} | role={role} | missing_ratio={column.missing_ratio:.3f}"
-            )
-        profile_lines = "\n".join(column_lines) or "- none"
+    def _prompt(
+        self,
+        query: str,
+        query_understanding: QueryUnderstandingResult,
+        data_profile: DataProfile,
+        compact_data_profile: dict[str, Any] | None = None,
+    ) -> str:
+        profile_lines = self._profile_lines(data_profile, compact_data_profile)
         variants = "\n".join(
             f"- {variant.kind}: {variant.text}" for variant in query_understanding.query_variants) or "- none"
+        schema_hints = compact_data_profile.get("schema_hints_top", []) if compact_data_profile else data_profile.schema_hints
         return (
             "You ground a visualization request to real dataset fields.\n"
             "Use the exact schema field names required by the output schema.\n"
             "Select fields directly relevant to the request and report ambiguity explicitly.\n"
+            "Avoid excluded service/path/json columns unless the user explicitly asks for them.\n"
             f"User request:\n{query}\n"
             f"Intent: {query_understanding.intent}\n"
             f"Requested operations: {', '.join(query_understanding.requested_operations)}\n"
             f"Constraints: {', '.join(query_understanding.constraints)}\n"
             f"Query variants:\n{variants}\n"
             f"Columns:\n{profile_lines}\n"
-            f"Schema hints: {', '.join(data_profile.schema_hints)}\n"
+            f"Schema hints: {', '.join(str(item) for item in schema_hints)}\n"
         )
+
+    @staticmethod
+    def _profile_lines(data_profile: DataProfile, compact_data_profile: dict[str, Any] | None = None) -> str:
+        if compact_data_profile:
+            lines = [
+                f"Rows={compact_data_profile.get('row_count')}, "
+                f"columns={compact_data_profile.get('column_count')}, "
+                f"included_columns={compact_data_profile.get('included_column_count')}"
+            ]
+            for column in compact_data_profile.get("columns", []):
+                if not isinstance(column, dict):
+                    continue
+                lines.append(
+                    f"- {column.get('original')} | safe={column.get('safe')} | "
+                    f"dtype={column.get('type')} | role={column.get('role')} | "
+                    f"missing_ratio={column.get('missing_ratio')} | unique_count={column.get('unique_count')}"
+                )
+            excluded = compact_data_profile.get("excluded_columns", [])
+            if excluded:
+                excluded_names = [str(item.get("original") or item.get("safe")) for item in excluded[:10] if isinstance(item, dict)]
+                lines.append("Excluded service/identifier columns: " + ", ".join(excluded_names))
+            return "\n".join(lines) or "- none"
+
+        column_lines = []
+        for column in data_profile.columns[:30]:
+            role = data_profile.field_roles.get(column.name, "unknown")
+            column_lines.append(
+                f"- {column.name} | dtype={column.dtype} | role={role} | missing_ratio={column.missing_ratio:.3f}"
+            )
+        return "\n".join(column_lines) or "- none"
 
     def _build_result(self, parsed: _RequestAnalysisSchema) -> RequestAnalysisResult:
         return RequestAnalysisResult(

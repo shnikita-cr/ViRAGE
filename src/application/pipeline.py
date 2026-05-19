@@ -17,6 +17,26 @@ from src.llm.healthcheck import check_required_models, raise_for_failed_health_c
 from src.observability import traceable
 
 
+
+
+def _classify_error(exc: BaseException) -> str:
+    text = f"{type(exc).__name__}: {exc}".lower()
+    if "health check" in text or "model" in text and "not found" in text:
+        return "model_unavailable"
+    if "timeout" in text or "timed out" in text:
+        return "model_timeout"
+    if "parse" in text or "json" in text:
+        return "parse_failed"
+    if "503" in text or "overloaded" in text:
+        return "model_unavailable"
+    return "failed"
+
+
+def _stage_name(value: object) -> str | None:
+    if value is None:
+        return None
+    return getattr(value, "value", str(value))
+
 class ViRAGEPipeline:
     def __init__(
             self,
@@ -53,8 +73,10 @@ class ViRAGEPipeline:
             "vision_judge": build_chat_model(config.vision_judge_model),
         }
         if bool(getattr(settings, "model_health_check_enabled", False)):
+            required_roles = set(getattr(settings, "model_health_check_required_roles", []) or [])
+            active_models = {role: model for role, model in models.items() if not required_roles or role in required_roles}
             results = check_required_models(
-                models,
+                active_models,
                 timeout_seconds=float(getattr(settings, "model_health_check_timeout_seconds", 10.0)),
             )
             raise_for_failed_health_checks(results)
@@ -81,6 +103,7 @@ class ViRAGEPipeline:
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
+        self.runtime.save_run_status(run_id=request.run_id, status="running", final_stage="initialized")
         self.runtime.save_text_artifact('input/query.txt', request.query, run_id=request.run_id)
         self.runtime.save_json_artifact('input/user_context.json', request.user_context, run_id=request.run_id)
         initial_state: PipelineState = {
@@ -101,7 +124,16 @@ class ViRAGEPipeline:
             final_state['stage'] = PipelineStage.COMPLETED
         except Exception as exc:
             tb = traceback.format_exc()
+            error_type = _classify_error(exc)
             self.runtime.save_text_artifact('errors/fatal_error.txt', tb, run_id=request.run_id, numbered=True)
+            self.runtime.save_run_status(
+                run_id=request.run_id,
+                status="failed",
+                final_stage="exception",
+                semantic_status=None,
+                error_type=error_type,
+                error=f"{type(exc).__name__}: {exc}",
+            )
             self.runtime.save_model_log_artifacts(run_id=request.run_id)
             raise
         finally:
@@ -111,6 +143,17 @@ class ViRAGEPipeline:
         final_state['stage_execution_logs'] = list(self.runtime.stage_execution_logs)
         final_state['token_usage_summary'] = self.runtime.token_usage_summary()
         self.runtime.save_model_log_artifacts(run_id=request.run_id)
+        self.runtime.save_run_status(
+            run_id=request.run_id,
+            status="completed",
+            final_stage=_stage_name(final_state.get('stage')),
+            semantic_status=str(final_state.get('semantic_status') or ""),
+            extra={
+                "has_plot": bool(final_state.get("plot_image")),
+                "has_evaluation_summary": bool(final_state.get("evaluation_summary")),
+                "has_token_summary": True,
+            },
+        )
         return PipelineResult(
             run_id=final_state['run_id'],
             query=final_state['query'],

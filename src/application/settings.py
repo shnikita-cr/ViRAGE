@@ -55,3 +55,7 @@ class ViRAGESettings(BaseModel):
 
     model_health_check_enabled: bool = Field(default=False)
     model_health_check_timeout_seconds: float = Field(default=10.0, ge=1.0)
+    model_health_check_required_roles: list[str] = Field(default_factory=lambda: ["reasoning", "spec", "vlm", "vision_judge"])
+    vlm_fail_soft: bool = Field(default=True)
+    reuse_semantic_judge_for_insights: bool = Field(default=True)
+    vision_score_skip_self_when_semantic_judge_available: bool = Field(default=True)

@@ -5,7 +5,7 @@ from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, VisualQualityMetric
+from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, VisualQualityMetric, VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
 from src.services.chart_generator import ChartGeneratorService
@@ -263,6 +263,7 @@ class PipelineNodes:
             state.get("user_context", {}),
             runtime=self.runtime,
             data_profile=state.get("data_profile"),
+            compact_data_profile=state.get("compact_data_profile"),
         )
         artifact_paths = self._save(state, "query_understanding", result.model_dump())
         return {
@@ -286,8 +287,16 @@ class PipelineNodes:
     def data_profiler_node(self, state: PipelineState) -> dict:
         result = self.data_profiler.invoke(state["data_path"], runtime=self.runtime)
         artifact_paths = self._save(state, "data_profile", result.model_dump())
+        compact_profile = None
+        if bool(getattr(self.runtime.settings, "spec_generation_use_compact_profile", True)):
+            compact_profile = self.compact_data_profile.invoke_from_profile(
+                result,
+                settings=self.runtime.settings,
+            )
+            artifact_paths = self._save_into(artifact_paths, state["run_id"], "data_profile_compact_initial", compact_profile)
         return {
             "data_profile": result,
+            "compact_data_profile": compact_profile,
             "stage": PipelineStage.DATA_PROFILING,
             "trace": self._trace(state, "data_profiler"),
             "artifact_paths": artifact_paths,
@@ -298,15 +307,24 @@ class PipelineNodes:
                 summary=f"Rows={result.row_count}, Cols={result.col_count}",
                 inputs=[state["data_path"]],
                 outputs=[", ".join(result.likely_numeric_columns[:3]), ", ".join(result.likely_time_columns[:3])],
-                details={"artifact": artifact_paths["data_profile"], "field_roles": result.field_roles},
+                details={
+                    "artifact": artifact_paths["data_profile"],
+                    "compact_profile_artifact": artifact_paths.get("data_profile_compact_initial"),
+                    "field_roles": result.field_roles,
+                },
             ),
         }
 
     @traceable(name="virage.request_analyzer")
     def request_analyzer_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
-        result = self.request_analyzer.invoke(state["query"], state["query_understanding"], state["data_profile"],
-                                              runtime=self.runtime)
+        result = self.request_analyzer.invoke(
+            state["query"],
+            state["query_understanding"],
+            state["data_profile"],
+            runtime=self.runtime,
+            compact_data_profile=state.get("compact_data_profile"),
+        )
         artifact_paths = self._save(state, "request_analysis", result.model_dump())
         return {
             "request_analysis": result,
@@ -1126,8 +1144,70 @@ class PipelineNodes:
     @traceable(name="virage.vlm_analysis")
     def vlm_analysis_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
+        semantic_judge = state.get("semantic_chart_judge")
+        if bool(getattr(self.runtime.settings, "reuse_semantic_judge_for_insights", True)) and semantic_judge is not None:
+            result = VLMAnalysisResult(
+                visual_observations=[
+                    item for item in [
+                        getattr(semantic_judge, "chart_description", ""),
+                        *list(getattr(semantic_judge, "observed_facts", []) or []),
+                        *list(getattr(semantic_judge, "readability_issues", []) or []),
+                    ] if str(item).strip()
+                ],
+                extracted_visual_facts=list(getattr(semantic_judge, "observed_facts", []) or []),
+                confidence=float(getattr(semantic_judge, "confidence", 0.0) or 0.0),
+            )
+            artifact_paths = self._save(state, "vlm_analysis_reused_from_semantic_judge", result.model_dump())
+            return {
+                "vlm_analysis": result,
+                "stage": PipelineStage.VLM_ANALYSIS,
+                "trace": self._trace(state, "vlm_analysis_reused_from_semantic_judge"),
+                "artifact_paths": artifact_paths,
+                "step_logs": self._append_log(
+                    state,
+                    stage="vlm_analysis",
+                    title="Visual analysis",
+                    summary=f"reused semantic judge; {len(result.visual_observations)} observations",
+                    inputs=["semantic_chart_judge"],
+                    outputs=result.visual_observations[:3],
+                    details=self._stage_details(before) | {
+                        "artifact": artifact_paths["vlm_analysis_reused_from_semantic_judge"],
+                        "reused_from_semantic_judge": True,
+                        **result.model_dump(),
+                    },
+                ),
+            }
         plot_image = PlotImageArtifact(**state["plot_image"])
-        result = self.vlm_analysis.invoke(plot_image, state["analysis_rubric"], runtime=self.runtime)
+        try:
+            result = self.vlm_analysis.invoke(plot_image, state["analysis_rubric"], runtime=self.runtime)
+        except Exception as exc:
+            if not bool(getattr(self.runtime.settings, "vlm_fail_soft", True)):
+                raise
+            result = VLMAnalysisResult(
+                visual_observations=[f"VLM analysis skipped after {type(exc).__name__}: {exc}"],
+                extracted_visual_facts=[],
+                confidence=0.0,
+            )
+            artifact_paths = self._save(state, "vlm_analysis_skipped", result.model_dump())
+            return {
+                "vlm_analysis": result,
+                "stage": PipelineStage.VLM_ANALYSIS,
+                "trace": self._trace(state, "vlm_analysis_skipped"),
+                "artifact_paths": artifact_paths,
+                "step_logs": self._append_log(
+                    state,
+                    stage="vlm_analysis",
+                    title="Visual analysis",
+                    summary="VLM unavailable; continued with fallback observations",
+                    inputs=[state["plot_image"]["image_path"]],
+                    outputs=result.visual_observations[:1],
+                    details=self._stage_details(before) | {
+                        "artifact": artifact_paths["vlm_analysis_skipped"],
+                        "error_type": "vlm_unavailable",
+                        "error": f"{type(exc).__name__}: {exc}",
+                    },
+                ),
+            }
         artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
         return {
             "vlm_analysis": result,
@@ -1217,13 +1297,43 @@ class PipelineNodes:
         user_context = state.get("user_context", {}) if isinstance(state.get("user_context"), dict) else {}
         reference_image_path = user_context.get("reference_image_path")
         reference_image = reference_image_path if isinstance(reference_image_path, str) else None
-        result = self.vision_score.invoke(
-            plot_image,
-            runtime=self.runtime,
-            query_understanding=state.get("query_understanding"),
-            user_prompt=state.get("query"),
-            reference_image_path=reference_image,
-        )
+        semantic_judge = state.get("semantic_chart_judge")
+        if (
+            reference_image is None
+            and semantic_judge is not None
+            and bool(getattr(self.runtime.settings, "vision_score_skip_self_when_semantic_judge_available", True))
+        ):
+            confidence = float(getattr(semantic_judge, "confidence", 0.0) or 0.0)
+            prompt_score = 1.0 if bool(getattr(semantic_judge, "answers_user_query", False)) else 0.0
+            readability_score = 0.0 if bool(getattr(semantic_judge, "is_blank_or_unreadable", False)) else 1.0
+            if getattr(semantic_judge, "readability_issues", None):
+                readability_score = min(readability_score, 0.75)
+            result = VisualQualityMetric(
+                score=round(min(confidence, prompt_score, readability_score), 6),
+                prompt_compliance=prompt_score,
+                readability=readability_score,
+                insight_supportiveness=round(confidence, 6),
+                visualization_type=1.0,
+                data_encoding=1.0 if not getattr(semantic_judge, "wrong_or_suspicious_parts", None) else 0.5,
+                data_transformation=1.0,
+                aesthetics=readability_score,
+                is_blank=bool(getattr(semantic_judge, "is_blank_or_unreadable", False)),
+                weights={"semantic_judge_reuse": 1.0},
+                rationales={"source": "Reused strict semantic_chart_judge instead of an extra self VisionScore VLM call."},
+                details=[
+                    "mode=self_reused_semantic_chart_judge",
+                    f"answers_user_query={getattr(semantic_judge, 'answers_user_query', False)}",
+                    f"confidence={confidence}",
+                ],
+            )
+        else:
+            result = self.vision_score.invoke(
+                plot_image,
+                runtime=self.runtime,
+                query_understanding=state.get("query_understanding"),
+                user_prompt=state.get("query"),
+                reference_image_path=reference_image,
+            )
         if reference_image is None:
             result = _adjust_visual_quality_with_semantic(result, state)
         artifact_paths = self._save(state, "visual_quality_metric", result.model_dump())

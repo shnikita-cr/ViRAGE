@@ -67,6 +67,7 @@ class ChartGeneratorService(BaseService):
         result = backend.generate(request, runtime)
         return VegaLiteSpecArtifact(
             spec_json=result.spec_json,
+            spec_without_runtime_data=result.spec_without_runtime_data,
             version="v2" if result.backend_name == "vegachat_codegen" else "v1",
             generation_backend=result.backend_name,
             generation_explanation=result.explanation,
