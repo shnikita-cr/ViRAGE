@@ -500,12 +500,26 @@ def extract_chart_metadata(run_dir: Path) -> dict[str, Any]:
             spec_json = vega_spec
 
         if isinstance(spec_json, dict):
-            row["vega_mark"] = spec_json.get("mark")
+            mark = spec_json.get("mark")
+            if isinstance(mark, dict):
+                row["vega_mark"] = mark.get("type")
+            else:
+                row["vega_mark"] = mark
+
             encoding = spec_json.get("encoding")
             if isinstance(encoding, dict):
                 row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
-                fields = extract_spec_fields(spec_json)
+            else:
+                row["vega_encoding_channels"] = ""
+
+            fields = extract_spec_fields(spec_json)
             row["vega_field_count"] = len(fields)
+        else:
+            row["vega_encoding_channels"] = ""
+            row["vega_field_count"] = 0
+    else:
+        row["vega_encoding_channels"] = ""
+        row["vega_field_count"] = 0
 
     return row
 

@@ -4,12 +4,15 @@ import csv
 import json
 import time
 from pathlib import Path
+from typing import Iterable
 
 from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.datasets import load_benchmark_cases
 from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
 from src.benchmark.models import BenchmarkAggregateReport, BenchmarkCase, BenchmarkCaseResult
+
+
 
 
 def _classify_benchmark_error(exc: BaseException) -> str:
@@ -21,7 +24,6 @@ def _classify_benchmark_error(exc: BaseException) -> str:
     if "parse" in text or "json" in text:
         return "parse_failed"
     return "failed"
-
 
 class VegaChatBenchmarkRunner:
     """Run ViRAGE on VegaChat/NLV/ChartLLM-style benchmark cases and write evaluation artifacts."""
@@ -36,6 +38,8 @@ class VegaChatBenchmarkRunner:
             cases_path: str | Path,
             output_dir: str | Path,
             limit: int | None = None,
+            resume: bool = False,
+            retry_failed: bool = False,
     ) -> BenchmarkAggregateReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
@@ -45,15 +49,50 @@ class VegaChatBenchmarkRunner:
         if limit is not None:
             cases = cases[: max(0, limit)]
 
-        results: list[BenchmarkCaseResult] = []
+        existing_by_id = self._load_existing_case_results(output) if resume else {}
+        results_by_id: dict[str, BenchmarkCaseResult] = {}
         for case in cases:
-            print(case.difficulty, case.utterance_type, case.query)
-            results.append(self.run_case(case=case, case_root=case_root, output_dir=output))
-            self._write_incremental_results(results, output)
+            existing = existing_by_id.get(case.case_id)
+            should_reuse = existing is not None and (existing.error is None or not retry_failed)
+            if should_reuse:
+                results_by_id[case.case_id] = existing
+                print(f"[resume] skip {case.case_id}: existing result reused")
+                continue
 
+            if existing is not None and existing.error is not None and retry_failed:
+                print(f"[resume] retry failed case {case.case_id}")
+            else:
+                print(case.difficulty, case.utterance_type, case.query)
+
+            results_by_id[case.case_id] = self.run_case(case=case, case_root=case_root, output_dir=output)
+            self._write_incremental_results(self._ordered_results(cases, results_by_id), output)
+
+        results = self._ordered_results(cases, results_by_id)
+        self._write_incremental_results(results, output)
         report = BenchmarkAggregateReport.from_results(results)
         self._write_report(report, output)
         return report
+
+
+    @staticmethod
+    def _ordered_results(cases: Iterable[BenchmarkCase], results_by_id: dict[str, BenchmarkCaseResult]) -> list[BenchmarkCaseResult]:
+        return [results_by_id[case.case_id] for case in cases if case.case_id in results_by_id]
+
+    @staticmethod
+    def _load_existing_case_results(output_dir: Path) -> dict[str, BenchmarkCaseResult]:
+        cases_dir = output_dir / "cases"
+        if not cases_dir.exists():
+            return {}
+        results: dict[str, BenchmarkCaseResult] = {}
+        for result_path in sorted(cases_dir.glob("*/result.json")):
+            try:
+                payload = json.loads(result_path.read_text(encoding="utf-8"))
+                result = BenchmarkCaseResult.model_validate(payload)
+            except Exception as exc:
+                print(f"[resume] ignore invalid existing result {result_path}: {type(exc).__name__}: {exc}")
+                continue
+            results[result.case_id] = result
+        return results
 
     def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> BenchmarkCaseResult:
         started = time.perf_counter()

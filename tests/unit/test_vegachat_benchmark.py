@@ -205,3 +205,124 @@ def test_load_chart_llm_directory(tmp_path: Path) -> None:
     assert all(case.dataset_name == "chart_llm_gold" for case in cases)
     assert all(Path(case.data_path).is_absolute() for case in cases)
     assert all(case.reference_image_path for case in cases)
+
+
+def test_benchmark_runner_resume_skips_existing_successful_cases(tmp_path: Path) -> None:
+    from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
+    from src.benchmark.runner import VegaChatBenchmarkRunner
+
+    data_path = tmp_path / "data.csv"
+    data_path.write_text("category,value\nA,1\n", encoding="utf-8")
+    cases_path = tmp_path / "cases.jsonl"
+    cases_path.write_text(
+        "\n".join([
+            json.dumps({"id": "case-a", "query": "show a", "data_path": data_path.name}),
+            json.dumps({"id": "case-b", "query": "show b", "data_path": data_path.name}),
+        ]),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    existing_dir = output_dir / "cases" / "case-a"
+    existing_dir.mkdir(parents=True)
+    existing = BenchmarkCaseResult(
+        case_id="case-a",
+        query="show a",
+        data_path=data_path.as_posix(),
+        is_valid_spec=True,
+        is_empty_chart=False,
+        visualization_error_rate_item=False,
+        empty_chart_rate_item=False,
+        spec_score=1.0,
+        total_tokens=10,
+    )
+    (existing_dir / "result.json").write_text(
+        json.dumps(existing.model_dump(mode="json"), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    class RecordingRunner(VegaChatBenchmarkRunner):
+        def __init__(self) -> None:
+            super().__init__(pipeline=object())  # type: ignore[arg-type]
+            self.ran_case_ids: list[str] = []
+
+        def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> BenchmarkCaseResult:
+            self.ran_case_ids.append(case.case_id)
+            result = BenchmarkCaseResult(
+                case_id=case.case_id,
+                query=case.query,
+                data_path=case.resolved_data_path(case_root),
+                is_valid_spec=True,
+                is_empty_chart=False,
+                visualization_error_rate_item=False,
+                empty_chart_rate_item=False,
+                spec_score=0.5,
+                total_tokens=5,
+            )
+            self._write_case_artifacts(result, output_dir)
+            return result
+
+    runner = RecordingRunner()
+    report = runner.run_dataset(cases_path=cases_path, output_dir=output_dir, resume=True)
+
+    assert runner.ran_case_ids == ["case-b"]
+    assert report.total_cases == 2
+    assert report.total_tokens == 15
+    assert (output_dir / "benchmark_results.csv").exists()
+    assert (output_dir / "benchmark_report.json").exists()
+
+
+def test_benchmark_runner_resume_can_retry_failed_cases(tmp_path: Path) -> None:
+    from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
+    from src.benchmark.runner import VegaChatBenchmarkRunner
+
+    data_path = tmp_path / "data.csv"
+    data_path.write_text("category,value\nA,1\n", encoding="utf-8")
+    cases_path = tmp_path / "cases.jsonl"
+    cases_path.write_text(
+        json.dumps({"id": "case-a", "query": "show a", "data_path": data_path.name}) + "\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    existing_dir = output_dir / "cases" / "case-a"
+    existing_dir.mkdir(parents=True)
+    failed = BenchmarkCaseResult(
+        case_id="case-a",
+        query="show a",
+        data_path=data_path.as_posix(),
+        is_valid_spec=False,
+        is_empty_chart=True,
+        visualization_error_rate_item=True,
+        empty_chart_rate_item=True,
+        error="RuntimeError: failed",
+    )
+    (existing_dir / "result.json").write_text(
+        json.dumps(failed.model_dump(mode="json"), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    class RecordingRunner(VegaChatBenchmarkRunner):
+        def __init__(self) -> None:
+            super().__init__(pipeline=object())  # type: ignore[arg-type]
+            self.ran_case_ids: list[str] = []
+
+        def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> BenchmarkCaseResult:
+            self.ran_case_ids.append(case.case_id)
+            result = BenchmarkCaseResult(
+                case_id=case.case_id,
+                query=case.query,
+                data_path=case.resolved_data_path(case_root),
+                is_valid_spec=True,
+                is_empty_chart=False,
+                visualization_error_rate_item=False,
+                empty_chart_rate_item=False,
+                spec_score=0.9,
+            )
+            self._write_case_artifacts(result, output_dir)
+            return result
+
+    runner = RecordingRunner()
+    report = runner.run_dataset(cases_path=cases_path, output_dir=output_dir, resume=True, retry_failed=True)
+
+    assert runner.ran_case_ids == ["case-a"]
+    assert report.successful_cases == 1
+    assert report.failed_cases == 0
