@@ -52,7 +52,7 @@ def test_model_call_logs_are_saved_to_single_model_calls_csv(tmp_path: Path) -> 
 
     runtime.add_model_call_log(
         ModelCallLog(
-            stage="query_understanding",
+            stage="query_request_analysis",
             model_role="reasoning",
             model_name="test-model",
             prompt="prompt",
@@ -67,15 +67,15 @@ def test_model_call_logs_are_saved_to_single_model_calls_csv(tmp_path: Path) -> 
     run_dir = tmp_path / "run-1"
     rows = read_csv_rows(run_dir / "model_calls.csv")
 
-    assert (run_dir / "model_calls" / "001_query_understanding_reasoning-01.json").exists()
+    assert (run_dir / "model_calls" / "001_query_request_analysis_reasoning-01.json").exists()
     assert len(rows) == 1
-    assert rows[0]["stage"] == "query_understanding"
+    assert rows[0]["stage"] == "query_request_analysis"
     assert rows[0]["total_tokens"] == "3"
     assert rows[0]["duration_seconds"] == "0.05"
     assert not (run_dir / "model_call_tokens.csv").exists()
     assert not (run_dir / "model_call_timings.csv").exists()
     assert not (run_dir / "artifacts" / "model_call_logs.json").exists()
-    assert (run_dir / "artifacts" / "token_usage_summary.json").exists()
+    assert not (run_dir / "artifacts" / "token_usage_summary.json").exists()
 
 
 def test_wrapped_graph_node_records_stage_execution_log(tmp_path: Path) -> None:

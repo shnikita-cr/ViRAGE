@@ -62,6 +62,12 @@ Hard rules:
 12. Use layer/repeat/concat only when they materially improve the answer to the user request.
 13. If previous validation feedback is provided, fix the listed validation errors and address the repair hints.
 14. If previous semantic visual feedback is provided, generate a new chart that addresses those comments.
+15. Chart quality is mandatory for every chart type, not optional. If color, shape, size, opacity, stroke, or strokeDash encodes data, include a clear legend title.
+16. Axis and legend titles must be human-readable and must name the source field and the aggregation/transformation when used, for example "mean PSNR by Method" or "count of File". Avoid vague titles such as "value", "total", or "average" without the source field.
+17. Category labels must be readable. For long labels or many categories, use horizontal bars, labelAngle, labelLimit, facet/repeat, or larger width/height. Do not allow labels to overlap, be clipped, or become unreadable.
+18. Multi-metric charts must explicitly show the metric name in a legend, facet/repeat header, axis title, or tooltip. If metrics use different scales, use repeat/facet with independent scales or normalize before combining.
+19. If both a legend and long category labels would make the chart unreadable, choose the cleaner layout instead of keeping both bad elements: prefer facet/repeat panels, horizontal layout, shorter titles, independent scales, or direct labels/tooltips that keep the chart readable. Readability has priority over mechanically adding every possible label.
+20. Add informative tooltips with the displayed source fields and aggregated values whenever practical.
 """
 
 
@@ -70,7 +76,7 @@ def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparatio
     if compact_profile:
         lines.append("Compact LLM-facing profile. Use only these safe field names unless validation feedback explicitly requires another listed field.")
         lines.append(json.dumps(compact_profile, ensure_ascii=False, indent=2, default=str))
-        return "\n".join(lines)
+
     if data_profile is None:
         for safe in prepared.safe_columns:
             original = prepared.reverse_column_name_map.get(safe, safe)
@@ -119,6 +125,13 @@ def _request_contract(request: SpecGenerationRequest) -> str:
     if request.request_analysis is not None:
         safe_selected = [_to_safe(field, request.prepared) for field in request.request_analysis.selected_fields]
         lines.append("Request analysis selected fields:")
+        quality_requirements = []
+        # QueryRequestAnalyzer stores chart quality requirements in constraints via query_understanding.
+        if request.query_understanding is not None:
+            quality_requirements = [
+                item for item in request.query_understanding.constraints
+                if any(token in item.lower() for token in ("axis", "legend", "label", "aggregation", "metric", "scale"))
+            ]
         lines.append(json.dumps(
             {
                 "selected_original_fields": request.request_analysis.selected_fields,
@@ -126,10 +139,15 @@ def _request_contract(request: SpecGenerationRequest) -> str:
                 "grounded_fields": request.request_analysis.grounded_fields,
                 "missing_fields": request.request_analysis.missing_fields,
                 "confidence": request.request_analysis.confidence,
+                "chart_quality_requirements": quality_requirements,
             },
             ensure_ascii=False,
             indent=2,
         ))
+    quality_requirements = list(getattr(request, "chart_quality_requirements", []) or [])
+    if quality_requirements:
+        lines.append("Chart quality requirements:")
+        lines.append(json.dumps(quality_requirements, ensure_ascii=False, indent=2))
     return "\n".join(lines)
 
 

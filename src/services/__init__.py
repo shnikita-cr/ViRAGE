@@ -5,9 +5,7 @@ from .empty_chart_check import EmptyChartCheckService
 from .evaluation_summary import EvaluationSummaryService
 from .fact_extractor import FactExtractorService
 from .insights import InsightsService
-from .query_understanding import QueryUnderstandingService
 from .reasoner import ReasonerService
-from .request_analyzer import RequestAnalyzerService
 from .scenegraph_check import ScenegraphCheckService
 from .spec_score import SpecScoreService
 from .spec_validator import SpecValidatorService
@@ -24,9 +22,7 @@ __all__ = [
     "EvaluationSummaryService",
     "FactExtractorService",
     "InsightsService",
-    "QueryUnderstandingService",
     "ReasonerService",
-    "RequestAnalyzerService",
     "ScenegraphCheckService",
     "SpecScoreService",
     "SpecValidatorService",

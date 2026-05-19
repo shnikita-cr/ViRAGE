@@ -91,4 +91,4 @@ def test_column_level_profile_error_degrades_without_failing_pipeline(tmp_path, 
     assert "Value" in profile.likely_numeric_columns
 
     error_artifacts = list((tmp_path / "artifacts" / "test_degraded" / "artifacts").glob("*_data_profile_*error*.json"))
-    assert error_artifacts
+    assert not error_artifacts

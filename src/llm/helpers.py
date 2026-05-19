@@ -123,6 +123,8 @@ def _record(
     if runtime is None or stage is None or role is None:
         return
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+    structured_input = _structured_json_payload(prompt_text)
+    structured_output = _structured_json_payload(raw_text, parsed_preview)
     runtime.add_model_call_log(
         ModelCallLog(
             stage=stage,
@@ -132,6 +134,8 @@ def _record(
             prompt=prompt_text,
             raw_response=raw_text,
             parsed_preview=parsed_preview,
+            input=structured_input,
+            output=structured_output,
             attempts=max(1, attempts),
             attempt_number=max(1, attempt_number),
             parser_errors=list(parser_errors),
@@ -317,6 +321,32 @@ def extract_json_block(raw_text: str) -> str:
     if match:
         return match.group(0)
     return text
+
+
+
+def _structured_json_payload(text: str, fallback_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    if fallback_payload is not None:
+        return {
+            "raw": text,
+            "parsed_json": fallback_payload,
+            "parsed_json_available": True,
+            "parse_error": None,
+        }
+    try:
+        parsed = json.loads(extract_json_block(text)) if text else None
+        return {
+            "raw": text,
+            "parsed_json": parsed,
+            "parsed_json_available": parsed is not None,
+            "parse_error": None,
+        }
+    except Exception as exc:
+        return {
+            "raw": text,
+            "parsed_json": None,
+            "parsed_json_available": False,
+            "parse_error": f"{type(exc).__name__}: {exc}",
+        }
 
 def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
     example_block = ""

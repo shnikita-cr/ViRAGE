@@ -44,7 +44,7 @@ class ViRAGESettings(BaseModel):
     spec_generation_max_profile_columns: int = Field(default=30, ge=3)
     spec_generation_max_quality_notes: int = Field(default=10, ge=0)
     spec_generation_max_sample_values: int = Field(default=3, ge=0)
-
+    data_profile_sample_strategy: str = Field(default="random")
     semantic_feedback_loop_enabled: bool = Field(default=False)
     semantic_feedback_max_attempts: int = Field(default=2, ge=1)
     semantic_feedback_min_accept_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
@@ -57,5 +57,3 @@ class ViRAGESettings(BaseModel):
     model_health_check_timeout_seconds: float = Field(default=10.0, ge=1.0)
     model_health_check_required_roles: list[str] = Field(default_factory=lambda: ["reasoning", "spec", "vlm", "vision_judge"])
     vlm_fail_soft: bool = Field(default=True)
-    reuse_semantic_judge_for_insights: bool = Field(default=True)
-    vision_score_skip_self_when_semantic_judge_available: bool = Field(default=True)

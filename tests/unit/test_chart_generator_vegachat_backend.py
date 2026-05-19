@@ -100,4 +100,4 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
     assert artifact.spec_json["encoding"]["x"]["field"] == "Region_Name"
     assert artifact.spec_json["encoding"]["y"]["field"] == "Metric_Value"
     assert (tmp_path / "artifacts" / "run" / "model_calls.csv").exists()
-    assert list((tmp_path / "artifacts" / "run" / "artifacts").glob("*_spec_generation_attempt_001_prompt.txt"))
+    assert list((tmp_path / "artifacts" / "run" / "model_calls").glob("*_chart_generator_spec-01.json"))

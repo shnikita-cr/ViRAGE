@@ -19,7 +19,7 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 def test_global_analysis_collects_stages_csv_and_safe_mapping(tmp_path: Path) -> None:
     root = tmp_path / "artifacts"
     run = root / "2026-05-09T00-00-00_test"
-    art = run / "artifacts"
+    art = run / "nodes"
     art.mkdir(parents=True)
 
     write_csv(
@@ -124,7 +124,7 @@ def test_global_analysis_supports_legacy_split_stage_csv(tmp_path: Path) -> None
 def test_global_analysis_collects_spec_generation_result(tmp_path: Path) -> None:
     root = tmp_path / "artifacts"
     run = root / "2026-05-09T00-00-00_codegen"
-    art = run / "artifacts"
+    art = run / "nodes"
     art.mkdir(parents=True)
 
     (art / "003_spec_generation_result.json").write_text(
@@ -173,7 +173,7 @@ def test_global_analysis_collects_spec_generation_result(tmp_path: Path) -> None
 def test_global_analysis_collects_spec_generation_retry_attempts(tmp_path: Path) -> None:
     root = tmp_path / "artifacts"
     run = root / "2026-05-09T00-00-00_retry"
-    art = run / "artifacts"
+    art = run / "nodes"
     art.mkdir(parents=True)
 
     for attempt_number in (1, 2):
@@ -219,10 +219,4 @@ def test_global_analysis_collects_spec_generation_retry_attempts(tmp_path: Path)
     row = collect_run(run, root)
 
     assert row["spec_generation_attempt_count"] == 2
-    assert row["spec_generation_pipeline_attempt_count"] == 2
-    assert row["spec_generation_response_attempt_count"] == 2
-    assert row["spec_generation_final_generation_attempt_number"] == 2
-    assert row["spec_generation_prompt_path"] == "artifacts/prompt_2.txt"
-    assert row["has_spec_validation_retry_summary"] is True
-    assert row["spec_validation_retry_succeeded"] is True
-    assert row["spec_validation_generation_attempt_count"] == 2
+    assert row["spec_generation_warning_count"] == 0

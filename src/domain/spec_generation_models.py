@@ -27,6 +27,7 @@ class SpecGenerationRequest(BaseModel):
     previous_invalid_spec: dict[str, Any] | None = None
     previous_semantic_feedback: list[str] = Field(default_factory=list)
     previous_chart_facts: list[dict[str, Any]] = Field(default_factory=list)
+    chart_quality_requirements: list[str] = Field(default_factory=list)
 
 
 class SpecGenerationAttempt(BaseModel):

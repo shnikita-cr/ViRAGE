@@ -40,9 +40,15 @@ class VisualQualityMetric(BaseModel):
 
 class EvaluationSummaryResult(BaseModel):
     structural_spec_metric: float | None = None
-    visual_quality_metric: float | None = None
     empty_chart_status: str = "unknown"
     visualization_error_rate_item: bool | None = None
     empty_chart_rate_item: bool | None = None
+    technical_status: str = "unknown"
+    semantic_status: str = "unknown"
+    chart_accepted: bool = False
+    semantic_retry_count: int = 0
+    technical_retry_count: int = 0
+    semantic_issues: list[str] = Field(default_factory=list)
     insight_summary: str = ""
+    benchmark_scores: dict[str, Any] = Field(default_factory=dict)
     benchmark_report: dict[str, Any] = Field(default_factory=dict)

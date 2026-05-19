@@ -5,7 +5,7 @@ from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, VisualQualityMetric, VLMAnalysisResult
+from src.domain.models import AnalysisRubric, InsightsResult, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
 from src.services.chart_generator import ChartGeneratorService
@@ -14,16 +14,11 @@ from src.services.data_profiler import DataProfilerService
 from src.services.compact_data_profile import CompactDataProfileService
 from src.services.empty_chart_check import EmptyChartCheckService
 from src.services.evaluation_summary import EvaluationSummaryService
-from src.services.fact_extractor import FactExtractorService
-from src.services.insights import InsightsService
-from src.services.query_understanding import QueryUnderstandingService
-from src.services.reasoner import ReasonerService
-from src.services.request_analyzer import RequestAnalyzerService
+from src.services.query_request_analyzer import QueryRequestAnalyzerService
 from src.services.scenegraph_check import ScenegraphCheckService
 from src.services.spec_score import SpecScoreService
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegalite_plot_drawing import VegaLitePlotDrawingService
-from src.services.vision_score import VisionScoreService
 from src.services.visrag import VisRAGService
 from src.services.visual_feedback import (
     ChartAnswerJudgeService,
@@ -145,41 +140,61 @@ def _build_live_chart_preview_payload(state: PipelineState, empty_chart_check: A
     }
 
 
-def _adjust_visual_quality_with_semantic(metric: VisualQualityMetric, state: PipelineState) -> VisualQualityMetric:
-    summary = state.get("semantic_feedback_loop_summary")
-    if summary is None:
-        return metric
-    final_status = getattr(summary, "final_status", None)
-    if final_status in {None, "disabled", "skipped", "accepted"}:
-        return metric
 
-    details = list(metric.details)
-    details.append(f"semantic_status_adjustment={final_status}")
-    adjusted_score = float(metric.score)
-    if final_status == "failed":
-        adjusted_score = min(adjusted_score, 0.6)
-    missing = list(getattr(summary, "missing_requirements", []) or [])
-    comments = list(getattr(summary, "improvement_comments", []) or [])
-    penalty = min(0.3, 0.05 * len(missing) + 0.03 * len(comments))
-    adjusted_score = max(0.0, adjusted_score - penalty)
-    if penalty > 0:
-        details.append(f"semantic_issue_penalty={penalty:.3f}")
-    rationales = dict(metric.rationales)
-    rationales["semantic_status"] = f"Visual quality was capped/penalized because semantic feedback loop ended as {final_status}."
-    return metric.model_copy(update={
-        "score": round(adjusted_score, 6),
-        "prompt_compliance": min(metric.prompt_compliance, round(adjusted_score, 6)),
-        "rationales": rationales,
-        "details": details,
-    })
+def _data_profile_artifact_payload(profile: Any, runtime: RuntimeContext) -> dict[str, Any]:
+    columns = []
+    for column in getattr(profile, "columns", []) or []:
+        original = getattr(column, "original_name", None) or getattr(column, "name", "")
+        safe = getattr(column, "safe_name", None) or original
+        columns.append({
+            "original_name": original,
+            "safe_name": safe,
+            "type": getattr(column, "dtype", "unknown"),
+            "role": getattr(profile, "field_roles", {}).get(original, getattr(profile, "field_roles", {}).get(safe, "unknown")),
+            "missing_ratio": getattr(column, "missing_ratio", 0.0),
+            "unique_count": getattr(column, "unique_count", 0),
+            "min": getattr(column, "min_value", None),
+            "max": getattr(column, "max_value", None),
+            "sample_values": list(getattr(column, "sample_values", []) or []),
+            "outlier_count": getattr(column, "outlier_count", 0),
+            "outlier_ratio": getattr(column, "outlier_ratio", 0.0),
+            "is_identifier": getattr(column, "is_identifier", False),
+            "is_high_cardinality": getattr(column, "is_high_cardinality", False),
+        })
+    return {
+        "row_count": getattr(profile, "row_count", 0),
+        "column_count": getattr(profile, "col_count", 0),
+        "profile_status": getattr(profile, "profile_status", "ok"),
+        "data_complexity": getattr(profile, "data_complexity", None),
+        "sample_strategy": getattr(runtime.settings, "data_profile_sample_strategy", "random"),
+        "sample_seed": int(getattr(runtime.settings, "data_profile_sample_seed", 42)),
+        "sample_size": int(getattr(runtime.settings, "data_profile_sample_size", 10)),
+        "columns": columns,
+        "quality_notes": list(getattr(profile, "quality_notes", []) or []),
+        "complexity_hints": list(getattr(profile, "complexity_hints", []) or []),
+        "cleaning_hints": list(getattr(profile, "cleaning_hints", []) or []),
+        "column_errors": list(getattr(profile, "column_errors", []) or []),
+    }
+
+
+def _vega_spec_artifact_payload(spec_artifact: Any) -> dict[str, Any]:
+    spec = getattr(spec_artifact, "spec_without_runtime_data", None) or getattr(spec_artifact, "spec_json", {}) or {}
+    if isinstance(spec, dict):
+        spec = {key: value for key, value in spec.items() if key not in {"data", "datasets"}}
+    return {
+        "spec": spec,
+        "version": getattr(spec_artifact, "version", None),
+        "generation_backend": getattr(spec_artifact, "generation_backend", None),
+        "generation_explanation": getattr(spec_artifact, "generation_explanation", None),
+        "generation_warnings": list(getattr(spec_artifact, "generation_warnings", []) or []),
+    }
 
 
 class PipelineNodes:
     def __init__(self, runtime: RuntimeContext) -> None:
         self.runtime = runtime
-        self.query_understanding = QueryUnderstandingService()
+        self.query_request_analyzer = QueryRequestAnalyzerService()
         self.data_profiler = DataProfilerService()
-        self.request_analyzer = RequestAnalyzerService()
         self.data_preparation = DataPreparationService()
         self.compact_data_profile = CompactDataProfileService()
         self.visrag = VisRAGService()
@@ -189,11 +204,7 @@ class PipelineNodes:
         self.scenegraph_check = ScenegraphCheckService()
         self.empty_chart_check = EmptyChartCheckService()
         self.vlm_analysis = VLMAnalysisService()
-        self.fact_extractor = FactExtractorService()
-        self.reasoner = ReasonerService()
-        self.insights = InsightsService()
         self.spec_score = SpecScoreService()
-        self.vision_score = VisionScoreService()
         self.evaluation_summary = EvaluationSummaryService()
         self.vlm_chart_description = VLMChartDescriptionService()
         self.chart_fact_summary = ChartFactSummaryService()
@@ -232,16 +243,47 @@ class PipelineNodes:
         self.runtime.emit_step(log)
         return [*state.get("step_logs", []), log]
 
+    _ATTEMPT_AWARE_NODE_ARTIFACTS = {
+        "vega_spec",
+        "spec_validation",
+        "technical_decision",
+        "plot_rendering",
+        "scenegraph_check",
+        "empty_chart_check",
+        "structural_spec_metric",
+        "semantic_chart_judge",
+        "semantic_decision",
+        "feedback_corpus_writer",
+        "vlm_analysis",
+        "evaluation_summary",
+    }
+
+    @classmethod
+    def _node_artifact_name(cls, state: PipelineState, name: str) -> str:
+        if name.startswith("semantic_attempt_") or name.endswith("_attempt"):
+            return name
+        if name not in cls._ATTEMPT_AWARE_NODE_ARTIFACTS:
+            return name
+        semantic_attempt = max(1, int(state.get("semantic_attempt_number", 1) or 1))
+        technical_attempt = max(1, int(state.get("technical_attempt_number", 1) or 1))
+        return f"{name}_semantic_{semantic_attempt:03d}_technical_{technical_attempt:03d}"
+
     def _save(self, state: PipelineState, name: str, payload: object) -> dict[str, str]:
-        path = self.runtime.save_json_artifact(f"artifacts/{name}.json", payload, run_id=state["run_id"], numbered=True)
-        return {**state.get("artifact_paths", {}), name: path}
+        artifact_name = self._node_artifact_name(state, name)
+        path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"], numbered=True)
+        return {**state.get("artifact_paths", {}), name: path, artifact_name: path}
 
     def _save_into(self, artifact_paths: dict[str, str], run_id: str, name: str, payload: object) -> dict[str, str]:
-        path = self.runtime.save_json_artifact(f"artifacts/{name}.json", payload, run_id=run_id, numbered=True)
+        path = self.runtime.save_json_artifact(f"nodes/{name}.json", payload, run_id=run_id, numbered=True)
         return {**artifact_paths, name: path}
 
+    def _save_attempt_into(self, artifact_paths: dict[str, str], state: PipelineState, name: str, payload: object) -> dict[str, str]:
+        artifact_name = self._node_artifact_name(state, name)
+        path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"], numbered=True)
+        return {**artifact_paths, name: path, artifact_name: path}
+
     def _save_text_into(self, artifact_paths: dict[str, str], run_id: str, name: str, text: str) -> dict[str, str]:
-        path = self.runtime.save_text_artifact(f"artifacts/{name}.md", text, run_id=run_id, numbered=True)
+        path = self.runtime.save_text_artifact(f"nodes/{name}.md", text, run_id=run_id, numbered=True)
         return {**artifact_paths, name: path}
 
     @staticmethod
@@ -255,45 +297,16 @@ class PipelineNodes:
             focus_areas.extend(request.selected_fields)
         return AnalysisRubric(focus_areas=list(dict.fromkeys(item for item in focus_areas if item)))
 
-    @traceable(name="virage.query_understanding")
-    def query_understanding_node(self, state: PipelineState) -> dict:
-        before = len(self.runtime.model_call_logs)
-        result = self.query_understanding.invoke(
-            state["query"],
-            state.get("user_context", {}),
-            runtime=self.runtime,
-            data_profile=state.get("data_profile"),
-            compact_data_profile=state.get("compact_data_profile"),
-        )
-        artifact_paths = self._save(state, "query_understanding", result.model_dump())
-        return {
-            "query_understanding": result,
-            "query_intent_bundle": result.to_intent_bundle(),
-            "stage": PipelineStage.QUERY_UNDERSTANDING,
-            "trace": self._trace(state, "query_understanding"),
-            "artifact_paths": artifact_paths,
-            "step_logs": self._append_log(
-                state,
-                stage="query_understanding",
-                title="Query understanding",
-                summary=result.intent,
-                inputs=[state["query"], "data_profile" if state.get("data_profile") else "no_data_profile"],
-                outputs=[result.task_type or "unknown", result.analysis_goal or ""],
-                details=self._stage_details(before) | {"artifact": artifact_paths["query_understanding"]},
-            ),
-        }
-
     @traceable(name="virage.data_profiler")
     def data_profiler_node(self, state: PipelineState) -> dict:
         result = self.data_profiler.invoke(state["data_path"], runtime=self.runtime)
-        artifact_paths = self._save(state, "data_profile", result.model_dump())
         compact_profile = None
         if bool(getattr(self.runtime.settings, "spec_generation_use_compact_profile", True)):
             compact_profile = self.compact_data_profile.invoke_from_profile(
                 result,
                 settings=self.runtime.settings,
             )
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "data_profile_compact_initial", compact_profile)
+        artifact_paths = self._save(state, "data_profile", _data_profile_artifact_payload(result, self.runtime))
         return {
             "data_profile": result,
             "compact_data_profile": compact_profile,
@@ -309,36 +322,41 @@ class PipelineNodes:
                 outputs=[", ".join(result.likely_numeric_columns[:3]), ", ".join(result.likely_time_columns[:3])],
                 details={
                     "artifact": artifact_paths["data_profile"],
-                    "compact_profile_artifact": artifact_paths.get("data_profile_compact_initial"),
                     "field_roles": result.field_roles,
                 },
             ),
         }
 
-    @traceable(name="virage.request_analyzer")
-    def request_analyzer_node(self, state: PipelineState) -> dict:
+    @traceable(name="virage.query_request_analysis")
+    def query_request_analysis_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
-        result = self.request_analyzer.invoke(
+        result = self.query_request_analyzer.invoke(
             state["query"],
-            state["query_understanding"],
+            state.get("user_context", {}),
             state["data_profile"],
             runtime=self.runtime,
             compact_data_profile=state.get("compact_data_profile"),
         )
-        artifact_paths = self._save(state, "request_analysis", result.model_dump())
+        query_understanding = result.query_understanding
+        request_analysis = result.request_analysis
+        artifact_paths = self._save(state, "query_request_analysis", result.model_dump())
         return {
-            "request_analysis": result,
-            "stage": PipelineStage.REQUEST_ANALYSIS,
-            "trace": self._trace(state, "request_analyzer"),
+            "query_request_analysis": result.model_dump(),
+            "query_understanding": query_understanding,
+            "query_intent_bundle": query_understanding.to_intent_bundle(),
+            "request_analysis": request_analysis,
+            "chart_quality_requirements": result.chart_quality_requirements,
+            "stage": PipelineStage.QUERY_REQUEST_ANALYSIS,
+            "trace": self._trace(state, "query_request_analysis"),
             "artifact_paths": artifact_paths,
             "step_logs": self._append_log(
                 state,
-                stage="request_analyzer",
-                title="Request analysis",
-                summary=f"Selected fields: {', '.join(result.selected_fields)}",
-                inputs=[state["query"]],
-                outputs=result.grounded_fields[:5],
-                details=self._stage_details(before) | {"artifact": artifact_paths["request_analysis"]},
+                stage="query_request_analysis",
+                title="Query and request analysis",
+                summary=f"{query_understanding.intent}; fields={', '.join(request_analysis.selected_fields[:5])}",
+                inputs=[state["query"], "data_profile"],
+                outputs=[query_understanding.task_type or "unknown", *request_analysis.grounded_fields[:4]],
+                details=self._stage_details(before) | {"artifact": artifact_paths["query_request_analysis"]},
             ),
         }
 
@@ -361,7 +379,6 @@ class PipelineNodes:
                 state.get("request_analysis"),
                 settings=self.runtime.settings,
             )
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "data_profile_compact", compact_profile)
         return {
             "data_preparation": result,
             "compact_data_profile": compact_profile,
@@ -377,7 +394,6 @@ class PipelineNodes:
                 outputs=result.operations[:5],
                 details={
                     "artifact": artifact_paths["data_preparation"],
-                    "compact_profile_artifact": artifact_paths.get("data_profile_compact"),
                     "prepared_path": result.output_path,
                 },
             ),
@@ -439,16 +455,9 @@ class PipelineNodes:
             previous_invalid_spec=technical_feedback.get("invalid_spec"),
             previous_semantic_feedback=semantic_feedback_items,
             previous_chart_facts=semantic_chart_fact_history,
+            chart_quality_requirements=list(state.get("chart_quality_requirements", [])),
         )
-        artifact_paths = self._save(state,
-                                    f"vega_spec_technical_{technical_attempt:03d}_semantic_{semantic_attempt:03d}",
-                                    result.model_dump())
-        artifact_paths = _merge_generation_artifacts(
-            artifact_paths,
-            result.generation_artifacts,
-            semantic_attempt=semantic_attempt,
-            technical_attempt=technical_attempt,
-        )
+        artifact_paths = self._save(state, "vega_spec", _vega_spec_artifact_payload(result))
         selected = state["candidate_spec_set"].selected_candidate_spec if state.get("candidate_spec_set") else None
         return {
             "vega_spec": result,
@@ -463,8 +472,8 @@ class PipelineNodes:
                 title="Chart generation",
                 summary=f"Generated Vega-Lite specification; technical attempt {technical_attempt}, semantic attempt {semantic_attempt}",
                 inputs=[selected.chart_family if selected else "", f"semantic_feedback={len(semantic_feedback_items)}"],
-                outputs=[str(result.spec_json.get("mark", ""))],
-                details={"artifact": list(artifact_paths.values())[-1], "spec_json": result.spec_json},
+                outputs=[str((result.spec_without_runtime_data or result.spec_json).get("mark", ""))],
+                details={"artifact": artifact_paths["vega_spec"], "spec": _vega_spec_artifact_payload(result)["spec"]},
             ),
         }
 
@@ -503,17 +512,7 @@ class PipelineNodes:
         validation_result = self.spec_validator.invoke(current_spec)
         payload = self._validation_attempt_payload(attempt_number, current_spec, validation_result)
         artifact_paths = dict(state.get("artifact_paths", {}))
-        artifact_paths = self._save_into(artifact_paths, state["run_id"],
-                                         f"spec_validation_attempt_{attempt_number:03d}", payload)
-        artifact_paths = self._save_text_into(
-            artifact_paths,
-            state["run_id"],
-            f"spec_validation_attempt_{attempt_number:03d}_report",
-            self._validation_attempt_report(attempt_number, payload),
-        )
-        if validation_result.is_valid:
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "spec_validation",
-                                             validation_result.model_dump())
+        artifact_paths = self._save_attempt_into(artifact_paths, state, "spec_validation", payload)
 
         return {
             "spec_validation": validation_result,
@@ -529,8 +528,7 @@ class PipelineNodes:
                 inputs=["vega_spec"],
                 outputs=["validated_spec" if validation_result.is_valid else "validation_errors"],
                 details={
-                    "artifact": artifact_paths.get("spec_validation") or artifact_paths.get(
-                        f"spec_validation_attempt_{attempt_number:03d}"),
+                    "artifact": artifact_paths.get("spec_validation"),
                     "attempt_count": attempt_number,
                     "max_generation_attempts": int(self.runtime.settings.spec_generation_max_attempts),
                     "validated_spec": validation_result.validated_spec,
@@ -554,7 +552,7 @@ class PipelineNodes:
                 "completed_generation_attempts": attempt_number,
                 "max_generation_attempts": max_attempts,
             }
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "technical_retry_summary", summary)
+            artifact_paths = self._save_attempt_into(artifact_paths, state, "technical_decision", summary)
             return {
                 "technical_status": "ok",
                 "stage": PipelineStage.SPEC_VALIDATION,
@@ -585,8 +583,7 @@ class PipelineNodes:
                 "validation_errors": validation.validation_errors,
                 "repair_hints": validation.repair_hints,
             }
-            artifact_paths = self._save_into(artifact_paths, state["run_id"],
-                                             f"technical_retry_decision_{attempt_number:03d}", summary)
+            artifact_paths = self._save_attempt_into(artifact_paths, state, "technical_decision", summary)
             return {
                 "technical_status": "retry",
                 "technical_attempt_number": attempt_number + 1,
@@ -612,7 +609,7 @@ class PipelineNodes:
             "validation_errors": validation.validation_errors,
             "repair_hints": validation.repair_hints,
         }
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], "technical_retry_summary", summary)
+        artifact_paths = self._save_attempt_into(artifact_paths, state, "technical_decision", summary)
         self.runtime.save_text_artifact(
             "errors/spec_validation_failed.txt",
             "\n".join(validation.validation_errors),
@@ -677,13 +674,6 @@ class PipelineNodes:
                 "Rendered chart is empty or unusable. See run artifacts and errors directory for numbered details.")
 
         live_preview = _build_live_chart_preview_payload(state, result)
-        preview_key = (
-            "live_chart_preview_"
-            f"semantic_{live_preview['semantic_attempt_number']:03d}_"
-            f"technical_{live_preview['technical_attempt_number']:03d}"
-        )
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], preview_key, live_preview)
-        live_preview = {**live_preview, "artifact": artifact_paths[preview_key]}
 
         return {
             "empty_chart_check": result,
@@ -805,18 +795,13 @@ class PipelineNodes:
             rendered_png_path=state["plot_image"].get("image_path", ""),
             retry_reasons=retry_reasons,
         )
-        artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_semantic_chart_judge", result.model_dump())
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_chart_analysis", chart_analysis.model_dump())
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_chart_feedback", answer_judge.model_dump())
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], f"semantic_attempt_{attempt_number:03d}_chart_revision_record", revision.model_dump())
-        judge_model_calls = [item.model_dump() for item in self.runtime.model_call_logs[before:]]
-        if judge_model_calls:
-            artifact_paths = self._save_into(
-                artifact_paths,
-                state["run_id"],
-                f"semantic_attempt_{attempt_number:03d}_semantic_chart_judge_model_calls",
-                judge_model_calls,
-            )
+        semantic_payload = {
+            "semantic_chart_judge": result.model_dump(),
+            "chart_analysis": chart_analysis.model_dump(),
+            "chart_feedback": answer_judge.model_dump(),
+            "chart_revision_record": revision.model_dump(),
+        }
+        artifact_paths = self._save(state, "semantic_chart_judge", semantic_payload)
         history = [*state.get("semantic_chart_fact_history", []), chart_facts.model_dump()]
         return {
             "semantic_chart_judge": result,
@@ -838,9 +823,7 @@ class PipelineNodes:
                 inputs=[state["plot_image"].get("image_path", ""), "user_query", "validated_spec"],
                 outputs=[result.retry_recommendation, *retry_reasons[:2]],
                 details=self._stage_details(before) | {
-                    "artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_semantic_chart_judge"],
-                    "chart_analysis_artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_chart_analysis"],
-                    "chart_revision_artifact": artifact_paths[f"semantic_attempt_{attempt_number:03d}_chart_revision_record"],
+                    "artifact": artifact_paths["semantic_chart_judge"],
                     **result.model_dump(),
                 },
             ),
@@ -881,7 +864,7 @@ class PipelineNodes:
         return {
             "chart_fact_summary": result,
             "semantic_chart_fact_history": history,
-            "stage": PipelineStage.FACT_EXTRACTION,
+            "stage": PipelineStage.VLM_ANALYSIS,
             "trace": self._trace(state, "chart_fact_summary"),
             "artifact_paths": artifact_paths,
             "step_logs": self._append_log(
@@ -966,7 +949,7 @@ class PipelineNodes:
                                              summary.model_dump())
             summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
             return {
-                "semantic_status": "accept",
+                "semantic_status": "accepted",
                 "semantic_feedback_loop_summary": summary,
                 "stage": PipelineStage.VERIFICATION,
                 "trace": self._trace(state, "semantic_decision_accept"),
@@ -1006,7 +989,7 @@ class PipelineNodes:
                 "feedback_for_next_generation": feedback_text,
             }
             artifact_paths = self._save_into(artifact_paths, state["run_id"],
-                                             f"semantic_retry_decision_{attempt_number:03d}", summary)
+                                             "semantic_decision", summary)
             return {
                 "semantic_status": "retry",
                 "semantic_attempt_number": attempt_number + 1,
@@ -1115,10 +1098,6 @@ class PipelineNodes:
         if self.runtime.settings.semantic_feedback_save_rejected_specs:
             corpus_path = self.feedback_corpus_writer.append_to_corpus(example, self.runtime)
         feedback_block = example.feedback_for_next_generation
-        if feedback_block:
-            artifact_paths = self._save_text_into(artifact_paths, state["run_id"],
-                                                  f"semantic_attempt_{attempt_number:03d}_feedback_prompt_block",
-                                                  feedback_block)
         examples = [*state.get("visual_feedback_examples", []), example]
         feedback_items = list(state.get("semantic_feedback_items", []))
         if feedback_block and (not feedback_items or feedback_items[-1] != feedback_block):
@@ -1141,42 +1120,37 @@ class PipelineNodes:
             ),
         }
 
-    @traceable(name="virage.vlm_analysis")
+    @traceable(name="virage.vlm_chart_analysis")
     def vlm_analysis_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
-        semantic_judge = state.get("semantic_chart_judge")
-        if bool(getattr(self.runtime.settings, "reuse_semantic_judge_for_insights", True)) and semantic_judge is not None:
+        if state.get("semantic_status") == "failed":
             result = VLMAnalysisResult(
-                visual_observations=[
-                    item for item in [
-                        getattr(semantic_judge, "chart_description", ""),
-                        *list(getattr(semantic_judge, "observed_facts", []) or []),
-                        *list(getattr(semantic_judge, "readability_issues", []) or []),
-                    ] if str(item).strip()
-                ],
-                extracted_visual_facts=list(getattr(semantic_judge, "observed_facts", []) or []),
-                confidence=float(getattr(semantic_judge, "confidence", 0.0) or 0.0),
+                summary="Chart-grounded analysis was skipped because semantic chart validation failed.",
+                key_findings=[],
+                caveats=["The chart was not accepted by the semantic judge."],
+                suggested_followup_questions=[],
+                visual_observations=[],
+                extracted_visual_facts=[],
+                confidence=0.0,
             )
-            artifact_paths = self._save(state, "vlm_analysis_reused_from_semantic_judge", result.model_dump())
+            insights = InsightsResult(final_insights=[])
+            artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
             return {
                 "vlm_analysis": result,
+                "insights": insights,
                 "stage": PipelineStage.VLM_ANALYSIS,
-                "trace": self._trace(state, "vlm_analysis_reused_from_semantic_judge"),
+                "trace": self._trace(state, "vlm_chart_analysis_skipped_semantic_failed"),
                 "artifact_paths": artifact_paths,
                 "step_logs": self._append_log(
                     state,
-                    stage="vlm_analysis",
-                    title="Visual analysis",
-                    summary=f"reused semantic judge; {len(result.visual_observations)} observations",
-                    inputs=["semantic_chart_judge"],
-                    outputs=result.visual_observations[:3],
-                    details=self._stage_details(before) | {
-                        "artifact": artifact_paths["vlm_analysis_reused_from_semantic_judge"],
-                        "reused_from_semantic_judge": True,
-                        **result.model_dump(),
-                    },
+                    stage="vlm_chart_analysis",
+                    title="Chart-grounded VLM analysis",
+                    summary="skipped because semantic judge did not accept the chart",
+                    outputs=["skipped"],
+                    details={"artifact": artifact_paths["vlm_analysis"], **result.model_dump()},
                 ),
             }
+
         plot_image = PlotImageArtifact(**state["plot_image"])
         try:
             result = self.vlm_analysis.invoke(plot_image, state["analysis_rubric"], runtime=self.runtime)
@@ -1184,173 +1158,52 @@ class PipelineNodes:
             if not bool(getattr(self.runtime.settings, "vlm_fail_soft", True)):
                 raise
             result = VLMAnalysisResult(
+                summary=f"Chart-grounded analysis skipped after {type(exc).__name__}: {exc}",
+                key_findings=[],
+                caveats=["The VLM analysis model was unavailable."],
+                suggested_followup_questions=[],
                 visual_observations=[f"VLM analysis skipped after {type(exc).__name__}: {exc}"],
                 extracted_visual_facts=[],
                 confidence=0.0,
             )
-            artifact_paths = self._save(state, "vlm_analysis_skipped", result.model_dump())
+            insights = InsightsResult(final_insights=[])
+            artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
             return {
                 "vlm_analysis": result,
+                "insights": insights,
                 "stage": PipelineStage.VLM_ANALYSIS,
-                "trace": self._trace(state, "vlm_analysis_skipped"),
+                "trace": self._trace(state, "vlm_chart_analysis_skipped"),
                 "artifact_paths": artifact_paths,
                 "step_logs": self._append_log(
                     state,
-                    stage="vlm_analysis",
-                    title="Visual analysis",
-                    summary="VLM unavailable; continued with fallback observations",
+                    stage="vlm_chart_analysis",
+                    title="Chart-grounded VLM analysis",
+                    summary="VLM unavailable; continued without user insights",
                     inputs=[state["plot_image"]["image_path"]],
-                    outputs=result.visual_observations[:1],
+                    outputs=result.caveats[:1],
                     details=self._stage_details(before) | {
-                        "artifact": artifact_paths["vlm_analysis_skipped"],
+                        "artifact": artifact_paths["vlm_analysis"],
                         "error_type": "vlm_unavailable",
                         "error": f"{type(exc).__name__}: {exc}",
                     },
                 ),
             }
+        insights = InsightsResult(final_insights=[*result.key_findings] or ([result.summary] if result.summary else []))
         artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
         return {
             "vlm_analysis": result,
+            "insights": insights,
             "stage": PipelineStage.VLM_ANALYSIS,
-            "trace": self._trace(state, "vlm_analysis"),
+            "trace": self._trace(state, "vlm_chart_analysis"),
             "artifact_paths": artifact_paths,
             "step_logs": self._append_log(
                 state,
-                stage="vlm_analysis",
-                title="Visual analysis",
-                summary=f"{len(result.visual_observations)} observations",
+                stage="vlm_chart_analysis",
+                title="Chart-grounded VLM analysis",
+                summary=result.summary or f"{len(result.key_findings)} findings",
                 inputs=[state["plot_image"]["image_path"]],
-                outputs=result.visual_observations[:3],
-                details=self._stage_details(before) | {"artifact": artifact_paths["vlm_analysis"],
-                                                       **result.model_dump()},
-            ),
-        }
-
-    @traceable(name="virage.fact_extractor")
-    def fact_extractor_node(self, state: PipelineState) -> dict:
-        result = self.fact_extractor.invoke(state["vlm_analysis"], runtime=self.runtime)
-        artifact_paths = self._save(state, "visual_facts", result.model_dump())
-        return {
-            "visual_facts": result,
-            "stage": PipelineStage.FACT_EXTRACTION,
-            "trace": self._trace(state, "fact_extractor"),
-            "artifact_paths": artifact_paths,
-            "step_logs": self._append_log(
-                state,
-                stage="fact_extractor",
-                title="Fact extraction",
-                summary=f"{len(result.visual_facts)} facts",
-                inputs=["visual observations"],
-                outputs=[fact.name for fact in result.visual_facts[:3]],
-                details={"artifact": artifact_paths["visual_facts"], **result.model_dump()},
-            ),
-        }
-
-    @traceable(name="virage.reasoner")
-    def reasoner_node(self, state: PipelineState) -> dict:
-        before = len(self.runtime.model_call_logs)
-        result = self.reasoner.invoke(state["visual_facts"], state["analysis_rubric"], runtime=self.runtime)
-        artifact_paths = self._save(state, "insight_reasoning", result.model_dump())
-        return {
-            "insight_reasoning": result,
-            "stage": PipelineStage.REASONING,
-            "trace": self._trace(state, "reasoner"),
-            "artifact_paths": artifact_paths,
-            "step_logs": self._append_log(
-                state,
-                stage="reasoner",
-                title="Reasoning",
-                summary=f"{len(result.insight_candidates)} insight candidates",
-                inputs=["visual facts"],
-                outputs=result.reasoning_chain[:3],
-                details=self._stage_details(before) | {"artifact": artifact_paths["insight_reasoning"],
-                                                       **result.model_dump()},
-            ),
-        }
-
-    @traceable(name="virage.insights")
-    def insights_node(self, state: PipelineState) -> dict:
-        result = self.insights.invoke(state["insight_reasoning"])
-        artifact_paths = self._save(state, "insights", result.model_dump())
-        return {
-            "insights": result,
-            "stage": PipelineStage.INSIGHTS,
-            "trace": self._trace(state, "insights"),
-            "artifact_paths": artifact_paths,
-            "step_logs": self._append_log(
-                state,
-                stage="insights",
-                title="Final insights",
-                summary=f"{len(result.final_insights)} insights",
-                inputs=["insight candidates"],
-                outputs=result.final_insights[:3],
-                details={"artifact": artifact_paths["insights"], **result.model_dump()},
-            ),
-        }
-
-    @traceable(name="virage.vision_score")
-    def vision_score_node(self, state: PipelineState) -> dict:
-        if not self.runtime.settings.enable_vision_score:
-            return {}
-        before = len(self.runtime.model_call_logs)
-        plot_image = PlotImageArtifact(**state["plot_image"])
-        user_context = state.get("user_context", {}) if isinstance(state.get("user_context"), dict) else {}
-        reference_image_path = user_context.get("reference_image_path")
-        reference_image = reference_image_path if isinstance(reference_image_path, str) else None
-        semantic_judge = state.get("semantic_chart_judge")
-        if (
-            reference_image is None
-            and semantic_judge is not None
-            and bool(getattr(self.runtime.settings, "vision_score_skip_self_when_semantic_judge_available", True))
-        ):
-            confidence = float(getattr(semantic_judge, "confidence", 0.0) or 0.0)
-            prompt_score = 1.0 if bool(getattr(semantic_judge, "answers_user_query", False)) else 0.0
-            readability_score = 0.0 if bool(getattr(semantic_judge, "is_blank_or_unreadable", False)) else 1.0
-            if getattr(semantic_judge, "readability_issues", None):
-                readability_score = min(readability_score, 0.75)
-            result = VisualQualityMetric(
-                score=round(min(confidence, prompt_score, readability_score), 6),
-                prompt_compliance=prompt_score,
-                readability=readability_score,
-                insight_supportiveness=round(confidence, 6),
-                visualization_type=1.0,
-                data_encoding=1.0 if not getattr(semantic_judge, "wrong_or_suspicious_parts", None) else 0.5,
-                data_transformation=1.0,
-                aesthetics=readability_score,
-                is_blank=bool(getattr(semantic_judge, "is_blank_or_unreadable", False)),
-                weights={"semantic_judge_reuse": 1.0},
-                rationales={"source": "Reused strict semantic_chart_judge instead of an extra self VisionScore VLM call."},
-                details=[
-                    "mode=self_reused_semantic_chart_judge",
-                    f"answers_user_query={getattr(semantic_judge, 'answers_user_query', False)}",
-                    f"confidence={confidence}",
-                ],
-            )
-        else:
-            result = self.vision_score.invoke(
-                plot_image,
-                runtime=self.runtime,
-                query_understanding=state.get("query_understanding"),
-                user_prompt=state.get("query"),
-                reference_image_path=reference_image,
-            )
-        if reference_image is None:
-            result = _adjust_visual_quality_with_semantic(result, state)
-        artifact_paths = self._save(state, "visual_quality_metric", result.model_dump())
-        return {
-            "visual_quality_metric": result,
-            "stage": PipelineStage.EVALUATION,
-            "trace": self._trace(state, "vision_score"),
-            "artifact_paths": artifact_paths,
-            "step_logs": self._append_log(
-                state,
-                stage="vision_score",
-                title="Visual metric",
-                summary=f"score={result.score:.3f}",
-                inputs=[state["plot_image"]["image_path"]],
-                outputs=result.details[:3],
-                details=self._stage_details(before) | {"artifact": artifact_paths["visual_quality_metric"],
-                                                       **result.model_dump()},
+                outputs=result.key_findings[:3] or result.visual_observations[:3],
+                details=self._stage_details(before) | {"artifact": artifact_paths["vlm_analysis"], **result.model_dump()},
             ),
         }
 
@@ -1358,11 +1211,19 @@ class PipelineNodes:
     def evaluation_summary_node(self, state: PipelineState) -> dict:
         if not self.runtime.settings.enable_evaluation_summary:
             return {}
+        technical_attempt = max(1, int(state.get("technical_attempt_number", 1) or 1))
         result = self.evaluation_summary.invoke(
             state.get("structural_spec_metric"),
-            state.get("visual_quality_metric"),
             state["empty_chart_check"],
             state.get("insights"),
+            technical_status=str(state.get("technical_status") or "unknown"),
+            semantic_status=str(state.get("semantic_status") or "unknown"),
+            semantic_summary=state.get("semantic_feedback_loop_summary"),
+            technical_retry_count=max(0, technical_attempt - 1),
+            benchmark_scores={
+                "spec_score": getattr(state.get("structural_spec_metric"), "score", None),
+                "vision_score": None,
+            },
         )
         artifact_paths = self._save(state, "evaluation_summary", result.model_dump())
         return {

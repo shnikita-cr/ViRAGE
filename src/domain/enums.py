@@ -3,9 +3,8 @@ from enum import Enum
 
 class PipelineStage(str, Enum):
     INITIALIZED = "initialized"
-    QUERY_UNDERSTANDING = "query_understanding"
+    QUERY_REQUEST_ANALYSIS = "query_request_analysis"
     DATA_PROFILING = "data_profiling"
-    REQUEST_ANALYSIS = "request_analysis"
     DATA_PREPARATION = "data_preparation"
     VISRAG = "visrag"
     CHART_GENERATION = "chart_generation"
@@ -14,10 +13,7 @@ class PipelineStage(str, Enum):
     SCENEGRAPH_CHECK = "scenegraph_check"
     EMPTY_CHART_CHECK = "empty_chart_check"
     VLM_ANALYSIS = "vlm_analysis"
-    FACT_EXTRACTION = "fact_extraction"
-    REASONING = "reasoning"
     VERIFICATION = "verification"
-    INSIGHTS = "insights"
     EVALUATION = "evaluation"
     COMPLETED = "completed"
     FAILED = "failed"

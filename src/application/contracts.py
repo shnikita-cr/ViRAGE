@@ -13,7 +13,6 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    InsightReasoningResult,
     InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
@@ -28,8 +27,6 @@ from src.domain.models import (
     StructuralSpecMetric,
     TokenUsage,
     VegaLiteSpecArtifact,
-    VisualFactExtractionResult,
-    VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
     VLMChartDescriptionResult,
@@ -69,11 +66,8 @@ class PipelineResult(BaseModel):
     visual_feedback_examples: list[VisualFeedbackExample] = Field(default_factory=list)
     semantic_feedback_loop_summary: SemanticFeedbackLoopSummary | None = None
     vlm_analysis: VLMAnalysisResult | None = None
-    visual_facts: VisualFactExtractionResult | None = None
-    insight_reasoning: InsightReasoningResult | None = None
     insights: InsightsResult | None = None
     structural_spec_metric: StructuralSpecMetric | None = None
-    visual_quality_metric: VisualQualityMetric | None = None
     evaluation_summary: EvaluationSummaryResult | None = None
 
     step_logs: list[StepLog] = Field(default_factory=list)

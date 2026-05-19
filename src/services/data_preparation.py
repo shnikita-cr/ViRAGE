@@ -53,20 +53,6 @@ class DataPreparationService(BaseService):
                     df[safe_column] = df[safe_column].fillna(median)
                     operations.append(f"fill_numeric_median:{original_column}->{safe_column}")
 
-        mapping_payload = {
-            "column_name_map": column_name_map,
-            "reverse_column_name_map": reverse_column_name_map,
-            "original_columns": original_columns,
-            "safe_columns": safe_columns,
-            "renamed_column_count": renamed_column_count,
-        }
-        runtime.save_json_artifact(
-            "artifacts/column_name_mapping.json",
-            mapping_payload,
-            run_id=run_id,
-            numbered=True,
-        )
-
         output_path = runtime.next_artifact_path("cleaned_data.csv", run_id=run_id)
         df.to_csv(output_path, index=False)
         return DataPreparationResult(

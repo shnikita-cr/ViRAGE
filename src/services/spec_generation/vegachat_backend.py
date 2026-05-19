@@ -110,14 +110,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
             previous_repair_hints=list(request.previous_repair_hints),
             previous_semantic_feedback=list(request.previous_semantic_feedback),
         )
-        artifact_paths = self._save_artifacts(
-            runtime=runtime,
-            result=result,
-            final_prompt=final_prompt,
-            final_raw_response=final_raw_response,
-            generation_attempt_number=request.generation_attempt_number,
-        )
-        return result.model_copy(update={"artifact_paths": artifact_paths})
+        return result.model_copy(update={"artifact_paths": {}})
 
     @staticmethod
     def _normalize_model_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -156,17 +149,17 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         attempt_prefix = f"spec_generation_attempt_{generation_attempt_number:03d}"
 
         artifact_paths[f"{attempt_prefix}_prompt"] = runtime.save_text_artifact(
-            f"artifacts/{attempt_prefix}_prompt.txt",
+            f"nodes/{attempt_prefix}_prompt.txt",
             final_prompt,
             numbered=True,
         )
         artifact_paths[f"{attempt_prefix}_raw_response"] = runtime.save_text_artifact(
-            f"artifacts/{attempt_prefix}_raw_response.txt",
+            f"nodes/{attempt_prefix}_raw_response.txt",
             final_raw_response,
             numbered=True,
         )
         artifact_paths[f"{attempt_prefix}_parsed_response"] = runtime.save_json_artifact(
-            f"artifacts/{attempt_prefix}_parsed_response.json",
+            f"nodes/{attempt_prefix}_parsed_response.json",
             {
                 "explanation": result.explanation,
                 "spec_without_runtime_data": result.spec_without_runtime_data,
@@ -177,7 +170,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         result_payload = result.model_dump()
         result_payload["artifact_paths"] = dict(artifact_paths)
         artifact_paths[f"{attempt_prefix}_result"] = runtime.save_json_artifact(
-            f"artifacts/{attempt_prefix}_result.json",
+            f"nodes/{attempt_prefix}_result.json",
             result_payload,
             numbered=True,
         )

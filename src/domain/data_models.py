@@ -38,6 +38,9 @@ class DataProfile(BaseModel):
     data_complexity: str | None = None
     profile_status: str = "ok"
     column_errors: list[dict[str, Any]] = Field(default_factory=list)
+    sample_strategy: str = "random"
+    sample_seed: int = 42
+    sample_size: int = 10
 
 
 class RequestFieldMapping(BaseModel):

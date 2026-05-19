@@ -33,6 +33,8 @@ class DataProfilerService(BaseService):
 
         row_count = int(len(df))
         col_count = int(len(df.columns))
+        sample_seed = int(getattr(runtime.settings, "data_profile_sample_seed", 42))
+        sample_size = max(1, int(getattr(runtime.settings, "data_profile_sample_size", 10)))
         column_name_map = self._build_unique_column_name_map([str(column) for column in df.columns])
 
         duplicate_rows = int(df.duplicated().sum())
@@ -65,7 +67,6 @@ class DataProfilerService(BaseService):
                 quality_notes.append(
                     f"Column '{column_name}' could not be fully profiled and was treated as categorical: {type(exc).__name__}: {exc}"
                 )
-                self._save_column_error(runtime, error_payload)
                 column_profile = self._degraded_column_profile(
                     column_name=column_name,
                     safe_name=safe_name,
@@ -119,10 +120,10 @@ class DataProfilerService(BaseService):
             data_complexity="large" if row_count > 100_000 or col_count > 30 else "standard",
             profile_status="degraded" if column_errors else "ok",
             column_errors=column_errors,
+            sample_strategy="random",
+            sample_seed=sample_seed,
+            sample_size=min(sample_size, row_count) if row_count else 0,
         )
-
-        if column_errors:
-            self._save_profile_error_summary(runtime, profile)
 
         return profile
 
@@ -133,6 +134,8 @@ class DataProfilerService(BaseService):
             safe_name: str,
             series: pd.Series,
             row_count: int,
+            sample_seed: int = 42,
+            sample_size: int = 10,
     ) -> tuple[DataColumnProfile, list[str]]:
         quality_notes: list[str] = []
         missing_ratio = float(series.isna().mean()) if row_count else 0.0
@@ -141,7 +144,7 @@ class DataProfilerService(BaseService):
         min_value, max_value, min_max_note = self._min_max(column_name, series, semantic_dtype)
         if min_max_note:
             quality_notes.append(min_max_note)
-        samples = self._sample_values(series)
+        samples = self._sample_values(series, sample_seed=sample_seed, sample_size=sample_size)
         outlier_count, outlier_ratio = self._outlier_stats(series, semantic_dtype)
         is_identifier = self._looks_identifier(column_name, unique_count, row_count)
         is_high_cardinality = semantic_dtype == "categorical" and unique_count > max(50, int(row_count * 0.5))
@@ -275,9 +278,17 @@ class DataProfilerService(BaseService):
             return None, None, f"Column {column!r} min/max could not be computed: {exc}"
 
     @staticmethod
-    def _sample_values(series: pd.Series) -> list[Any]:
+    def _sample_values(series: pd.Series, *, sample_seed: int = 42, sample_size: int = 10) -> list[Any]:
+        non_null = series.dropna()
+        if non_null.empty:
+            return []
+        size = min(max(1, int(sample_size)), len(non_null))
+        try:
+            sampled = non_null.sample(n=size, random_state=int(sample_seed))
+        except Exception:
+            sampled = non_null.head(size)
         values = []
-        for value in series.dropna().head(5).tolist():
+        for value in sampled.tolist():
             if hasattr(value, "item"):
                 value = value.item()
             values.append(value)
@@ -357,6 +368,8 @@ class DataProfilerService(BaseService):
             safe_name: str,
             series: pd.Series,
             row_count: int,
+            sample_seed: int = 42,
+            sample_size: int = 10,
     ) -> DataColumnProfile:
         return DataColumnProfile(
             name=column_name,
@@ -365,7 +378,7 @@ class DataProfilerService(BaseService):
             dtype="categorical",
             missing_ratio=float(series.isna().mean()) if row_count else 0.0,
             unique_count=int(series.nunique(dropna=True)),
-            sample_values=self._sample_values(series),
+            sample_values=self._sample_values(series, sample_seed=sample_seed, sample_size=sample_size),
             outlier_count=0,
             outlier_ratio=0.0,
             is_identifier=self._looks_identifier(column_name, int(series.nunique(dropna=True)), row_count),
@@ -386,32 +399,11 @@ class DataProfilerService(BaseService):
 
     @staticmethod
     def _save_column_error(runtime: RuntimeContext, error_payload: dict[str, Any]) -> None:
-        try:
-            safe_column = DataProfilerService._safe_column_name(str(error_payload.get("column") or "column"))
-            runtime.save_json_artifact(
-                f"artifacts/data_profile_column_error_{safe_column}.json",
-                error_payload,
-                numbered=True,
-            )
-        except Exception:
-            return
+        return
 
     @staticmethod
     def _save_profile_error_summary(runtime: RuntimeContext, profile: DataProfile) -> None:
-        try:
-            runtime.save_json_artifact(
-                "artifacts/data_profile_error_summary.json",
-                {
-                    "failure_class": "data_profile_error",
-                    "subreason": "degraded_profile",
-                    "recoverable": True,
-                    "profile_status": profile.profile_status,
-                    "column_errors": profile.column_errors,
-                },
-                numbered=True,
-            )
-        except Exception:
-            return
+        return
 
     @staticmethod
     def _dedupe(values: list[str]) -> list[str]:

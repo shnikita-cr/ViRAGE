@@ -152,8 +152,16 @@ class SemanticChartJudgeService(BaseService):
             "Set retry_recommendation='retry' only when missing_requirements, readability_issues, "
             "wrong_or_suspicious_parts, or feedback_for_next_generation are non-empty.\n"
             "Set retry_recommendation='reject' only if the image is unusable and cannot be repaired by a better spec.\n"
+            "Strict chart quality requirements: axis titles must be readable and must name source fields and aggregation; "
+            "legends are mandatory whenever color/shape/size/strokeDash or multiple metric series are used; category labels "
+            "must fit without overlap or cropping; multi-metric charts must make each metric name clear and avoid misleading "
+            "shared scales; vague titles such as value/total/count are not acceptable unless the field and aggregation are clear. "
+            "If the chart contains both an overloaded legend and labels that do not fit, do not accept it just because both exist; "
+            "require a cleaner alternative such as facet/repeat panels, horizontal bars, shorter axis titles, direct labels/tooltips, "
+            "or independent scales. Prefer the clearest readable representation over preserving every visual element. "
             "Check label readability, axis/legend titles, visible fields, transformations, and whether the chart supports "
-            "the requested comparison/distribution/trend/correlation.\n\n"
+            "the requested comparison/distribution/trend/correlation. If any of these requirements fail, return retry with "
+            "specific feedback for next generation.\n\n"
             f"Context JSON:\n{json.dumps(context, ensure_ascii=False, indent=2, default=str)}\n"
         )
 

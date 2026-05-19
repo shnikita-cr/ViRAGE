@@ -772,33 +772,6 @@ def render_structural_metric(metric: Any) -> None:
             render_metric_details("Checks", details)
 
 
-def render_visual_quality_metric(metric: Any) -> None:
-    payload = payload_from_model(metric)
-
-    if not payload:
-        return
-
-    render_score_card(
-        title="Visual quality",
-        score=payload.get("score"),
-        description="Estimates readability, prompt compliance and whether the image supports useful insight extraction.",
-    )
-
-    render_component_scores(
-        payload,
-        [
-            ("Prompt compliance", "prompt_compliance"),
-            ("Readability", "readability"),
-            ("Insight support", "insight_supportiveness"),
-        ],
-    )
-
-    details = payload.get("details")
-    if details:
-        with st.expander("Visual quality findings", expanded=False):
-            render_metric_details("Checks", details)
-
-
 def render_summary_status_card(label: str, value: Any) -> None:
     display_value = "—" if value is None or value == "" else str(value)
 
@@ -815,7 +788,7 @@ def render_evaluation_summary(summary: Any) -> None:
 
     st.markdown("### Evaluation summary")
 
-    score_cols = st.columns(3)
+    score_cols = st.columns(4)
 
     with score_cols[0]:
         render_summary_status_card(
@@ -824,14 +797,16 @@ def render_evaluation_summary(summary: Any) -> None:
         )
 
     with score_cols[1]:
-        render_summary_status_card(
-            "Visual score",
-            format_score(payload.get("visual_quality_metric")),
-        )
+        render_summary_status_card("Technical", payload.get("technical_status") or "unknown")
 
     with score_cols[2]:
-        empty_status = payload.get("empty_chart_status") or "unknown"
-        render_summary_status_card("Empty chart status", empty_status)
+        render_summary_status_card("Semantic", payload.get("semantic_status") or "unknown")
+
+    with score_cols[3]:
+        render_summary_status_card("Chart accepted", payload.get("chart_accepted"))
+
+    empty_status = payload.get("empty_chart_status") or "unknown"
+    render_summary_status_card("Empty chart status", empty_status)
 
     verification_summary = payload.get("insight_summary")
     if verification_summary:
@@ -948,14 +923,13 @@ def render_metrics(result: Any, compute_metrics: bool) -> None:
         return
 
     structural_metric = result.structural_spec_metric
-    visual_metric = result.visual_quality_metric
     evaluation_summary = result.evaluation_summary
 
-    if not any([structural_metric, visual_metric, evaluation_summary]):
+    if not any([structural_metric, evaluation_summary]):
         st.info("No metrics were produced.")
         return
 
-    metric_count = sum(1 for item in [structural_metric, visual_metric, evaluation_summary] if item is not None)
+    metric_count = sum(1 for item in [structural_metric, evaluation_summary] if item is not None)
 
     overview_columns = st.columns(3)
 
@@ -967,25 +941,13 @@ def render_metrics(result: Any, compute_metrics: bool) -> None:
         st.metric("Structural", format_score(structural_payload.get("score")))
 
     with overview_columns[2]:
-        visual_payload = payload_from_model(visual_metric)
-        st.metric("Visual", format_score(visual_payload.get("score")))
+        evaluation_payload = payload_from_model(evaluation_summary)
+        st.metric("Chart accepted", str(evaluation_payload.get("chart_accepted", "—")))
 
     st.markdown("---")
 
-    if structural_metric and visual_metric:
-        left, right = st.columns(2)
-
-        with left:
-            render_structural_metric(structural_metric)
-
-        with right:
-            render_visual_quality_metric(visual_metric)
-
-    elif structural_metric:
+    if structural_metric:
         render_structural_metric(structural_metric)
-
-    elif visual_metric:
-        render_visual_quality_metric(visual_metric)
 
     if evaluation_summary:
         st.markdown("---")
@@ -995,10 +957,6 @@ def render_metrics(result: Any, compute_metrics: bool) -> None:
         if structural_metric:
             st.markdown("#### Structural spec")
             st.json(payload_from_model(structural_metric))
-
-        if visual_metric:
-            st.markdown("#### Visual quality")
-            st.json(payload_from_model(visual_metric))
 
         if evaluation_summary:
             st.markdown("#### Evaluation summary")

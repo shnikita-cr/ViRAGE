@@ -12,7 +12,6 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    InsightReasoningResult,
     InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
@@ -27,8 +26,6 @@ from src.domain.models import (
     StructuralSpecMetric,
     TokenUsage,
     VegaLiteSpecArtifact,
-    VisualFactExtractionResult,
-    VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
     VLMChartDescriptionResult,
@@ -60,6 +57,7 @@ class PipelineState(TypedDict, total=False):
     semantic_retry_feedback: NotRequired[str]
     semantic_retry_reasons: NotRequired[list[str]]
 
+    query_request_analysis: NotRequired[dict[str, Any]]
     query_understanding: NotRequired[QueryUnderstandingResult]
     query_intent_bundle: NotRequired[QueryIntentBundle]
     request_analysis: NotRequired[RequestAnalysisResult]
@@ -84,11 +82,8 @@ class PipelineState(TypedDict, total=False):
     visual_feedback_examples: NotRequired[list[VisualFeedbackExample]]
     semantic_feedback_loop_summary: NotRequired[SemanticFeedbackLoopSummary]
     vlm_analysis: NotRequired[VLMAnalysisResult]
-    visual_facts: NotRequired[VisualFactExtractionResult]
-    insight_reasoning: NotRequired[InsightReasoningResult]
     insights: NotRequired[InsightsResult]
     structural_spec_metric: NotRequired[StructuralSpecMetric]
-    visual_quality_metric: NotRequired[VisualQualityMetric]
     evaluation_summary: NotRequired[EvaluationSummaryResult]
 
     step_logs: NotRequired[list[StepLog]]

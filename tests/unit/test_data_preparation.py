@@ -89,4 +89,4 @@ def test_data_preparation_writes_safe_column_mapping_and_csv_columns(tmp_path):
     assert result.reverse_column_name_map == {"Metric_Value": "Metric Value (%)", "Region_Name": "Region.Name"}
     assert result.renamed_column_count == 2
     assert any("safe_column_mapping:2" == op for op in result.operations)
-    assert sorted((tmp_path / "artifacts" / "safe-map" / "artifacts").glob("*_column_name_mapping.json"))
+    assert result.column_name_map

@@ -11,6 +11,10 @@ class AnalysisRubric(BaseModel):
 
 
 class VLMAnalysisResult(BaseModel):
+    summary: str = ""
+    key_findings: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    suggested_followup_questions: list[str] = Field(default_factory=list)
     visual_observations: list[str] = Field(default_factory=list)
     extracted_visual_facts: list[str] = Field(default_factory=list)
     confidence: float = 0.0

@@ -20,6 +20,8 @@ class ModelCallLog(BaseModel):
     prompt: str = ""
     raw_response: str = ""
     parsed_preview: dict[str, Any] | None = None
+    input: dict[str, Any] = Field(default_factory=dict)
+    output: dict[str, Any] = Field(default_factory=dict)
     attempts: int = 1
     attempt_number: int = 1
     token_usage: TokenUsage = Field(default_factory=TokenUsage)

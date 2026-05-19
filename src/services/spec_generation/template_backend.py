@@ -58,8 +58,7 @@ class TemplateSpecBackend(SpecGenerationBackend):
             previous_validation_errors=list(request.previous_validation_errors),
             previous_repair_hints=list(request.previous_repair_hints),
         )
-        artifact_paths = self._save_result_artifacts(runtime, result)
-        return result.model_copy(update={"artifact_paths": artifact_paths})
+        return result.model_copy(update={"artifact_paths": {}})
 
     def _build_spec(self, request: SpecGenerationRequest, candidate: CandidateSpec) -> dict[str, Any]:
         if not candidate.spec_template:
@@ -185,7 +184,7 @@ class TemplateSpecBackend(SpecGenerationBackend):
         if runtime.current_run_id:
             attempt_prefix = f"spec_generation_attempt_{result.generation_attempt_number:03d}"
             artifacts[f"{attempt_prefix}_result"] = runtime.save_json_artifact(
-                f"artifacts/{attempt_prefix}_result.json",
+                f"nodes/{attempt_prefix}_result.json",
                 result.model_dump(exclude={"artifact_paths"}),
                 numbered=True,
             )

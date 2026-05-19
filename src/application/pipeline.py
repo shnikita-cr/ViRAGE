@@ -103,9 +103,12 @@ class ViRAGEPipeline:
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
-        self.runtime.save_run_status(run_id=request.run_id, status="running", final_stage="initialized")
-        self.runtime.save_text_artifact('input/query.txt', request.query, run_id=request.run_id)
-        self.runtime.save_json_artifact('input/user_context.json', request.user_context, run_id=request.run_id)
+        self.runtime.save_run_status(
+            run_id=request.run_id,
+            status="running",
+            final_stage="initialized",
+            extra={"query": request.query, "data_path": request.data_path},
+        )
         initial_state: PipelineState = {
             'run_id': request.run_id,
             'query': request.query,
@@ -149,6 +152,8 @@ class ViRAGEPipeline:
             final_stage=_stage_name(final_state.get('stage')),
             semantic_status=str(final_state.get('semantic_status') or ""),
             extra={
+                "query": request.query,
+                "data_path": request.data_path,
                 "has_plot": bool(final_state.get("plot_image")),
                 "has_evaluation_summary": bool(final_state.get("evaluation_summary")),
                 "has_token_summary": True,
@@ -178,11 +183,8 @@ class ViRAGEPipeline:
             visual_feedback_examples=final_state.get('visual_feedback_examples', []),
             semantic_feedback_loop_summary=final_state.get('semantic_feedback_loop_summary'),
             vlm_analysis=final_state.get('vlm_analysis'),
-            visual_facts=final_state.get('visual_facts'),
-            insight_reasoning=final_state.get('insight_reasoning'),
             insights=final_state.get('insights'),
             structural_spec_metric=final_state.get('structural_spec_metric'),
-            visual_quality_metric=final_state.get('visual_quality_metric'),
             evaluation_summary=final_state.get('evaluation_summary'),
             step_logs=final_state.get('step_logs', []),
             stage_execution_logs=final_state.get('stage_execution_logs', []),

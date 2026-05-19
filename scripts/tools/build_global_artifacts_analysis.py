@@ -25,6 +25,19 @@ def normalize_stem(path: Path) -> str:
     return strip_number_prefix(path.stem)
 
 
+def is_logical_artifact_name(stem: str, logical_name: str) -> bool:
+    if stem == logical_name:
+        return True
+    # Current node artifacts may include semantic/technical attempt suffixes, for example:
+    # 012_vega_spec_semantic_001_technical_002.json. Treat these as the same logical node
+    # while preserving separate files on disk.
+    return (
+        stem.startswith(f"{logical_name}_semantic_")
+        or stem.startswith(f"{logical_name}_technical_")
+        or stem.startswith(f"{logical_name}_attempt_")
+    )
+
+
 def read_text_safe(path: Path) -> str | None:
     try:
         return path.read_text(encoding="utf-8", errors="replace")
@@ -113,15 +126,21 @@ def seconds_between(started_at: datetime | None, finished_at: datetime | None) -
 
 def find_json_by_logical_name(run_dir: Path, logical_name: str) -> tuple[Path | None, Any | None]:
     ignored_parts = {"model_calls", "stage_executions"}
+    matches: list[Path] = []
 
     for path in sorted(run_dir.rglob("*.json")):
         if ignored_parts.intersection(path.parts):
             continue
 
-        if normalize_stem(path) == logical_name:
-            return path, read_json_safe(path)
+        if is_logical_artifact_name(normalize_stem(path), logical_name):
+            matches.append(path)
 
-    return None, None
+    if not matches:
+        return None, None
+
+    # Return the latest numbered node artifact when a node ran multiple times.
+    path = matches[-1]
+    return path, read_json_safe(path)
 
 
 def find_jsons_by_predicate(run_dir: Path, predicate) -> list[tuple[Path, Any]]:
@@ -473,16 +492,19 @@ def extract_chart_metadata(run_dir: Path) -> dict[str, Any]:
             row["vega_spec_artifact_name"] = logical_name
             break
     if isinstance(vega_spec, dict):
-        spec_json = vega_spec.get("spec_json") if "spec_json" in vega_spec else vega_spec
+        if isinstance(vega_spec.get("spec"), dict):
+            spec_json = vega_spec["spec"]
+        elif isinstance(vega_spec.get("spec_json"), dict):
+            spec_json = vega_spec["spec_json"]
+        else:
+            spec_json = vega_spec
 
         if isinstance(spec_json, dict):
             row["vega_mark"] = spec_json.get("mark")
             encoding = spec_json.get("encoding")
             if isinstance(encoding, dict):
                 row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
-                row["vega_encoding_json"] = dump_json_cell(encoding)
-            fields = extract_spec_fields(spec_json)
-            row["vega_fields_json"] = dump_json_cell(fields)
+                fields = extract_spec_fields(spec_json)
             row["vega_field_count"] = len(fields)
 
     return row
@@ -492,7 +514,6 @@ def extract_metrics(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
     metric_names = [
         "structural_spec_metric",
-        "visual_quality_metric",
         "evaluation_summary",
     ]
 
@@ -503,8 +524,6 @@ def extract_metrics(run_dir: Path) -> dict[str, Any]:
             continue
 
         row[f"has_{name}"] = True
-        row[f"{name}_json"] = dump_json_cell(payload)
-
         if isinstance(payload, dict):
             row.update(flatten_scalar_dict(name, payload))
     for name in metric_names:
@@ -516,16 +535,24 @@ def extract_metrics(run_dir: Path) -> dict[str, Any]:
 def extract_input_metadata(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
 
-    query_path = run_dir / "input" / "query.txt"
-    query = read_text_safe(query_path)
-    if query is not None:
-        row["query"] = query.strip()
-        row["query_path"] = query_path.relative_to(run_dir).as_posix()
+    run_status = read_json_safe(run_dir / "run_status.json")
+    if isinstance(run_status, dict):
+        if run_status.get("query"):
+            row["query"] = str(run_status.get("query"))
+        if run_status.get("data_path"):
+            row["data_path"] = str(run_status.get("data_path"))
+        if run_status.get("error_type"):
+            row["run_error_type"] = str(run_status.get("error_type"))
+        if run_status.get("error"):
+            row["run_error_summary"] = str(run_status.get("error"))[:500]
+        if run_status.get("semantic_status") is not None:
+            row["run_semantic_status"] = str(run_status.get("semantic_status"))
 
-    user_context_path = run_dir / "input" / "user_context.json"
-    user_context = read_json_safe(user_context_path)
-    if user_context is not None:
-        row["user_context_json"] = dump_json_cell(user_context)
+    query_path = run_dir / "input" / "query.txt"
+    if "query" not in row:
+        query = read_text_safe(query_path)
+        if query is not None:
+            row["query"] = query.strip()
 
     return row
 
@@ -538,15 +565,14 @@ def extract_data_profile(run_dir: Path) -> dict[str, Any]:
         return row
 
     row["data_profile_row_count"] = payload.get("row_count")
-    row["data_profile_col_count"] = payload.get("col_count")
+    row["data_profile_col_count"] = payload.get("column_count") or payload.get("col_count")
     row["data_profile_status"] = payload.get("profile_status")
     row["data_profile_complexity"] = payload.get("data_complexity")
     row["data_profile_column_errors_count"] = len(payload.get("column_errors") or []) if isinstance(
         payload.get("column_errors"), list) else 0
     row["data_profile_quality_notes_count"] = len(payload.get("quality_notes") or []) if isinstance(
         payload.get("quality_notes"), list) else 0
-    row["data_profile_column_name_map_json"] = dump_json_cell(payload.get("column_name_map"))
-
+    
     columns = payload.get("columns")
     if isinstance(columns, list):
         original_columns: list[str] = []
@@ -563,8 +589,6 @@ def extract_data_profile(run_dir: Path) -> dict[str, Any]:
                 safe_columns.append(safe)
             if original and safe and original != safe:
                 renamed += 1
-        row["data_profile_original_columns_json"] = dump_json_cell(original_columns)
-        row["data_profile_safe_columns_json"] = dump_json_cell(safe_columns)
         row["data_profile_renamed_column_count"] = renamed
 
     return row
@@ -641,104 +665,77 @@ def extract_data_preparation(run_dir: Path) -> dict[str, Any]:
         row["prepared_row_count"] = payload.get("row_count")
         row["prepared_col_count"] = payload.get("col_count")
         row["data_preparation_operations_json"] = dump_json_cell(payload.get("operations"))
-        row["data_preparation_json"] = dump_json_cell(payload)
         row["uses_safe_column_mapping"] = bool(renamed_column_count)
         row["safe_column_mapping_count"] = len(column_name_map)
         row["renamed_column_count"] = renamed_column_count or 0
-        row["column_name_map_json"] = dump_json_cell(column_name_map)
-        row["reverse_column_name_map_json"] = dump_json_cell(reverse_column_name_map)
-        row["original_columns_json"] = dump_json_cell(original_columns)
-        row["safe_columns_json"] = dump_json_cell(safe_columns)
 
     return row
 
 
 def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
+    _, payload = find_json_by_logical_name(run_dir, "vega_spec")
+    if isinstance(payload, dict):
+        spec = payload.get("spec") if isinstance(payload.get("spec"), dict) else {}
+        warnings = payload.get("generation_warnings") if isinstance(payload.get("generation_warnings"), list) else []
+        row["has_spec_generation_result"] = True
+        row["spec_generation_backend"] = payload.get("generation_backend") or ""
+        row["spec_generation_warning_count"] = len(warnings)
+        row["spec_generation_has_explanation"] = bool(payload.get("generation_explanation"))
+        row["spec_generation_spec_field_count"] = len(extract_spec_fields(spec))
+        row["spec_generation_attempt_count"] = 1
+        row["spec_generation_pipeline_attempt_count"] = 1
+        row["spec_generation_response_attempt_count"] = 1
+        row["spec_generation_failed_attempt_count"] = 0
+        row["vega_mark"] = spec.get("mark") if isinstance(spec.get("mark"), str) else "composition" if any(key in spec for key in ("layer", "facet", "repeat", "concat", "hconcat", "vconcat")) else ""
+        encoding = spec.get("encoding") if isinstance(spec.get("encoding"), dict) else {}
+        row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
+        row["vega_field_count"] = len(extract_spec_fields(spec))
+        return row
+
+    # Legacy reader kept so global analysis can still summarize older runs.
     attempt_results = find_jsons_by_predicate(
         run_dir,
         lambda name: name.startswith("spec_generation_attempt_") and name.endswith("_result"),
     )
-
     if not attempt_results:
-        result_path, payload = find_json_by_logical_name(run_dir, "spec_generation_result")
-        if isinstance(payload, dict):
-            attempt_results = [(result_path, payload)] if result_path is not None else []
-
+        result_path, legacy = find_json_by_logical_name(run_dir, "spec_generation_result")
+        if isinstance(legacy, dict):
+            attempt_results = [(result_path, legacy)] if result_path is not None else []
     if not attempt_results:
         row["has_spec_generation_result"] = False
         return row
-
     row["has_spec_generation_result"] = True
+    row["spec_generation_attempt_count"] = len(attempt_results)
     row["spec_generation_pipeline_attempt_count"] = len(attempt_results)
-    row["spec_generation_result_paths_json"] = dump_json_cell([
-        path.relative_to(run_dir).as_posix() for path, _ in attempt_results if path is not None
-    ])
-
-    final_result_path, payload = attempt_results[-1]
-    if not isinstance(payload, dict):
-        return row
-
+    all_attempt_payloads = [item for _, item in attempt_results if isinstance(item, dict)]
+    payload = all_attempt_payloads[-1] if all_attempt_payloads else {}
     attempts = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
     warnings = payload.get("warning_messages") if isinstance(payload.get("warning_messages"), list) else []
-    artifact_paths = payload.get("artifact_paths") if isinstance(payload.get("artifact_paths"), dict) else {}
-    spec_without_data = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"),
-                                                                               dict) else {}
-
-    all_attempt_payloads = [item for _, item in attempt_results if isinstance(item, dict)]
+    spec = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"), dict) else payload.get("spec_json", {})
     response_attempt_count = sum(len(item.get("attempts") or []) for item in all_attempt_payloads)
-    failed_response_attempt_count = 0
-    response_statuses: list[str] = []
-    for item in all_attempt_payloads:
-        for response_attempt in item.get("attempts") or []:
-            if not isinstance(response_attempt, dict):
-                continue
-            status = str(response_attempt.get("status") or "")
-            response_statuses.append(status)
-            if status.lower() == "failed":
-                failed_response_attempt_count += 1
-
-    row["spec_generation_backend"] = payload.get("backend_name") or ""
+    failed_response_attempt_count = sum(
+        1
+        for item in all_attempt_payloads
+        for attempt in (item.get("attempts") or [])
+        if isinstance(attempt, dict) and str(attempt.get("status") or "").lower() == "failed"
+    )
+    row["spec_generation_backend"] = payload.get("backend_name") or payload.get("generation_backend") or ""
     row["spec_generation_prompt_version"] = payload.get("prompt_version") or ""
-    row["spec_generation_attempt_count"] = len(attempt_results)
-    row["spec_generation_response_attempt_count"] = response_attempt_count
+    row["spec_generation_response_attempt_count"] = response_attempt_count or len(attempts)
     row["spec_generation_failed_attempt_count"] = failed_response_attempt_count
     row["spec_generation_warning_count"] = len(warnings)
-    row["spec_generation_warnings_json"] = dump_json_cell(warnings)
     row["spec_generation_used_visrag_context"] = bool(payload.get("used_visrag_context"))
-    row["spec_generation_has_explanation"] = bool(payload.get("explanation"))
-    row["spec_generation_result_path"] = final_result_path.relative_to(run_dir).as_posix() if final_result_path else ""
-    row["spec_generation_artifact_paths_json"] = dump_json_cell(artifact_paths)
-    row["spec_generation_spec_without_data_fields_json"] = dump_json_cell(extract_spec_fields(spec_without_data))
+    row["spec_generation_has_explanation"] = bool(payload.get("explanation") or payload.get("generation_explanation"))
     row["spec_generation_final_generation_attempt_number"] = payload.get("generation_attempt_number") or ""
     row["spec_generation_max_generation_attempts"] = payload.get("max_generation_attempts") or ""
-    row["spec_generation_previous_validation_errors_json"] = dump_json_cell(
-        payload.get("previous_validation_errors") or [])
-    row["spec_generation_previous_repair_hints_json"] = dump_json_cell(payload.get("previous_repair_hints") or [])
-
-    prompt_paths: list[str] = []
-    raw_response_paths: list[str] = []
-    parsed_response_paths: list[str] = []
-    for item in all_attempt_payloads:
-        paths = item.get("artifact_paths") if isinstance(item.get("artifact_paths"), dict) else {}
-        for key, value in paths.items():
-            if key.endswith("_prompt") or key.endswith("prompt") or key == "spec_generation_prompt":
-                prompt_paths.append(str(value))
-            if key.endswith("_raw_response") or key.endswith("raw_response") or key == "spec_generation_raw_response":
-                raw_response_paths.append(str(value))
-            if key.endswith("_parsed_response") or key.endswith(
-                    "parsed_response") or key == "spec_generation_parsed_response":
-                parsed_response_paths.append(str(value))
-
-    row["spec_generation_prompt_path"] = prompt_paths[-1] if prompt_paths else ""
-    row["spec_generation_raw_response_path"] = raw_response_paths[-1] if raw_response_paths else ""
-    row["spec_generation_parsed_response_path"] = parsed_response_paths[-1] if parsed_response_paths else ""
-    row["spec_generation_prompt_paths_json"] = dump_json_cell(prompt_paths)
-    row["spec_generation_raw_response_paths_json"] = dump_json_cell(raw_response_paths)
-    row["spec_generation_parsed_response_paths_json"] = dump_json_cell(parsed_response_paths)
-    row["spec_generation_attempt_statuses"] = ",".join(response_statuses)
+    row["spec_generation_spec_field_count"] = len(extract_spec_fields(spec if isinstance(spec, dict) else {}))
+    if isinstance(spec, dict):
+        row["vega_mark"] = spec.get("mark") if isinstance(spec.get("mark"), str) else "composition" if any(key in spec for key in ("layer", "facet", "repeat", "concat", "hconcat", "vconcat")) else ""
+        encoding = spec.get("encoding") if isinstance(spec.get("encoding"), dict) else {}
+        row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
+        row["vega_field_count"] = len(extract_spec_fields(spec))
     return row
-
 
 def extract_spec_validation_retry(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
@@ -764,9 +761,6 @@ def extract_spec_validation_retry(run_dir: Path) -> dict[str, Any]:
     final_hints = final_attempt.get("repair_hints") if isinstance(final_attempt.get("repair_hints"), list) else []
     row["spec_validation_final_error_count"] = len(final_errors)
     row["spec_validation_final_repair_hint_count"] = len(final_hints)
-    row["spec_validation_final_errors_json"] = dump_json_cell(final_errors)
-    row["spec_validation_final_repair_hints_json"] = dump_json_cell(final_hints)
-
     reports = [
         path.relative_to(run_dir).as_posix()
         for path in sorted(run_dir.rglob("*spec_validation_attempt_*_report.md"))
@@ -815,14 +809,6 @@ def extract_semantic_feedback(run_dir: Path) -> dict[str, Any]:
     row["semantic_chart_fact_summary_count"] = len(facts)
     row["semantic_answer_judge_count"] = len(judges)
     row["semantic_feedback_example_count"] = len(examples)
-    row["semantic_vlm_description_paths_json"] = dump_json_cell(
-        [p.relative_to(run_dir).as_posix() for p, _ in descriptions])
-    row["semantic_chart_fact_summary_paths_json"] = dump_json_cell(
-        [p.relative_to(run_dir).as_posix() for p, _ in facts])
-    row["semantic_answer_judge_paths_json"] = dump_json_cell([p.relative_to(run_dir).as_posix() for p, _ in judges])
-    row["semantic_feedback_example_paths_json"] = dump_json_cell(
-        [p.relative_to(run_dir).as_posix() for p, _ in examples])
-
     if judges and isinstance(judges[-1][1], dict):
         final = judges[-1][1]
         row["semantic_final_answers_user_query"] = bool(final.get("answers_user_query"))
@@ -957,14 +943,12 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["stage_prompt_tokens"] = stage_token_totals["prompt_tokens"]
     row["stage_completion_tokens"] = stage_token_totals["completion_tokens"]
     row["stage_total_tokens"] = stage_token_totals["total_tokens"]
-    row["stage_names"] = ",".join(stage_names)
     row["failed_stage"] = (
         failed_stage_logs[0].get("pipeline_stage")
         or failed_stage_logs[0].get("node_name")
         if failed_stage_logs
         else ""
     )
-    row["stage_logs_json"] = dump_json_cell(stage_logs)
     row["has_stages_csv"] = (run_dir / "stages.csv").exists()
     row["stages_csv_path"] = "stages.csv" if (run_dir / "stages.csv").exists() else ""
     row["has_legacy_stage_split_csv"] = (run_dir / "stage_timings.csv").exists() or (
@@ -972,9 +956,6 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["has_legacy_stage_execution_json"] = any("stage_execution" in str(path) for path in files)
 
     row["model_call_count"] = len(model_calls)
-    row["model_call_stage_names"] = ",".join(unique_values(model_calls, "stage"))
-    row["model_call_roles"] = ",".join(unique_values(model_calls, "model_role"))
-    row["model_call_models"] = ",".join(unique_values(model_calls, "model_name"))
     row["model_call_prompt_tokens"] = token_totals["prompt_tokens"]
     row["model_call_completion_tokens"] = token_totals["completion_tokens"]
     row["model_call_total_tokens"] = token_totals["total_tokens"]
@@ -984,7 +965,6 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
         for call in model_calls
         if call.get("parser_errors") or call.get("error")
     )
-    row["model_calls_json"] = dump_json_cell(model_calls)
     row["has_model_calls_csv"] = (run_dir / "model_calls.csv").exists()
     row["model_calls_csv_path"] = "model_calls.csv" if (run_dir / "model_calls.csv").exists() else ""
     row["has_legacy_model_call_split_csv"] = (run_dir / "model_call_tokens.csv").exists() or (
@@ -994,7 +974,6 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["has_plot_png"] = has_plot_png
     row["png_count"] = len(png_paths)
     row["plot_png_path"] = plot_png_paths[0] if plot_png_paths else ""
-    row["png_paths_json"] = dump_json_cell(png_relative_paths)
 
     row["has_spec_validation"] = spec_validation is not None
     row["spec_is_valid"] = spec_is_valid if spec_is_valid is not None else ""
@@ -1004,14 +983,11 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
         if spec_validation_path
         else ""
     )
-    row["spec_validation_json"] = dump_json_cell(spec_validation)
 
     row["json_file_count"] = len(json_paths)
     row["csv_file_count"] = len(csv_paths)
     row["total_file_count"] = len(files)
     row["total_size_bytes"] = total_size_bytes
-    row["artifact_paths_json"] = dump_json_cell(files)
-    row["errors_json"] = dump_json_cell(errors)
 
     row.update(extract_input_metadata(run_dir))
     row.update(extract_data_profile(run_dir))
@@ -1052,17 +1028,16 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
 
     base_columns = [
         "run_id",
-        "run_path",
-        "run_path_abs",
         "started_at",
         "finished_at",
         "duration_seconds",
         "status",
         "is_success",
+        "run_error_type",
+        "run_error_summary",
         "has_errors",
         "error_count",
         "first_error",
-        "query",
         "stage_count",
         "stage_succeeded_count",
         "stage_failed_count",
@@ -1071,51 +1046,35 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "stage_prompt_tokens",
         "stage_completion_tokens",
         "stage_total_tokens",
-        "stage_names",
-        "failed_stage",
-        "has_stages_csv",
-        "stages_csv_path",
-        "has_legacy_stage_split_csv",
-        "has_legacy_stage_execution_json",
         "model_call_count",
-        "model_call_stage_names",
-        "model_call_roles",
-        "model_call_models",
         "model_call_prompt_tokens",
         "model_call_completion_tokens",
         "model_call_total_tokens",
         "model_call_duration_seconds",
         "model_call_error_count",
-        "has_model_calls_csv",
-        "model_calls_csv_path",
-        "has_legacy_model_call_split_csv",
-        "has_png",
         "has_plot_png",
         "png_count",
-        "plot_png_path",
+        "data_profile_row_count",
+        "data_profile_col_count",
+        "data_profile_status",
+        "data_profile_complexity",
+        "data_profile_quality_notes_count",
+        "data_profile_column_errors_count",
+        "data_profile_renamed_column_count",
+        "prepared_row_count",
+        "prepared_col_count",
+        "renamed_column_count",
+        "has_spec_generation_result",
+        "spec_generation_backend",
+        "spec_generation_warning_count",
+        "spec_generation_has_explanation",
+        "spec_generation_spec_field_count",
         "has_spec_validation",
         "spec_is_valid",
         "spec_validation_error_count",
-        "selected_spec_id",
-        "selected_chart_family",
-        "selected_candidate_score",
         "vega_mark",
         "vega_encoding_channels",
         "vega_field_count",
-        "has_spec_generation_result",
-        "spec_generation_backend",
-        "spec_generation_prompt_version",
-        "spec_generation_attempt_count",
-        "spec_generation_pipeline_attempt_count",
-        "spec_generation_response_attempt_count",
-        "spec_generation_failed_attempt_count",
-        "spec_generation_warning_count",
-        "spec_generation_final_generation_attempt_number",
-        "spec_generation_max_generation_attempts",
-        "spec_generation_used_visrag_context",
-        "spec_generation_has_explanation",
-        "spec_generation_prompt_path",
-        "spec_generation_raw_response_path",
         "has_semantic_feedback_loop_summary",
         "semantic_loop_enabled",
         "semantic_attempt_count",
@@ -1125,16 +1084,15 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "semantic_accepted_attempt",
         "semantic_final_confidence",
         "semantic_saved_feedback_count",
-        "semantic_vlm_description_count",
-        "semantic_answer_judge_count",
-        "uses_safe_column_mapping",
-        "renamed_column_count",
-        "safe_column_mapping_count",
-        "prepared_data_path",
-        "prepared_row_count",
-        "prepared_col_count",
+        "semantic_final_answers_user_query",
+        "semantic_final_retry_recommendation",
+        "evaluation_summary_technical_status",
+        "evaluation_summary_semantic_status",
+        "evaluation_summary_chart_accepted",
+        "evaluation_summary_semantic_retry_count",
+        "evaluation_summary_technical_retry_count",
         "has_structural_spec_metric",
-        "has_visual_quality_metric",
+        "structural_spec_metric_score",
         "has_evaluation_summary",
         "json_file_count",
         "csv_file_count",
@@ -1142,19 +1100,8 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "total_size_bytes",
     ]
 
-    all_columns: list[str] = []
-
-    for column in base_columns:
-        if column not in all_columns:
-            all_columns.append(column)
-
-    for row in rows:
-        for column in row.keys():
-            if column not in all_columns:
-                all_columns.append(column)
-
     with output_path.open("w", encoding="utf-8-sig", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=all_columns, extrasaction="ignore")
+        writer = csv.DictWriter(file, fieldnames=base_columns, extrasaction="ignore")
         writer.writeheader()
 
         for row in rows:

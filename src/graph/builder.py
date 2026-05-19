@@ -106,8 +106,7 @@ def _enrich_step_logs_with_duration(
 
 _STAGE_TITLES = {
     "data_profiler": "Data profiling",
-    "query_understanding": "Query understanding",
-    "request_analyzer": "Request analysis",
+    "query_request_analysis": "Query and request analysis",
     "data_preparation": "Data preparation",
     "visrag": "Spec retrieval",
     "chart_generator": "Chart generation",
@@ -124,11 +123,7 @@ _STAGE_TITLES = {
     "chart_answer_judge": "Semantic answer judge",
     "semantic_decision": "Semantic retry decision",
     "feedback_corpus_writer": "Feedback corpus writer",
-    "vlm_analysis": "VLM analysis",
-    "fact_extractor": "Visual fact extraction",
-    "reasoner": "Insight reasoning",
-    "insights": "Insight formatting",
-    "vision_score": "Vision score",
+    "vlm_analysis": "Chart-grounded VLM analysis",
     "evaluation_summary": "Evaluation summary",
     "completed": "Completed",
 }
@@ -236,7 +231,9 @@ def _route_semantic_decision(state: PipelineState) -> str:
     status = str(state.get("semantic_status") or "")
     if status == "retry":
         return "retry"
-    return "done"
+    if status == "failed":
+        return "failed"
+    return "accepted"
 
 
 def build_pipeline_graph(runtime: RuntimeContext):
@@ -253,8 +250,7 @@ def build_pipeline_graph(runtime: RuntimeContext):
 
     base_steps = [
         ("data_profiler", nodes.data_profiler_node),
-        ("query_understanding", nodes.query_understanding_node),
-        ("request_analyzer", nodes.request_analyzer_node),
+        ("query_request_analysis", nodes.query_request_analysis_node),
         ("data_preparation", nodes.data_preparation_node),
         ("visrag", nodes.visrag_node),
         ("chart_generator", nodes.chart_generator_node),
@@ -272,10 +268,6 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("semantic_decision", nodes.semantic_decision_node),
         ("feedback_corpus_writer", nodes.feedback_corpus_writer_node),
         ("vlm_analysis", nodes.vlm_analysis_node),
-        ("fact_extractor", nodes.fact_extractor_node),
-        ("reasoner", nodes.reasoner_node),
-        ("insights", nodes.insights_node),
-        ("vision_score", nodes.vision_score_node),
         ("evaluation_summary", nodes.evaluation_summary_node),
         ("completed", _mark_completed),
     ]
@@ -284,9 +276,8 @@ def build_pipeline_graph(runtime: RuntimeContext):
         graph.add_node(name, _wrap_stage_node(name=name, callable_node=callable_node, runtime=runtime))
 
     graph.add_edge(START, "data_profiler")
-    graph.add_edge("data_profiler", "query_understanding")
-    graph.add_edge("query_understanding", "request_analyzer")
-    graph.add_edge("request_analyzer", "data_preparation")
+    graph.add_edge("data_profiler", "query_request_analysis")
+    graph.add_edge("query_request_analysis", "data_preparation")
     graph.add_edge("data_preparation", "visrag")
     graph.add_edge("visrag", "chart_generator")
     graph.add_edge("chart_generator", "spec_validator")
@@ -313,15 +304,11 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph.add_conditional_edges(
         "semantic_decision",
         _route_semantic_decision,
-        {"retry": "feedback_corpus_writer", "done": "vlm_analysis"},
+        {"retry": "feedback_corpus_writer", "accepted": "vlm_analysis", "failed": "evaluation_summary"},
     )
     graph.add_edge("feedback_corpus_writer", "chart_generator")
 
-    graph.add_edge("vlm_analysis", "fact_extractor")
-    graph.add_edge("fact_extractor", "reasoner")
-    graph.add_edge("reasoner", "insights")
-    graph.add_edge("insights", "vision_score")
-    graph.add_edge("vision_score", "evaluation_summary")
+    graph.add_edge("vlm_analysis", "evaluation_summary")
     graph.add_edge("evaluation_summary", "completed")
     graph.add_edge("completed", END)
     return graph.compile()

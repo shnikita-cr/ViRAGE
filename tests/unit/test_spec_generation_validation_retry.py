@@ -134,7 +134,7 @@ def test_graph_level_technical_retry_passes_validation_feedback_to_next_generati
     assert validation_output_2["spec_validation"].is_valid is True
     assert nodes.spec_validator.calls == 2
 
-    run_artifacts = tmp_path / "artifacts" / "run" / "artifacts"
-    assert list(run_artifacts.glob("*_spec_generation_attempt_002_prompt.txt"))
-    assert list(run_artifacts.glob("*_spec_validation_attempt_001_report.md"))
-    assert list(run_artifacts.glob("*_technical_retry_decision_001.json"))
+    run_nodes = tmp_path / "artifacts" / "run" / "nodes"
+    assert list(run_nodes.glob("*vega_spec*.json"))
+    assert list(run_nodes.glob("*spec_validation*.json"))
+    assert list(run_nodes.glob("*technical_decision*.json"))

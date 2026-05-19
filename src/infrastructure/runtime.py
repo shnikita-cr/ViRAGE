@@ -46,9 +46,6 @@ _STAGE_CSV_COLUMNS = [
     "model_call_end_index",
     "model_call_count",
     "error",
-    "input_keys_json",
-    "output_keys_json",
-    "artifact_paths_json",
 ]
 
 _FILENAME_SAFE_RE = re.compile(r"[^A-Za-z0-9_-]+")
@@ -107,11 +104,12 @@ class RuntimeContext:
         legacy_stage_dir = run_dir / "stage_executions"
         if legacy_stage_dir.exists():
             shutil.rmtree(legacy_stage_dir)
-        artifacts_dir = run_dir / "artifacts"
-        if artifacts_dir.exists():
-            for path in artifacts_dir.rglob("*stage_execution*.json"):
-                if path.is_file():
-                    path.unlink()
+        legacy_artifacts_dir = run_dir / "artifacts"
+        if legacy_artifacts_dir.exists():
+            shutil.rmtree(legacy_artifacts_dir)
+        nodes_dir = run_dir / "nodes"
+        if nodes_dir.exists():
+            shutil.rmtree(nodes_dir)
 
     def reset_artifact_indices(self, *, run_id: str | None = None) -> None:
         rid = run_id or self.current_run_id
@@ -165,11 +163,6 @@ class RuntimeContext:
         legacy_path = run_dir / "artifacts" / "model_call_logs.json"
         if legacy_path.exists():
             legacy_path.unlink()
-        self.save_json_artifact(
-            "artifacts/token_usage_summary.json",
-            self.token_usage_summary().model_dump(),
-            run_id=run_id,
-        )
 
 
     def save_run_status(
@@ -342,8 +335,5 @@ class RuntimeContext:
             "model_call_start_index": log.model_call_start_index,
             "model_call_end_index": log.model_call_end_index,
             "model_call_count": log.model_call_count,
-            "error": log.error or "",
-            "input_keys_json": json.dumps(log.input_keys, ensure_ascii=False),
-            "output_keys_json": json.dumps(log.output_keys, ensure_ascii=False),
-            "artifact_paths_json": json.dumps(log.artifact_paths, ensure_ascii=False, sort_keys=True),
+            "error": (log.error or "")[:500],
         }
