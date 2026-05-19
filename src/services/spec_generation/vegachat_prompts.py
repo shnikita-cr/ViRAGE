@@ -71,10 +71,12 @@ Hard rules:
 """
 
 
-def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult, compact_profile: dict[str, Any] | None = None) -> str:
+def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult,
+                      compact_profile: dict[str, Any] | None = None) -> str:
     lines = ["Dataset schema and safe field names:"]
     if compact_profile:
-        lines.append("Compact LLM-facing profile. Use only these safe field names unless validation feedback explicitly requires another listed field.")
+        lines.append(
+            "Compact LLM-facing profile. Use only these safe field names unless validation feedback explicitly requires another listed field.")
         lines.append(json.dumps(compact_profile, ensure_ascii=False, indent=2, default=str))
 
     if data_profile is None:

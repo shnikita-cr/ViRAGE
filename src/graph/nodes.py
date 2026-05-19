@@ -5,13 +5,14 @@ from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, InsightsResult, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, VLMAnalysisResult
+from src.domain.models import AnalysisRubric, InsightsResult, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
+    VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
 from src.services.chart_generator import ChartGeneratorService
+from src.services.compact_data_profile import CompactDataProfileService
 from src.services.data_preparation import DataPreparationService
 from src.services.data_profiler import DataProfilerService
-from src.services.compact_data_profile import CompactDataProfileService
 from src.services.empty_chart_check import EmptyChartCheckService
 from src.services.evaluation_summary import EvaluationSummaryService
 from src.services.query_request_analyzer import QueryRequestAnalyzerService
@@ -52,7 +53,7 @@ def _manual_feedback_items(user_context: Any) -> list[str]:
         return []
     values: list[str] = []
     for key in (
-    "manual_feedback", "manual_semantic_feedback", "user_chart_feedback", "user_feedback_for_next_generation"):
+            "manual_feedback", "manual_semantic_feedback", "user_chart_feedback", "user_feedback_for_next_generation"):
         value = user_context.get(key)
         if isinstance(value, str):
             values.append(value)
@@ -140,7 +141,6 @@ def _build_live_chart_preview_payload(state: PipelineState, empty_chart_check: A
     }
 
 
-
 def _data_profile_artifact_payload(profile: Any, runtime: RuntimeContext) -> dict[str, Any]:
     columns = []
     for column in getattr(profile, "columns", []) or []:
@@ -150,7 +150,8 @@ def _data_profile_artifact_payload(profile: Any, runtime: RuntimeContext) -> dic
             "original_name": original,
             "safe_name": safe,
             "type": getattr(column, "dtype", "unknown"),
-            "role": getattr(profile, "field_roles", {}).get(original, getattr(profile, "field_roles", {}).get(safe, "unknown")),
+            "role": getattr(profile, "field_roles", {}).get(original,
+                                                            getattr(profile, "field_roles", {}).get(safe, "unknown")),
             "missing_ratio": getattr(column, "missing_ratio", 0.0),
             "unique_count": getattr(column, "unique_count", 0),
             "min": getattr(column, "min_value", None),
@@ -270,16 +271,19 @@ class PipelineNodes:
 
     def _save(self, state: PipelineState, name: str, payload: object) -> dict[str, str]:
         artifact_name = self._node_artifact_name(state, name)
-        path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"], numbered=True)
+        path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"],
+                                               numbered=True)
         return {**state.get("artifact_paths", {}), name: path, artifact_name: path}
 
     def _save_into(self, artifact_paths: dict[str, str], run_id: str, name: str, payload: object) -> dict[str, str]:
         path = self.runtime.save_json_artifact(f"nodes/{name}.json", payload, run_id=run_id, numbered=True)
         return {**artifact_paths, name: path}
 
-    def _save_attempt_into(self, artifact_paths: dict[str, str], state: PipelineState, name: str, payload: object) -> dict[str, str]:
+    def _save_attempt_into(self, artifact_paths: dict[str, str], state: PipelineState, name: str, payload: object) -> \
+    dict[str, str]:
         artifact_name = self._node_artifact_name(state, name)
-        path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"], numbered=True)
+        path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"],
+                                               numbered=True)
         return {**artifact_paths, name: path, artifact_name: path}
 
     def _save_text_into(self, artifact_paths: dict[str, str], run_id: str, name: str, text: str) -> dict[str, str]:
@@ -829,7 +833,6 @@ class PipelineNodes:
             ),
         }
 
-
     @traceable(name="virage.vlm_chart_description")
     def vlm_chart_description_node(self, state: PipelineState) -> dict:
         plot_image = PlotImageArtifact(**state["plot_image"])
@@ -1203,7 +1206,8 @@ class PipelineNodes:
                 summary=result.summary or f"{len(result.key_findings)} findings",
                 inputs=[state["plot_image"]["image_path"]],
                 outputs=result.key_findings[:3] or result.visual_observations[:3],
-                details=self._stage_details(before) | {"artifact": artifact_paths["vlm_analysis"], **result.model_dump()},
+                details=self._stage_details(before) | {"artifact": artifact_paths["vlm_analysis"],
+                                                       **result.model_dump()},
             ),
         }
 

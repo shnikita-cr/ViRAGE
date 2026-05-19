@@ -14,13 +14,13 @@ from src.services.base import BaseService
 
 
 def compute_vegachat_vision_score(
-    *,
-    visualization_type: int,
-    data_encoding: int,
-    data_transformation: int,
-    aesthetics: int,
-    prompt_compliance: int,
-    is_blank: bool,
+        *,
+        visualization_type: int,
+        data_encoding: int,
+        data_transformation: int,
+        aesthetics: int,
+        prompt_compliance: int,
+        is_blank: bool,
 ) -> tuple[float, dict[str, float]]:
     """Deterministic VegaChat-compatible VisionScore aggregation.
 

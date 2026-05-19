@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.models import EmptyChartCheckResult, EvaluationSummaryResult, InsightsResult, SemanticFeedbackLoopSummary, StructuralSpecMetric
+from src.domain.models import EmptyChartCheckResult, EvaluationSummaryResult, InsightsResult, \
+    SemanticFeedbackLoopSummary, StructuralSpecMetric
 from src.services.base import BaseService
 
 
@@ -25,7 +26,8 @@ class EvaluationSummaryService(BaseService):
         if semantic_summary is not None:
             semantic_issues.extend(list(getattr(semantic_summary, "missing_requirements", []) or []))
             semantic_issues.extend(list(getattr(semantic_summary, "improvement_comments", []) or []))
-        accepted = bool(getattr(semantic_summary, "accepted", False)) if semantic_summary else semantic_status in {"accepted", "disabled"}
+        accepted = bool(getattr(semantic_summary, "accepted", False)) if semantic_summary else semantic_status in {
+            "accepted", "disabled"}
         report = {
             "spec_score": structural_spec_metric.score if structural_spec_metric else None,
             "empty_chart_status": empty_chart_check.empty_chart_status,

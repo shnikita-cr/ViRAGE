@@ -53,15 +53,15 @@ class SemanticChartJudgeService(BaseService):
     """
 
     def invoke(
-        self,
-        *,
-        query: str,
-        plot_image: PlotImageArtifact,
-        vega_spec: VegaLiteSpecArtifact,
-        runtime: RuntimeContext,
-        request_analysis: RequestAnalysisResult | None = None,
-        data_profile: DataProfile | None = None,
-        compact_data_profile: dict[str, Any] | None = None,
+            self,
+            *,
+            query: str,
+            plot_image: PlotImageArtifact,
+            vega_spec: VegaLiteSpecArtifact,
+            runtime: RuntimeContext,
+            request_analysis: RequestAnalysisResult | None = None,
+            data_profile: DataProfile | None = None,
+            compact_data_profile: dict[str, Any] | None = None,
     ) -> SemanticChartJudgeResult:
         if runtime.vlm is None:
             raise RuntimeError("Semantic chart judge requires runtime.vlm. No multimodal model was provided.")
@@ -123,12 +123,12 @@ class SemanticChartJudgeService(BaseService):
 
     @staticmethod
     def _prompt(
-        *,
-        query: str,
-        vega_spec: VegaLiteSpecArtifact,
-        request_analysis: RequestAnalysisResult | None,
-        data_profile: DataProfile | None,
-        compact_data_profile: dict[str, Any] | None,
+            *,
+            query: str,
+            vega_spec: VegaLiteSpecArtifact,
+            request_analysis: RequestAnalysisResult | None,
+            data_profile: DataProfile | None,
+            compact_data_profile: dict[str, Any] | None,
     ) -> str:
         spec = getattr(vega_spec, "spec_without_runtime_data", None) or vega_spec.spec_json
         context = {
@@ -234,10 +234,10 @@ class SemanticChartJudgeAdapters:
 
     @staticmethod
     def to_chart_analysis_record(
-        *,
-        query: str,
-        result: SemanticChartJudgeResult,
-        used_fields: list[str],
+            *,
+            query: str,
+            result: SemanticChartJudgeResult,
+            used_fields: list[str],
     ) -> ChartGroundedAnalysisRecord:
         return ChartGroundedAnalysisRecord(
             user_query=query,
@@ -253,13 +253,13 @@ class SemanticChartJudgeAdapters:
 
     @staticmethod
     def to_revision_record(
-        *,
-        attempt_number: int,
-        query: str,
-        result: SemanticChartJudgeResult,
-        vega_spec: VegaLiteSpecArtifact,
-        rendered_png_path: str,
-        retry_reasons: list[str],
+            *,
+            attempt_number: int,
+            query: str,
+            result: SemanticChartJudgeResult,
+            vega_spec: VegaLiteSpecArtifact,
+            rendered_png_path: str,
+            retry_reasons: list[str],
     ) -> ChartRevisionRecord:
         return ChartRevisionRecord(
             attempt_number=attempt_number,

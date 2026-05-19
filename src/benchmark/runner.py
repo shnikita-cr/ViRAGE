@@ -12,8 +12,6 @@ from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
 from src.benchmark.models import BenchmarkAggregateReport, BenchmarkCase, BenchmarkCaseResult
 
 
-
-
 def _classify_benchmark_error(exc: BaseException) -> str:
     text = f"{type(exc).__name__}: {exc}".lower()
     if "health check" in text or ("model" in text and "not found" in text) or "503" in text or "overloaded" in text:
@@ -23,6 +21,7 @@ def _classify_benchmark_error(exc: BaseException) -> str:
     if "parse" in text or "json" in text:
         return "parse_failed"
     return "failed"
+
 
 class VegaChatBenchmarkRunner:
     """Run ViRAGE on VegaChat/NLV/ChartLLM-style benchmark cases and write evaluation artifacts."""

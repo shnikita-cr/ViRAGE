@@ -323,7 +323,6 @@ def extract_json_block(raw_text: str) -> str:
     return text
 
 
-
 def _structured_json_payload(text: str, fallback_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     if fallback_payload is not None:
         return {
@@ -347,6 +346,7 @@ def _structured_json_payload(text: str, fallback_payload: dict[str, Any] | None 
             "parsed_json_available": False,
             "parse_error": f"{type(exc).__name__}: {exc}",
         }
+
 
 def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
     example_block = ""

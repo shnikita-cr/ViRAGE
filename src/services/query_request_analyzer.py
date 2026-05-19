@@ -49,7 +49,8 @@ class _FieldMappingSchema(BaseModel):
 class _QueryRequestAnalysisSchema(BaseModel):
     intent: str = Field(min_length=1, validation_alias=AliasChoices("intent", "analytic_intent", "user_intent"))
     requested_operations: list[str] = Field(default_factory=list)
-    candidate_charts: list[str] = Field(default_factory=list, validation_alias=AliasChoices("candidate_charts", "likely_chart_families"))
+    candidate_charts: list[str] = Field(default_factory=list,
+                                        validation_alias=AliasChoices("candidate_charts", "likely_chart_families"))
     constraints: list[str] = Field(default_factory=list)
     task_type: str = "descriptive_analytics"
     user_goal: str = "understand the data visually"
@@ -99,12 +100,12 @@ class QueryRequestAnalysisResult(BaseModel):
 
 class QueryRequestAnalyzerService(BaseService):
     def invoke(
-        self,
-        query: str,
-        user_context: dict[str, Any],
-        data_profile: DataProfile,
-        runtime: RuntimeContext,
-        compact_data_profile: dict[str, Any] | None = None,
+            self,
+            query: str,
+            user_context: dict[str, Any],
+            data_profile: DataProfile,
+            runtime: RuntimeContext,
+            compact_data_profile: dict[str, Any] | None = None,
     ) -> QueryRequestAnalysisResult:
         if runtime.reasoning_llm is None:
             raise RuntimeError("QueryRequestAnalyzerService requires runtime.reasoning_llm.")
@@ -120,7 +121,8 @@ class QueryRequestAnalyzerService(BaseService):
         )
         return self._build_result(parsed, query)
 
-    def _prompt(self, query: str, user_context: dict[str, Any], data_profile: DataProfile, compact_data_profile: dict[str, Any] | None) -> str:
+    def _prompt(self, query: str, user_context: dict[str, Any], data_profile: DataProfile,
+                compact_data_profile: dict[str, Any] | None) -> str:
         context_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(user_context.items())) or "- none"
         return (
             "You analyze one NL2VIS/data-visual-analysis request and ground it to the real dataset schema.\n"
@@ -189,7 +191,8 @@ class QueryRequestAnalyzerService(BaseService):
             rag_queries=self._dedupe(parsed.rag_queries),
         )
 
-    def _normalize_variants(self, values: list[_QueryVariantSchema], original_query: str, rag_queries: list[str]) -> list[QueryVariant]:
+    def _normalize_variants(self, values: list[_QueryVariantSchema], original_query: str, rag_queries: list[str]) -> \
+    list[QueryVariant]:
         required = {"canonical", "schema_grounding", "spec_retrieval", "analysis"}
         result: list[QueryVariant] = []
         seen: set[tuple[str, str]] = set()
@@ -241,7 +244,8 @@ class QueryRequestAnalyzerService(BaseService):
             "scatter plot": "scatter", "scatter chart": "scatter", "histogram chart": "histogram",
             "heat map": "heatmap", "box plot": "boxplot", "box-and-whisker": "boxplot",
         }
-        return QueryRequestAnalyzerService._dedupe([mapping.get(str(v).strip().lower(), str(v).strip().lower()) for v in values])
+        return QueryRequestAnalyzerService._dedupe(
+            [mapping.get(str(v).strip().lower(), str(v).strip().lower()) for v in values])
 
     @staticmethod
     def _example_payload(data_profile: DataProfile) -> dict[str, Any]:
@@ -260,7 +264,8 @@ class QueryRequestAnalyzerService(BaseService):
             "grounded_fields": cols,
             "selected_fields": cols,
             "normalization_hints": [],
-            "mappings": [{"query_term": cols[0], "column_name": cols[0], "confidence": 0.8, "rationale": "schema-grounded example"}],
+            "mappings": [{"query_term": cols[0], "column_name": cols[0], "confidence": 0.8,
+                          "rationale": "schema-grounded example"}],
             "missing_fields": [],
             "field_roles": {cols[0]: "dimension"},
             "visual_constraints": ["readable_labels_required"],

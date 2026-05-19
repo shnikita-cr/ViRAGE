@@ -164,7 +164,6 @@ class RuntimeContext:
         if legacy_path.exists():
             legacy_path.unlink()
 
-
     def save_run_status(
             self,
             *,

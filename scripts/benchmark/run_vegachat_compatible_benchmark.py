@@ -10,6 +10,7 @@ import sys
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.application.bootstrap import load_environment
 from src.application.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.runner import VegaChatBenchmarkRunner
@@ -27,6 +28,7 @@ def main() -> None:
     config = load_project_config(args.config)
     config.mode = "benchmark"
     pipeline = ViRAGEPipeline.from_project_config(config)
+    load_environment(dotenv_path="../../.env")
     report = VegaChatBenchmarkRunner(pipeline).run_dataset(
         cases_path=Path(args.cases),
         output_dir=Path(args.output_dir),

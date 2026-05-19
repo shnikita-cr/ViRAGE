@@ -21,12 +21,12 @@ class CompactDataProfileService(BaseService):
     """
 
     def invoke(
-        self,
-        data_profile: DataProfile,
-        prepared: DataPreparationResult | None = None,
-        request_analysis: RequestAnalysisResult | None = None,
-        *,
-        settings: ViRAGESettings,
+            self,
+            data_profile: DataProfile,
+            prepared: DataPreparationResult | None = None,
+            request_analysis: RequestAnalysisResult | None = None,
+            *,
+            settings: ViRAGESettings,
     ) -> dict[str, Any]:
         selected_original = list(request_analysis.selected_fields if request_analysis is not None else [])
         if prepared is not None:
@@ -37,7 +37,8 @@ class CompactDataProfileService(BaseService):
         else:
             column_map = dict(data_profile.column_name_map or {})
             reverse_map = {safe: original for original, safe in column_map.items()}
-            safe_columns = [column_map.get(column.name, column.safe_name or column.name) for column in data_profile.columns]
+            safe_columns = [column_map.get(column.name, column.safe_name or column.name) for column in
+                            data_profile.columns]
             selected_safe = [column_map.get(field, field) for field in selected_original]
 
         by_original = {column.original_name or column.name: column for column in data_profile.columns}
@@ -64,7 +65,8 @@ class CompactDataProfileService(BaseService):
             original = reverse_map.get(safe, safe)
             column = by_original.get(original) or by_name.get(original) or by_safe.get(safe)
             if self._should_exclude(original, safe, column, selected_original):
-                excluded.append({"original": original, "safe": safe, "reason": self._exclude_reason(original, safe, column)})
+                excluded.append(
+                    {"original": original, "safe": safe, "reason": self._exclude_reason(original, safe, column)})
                 continue
             if len(included) >= max_columns and original not in selected_original:
                 excluded.append({"original": original, "safe": safe, "reason": "max_profile_columns_limit"})
@@ -95,10 +97,10 @@ class CompactDataProfileService(BaseService):
         }
 
     def invoke_from_profile(
-        self,
-        data_profile: DataProfile,
-        *,
-        settings: ViRAGESettings,
+            self,
+            data_profile: DataProfile,
+            *,
+            settings: ViRAGESettings,
     ) -> dict[str, Any]:
         return self.invoke(data_profile, prepared=None, request_analysis=None, settings=settings)
 
@@ -124,11 +126,11 @@ class CompactDataProfileService(BaseService):
 
     @staticmethod
     def _column_payload(
-        original: str,
-        safe: str,
-        column: Any,
-        data_profile: DataProfile,
-        settings: ViRAGESettings,
+            original: str,
+            safe: str,
+            column: Any,
+            data_profile: DataProfile,
+            settings: ViRAGESettings,
     ) -> dict[str, Any]:
         role = data_profile.field_roles.get(original, data_profile.field_roles.get(safe, "unknown"))
         payload: dict[str, Any] = {
@@ -143,6 +145,7 @@ class CompactDataProfileService(BaseService):
                 "unique_count": int(getattr(column, "unique_count", 0) or 0),
                 "min": getattr(column, "min_value", None),
                 "max": getattr(column, "max_value", None),
-                "sample_values": list(getattr(column, "sample_values", []) or [])[: int(settings.spec_generation_max_sample_values)],
+                "sample_values": list(getattr(column, "sample_values", []) or [])[
+                                 : int(settings.spec_generation_max_sample_values)],
             })
         return payload

@@ -17,8 +17,6 @@ from src.llm.healthcheck import check_required_models, raise_for_failed_health_c
 from src.observability import traceable
 
 
-
-
 def _classify_error(exc: BaseException) -> str:
     text = f"{type(exc).__name__}: {exc}".lower()
     if "health check" in text or "model" in text and "not found" in text:
@@ -36,6 +34,7 @@ def _stage_name(value: object) -> str | None:
     if value is None:
         return None
     return getattr(value, "value", str(value))
+
 
 class ViRAGEPipeline:
     def __init__(
@@ -74,7 +73,8 @@ class ViRAGEPipeline:
         }
         if bool(getattr(settings, "model_health_check_enabled", False)):
             required_roles = set(getattr(settings, "model_health_check_required_roles", []) or [])
-            active_models = {role: model for role, model in models.items() if not required_roles or role in required_roles}
+            active_models = {role: model for role, model in models.items() if
+                             not required_roles or role in required_roles}
             results = check_required_models(
                 active_models,
                 timeout_seconds=float(getattr(settings, "model_health_check_timeout_seconds", 10.0)),
