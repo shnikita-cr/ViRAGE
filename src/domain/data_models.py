@@ -41,6 +41,8 @@ class DataProfile(BaseModel):
     sample_strategy: str = "random"
     sample_seed: int = 42
     sample_size: int = 10
+    source_format: str | None = None
+    source_encoding: str | None = None
 
 
 class RequestFieldMapping(BaseModel):

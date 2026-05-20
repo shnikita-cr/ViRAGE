@@ -92,3 +92,18 @@ def test_column_level_profile_error_degrades_without_failing_pipeline(tmp_path, 
 
     error_artifacts = list((tmp_path / "artifacts" / "test_degraded" / "artifacts").glob("*_data_profile_*error*.json"))
     assert not error_artifacts
+
+
+def test_data_profiler_preserves_detected_csv_encoding(tmp_path):
+    data_path = tmp_path / "cp1251.csv"
+    data_path.write_bytes("Метод,Значение\nА,1\nБ,2\n".encode("cp1251"))
+
+    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts"))
+    runtime.current_run_id = "test_encoding"
+    runtime.reset_artifact_indices(run_id="test_encoding")
+
+    profile = DataProfilerService().invoke(str(data_path), runtime)
+
+    assert profile.source_format == "csv"
+    assert profile.source_encoding == "cp1251"
+    assert profile.row_count == 2

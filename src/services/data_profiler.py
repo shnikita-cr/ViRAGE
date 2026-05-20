@@ -123,6 +123,8 @@ class DataProfilerService(BaseService):
             sample_strategy="random",
             sample_seed=sample_seed,
             sample_size=min(sample_size, row_count) if row_count else 0,
+            source_format=df.attrs.get("source_format"),
+            source_encoding=df.attrs.get("source_encoding"),
         )
 
         return profile
