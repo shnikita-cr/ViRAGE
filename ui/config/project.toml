@@ -2,6 +2,7 @@ mode = "streamlit"
 
 [settings]
 visrag_enabled = true
+graph_recursion_limit = 100
 artifact_root = "./artifacts"
 visrag_corpus_root = "./rag_corpus/data"
 visrag_top_k_examples = 5
@@ -29,6 +30,9 @@ spec_generation_use_compact_profile = true
 spec_generation_max_profile_columns = 30
 spec_generation_max_quality_notes = 10
 spec_generation_max_sample_values = 3
+data_profile_sample_strategy = "random"
+data_profile_sample_seed = 42
+data_profile_sample_size = 5
 visrag_prompt_top_k_examples = 2
 model_health_check_enabled = false
 model_health_check_timeout_seconds = 10.0

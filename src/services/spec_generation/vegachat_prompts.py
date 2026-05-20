@@ -22,6 +22,7 @@ def build_vegachat_codegen_prompt(
         _system_contract(prompt_version),
         _dataset_contract(request.data_profile, request.prepared, request.compact_data_profile),
         _request_contract(request),
+        _chartsquared_generation_contract(request),
         _validation_feedback_contract(request),
         _semantic_feedback_contract(request),
         _visrag_context(request.candidate_spec_set,
@@ -141,6 +142,29 @@ def _request_contract(request: SpecGenerationRequest) -> str:
         lines.append("Chart quality requirements:")
         lines.append(json.dumps(quality_requirements, ensure_ascii=False, indent=2))
     return "\n".join(lines)
+
+
+def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
+    """Add ChartSquared-style pre-generation criteria without adding a new runtime module."""
+    requirements = dict(getattr(request, "visual_judge_requirements", {}) or {})
+    payload = {
+        "must_be_visible": requirements.get("must_be_visible", []),
+        "acceptable_visual_encodings": requirements.get("acceptable_visual_encodings", {}),
+        "critical_failures_to_avoid": requirements.get("critical_failures", []),
+        "yes_no_questions_to_satisfy_visually": requirements.get("yes_no_questions", [])[:8],
+    }
+    if not any(payload.values()):
+        return (
+            "ChartSquared-style pre-generation checklist:\n"
+            "Before writing the JSON, derive a visual checklist from the user request and make the static chart "
+            "satisfy it: required fields must be visible, required grouping must be visible, and the chosen chart "
+            "family must match the analytical task. Do not hide required meaning only in tooltip."
+        )
+    return (
+        "ChartSquared-style pre-generation checklist. The generated static PNG must satisfy these visible criteria; "
+        "avoid every critical failure before relying on retry loops:\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    )
 
 
 def _to_safe(field: str, prepared: DataPreparationResult) -> str:

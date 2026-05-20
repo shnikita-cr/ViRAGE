@@ -8,6 +8,8 @@ from pathlib import Path
 from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.analysis_models import AnalysisBenchmarkCase, AnalysisBenchmarkReport, AnalysisBenchmarkResult
+from src.benchmark.progress import ConsoleProgressBar
+from src.benchmark.resume import load_case_results, should_reuse_case
 
 
 class ChartGroundedAnalysisBenchmarkRunner:
@@ -26,6 +28,8 @@ class ChartGroundedAnalysisBenchmarkRunner:
         cases_path: str | Path,
         output_dir: str | Path,
         limit: int | None = None,
+        resume: bool = False,
+        retry_failed: bool = False,
     ) -> AnalysisBenchmarkReport:
         source = Path(cases_path)
         case_root = source.parent
@@ -34,7 +38,22 @@ class ChartGroundedAnalysisBenchmarkRunner:
         cases = self._load_cases(source)
         if limit is not None:
             cases = cases[: max(0, limit)]
-        results = [self.run_case(case=case, case_root=case_root) for case in cases]
+        existing_by_id = load_case_results(output, AnalysisBenchmarkResult) if (resume or retry_failed) else {}
+        results_by_id: dict[str, AnalysisBenchmarkResult] = {}
+        progress = ConsoleProgressBar(total=len(cases), title="Analysis benchmark")
+        for index, case in enumerate(cases, start=1):
+            progress.update(index - 1, label=case.case_id)
+            existing = existing_by_id.get(case.case_id)
+            if should_reuse_case(existing, retry_failed=retry_failed):
+                results_by_id[case.case_id] = existing
+                progress.update(index, label=f"reused {case.case_id}")
+                continue
+
+            results_by_id[case.case_id] = self.run_case(case=case, case_root=case_root, output_dir=output)
+            self._write_results(self._ordered_results(cases, results_by_id), output)
+            progress.update(index, label=case.case_id)
+        progress.close()
+        results = self._ordered_results(cases, results_by_id)
         self._write_results(results, output)
         report = AnalysisBenchmarkReport.from_results(results)
         (output / "analysis_benchmark_report.json").write_text(
@@ -43,7 +62,7 @@ class ChartGroundedAnalysisBenchmarkRunner:
         )
         return report
 
-    def run_case(self, *, case: AnalysisBenchmarkCase, case_root: Path) -> AnalysisBenchmarkResult:
+    def run_case(self, *, case: AnalysisBenchmarkCase, case_root: Path, output_dir: Path) -> AnalysisBenchmarkResult:
         started = time.perf_counter()
         try:
             request = PipelineRequest(
@@ -61,7 +80,7 @@ class ChartGroundedAnalysisBenchmarkRunner:
             analysis = result.vlm_analysis
             token_usage = result.token_usage_summary
             semantic_summary = result.semantic_feedback_loop_summary
-            return AnalysisBenchmarkResult(
+            result_row = AnalysisBenchmarkResult(
                 case_id=case.case_id,
                 dataset_name=case.dataset_name,
                 question=case.question,
@@ -80,8 +99,10 @@ class ChartGroundedAnalysisBenchmarkRunner:
                 total_tokens=token_usage.total_tokens,
                 metadata=case.metadata,
             )
+            self._write_case_result(result_row, output_dir)
+            return result_row
         except Exception as exc:
-            return AnalysisBenchmarkResult(
+            result_row = AnalysisBenchmarkResult(
                 case_id=case.case_id,
                 dataset_name=case.dataset_name,
                 question=case.question,
@@ -91,6 +112,21 @@ class ChartGroundedAnalysisBenchmarkRunner:
                 error=f"{type(exc).__name__}: {exc}",
                 metadata=case.metadata,
             )
+            self._write_case_result(result_row, output_dir)
+            return result_row
+
+    @staticmethod
+    def _ordered_results(cases: list[AnalysisBenchmarkCase], results_by_id: dict[str, AnalysisBenchmarkResult]) -> list[AnalysisBenchmarkResult]:
+        return [results_by_id[case.case_id] for case in cases if case.case_id in results_by_id]
+
+    @staticmethod
+    def _write_case_result(result: AnalysisBenchmarkResult, output_dir: Path) -> None:
+        case_dir = output_dir / "cases" / result.case_id
+        case_dir.mkdir(parents=True, exist_ok=True)
+        (case_dir / "result.json").write_text(
+            json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     @staticmethod
     def _load_cases(path: Path) -> list[AnalysisBenchmarkCase]:

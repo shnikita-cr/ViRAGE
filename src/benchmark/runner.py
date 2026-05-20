@@ -11,6 +11,8 @@ from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.datasets import load_benchmark_cases
 from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
 from src.benchmark.models import BenchmarkAggregateReport, BenchmarkCase, BenchmarkCaseResult
+from src.benchmark.progress import ConsoleProgressBar
+from src.benchmark.resume import load_case_results, should_reuse_case
 
 
 
@@ -49,24 +51,22 @@ class VegaChatBenchmarkRunner:
         if limit is not None:
             cases = cases[: max(0, limit)]
 
-        existing_by_id = self._load_existing_case_results(output) if resume else {}
+        existing_by_id = load_case_results(output, BenchmarkCaseResult) if (resume or retry_failed) else {}
         results_by_id: dict[str, BenchmarkCaseResult] = {}
-        for case in cases:
+        progress = ConsoleProgressBar(total=len(cases), title="NL2VIS benchmark")
+        for index, case in enumerate(cases, start=1):
+            progress.update(index - 1, label=case.case_id)
             existing = existing_by_id.get(case.case_id)
-            should_reuse = existing is not None and (existing.error is None or not retry_failed)
-            if should_reuse:
+            if should_reuse_case(existing, retry_failed=retry_failed):
                 results_by_id[case.case_id] = existing
-                print(f"[resume] skip {case.case_id}: existing result reused")
+                progress.update(index, label=f"reused {case.case_id}")
                 continue
-
-            if existing is not None and existing.error is not None and retry_failed:
-                print(f"[resume] retry failed case {case.case_id}")
-            else:
-                print(case.difficulty, case.utterance_type, case.query)
 
             results_by_id[case.case_id] = self.run_case(case=case, case_root=case_root, output_dir=output)
             self._write_incremental_results(self._ordered_results(cases, results_by_id), output)
+            progress.update(index, label=case.case_id)
 
+        progress.close()
         results = self._ordered_results(cases, results_by_id)
         self._write_incremental_results(results, output)
         report = BenchmarkAggregateReport.from_results(results)
@@ -77,22 +77,6 @@ class VegaChatBenchmarkRunner:
     @staticmethod
     def _ordered_results(cases: Iterable[BenchmarkCase], results_by_id: dict[str, BenchmarkCaseResult]) -> list[BenchmarkCaseResult]:
         return [results_by_id[case.case_id] for case in cases if case.case_id in results_by_id]
-
-    @staticmethod
-    def _load_existing_case_results(output_dir: Path) -> dict[str, BenchmarkCaseResult]:
-        cases_dir = output_dir / "cases"
-        if not cases_dir.exists():
-            return {}
-        results: dict[str, BenchmarkCaseResult] = {}
-        for result_path in sorted(cases_dir.glob("*/result.json")):
-            try:
-                payload = json.loads(result_path.read_text(encoding="utf-8"))
-                result = BenchmarkCaseResult.model_validate(payload)
-            except Exception as exc:
-                print(f"[resume] ignore invalid existing result {result_path}: {type(exc).__name__}: {exc}")
-                continue
-            results[result.case_id] = result
-        return results
 
     def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> BenchmarkCaseResult:
         started = time.perf_counter()

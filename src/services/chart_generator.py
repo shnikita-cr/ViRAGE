@@ -39,6 +39,7 @@ class ChartGeneratorService(BaseService):
             previous_semantic_feedback: list[str] | None = None,
             previous_chart_facts: list[dict] | None = None,
             chart_quality_requirements: list[str] | None = None,
+            visual_judge_requirements: dict | None = None,
     ) -> VegaLiteSpecArtifact:
         backend = self._select_backend(runtime)
         if (
@@ -65,6 +66,7 @@ class ChartGeneratorService(BaseService):
             previous_semantic_feedback=list(previous_semantic_feedback or []),
             previous_chart_facts=list(previous_chart_facts or []),
             chart_quality_requirements=list(chart_quality_requirements or []),
+            visual_judge_requirements=dict(visual_judge_requirements or {}),
         )
         result = backend.generate(request, runtime)
         return VegaLiteSpecArtifact(
@@ -97,6 +99,7 @@ class ChartGeneratorService(BaseService):
             previous_semantic_feedback: list[str] | None = None,
             previous_chart_facts: list[dict] | None = None,
             chart_quality_requirements: list[str] | None = None,
+            visual_judge_requirements: dict | None = None,
     ) -> VegaLiteSpecArtifact:
         return self.invoke(
             prepared=prepared,
@@ -116,6 +119,7 @@ class ChartGeneratorService(BaseService):
             previous_semantic_feedback=previous_semantic_feedback,
             previous_chart_facts=previous_chart_facts,
             chart_quality_requirements=chart_quality_requirements,
+            visual_judge_requirements=visual_judge_requirements,
         )
 
     @staticmethod

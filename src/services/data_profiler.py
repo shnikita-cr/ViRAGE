@@ -34,7 +34,7 @@ class DataProfilerService(BaseService):
         row_count = int(len(df))
         col_count = int(len(df.columns))
         sample_seed = int(getattr(runtime.settings, "data_profile_sample_seed", 42))
-        sample_size = max(1, int(getattr(runtime.settings, "data_profile_sample_size", 10)))
+        sample_size = max(1, int(getattr(runtime.settings, "data_profile_sample_size", 5)))
         column_name_map = self._build_unique_column_name_map([str(column) for column in df.columns])
 
         duplicate_rows = int(df.duplicated().sum())
@@ -59,6 +59,8 @@ class DataProfilerService(BaseService):
                     safe_name=safe_name,
                     series=df[column],
                     row_count=row_count,
+                    sample_seed=sample_seed,
+                    sample_size=sample_size,
                 )
                 quality_notes.extend(column_quality_notes)
             except Exception as exc:  # noqa: BLE001 - column-level degradation is intentional.
@@ -72,6 +74,8 @@ class DataProfilerService(BaseService):
                     safe_name=safe_name,
                     series=df[column],
                     row_count=row_count,
+                    sample_seed=sample_seed,
+                    sample_size=sample_size,
                 )
 
             columns.append(column_profile)
@@ -137,7 +141,7 @@ class DataProfilerService(BaseService):
             series: pd.Series,
             row_count: int,
             sample_seed: int = 42,
-            sample_size: int = 10,
+            sample_size: int = 5,
     ) -> tuple[DataColumnProfile, list[str]]:
         quality_notes: list[str] = []
         missing_ratio = float(series.isna().mean()) if row_count else 0.0
@@ -280,7 +284,7 @@ class DataProfilerService(BaseService):
             return None, None, f"Column {column!r} min/max could not be computed: {exc}"
 
     @staticmethod
-    def _sample_values(series: pd.Series, *, sample_seed: int = 42, sample_size: int = 10) -> list[Any]:
+    def _sample_values(series: pd.Series, *, sample_seed: int = 42, sample_size: int = 5) -> list[Any]:
         non_null = series.dropna()
         if non_null.empty:
             return []
@@ -371,7 +375,7 @@ class DataProfilerService(BaseService):
             series: pd.Series,
             row_count: int,
             sample_seed: int = 42,
-            sample_size: int = 10,
+            sample_size: int = 5,
     ) -> DataColumnProfile:
         return DataColumnProfile(
             name=column_name,

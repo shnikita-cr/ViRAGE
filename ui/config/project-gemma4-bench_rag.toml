@@ -2,6 +2,7 @@ mode = "streamlit"
 
 [settings]
 visrag_enabled = true
+graph_recursion_limit = 100
 artifact_root = "./artifacts"
 visrag_corpus_root = "./rag_corpus/data"
 visrag_top_k_examples = 5
@@ -25,6 +26,9 @@ spec_generation_response_parse_retries = 0
 spec_generation_prompt_version = "vega_chat_v1"
 spec_generation_include_visrag_context = true
 spec_generation_max_context_chars = 3000
+data_profile_sample_strategy = "random"
+data_profile_sample_seed = 42
+data_profile_sample_size = 5
 semantic_feedback_loop_enabled = true
 semantic_feedback_max_attempts = 2
 semantic_feedback_min_accept_confidence = 0.75

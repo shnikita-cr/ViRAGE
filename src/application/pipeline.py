@@ -88,6 +88,23 @@ class ViRAGEPipeline:
             vision_judge_llm=models["vision_judge"],
         )
 
+
+    def _save_input_artifacts(self, request: PipelineRequest) -> dict[str, str]:
+        query_path = self.runtime.save_text_artifact(
+            "input/query.txt",
+            request.query,
+            run_id=request.run_id,
+        )
+        context_path = self.runtime.save_json_artifact(
+            "input/context.json",
+            request.user_context or {},
+            run_id=request.run_id,
+        )
+        return {
+            "input_query": query_path,
+            "input_context": context_path,
+        }
+
     @traceable(name='virage.pipeline.invoke')
     def invoke(
             self,
@@ -103,6 +120,7 @@ class ViRAGEPipeline:
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
+        input_artifact_paths = self._save_input_artifacts(request)
         self.runtime.save_run_status(
             run_id=request.run_id,
             status="running",
@@ -120,10 +138,13 @@ class ViRAGEPipeline:
             'step_logs': [],
             'model_call_logs': [],
             'stage_execution_logs': [],
-            'artifact_paths': {},
+            'artifact_paths': input_artifact_paths,
         }
         try:
-            final_state: PipelineState = self.graph.invoke(initial_state)
+            final_state: PipelineState = self.graph.invoke(
+                initial_state,
+                config={"recursion_limit": int(self.settings.graph_recursion_limit)},
+            )
             final_state['stage'] = PipelineStage.COMPLETED
         except Exception as exc:
             tb = traceback.format_exc()

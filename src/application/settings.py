@@ -9,6 +9,7 @@ class ViRAGESettings(BaseModel):
     artifact_root: Path = Field(default=Path("./artifacts"))
     project_name: str = Field(default="ViRAGE")
     default_figure_dpi: int = Field(default=144)
+    graph_recursion_limit: int = Field(default=100, ge=25)
 
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/data"))
@@ -44,6 +45,8 @@ class ViRAGESettings(BaseModel):
     spec_generation_max_quality_notes: int = Field(default=10, ge=0)
     spec_generation_max_sample_values: int = Field(default=3, ge=0)
     data_profile_sample_strategy: str = Field(default="random")
+    data_profile_sample_seed: int = Field(default=42)
+    data_profile_sample_size: int = Field(default=5, ge=1)
     semantic_feedback_loop_enabled: bool = Field(default=False)
     semantic_feedback_max_attempts: int = Field(default=2, ge=1)
     semantic_feedback_min_accept_confidence: float = Field(default=0.75, ge=0.0, le=1.0)

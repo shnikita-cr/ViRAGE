@@ -461,6 +461,7 @@ class PipelineNodes:
             previous_semantic_feedback=semantic_feedback_items,
             previous_chart_facts=semantic_chart_fact_history,
             chart_quality_requirements=list(state.get("chart_quality_requirements", [])),
+            visual_judge_requirements=state.get("visual_judge_requirements"),
         )
         artifact_paths = self._save(state, "vega_spec", _vega_spec_artifact_payload(result))
         selected = state["candidate_spec_set"].selected_candidate_spec if state.get("candidate_spec_set") else None

@@ -205,7 +205,7 @@ class SemanticChartJudgeAdapters:
     @staticmethod
     def to_vlm_description(result: SemanticChartJudgeResult) -> VLMChartDescriptionResult:
         return VLMChartDescriptionResult(
-            input_scope="png_query_visual_requirements",
+            input_scope="png_only",
             visual_description=result.chart_description,
             detected_chart_type=result.detected_chart_type,
             visible_axes=result.visible_axes,
