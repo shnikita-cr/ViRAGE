@@ -45,29 +45,30 @@ def _system_contract(prompt_version: str) -> str:
     return f"""
 You are VegaLiteSpecCodegenAI.
 Prompt version: {prompt_version}.
-Your task is to generate a valid Vega-Lite v5 JSON specification for the dataset and user request.
+Generate one valid Vega-Lite v5 JSON specification for the provided dataset and user request.
 
-Hard rules:
-1. Return two XML-like blocks only: <explain>...</explain> and <json>...</json>.
+Output rules:
+1. Return only <explain>...</explain> and <json>...</json>.
 2. The <explain> block must be concise English.
-3. The <json> block must contain one Vega-Lite JSON object.
-4. The model output JSON must not contain data or datasets. Runtime will attach data on the server.
-5. The $schema field must be exactly "{VEGA_LITE_SCHEMA_URL}".
-6. Use only safe Vega-Lite field names listed below.
-7. Do not invent fields.
-8. Do not copy axis titles, legend titles, scale domains, or sort arrays from retrieved examples unless they directly match current dataset fields.
-9. You may use the full Vega-Lite grammar when needed: unit specs, layer, facet, repeat, concat, hconcat, vconcat, params, transforms, composite marks, geographic channels, offset channels, and error channels.
-10. Prefer channel-level aggregate/bin/timeUnit/sort/stack over view-level transform when possible.
-11. If faceting is needed, prefer row/column encoding channels over the facet view-level operator, unless full facet composition is clearly more appropriate.
-12. Use layer/repeat/concat only when they materially improve the answer to the user request.
-13. If previous validation feedback is provided, fix the listed validation errors and address the repair hints.
-14. If previous semantic visual feedback is provided, generate a new chart that addresses those comments.
-15. Chart quality is mandatory for every chart type, not optional. If color, shape, size, opacity, stroke, or strokeDash encodes data, include a clear legend title.
-16. Axis and legend titles must be human-readable and must name the source field and the aggregation/transformation when used, for example "mean PSNR by Method" or "count of File". Avoid vague titles such as "value", "total", or "average" without the source field.
-17. Category labels must be readable. For long labels or many categories, use horizontal bars, labelAngle, labelLimit, facet/repeat, or larger width/height. Do not allow labels to overlap, be clipped, or become unreadable.
-18. Multi-metric charts must explicitly show the metric name in a legend, facet/repeat header, axis title, or tooltip. If metrics use different scales, use repeat/facet with independent scales or normalize before combining.
-19. If both a legend and long category labels would make the chart unreadable, choose the cleaner layout instead of keeping both bad elements: prefer facet/repeat panels, horizontal layout, shorter titles, independent scales, or direct labels/tooltips that keep the chart readable. Readability has priority over mechanically adding every possible label.
-20. Add informative tooltips with the displayed source fields and aggregated values whenever practical.
+3. The <json> block must contain exactly one Vega-Lite object.
+4. Do not include data or datasets. Runtime attaches data.url.
+5. Set $schema exactly to "{VEGA_LITE_SCHEMA_URL}".
+
+Generation rules adapted from VegaChat-style correction loops:
+1. Use only safe field names listed in the schema block; never invent fields.
+2. Use the requested fields before visually similar alternatives.
+3. Choose the chart family from the analytic task: relationship -> point/scatter, trend -> line, comparison -> bar, distribution -> bin/histogram, part-to-whole -> stacked/normalized composition only when appropriate.
+4. If the request says against/versus/relationship between two numeric fields, preserve both fields on visible quantitative channels.
+5. If the request says split by, grouped by, broken down by, for each, or by category, make that grouping visible through color, row, column, facet, shape, or xOffset; tooltip-only grouping is not enough.
+6. Prefer channel-level aggregate/bin/timeUnit/sort/stack over unnecessary transform objects.
+7. Use row/column encoding for simple faceting; use view-level facet only when a full nested spec is required.
+8. For grouped bars, prefer xOffset, column, or facet when side-by-side comparison is requested.
+9. For temporal trends, use a temporal or ordered x-axis and a readable time unit when needed.
+10. For high-cardinality categories, avoid unreadable color legends; prefer top-k, facet, horizontal bars, filtering, or larger layout.
+11. Axis and legend titles must name the source field and aggregation/time unit when used.
+12. Add informative tooltips, but do not rely on tooltip for required visual meaning.
+13. If previous technical validation feedback is provided, fix those exact errors.
+14. If previous PNG-only visual feedback is provided, change the visible chart so the missing requirement is visible.
 """
 
 
@@ -75,78 +76,67 @@ def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparatio
                       compact_profile: dict[str, Any] | None = None) -> str:
     lines = ["Dataset schema and safe field names:"]
     if compact_profile:
-        lines.append(
-            "Compact LLM-facing profile. Use only these safe field names unless validation feedback explicitly requires another listed field.")
-        lines.append(json.dumps(compact_profile, ensure_ascii=False, indent=2, default=str))
+        compact_payload = {
+            "row_count": compact_profile.get("row_count"),
+            "column_count": compact_profile.get("column_count"),
+            "selected_safe_fields": compact_profile.get("selected_safe_fields", []),
+            "candidate_dimensions": compact_profile.get("candidate_dimensions", []),
+            "candidate_measures": compact_profile.get("candidate_measures", []),
+            "columns": compact_profile.get("columns", []),
+            "quality_notes_top": compact_profile.get("quality_notes_top", []),
+            "column_mapping_original_to_safe": compact_profile.get("column_mapping_original_to_safe", {}),
+        }
+        lines.append(json.dumps(compact_payload, ensure_ascii=False, indent=2, default=str))
+        return "\n".join(lines)
 
     if data_profile is None:
         for safe in prepared.safe_columns:
             original = prepared.reverse_column_name_map.get(safe, safe)
-            lines.append(f"- original: {original!r}; safe: {safe!r}; type: unknown; role: unknown")
+            lines.append(f"- original={original!r}; safe={safe!r}; type=unknown; role=unknown")
     else:
         by_original = {column.original_name or column.name: column for column in data_profile.columns}
-        for safe in prepared.safe_columns:
+        for safe in prepared.safe_columns[:30]:
             original = prepared.reverse_column_name_map.get(safe, safe)
             column = by_original.get(original)
             dtype = column.dtype if column is not None else "unknown"
             role = data_profile.field_roles.get(original, "unknown")
-            missing = column.missing_ratio if column is not None else None
             unique = column.unique_count if column is not None else None
-            stats = []
-            if missing is not None:
-                stats.append(f"missing_ratio={missing:.3f}")
-            if unique is not None:
-                stats.append(f"unique_count={unique}")
-            if column is not None and column.min_value is not None:
-                stats.append(f"min={column.min_value}")
-            if column is not None and column.max_value is not None:
-                stats.append(f"max={column.max_value}")
-            stat_text = "; ".join(stats)
-            lines.append(f"- original: {original!r}; safe: {safe!r}; type: {dtype}; role: {role}; {stat_text}")
-        lines.append(
-            f"Rows: {data_profile.row_count}; columns: {data_profile.col_count}; complexity: {data_profile.data_complexity or 'unknown'}")
+            lines.append(f"- original={original!r}; safe={safe!r}; type={dtype}; role={role}; unique={unique}")
+        lines.append(f"Rows={data_profile.row_count}; columns={data_profile.col_count}")
         if data_profile.quality_notes:
-            lines.append("Quality notes:")
-            for note in data_profile.quality_notes[:8]:
-                lines.append(f"- {note}")
+            lines.append("Quality notes: " + "; ".join(data_profile.quality_notes[:5]))
 
     if prepared.column_name_map:
-        lines.append("Column mapping original -> safe:")
-        lines.append(json.dumps(prepared.column_name_map, ensure_ascii=False, indent=2))
+        compact_mapping = {original: safe for original, safe in prepared.column_name_map.items() if original != safe}
+        if compact_mapping:
+            lines.append("Column mapping original -> safe:")
+            lines.append(json.dumps(compact_mapping, ensure_ascii=False, indent=2))
     return "\n".join(lines)
 
 
 def _request_contract(request: SpecGenerationRequest) -> str:
-    lines = [
-        "User request:",
-        request.query,
-    ]
+    lines = ["User request:", request.query]
     if request.query_understanding is not None:
-        lines.append("Query understanding:")
-        lines.append(json.dumps(request.query_understanding.model_dump(), ensure_ascii=False, indent=2))
+        understanding = request.query_understanding
+        lines.append("Query intent summary:")
+        lines.append(json.dumps({
+            "intent": understanding.intent,
+            "task_type": understanding.task_type,
+            "candidate_charts": understanding.candidate_charts[:5],
+            "requested_operations": understanding.requested_operations[:8],
+            "analysis_goal": understanding.analysis_goal,
+            "constraints": understanding.constraints[:8],
+        }, ensure_ascii=False, indent=2, default=str))
     if request.request_analysis is not None:
         safe_selected = [_to_safe(field, request.prepared) for field in request.request_analysis.selected_fields]
-        lines.append("Request analysis selected fields:")
-        quality_requirements = []
-        # QueryRequestAnalyzer stores chart quality requirements in constraints via query_understanding.
-        if request.query_understanding is not None:
-            quality_requirements = [
-                item for item in request.query_understanding.constraints
-                if any(token in item.lower() for token in ("axis", "legend", "label", "aggregation", "metric", "scale"))
-            ]
-        lines.append(json.dumps(
-            {
-                "selected_original_fields": request.request_analysis.selected_fields,
-                "selected_safe_fields": safe_selected,
-                "grounded_fields": request.request_analysis.grounded_fields,
-                "missing_fields": request.request_analysis.missing_fields,
-                "confidence": request.request_analysis.confidence,
-                "chart_quality_requirements": quality_requirements,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ))
-    quality_requirements = list(getattr(request, "chart_quality_requirements", []) or [])
+        lines.append("Grounded request fields:")
+        lines.append(json.dumps({
+            "selected_original_fields": request.request_analysis.selected_fields,
+            "selected_safe_fields": safe_selected,
+            "missing_fields": request.request_analysis.missing_fields,
+            "confidence": request.request_analysis.confidence,
+        }, ensure_ascii=False, indent=2, default=str))
+    quality_requirements = list(getattr(request, "chart_quality_requirements", []) or [])[:8]
     if quality_requirements:
         lines.append("Chart quality requirements:")
         lines.append(json.dumps(quality_requirements, ensure_ascii=False, indent=2))

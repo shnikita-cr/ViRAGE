@@ -10,17 +10,16 @@ from src.domain.models import (
     ChartFactSummaryResult,
     ChartGroundedAnalysisRecord,
     ChartRevisionRecord,
-    DataProfile,
     PlotImageArtifact,
     RequestAnalysisResult,
     SemanticChartJudgeResult,
-    VegaLiteSpecArtifact,
     VLMChartDescriptionResult,
 )
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_structured_multimodal
 from src.services.base import BaseService
 from src.services.visual_feedback.chart_answer_judge import _normalize_retry_recommendation
+from src.services.visual_feedback.chartsquared_adapter import ChartSquaredAdapter
 
 
 class _SemanticChartJudgeSchema(BaseModel):
@@ -57,20 +56,20 @@ class SemanticChartJudgeService(BaseService):
             *,
             query: str,
             plot_image: PlotImageArtifact,
-            vega_spec: VegaLiteSpecArtifact,
             runtime: RuntimeContext,
             request_analysis: RequestAnalysisResult | None = None,
-            data_profile: DataProfile | None = None,
-            compact_data_profile: dict[str, Any] | None = None,
+            visual_judge_requirements: dict[str, Any] | None = None,
     ) -> SemanticChartJudgeResult:
         if runtime.vlm is None:
             raise RuntimeError("Semantic chart judge requires runtime.vlm. No multimodal model was provided.")
         prompt = self._prompt(
             query=query,
-            vega_spec=vega_spec,
             request_analysis=request_analysis,
-            data_profile=data_profile,
-            compact_data_profile=compact_data_profile,
+            visual_judge_requirements=visual_judge_requirements,
+            use_chartsquared=bool(getattr(runtime.settings, "visual_judge_use_chartsquared", True)),
+            chartsquared_max_eval_questions=int(getattr(runtime.settings, "chartsquared_max_eval_questions", 8)),
+            prompt_max_chars=int(getattr(runtime.settings, "chartsquared_prompt_max_chars", 6000)),
+            chartsquared_project_root=getattr(runtime.settings, "chartsquared_project_root", None),
         )
         parsed = invoke_structured_multimodal(
             runtime.vlm,
@@ -125,44 +124,57 @@ class SemanticChartJudgeService(BaseService):
     def _prompt(
             *,
             query: str,
-            vega_spec: VegaLiteSpecArtifact,
             request_analysis: RequestAnalysisResult | None,
-            data_profile: DataProfile | None,
-            compact_data_profile: dict[str, Any] | None,
+            visual_judge_requirements: dict[str, Any] | None,
+            use_chartsquared: bool,
+            chartsquared_max_eval_questions: int,
+            prompt_max_chars: int,
+            chartsquared_project_root: Any | None,
     ) -> str:
-        spec = getattr(vega_spec, "spec_without_runtime_data", None) or vega_spec.spec_json
-        context = {
+        requirements = dict(visual_judge_requirements or {})
+        questions = [
+            str(item).strip()
+            for item in requirements.get("yes_no_questions", [])[:chartsquared_max_eval_questions]
+            if str(item).strip()
+        ]
+        if not questions and request_analysis is not None:
+            questions = [
+                f"Is the requested field '{field}' visibly represented in the static chart image?"
+                for field in request_analysis.selected_fields[:chartsquared_max_eval_questions]
+            ]
+        payload = {
             "user_query": query,
-            "request_analysis": request_analysis.model_dump() if request_analysis is not None else None,
-            "compact_data_profile": compact_data_profile,
-            "data_profile_summary": None if data_profile is None else {
-                "row_count": data_profile.row_count,
-                "column_count": data_profile.col_count,
-                "field_roles": data_profile.field_roles,
+            "visual_judge_requirements": {
+                "must_be_visible": requirements.get("must_be_visible", []),
+                "acceptable_visual_encodings": requirements.get("acceptable_visual_encodings", {}),
+                "critical_failures": requirements.get("critical_failures", []),
+                "yes_no_questions": questions,
             },
-            "generated_vega_lite_spec_without_runtime_data": _strip_large_data(spec),
         }
+        payload_text = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        if len(payload_text) > prompt_max_chars:
+            payload_text = payload_text[:prompt_max_chars] + "\n... truncated ..."
+
+        chartsquared_rules = ""
+        if use_chartsquared:
+            block = ChartSquaredAdapter.build_visual_judge_block(
+                project_root=chartsquared_project_root,
+                requirements=requirements,
+                max_questions=chartsquared_max_eval_questions,
+            )
+            chartsquared_rules = block.text
         return (
-            "You are SemanticChartJudgeAI. Judge the attached rendered chart image strictly.\n"
-            "Use the PNG as the source of truth for what is visually shown. Use the user request, request analysis, "
-            "data profile, and Vega-Lite spec only to check whether the image answers the request and whether field "
-            "usage is grounded.\n\n"
-            "Return concrete feedback only when a retry is needed. Do not request retry without actionable feedback.\n"
-            "Set retry_recommendation='accept' when the chart answers the request and there are no material issues.\n"
-            "Set retry_recommendation='retry' only when missing_requirements, readability_issues, "
-            "wrong_or_suspicious_parts, or feedback_for_next_generation are non-empty.\n"
-            "Set retry_recommendation='reject' only if the image is unusable and cannot be repaired by a better spec.\n"
-            "Strict chart quality requirements: axis titles must be readable and must name source fields and aggregation; "
-            "legends are mandatory whenever color/shape/size/strokeDash or multiple metric series are used; category labels "
-            "must fit without overlap or cropping; multi-metric charts must make each metric name clear and avoid misleading "
-            "shared scales; vague titles such as value/total/count are not acceptable unless the field and aggregation are clear. "
-            "If the chart contains both an overloaded legend and labels that do not fit, do not accept it just because both exist; "
-            "require a cleaner alternative such as facet/repeat panels, horizontal bars, shorter axis titles, direct labels/tooltips, "
-            "or independent scales. Prefer the clearest readable representation over preserving every visual element. "
-            "Check label readability, axis/legend titles, visible fields, transformations, and whether the chart supports "
-            "the requested comparison/distribution/trend/correlation. If any of these requirements fail, return retry with "
-            "specific feedback for next generation.\n\n"
-            f"Context JSON:\n{json.dumps(context, ensure_ascii=False, indent=2, default=str)}\n"
+            "You are VisualChartJudgeAI. Judge only the attached chart image.\n"
+            "Do not infer from the source table, Vega-Lite specification, hidden data, tooltip, or intended code. "
+            "If a required element is not visible in the PNG, mark it as missing and request a retry.\n"
+            f"{chartsquared_rules}\n"
+            "Set retry_recommendation='accept' only when the image visibly answers the user request and no critical "
+            "visual requirement fails. Set retry_recommendation='retry' when the chart can be repaired. "
+            "Set retry_recommendation='reject' only when the image is unusable.\n"
+            "Critical rules: required axes, fields, legends, facet/grouping, trend/comparison/distribution/relationship "
+            "must be visible and readable. Tooltip-only evidence is not acceptable for this static-image judge.\n"
+            "Return concrete feedback for the next chart generation whenever retry is needed.\n\n"
+            f"PNG-only judge payload:\n{payload_text}\n"
         )
 
     @staticmethod
@@ -193,7 +205,7 @@ class SemanticChartJudgeAdapters:
     @staticmethod
     def to_vlm_description(result: SemanticChartJudgeResult) -> VLMChartDescriptionResult:
         return VLMChartDescriptionResult(
-            input_scope="png_only",
+            input_scope="png_query_visual_requirements",
             visual_description=result.chart_description,
             detected_chart_type=result.detected_chart_type,
             visible_axes=result.visible_axes,

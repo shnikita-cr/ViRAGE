@@ -69,6 +69,7 @@ class _QueryRequestAnalysisSchema(BaseModel):
     visual_constraints: list[str] = Field(default_factory=list)
     chart_quality_requirements: list[str] = Field(default_factory=list)
     rag_queries: list[str] = Field(default_factory=list)
+    visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -96,6 +97,7 @@ class QueryRequestAnalysisResult(BaseModel):
     visual_constraints: list[str] = Field(default_factory=list)
     chart_quality_requirements: list[str] = Field(default_factory=list)
     rag_queries: list[str] = Field(default_factory=list)
+    visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
 
 
 class QueryRequestAnalyzerService(BaseService):
@@ -189,7 +191,31 @@ class QueryRequestAnalyzerService(BaseService):
             visual_constraints=self._dedupe(parsed.visual_constraints),
             chart_quality_requirements=self._quality_requirements(parsed.chart_quality_requirements),
             rag_queries=self._dedupe(parsed.rag_queries),
+            visual_judge_requirements=self._normalize_visual_judge_requirements(parsed),
         )
+
+    @staticmethod
+    def _normalize_visual_judge_requirements(parsed: _QueryRequestAnalysisSchema) -> dict[str, Any]:
+        raw = dict(parsed.visual_judge_requirements or {})
+        must_be_visible = QueryRequestAnalyzerService._dedupe([
+            *[str(item) for item in raw.get("must_be_visible", []) if str(item).strip()],
+            *[f"The chart must visibly include the requested field: {field}" for field in parsed.selected_fields[:8]],
+        ])
+        critical_failures = QueryRequestAnalyzerService._dedupe([
+            *[str(item) for item in raw.get("critical_failures", []) if str(item).strip()],
+            "A required field or grouping is present only in a tooltip or hidden interaction and is not visible in the static image.",
+            "The chart type does not visually match the requested task.",
+        ])
+        questions = QueryRequestAnalyzerService._dedupe([
+            *[str(item) for item in raw.get("yes_no_questions", []) if str(item).strip()],
+            *[f"Is {field} visibly represented by an axis, legend, panel, label, color, shape, size, or another visible mark?" for field in parsed.selected_fields[:6]],
+        ])
+        return {
+            "must_be_visible": must_be_visible,
+            "acceptable_visual_encodings": raw.get("acceptable_visual_encodings", {}),
+            "critical_failures": critical_failures,
+            "yes_no_questions": questions[:12],
+        }
 
     def _normalize_variants(self, values: list[_QueryVariantSchema], original_query: str, rag_queries: list[str]) -> \
     list[QueryVariant]:
@@ -271,4 +297,10 @@ class QueryRequestAnalyzerService(BaseService):
             "visual_constraints": ["readable_labels_required"],
             "chart_quality_requirements": ["Axis titles include aggregation and source fields."],
             "rag_queries": ["bar chart aggregated comparison"],
+            "visual_judge_requirements": {
+                "must_be_visible": ["The compared fields are visible on axes or labels."],
+                "acceptable_visual_encodings": {},
+                "critical_failures": ["The requested metric is not visible in the static chart."],
+                "yes_no_questions": ["Does the chart visibly compare the requested fields?"],
+            },
         }

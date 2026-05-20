@@ -50,7 +50,7 @@ class ChartAnswerJudgeResult(BaseModel):
 class SemanticChartJudgeResult(BaseModel):
     """Strict one-call VLM judge for chart-grounded semantic feedback."""
 
-    input_scope: Literal["png_query_spec_context"] = "png_query_spec_context"
+    input_scope: Literal["png_query_visual_requirements"] = "png_query_visual_requirements"
     chart_description: str = ""
     detected_chart_type: str | None = None
     visible_axes: dict[str, str] = Field(default_factory=dict)

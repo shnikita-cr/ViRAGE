@@ -350,6 +350,7 @@ class PipelineNodes:
             "query_intent_bundle": query_understanding.to_intent_bundle(),
             "request_analysis": request_analysis,
             "chart_quality_requirements": result.chart_quality_requirements,
+            "visual_judge_requirements": result.visual_judge_requirements,
             "stage": PipelineStage.QUERY_REQUEST_ANALYSIS,
             "trace": self._trace(state, "query_request_analysis"),
             "artifact_paths": artifact_paths,
@@ -773,11 +774,9 @@ class PipelineNodes:
         result = self.semantic_chart_judge.invoke(
             query=state["query"],
             plot_image=plot_image,
-            vega_spec=state["vega_spec"],
             runtime=self.runtime,
             request_analysis=state.get("request_analysis"),
-            data_profile=state.get("data_profile"),
-            compact_data_profile=state.get("compact_data_profile"),
+            visual_judge_requirements=state.get("visual_judge_requirements"),
         )
         vlm_description = SemanticChartJudgeAdapters.to_vlm_description(result)
         chart_facts = SemanticChartJudgeAdapters.to_fact_summary(result)
@@ -817,14 +816,14 @@ class PipelineNodes:
             "chart_revision_record": revision,
             "semantic_retry_reasons": retry_reasons,
             "stage": PipelineStage.VERIFICATION,
-            "trace": self._trace(state, "semantic_chart_judge"),
+            "trace": self._trace(state, "visual_chart_judge"),
             "artifact_paths": artifact_paths,
             "step_logs": self._append_log(
                 state,
                 stage="semantic_chart_judge",
-                title="Strict semantic chart judge",
+                title="PNG-only visual chart judge",
                 summary=f"answers={result.answers_user_query}; recommendation={result.retry_recommendation}; confidence={result.confidence:.3f}",
-                inputs=[state["plot_image"].get("image_path", ""), "user_query", "validated_spec"],
+                inputs=[state["plot_image"].get("image_path", ""), "user_query", "visual_judge_requirements"],
                 outputs=[result.retry_recommendation, *retry_reasons[:2]],
                 details=self._stage_details(before) | {
                     "artifact": artifact_paths["semantic_chart_judge"],

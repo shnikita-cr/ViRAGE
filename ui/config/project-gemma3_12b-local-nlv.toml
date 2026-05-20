@@ -31,6 +31,10 @@ semantic_feedback_min_accept_confidence = 0.75
 semantic_feedback_save_rejected_specs = true
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
 semantic_feedback_include_png_path = true
+visual_judge_use_chartsquared = true
+chartsquared_project_root = ""
+chartsquared_max_eval_questions = 8
+chartsquared_prompt_max_chars = 6000
 
 
 [streamlit]

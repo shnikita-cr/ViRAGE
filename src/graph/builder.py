@@ -117,7 +117,7 @@ _STAGE_TITLES = {
     "empty_chart_check": "Empty chart check",
     "spec_score": "Spec score",
     "semantic_loop_gate": "Semantic VLM gate",
-    "semantic_chart_judge": "Strict semantic chart judge",
+    "semantic_chart_judge": "PNG-only visual chart judge",
     "vlm_chart_description": "PNG-only VLM description",
     "chart_fact_summary": "Chart fact summary",
     "chart_answer_judge": "Semantic answer judge",

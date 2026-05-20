@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -52,9 +51,13 @@ class ViRAGESettings(BaseModel):
     semantic_feedback_corpus_path: Path = Field(default=Path("./rag_corpus/feedback/visual_feedback.jsonl"))
     semantic_feedback_include_png_path: bool = Field(default=True)
     semantic_feedback_mode: Literal["strict", "debug_full_chain"] = Field(default="strict")
+    visual_judge_use_chartsquared: bool = Field(default=True)
+    chartsquared_project_root: Path | None = Field(default=None)
+    chartsquared_max_eval_questions: int = Field(default=8, ge=1)
+    chartsquared_prompt_max_chars: int = Field(default=6000, ge=1000)
 
     model_health_check_enabled: bool = Field(default=False)
     model_health_check_timeout_seconds: float = Field(default=10.0, ge=1.0)
     model_health_check_required_roles: list[str] = Field(
-        default_factory=lambda: ["reasoning", "spec", "vlm", "vision_judge"])
+        default_factory=lambda: ["reasoning", "vlm", "vision_judge"])
     vlm_fail_soft: bool = Field(default=True)

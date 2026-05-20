@@ -132,18 +132,24 @@ def test_feedback_corpus_writer_appends_user_feedback_with_high_weight(tmp_path:
     assert payload["feedback_for_next_generation"] == "Use a horizontal bar chart with readable labels."
 
 
-def test_semantic_chart_judge_prompt_accepts_spec_artifact_without_stripped_spec_field() -> None:
+def test_semantic_chart_judge_prompt_is_png_only_and_omits_spec_data() -> None:
     from src.services.visual_feedback.semantic_chart_judge import SemanticChartJudgeService
 
     prompt = SemanticChartJudgeService._prompt(
         query="compare values",
-        vega_spec=VegaLiteSpecArtifact(spec_json={"mark": "bar", "data": {"values": [{"x": 1}]}}),
         request_analysis=None,
-        data_profile=None,
-        compact_data_profile=None,
+        visual_judge_requirements={
+            "must_be_visible": ["The x and y fields are visible."],
+            "yes_no_questions": ["Are the requested values visible in the chart image?"],
+        },
+        use_chartsquared=True,
+        chartsquared_max_eval_questions=8,
+        prompt_max_chars=6000,
+        chartsquared_project_root=None,
     )
 
-    assert "generated_vega_lite_spec_without_runtime_data" in prompt
+    assert "PNG-only judge payload" in prompt
     assert "compare values" in prompt
-    assert '"data"' not in prompt
-    assert '[{"x": 1}]' not in prompt
+    assert "generated_vega_lite_spec_without_runtime_data" not in prompt
+    assert "source table" in prompt
+    assert "Are the requested values visible" in prompt

@@ -1,5 +1,5 @@
 @startuml
-title Маппинг: моя архитектура vs VegaChat / EDAPlot
+title Маппинг: моя архитектура vs VegaChat
 
 left to right direction
 skinparam componentStyle rectangle
@@ -19,18 +19,18 @@ package "Моя система" {
   [VLMAnalysis]
 }
 
-package "VegaChat / EDAPlot" {
-  [edaplot.request_analyzer]
-  [edaplot.recommend.recommender]
-  [edaplot.vega_chat.vega_chat]
-  [edaplot.vega]
-  [edaplot.spec_utils]
-  [edaplot.transform_utils]
+package "VegaChat" {
+  [vegachat.request_analyzer]
+  [vegachat.recommender]
+  [vegachat.spec_generator]
+  [vegachat.vega_runtime]
+  [vegachat.spec_utils]
+  [vegachat.transform_utils]
   [benchmark.metrics]
   [frontend.vega_chat]
 }
 
-[QueryUnderstanding] ..> [edaplot.request_analyzer] : частично похожая роль
+[QueryUnderstanding] ..> [vegachat.request_analyzer] : частично похожая роль
 note on link
 Моя система:
 - понимает intent и visual task
@@ -41,7 +41,7 @@ note on link
 - сильнее завязан на schema mapping
 end note
 
-[DataProfile] ..> [edaplot.request_analyzer] : вход для grounding
+[DataProfile] ..> [vegachat.request_analyzer] : вход для grounding
 note on link
 Обе стороны используют:
 - структуру таблицы
@@ -49,7 +49,7 @@ note on link
 - типы полей
 end note
 
-[RequestAnalyzer] ..> [edaplot.request_analyzer] : почти прямой аналог
+[RequestAnalyzer] ..> [vegachat.request_analyzer] : почти прямой аналог
 note on link
 Вход:
 - query understanding
@@ -61,7 +61,7 @@ note on link
 - confidence
 end note
 
-[VisRAG] ..> [edaplot.recommend.recommender] : похожая recommendation роль
+[VisRAG] ..> [vegachat.recommender] : похожая recommendation роль
 note on link
 Моя система:
 - retrieval-based recommendation
@@ -72,14 +72,14 @@ note on link
 - без явного RAG слоя
 end note
 
-[VisRAG] ..> [edaplot.vega_chat.vega_chat] : synthesis candidate spec
+[VisRAG] ..> [vegachat.spec_generator] : synthesis candidate spec
 note on link
 Обе стороны формируют:
 - candidate visualization logic
 - путь к structured spec
 end note
 
-[Planning] ..> [edaplot.vega_chat.vega_chat] : частичное пересечение
+[Planning] ..> [vegachat.spec_generator] : частичное пересечение
 note on link
 Моя система:
 - отдельный шаг координации
@@ -88,7 +88,7 @@ note on link
 - orchestration встроен в conversational flow
 end note
 
-[ChartSpec] ..> [edaplot.vega_chat.vega_chat] : прямое смысловое соответствие
+[ChartSpec] ..> [vegachat.spec_generator] : прямое смысловое соответствие
 note on link
 Вход:
 - recommendation / generation result
@@ -97,7 +97,7 @@ note on link
 - structured visualization specification
 end note
 
-[VegaLitePlotDrawing] ..> [edaplot.vega] : validate / repair / render
+[VegaLitePlotDrawing] ..> [vegachat.vega_runtime] : validate / repair / render
 note on link
 Статья особенно сильна здесь:
 - spec validation
@@ -106,7 +106,7 @@ note on link
 - auto-fix
 end note
 
-[ChartReader] ..> [edaplot.spec_utils] : чтение структуры spec
+[ChartReader] ..> [vegachat.spec_utils] : чтение структуры spec
 note on link
 Обе стороны читают:
 - encodings
@@ -115,7 +115,7 @@ note on link
 - field bindings
 end note
 
-[ChartReader] ..> [edaplot.transform_utils] : интерпретация transforms
+[ChartReader] ..> [vegachat.transform_utils] : интерпретация transforms
 note on link
 Похожая задача:
 - понять, что делает spec
@@ -167,7 +167,7 @@ note bottom of [Reasoner]
 reasoning, insights, explanations.
 end note
 
-note bottom of [edaplot.vega]
+note bottom of [vegachat.vega_runtime]
 Уникальная сильная часть статьи и кода:
 spec validator, empty chart detection,
 scenegraph checks, repair loop.

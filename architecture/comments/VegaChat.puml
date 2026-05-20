@@ -1,5 +1,5 @@
 @startuml
-title VegaChat / EDAPlot - архитектура из статьи и кода
+title VegaChat - архитектура из статьи и кода
 
 hide empty description
 

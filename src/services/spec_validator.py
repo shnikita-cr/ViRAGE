@@ -9,6 +9,7 @@ import pandas as pd
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.services.base import BaseService
 from src.services.data import read_dataframe
+from src.services.spec_repair import SpecRepairService
 
 VEGA_LITE_SCHEMA_URL = 'https://vega.github.io/schema/vega-lite/v5.json'
 _COMPOSITION_KEYS = {'layer', 'facet', 'repeat', 'concat', 'hconcat', 'vconcat'}
@@ -40,7 +41,8 @@ class SpecValidatorService(BaseService):
                 is_valid=False,
             )
 
-        normalized = self._normalize_spec(spec)
+        normalized, repair_notes = self._normalize_spec(spec)
+        repair_hints.extend(repair_notes)
         dataset_path, dataset_columns = self._load_runtime_data(normalized, errors)
         self._validate_vega_lite_shape(normalized, errors)
 
@@ -84,27 +86,8 @@ class SpecValidatorService(BaseService):
         )
 
     @staticmethod
-    def _normalize_spec(spec: dict[str, Any]) -> dict[str, Any]:
-        normalized = deepcopy(spec)
-        normalized.setdefault('$schema', VEGA_LITE_SCHEMA_URL)
-        SpecValidatorService._normalize_scatter_alias(normalized)
-        return normalized
-
-    @staticmethod
-    def _normalize_scatter_alias(node: Any) -> None:
-        if isinstance(node, dict):
-            mark = node.get('mark')
-            if isinstance(mark, str) and mark.strip().lower() == 'scatter':
-                node['mark'] = 'point'
-            elif isinstance(mark, dict):
-                mark_type = mark.get('type')
-                if isinstance(mark_type, str) and mark_type.strip().lower() == 'scatter':
-                    mark['type'] = 'point'
-            for value in node.values():
-                SpecValidatorService._normalize_scatter_alias(value)
-        elif isinstance(node, list):
-            for item in node:
-                SpecValidatorService._normalize_scatter_alias(item)
+    def _normalize_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        return SpecRepairService().repair(spec)
 
     @staticmethod
     def _validate_vega_lite_shape(spec: dict[str, Any], errors: list[str]) -> None:
