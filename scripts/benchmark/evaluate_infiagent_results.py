@@ -13,7 +13,8 @@ from src.benchmark.analysis_models import AnalysisBenchmarkReport, AnalysisBench
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Rebuild the aggregate report for InfiAgent chart-grounded benchmark results.")
+    parser = argparse.ArgumentParser(
+        description="Rebuild the aggregate report for InfiAgent chart-grounded benchmark results.")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/infiagent_chart_grounded")
     args = parser.parse_args()
 

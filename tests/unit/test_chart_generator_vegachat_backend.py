@@ -77,8 +77,10 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
         row_count=2,
         col_count=2,
         columns=[
-            DataColumnProfile(name="Region.Name", original_name="Region.Name", safe_name="Region_Name", dtype="categorical", missing_ratio=0.0, unique_count=2),
-            DataColumnProfile(name="Metric Value (%)", original_name="Metric Value (%)", safe_name="Metric_Value", dtype="numeric", missing_ratio=0.0, unique_count=2),
+            DataColumnProfile(name="Region.Name", original_name="Region.Name", safe_name="Region_Name",
+                              dtype="categorical", missing_ratio=0.0, unique_count=2),
+            DataColumnProfile(name="Metric Value (%)", original_name="Metric Value (%)", safe_name="Metric_Value",
+                              dtype="numeric", missing_ratio=0.0, unique_count=2),
         ],
         field_roles={"Region.Name": "dimension", "Metric Value (%)": "measure"},
     )

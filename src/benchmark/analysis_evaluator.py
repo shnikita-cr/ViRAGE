@@ -58,15 +58,15 @@ class HybridAnalysisEvaluator:
         self.numeric_tolerance = max(0.0, numeric_tolerance)
 
     def evaluate(
-        self,
-        *,
-        question: str,
-        expected_answer: str | None,
-        actual_answer: str,
-        chart_summary: str,
-        key_findings: list[str],
-        caveats: list[str],
-        runtime: RuntimeContext | None = None,
+            self,
+            *,
+            question: str,
+            expected_answer: str | None,
+            actual_answer: str,
+            chart_summary: str,
+            key_findings: list[str],
+            caveats: list[str],
+            runtime: RuntimeContext | None = None,
     ) -> AnalysisEvaluationResult:
         expected = str(expected_answer or "").strip()
         actual = str(actual_answer or "").strip()
@@ -135,7 +135,9 @@ class HybridAnalysisEvaluator:
                 key_found = key_norm in actual_normalized if key_norm else True
                 number_found = False
                 if expected_number is not None:
-                    number_found = any(_numbers_close(expected_number, item, tolerance=self.numeric_tolerance) for item in actual_numbers)
+                    number_found = any(
+                        _numbers_close(expected_number, item, tolerance=self.numeric_tolerance) for item in
+                        actual_numbers)
                 if (value_found or number_found) and (key_found or total == 1):
                     matched += 1
             match_rate = matched / total if total else 0.0
@@ -179,16 +181,16 @@ class HybridAnalysisEvaluator:
         )
 
     def _evaluate_by_llm(
-        self,
-        *,
-        question: str,
-        expected_answer: str,
-        actual_answer: str,
-        chart_summary: str,
-        key_findings: list[str],
-        caveats: list[str],
-        runtime: RuntimeContext,
-        fallback: AnalysisEvaluationResult,
+            self,
+            *,
+            question: str,
+            expected_answer: str,
+            actual_answer: str,
+            chart_summary: str,
+            key_findings: list[str],
+            caveats: list[str],
+            runtime: RuntimeContext,
+            fallback: AnalysisEvaluationResult,
     ) -> AnalysisEvaluationResult:
         prompt = (
             "You are evaluating a chart-grounded data analysis benchmark result.\n"

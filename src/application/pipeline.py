@@ -88,7 +88,6 @@ class ViRAGEPipeline:
             vision_judge_llm=models["vision_judge"],
         )
 
-
     def _save_input_artifacts(self, request: PipelineRequest) -> dict[str, str]:
         query_path = self.runtime.save_text_artifact(
             "input/query.txt",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.domain.models import VisualQualityMetric
 from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
+from src.domain.models import VisualQualityMetric
 from src.services.vision_score import compute_vegachat_vision_score
 
 

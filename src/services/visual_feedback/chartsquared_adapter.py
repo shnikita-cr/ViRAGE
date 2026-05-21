@@ -26,11 +26,11 @@ class ChartSquaredAdapter:
 
     @classmethod
     def build_visual_judge_block(
-        cls,
-        *,
-        project_root: Path | None,
-        requirements: dict[str, Any],
-        max_questions: int,
+            cls,
+            *,
+            project_root: Path | None,
+            requirements: dict[str, Any],
+            max_questions: int,
     ) -> ChartSquaredPromptBlock:
         questions = cls._questions(requirements, max_questions)
         lines = [cls.DEFAULT_PROTOCOL]
@@ -76,9 +76,9 @@ class ChartSquaredAdapter:
         if not found:
             return None
         text = (
-            "External C-2 project prompts detected: " + ", ".join(found) + ". "
-            "Use their ChartAF sequence in compact form: criteria -> YES/NO visual questions -> image-only answers -> "
-            "retain/discard/edit/add feedback. Do not call the original C-2 LLM wrapper; ViRAGE model settings control "
-            "Ollama/OpenAI compatibility."
+                "External C-2 project prompts detected: " + ", ".join(found) + ". "
+                                                                               "Use their ChartAF sequence in compact form: criteria -> YES/NO visual questions -> image-only answers -> "
+                                                                               "retain/discard/edit/add feedback. Do not call the original C-2 LLM wrapper; ViRAGE model settings control "
+                                                                               "Ollama/OpenAI compatibility."
         )
         return ChartSquaredPromptBlock(source=str(root), text=text)

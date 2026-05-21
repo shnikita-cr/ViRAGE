@@ -19,7 +19,8 @@ def main() -> None:
     parser.add_argument("--output", default="artifacts/benchmarks/infiagent_cases.jsonl")
     parser.add_argument("--dataset-name", default="infiagent_dabench_da_dev")
     parser.add_argument("--no-constraints", action="store_true", help="Do not append constraints to the user query.")
-    parser.add_argument("--no-format", action="store_true", help="Do not append required answer format to the user query.")
+    parser.add_argument("--no-format", action="store_true",
+                        help="Do not append required answer format to the user query.")
     args = parser.parse_args()
 
     cases = convert_da_agent_dataset(

@@ -10,13 +10,13 @@ if str(ROOT) not in sys.path:
 
 from src.application.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
-from src.benchmark.analysis_evaluator import EvaluationMode
-from src.benchmark.analysis_runner import ChartGroundedAnalysisBenchmarkRunner, FailurePolicy
+from src.benchmark.analysis_runner import ChartGroundedAnalysisBenchmarkRunner
 from src.benchmark.infiagent_dataset import DEFAULT_SOURCE_ROOT, convert_da_agent_dataset, default_paths
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run ViRAGE on InfiAgent-DABench as a chart-grounded analytical agent.")
+    parser = argparse.ArgumentParser(
+        description="Run ViRAGE on InfiAgent-DABench as a chart-grounded analytical agent.")
     parser.add_argument("--source-root", default=str(DEFAULT_SOURCE_ROOT), help="Default: Datasets/InfiAgent")
     parser.add_argument("--cases", default="artifacts/benchmarks/infiagent_cases.jsonl")
     parser.add_argument("--config", default="ui/config/project.toml")

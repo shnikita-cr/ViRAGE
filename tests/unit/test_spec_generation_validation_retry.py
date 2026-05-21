@@ -103,8 +103,8 @@ def test_graph_level_technical_retry_passes_validation_feedback_to_next_generati
         ),
         spec_llm=FakeSpecLLM(
             "<explain>Fixed invalid mark.</explain>"
-            "<json>{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\"," 
-            "\"mark\":\"bar\"," 
+            "<json>{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\","
+            "\"mark\":\"bar\","
             "\"encoding\":{\"x\":{\"field\":\"Category\",\"type\":\"nominal\"},"
             "\"y\":{\"field\":\"Value\",\"type\":\"quantitative\"}}}</json>"
         ),

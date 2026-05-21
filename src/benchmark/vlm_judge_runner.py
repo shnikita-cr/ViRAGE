@@ -16,7 +16,6 @@ from src.benchmark.models import BenchmarkCase
 from src.benchmark.progress import ConsoleProgressBar
 from src.benchmark.resume import load_case_results, should_reuse_case
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
-from src.infrastructure.runtime import RuntimeContext
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegalite_plot_drawing import VegaLitePlotDrawingService
 from src.services.visual_feedback.semantic_chart_judge import SemanticChartJudgeService
@@ -152,9 +151,9 @@ class VLMJudgeBenchmarkRunner:
         )
         return report
 
-
     @staticmethod
-    def _ordered_results(cases: list[BenchmarkCase], results_by_id: dict[str, VLMJudgeBenchmarkResult]) -> list[VLMJudgeBenchmarkResult]:
+    def _ordered_results(cases: list[BenchmarkCase], results_by_id: dict[str, VLMJudgeBenchmarkResult]) -> list[
+        VLMJudgeBenchmarkResult]:
         return [results_by_id[case.case_id] for case in cases if case.case_id in results_by_id]
 
     def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> VLMJudgeBenchmarkResult:
@@ -195,7 +194,8 @@ class VLMJudgeBenchmarkRunner:
                 visual_judge_requirements=None,
             )
             runtime.save_json_artifact("nodes/ground_truth_spec.json", spec, run_id=run_id, numbered=True)
-            runtime.save_json_artifact("nodes/ground_truth_visual_judge.json", judge_result.model_dump(), run_id=run_id, numbered=True)
+            runtime.save_json_artifact("nodes/ground_truth_visual_judge.json", judge_result.model_dump(), run_id=run_id,
+                                       numbered=True)
             runtime.save_model_log_artifacts(run_id=run_id)
             token_usage = runtime.token_usage_summary()
             result = VLMJudgeBenchmarkResult(

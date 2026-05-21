@@ -130,7 +130,8 @@ class AnalysisBenchmarkReport(BaseModel):
             total_tokens=sum(item.total_tokens for item in results),
             mean_evaluation_score=_mean([item.evaluation_score for item in evaluated]),
             correct_rate=_mean_bool([item.evaluation_verdict == "correct" for item in evaluated]),
-            partial_or_correct_rate=_mean_bool([item.evaluation_verdict in {"correct", "partially_correct"} for item in evaluated]),
+            partial_or_correct_rate=_mean_bool(
+                [item.evaluation_verdict in {"correct", "partially_correct"} for item in evaluated]),
             mean_chart_groundedness=_mean([item.chart_groundedness for item in evaluated]),
             mean_hallucination_risk=_mean([item.hallucination_risk for item in evaluated]),
             results=results,

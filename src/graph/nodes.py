@@ -280,7 +280,7 @@ class PipelineNodes:
         return {**artifact_paths, name: path}
 
     def _save_attempt_into(self, artifact_paths: dict[str, str], state: PipelineState, name: str, payload: object) -> \
-    dict[str, str]:
+            dict[str, str]:
         artifact_name = self._node_artifact_name(state, name)
         path = self.runtime.save_json_artifact(f"nodes/{artifact_name}.json", payload, run_id=state["run_id"],
                                                numbered=True)

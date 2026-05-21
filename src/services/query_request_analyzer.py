@@ -208,7 +208,9 @@ class QueryRequestAnalyzerService(BaseService):
         ])
         questions = QueryRequestAnalyzerService._dedupe([
             *[str(item) for item in raw.get("yes_no_questions", []) if str(item).strip()],
-            *[f"Is {field} visibly represented by an axis, legend, panel, label, color, shape, size, or another visible mark?" for field in parsed.selected_fields[:6]],
+            *[
+                f"Is {field} visibly represented by an axis, legend, panel, label, color, shape, size, or another visible mark?"
+                for field in parsed.selected_fields[:6]],
         ])
         return {
             "must_be_visible": must_be_visible,
@@ -218,7 +220,7 @@ class QueryRequestAnalyzerService(BaseService):
         }
 
     def _normalize_variants(self, values: list[_QueryVariantSchema], original_query: str, rag_queries: list[str]) -> \
-    list[QueryVariant]:
+            list[QueryVariant]:
         required = {"canonical", "schema_grounding", "spec_retrieval", "analysis"}
         result: list[QueryVariant] = []
         seen: set[tuple[str, str]] = set()

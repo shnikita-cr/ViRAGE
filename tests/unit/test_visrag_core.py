@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from src.visrag_core import canonicalize_chart_type
 from src.visrag_core.corpus import VisRAGCorpus
 from src.visrag_core.models import VisRAGColumnProfile, VisRAGConfig, VisRAGDataProfile, VisRAGRequest

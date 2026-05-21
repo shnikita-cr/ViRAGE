@@ -32,9 +32,9 @@ def is_logical_artifact_name(stem: str, logical_name: str) -> bool:
     # 012_vega_spec_semantic_001_technical_002.json. Treat these as the same logical node
     # while preserving separate files on disk.
     return (
-        stem.startswith(f"{logical_name}_semantic_")
-        or stem.startswith(f"{logical_name}_technical_")
-        or stem.startswith(f"{logical_name}_attempt_")
+            stem.startswith(f"{logical_name}_semantic_")
+            or stem.startswith(f"{logical_name}_technical_")
+            or stem.startswith(f"{logical_name}_attempt_")
     )
 
 
@@ -586,7 +586,7 @@ def extract_data_profile(run_dir: Path) -> dict[str, Any]:
         payload.get("column_errors"), list) else 0
     row["data_profile_quality_notes_count"] = len(payload.get("quality_notes") or []) if isinstance(
         payload.get("quality_notes"), list) else 0
-    
+
     columns = payload.get("columns")
     if isinstance(columns, list):
         original_columns: list[str] = []
@@ -701,7 +701,8 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
         row["spec_generation_pipeline_attempt_count"] = 1
         row["spec_generation_response_attempt_count"] = 1
         row["spec_generation_failed_attempt_count"] = 0
-        row["vega_mark"] = spec.get("mark") if isinstance(spec.get("mark"), str) else "composition" if any(key in spec for key in ("layer", "facet", "repeat", "concat", "hconcat", "vconcat")) else ""
+        row["vega_mark"] = spec.get("mark") if isinstance(spec.get("mark"), str) else "composition" if any(
+            key in spec for key in ("layer", "facet", "repeat", "concat", "hconcat", "vconcat")) else ""
         encoding = spec.get("encoding") if isinstance(spec.get("encoding"), dict) else {}
         row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
         row["vega_field_count"] = len(extract_spec_fields(spec))
@@ -726,7 +727,8 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
     payload = all_attempt_payloads[-1] if all_attempt_payloads else {}
     attempts = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
     warnings = payload.get("warning_messages") if isinstance(payload.get("warning_messages"), list) else []
-    spec = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"), dict) else payload.get("spec_json", {})
+    spec = payload.get("spec_without_runtime_data") if isinstance(payload.get("spec_without_runtime_data"),
+                                                                  dict) else payload.get("spec_json", {})
     response_attempt_count = sum(len(item.get("attempts") or []) for item in all_attempt_payloads)
     failed_response_attempt_count = sum(
         1
@@ -745,11 +747,13 @@ def extract_spec_generation(run_dir: Path) -> dict[str, Any]:
     row["spec_generation_max_generation_attempts"] = payload.get("max_generation_attempts") or ""
     row["spec_generation_spec_field_count"] = len(extract_spec_fields(spec if isinstance(spec, dict) else {}))
     if isinstance(spec, dict):
-        row["vega_mark"] = spec.get("mark") if isinstance(spec.get("mark"), str) else "composition" if any(key in spec for key in ("layer", "facet", "repeat", "concat", "hconcat", "vconcat")) else ""
+        row["vega_mark"] = spec.get("mark") if isinstance(spec.get("mark"), str) else "composition" if any(
+            key in spec for key in ("layer", "facet", "repeat", "concat", "hconcat", "vconcat")) else ""
         encoding = spec.get("encoding") if isinstance(spec.get("encoding"), dict) else {}
         row["vega_encoding_channels"] = ",".join(sorted(encoding.keys()))
         row["vega_field_count"] = len(extract_spec_fields(spec))
     return row
+
 
 def extract_spec_validation_retry(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
@@ -966,7 +970,7 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["has_stages_csv"] = (run_dir / "stages.csv").exists()
     row["stages_csv_path"] = "stages.csv" if (run_dir / "stages.csv").exists() else ""
     row["has_legacy_stage_split_csv"] = (run_dir / "stage_timings.csv").exists() or (
-                run_dir / "stage_tokens.csv").exists()
+            run_dir / "stage_tokens.csv").exists()
     row["has_legacy_stage_execution_json"] = any("stage_execution" in str(path) for path in files)
 
     row["model_call_count"] = len(model_calls)
@@ -982,7 +986,7 @@ def collect_run(run_dir: Path, artifacts_root: Path) -> dict[str, Any]:
     row["has_model_calls_csv"] = (run_dir / "model_calls.csv").exists()
     row["model_calls_csv_path"] = "model_calls.csv" if (run_dir / "model_calls.csv").exists() else ""
     row["has_legacy_model_call_split_csv"] = (run_dir / "model_call_tokens.csv").exists() or (
-                run_dir / "model_call_timings.csv").exists()
+            run_dir / "model_call_timings.csv").exists()
 
     row["has_png"] = has_png
     row["has_plot_png"] = has_plot_png

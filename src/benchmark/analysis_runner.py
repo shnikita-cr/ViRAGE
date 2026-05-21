@@ -25,12 +25,12 @@ class ChartGroundedAnalysisBenchmarkRunner:
     """
 
     def __init__(
-        self,
-        pipeline: ViRAGEPipeline,
-        *,
-        evaluation_mode: EvaluationMode = "hybrid",
-        failure_policy: FailurePolicy = "fail",
-        debug_artifacts: bool = False,
+            self,
+            pipeline: ViRAGEPipeline,
+            *,
+            evaluation_mode: EvaluationMode = "hybrid",
+            failure_policy: FailurePolicy = "fail",
+            debug_artifacts: bool = False,
     ) -> None:
         self.pipeline = pipeline
         self.evaluator = HybridAnalysisEvaluator(mode=evaluation_mode)
@@ -38,14 +38,14 @@ class ChartGroundedAnalysisBenchmarkRunner:
         self.debug_artifacts = debug_artifacts
 
     def run_dataset(
-        self,
-        *,
-        cases_path: str | Path,
-        output_dir: str | Path,
-        limit: int | None = None,
-        case_id: str | None = None,
-        resume: bool = False,
-        retry_failed: bool = False,
+            self,
+            *,
+            cases_path: str | Path,
+            output_dir: str | Path,
+            limit: int | None = None,
+            case_id: str | None = None,
+            resume: bool = False,
+            retry_failed: bool = False,
     ) -> AnalysisBenchmarkReport:
         source = Path(cases_path)
         case_root = source.parent
@@ -182,7 +182,8 @@ class ChartGroundedAnalysisBenchmarkRunner:
         return "\n".join(part for part in parts if part)
 
     @staticmethod
-    def _ordered_results(cases: list[AnalysisBenchmarkCase], results_by_id: dict[str, AnalysisBenchmarkResult]) -> list[AnalysisBenchmarkResult]:
+    def _ordered_results(cases: list[AnalysisBenchmarkCase], results_by_id: dict[str, AnalysisBenchmarkResult]) -> list[
+        AnalysisBenchmarkResult]:
         return [results_by_id[case.case_id] for case in cases if case.case_id in results_by_id]
 
     @staticmethod

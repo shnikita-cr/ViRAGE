@@ -8,7 +8,6 @@ from src.domain.models import (
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
     DataPreparationResult,
-    SemanticFeedbackLoopSummary,
     VLMChartDescriptionResult,
     VegaLiteSpecArtifact,
 )

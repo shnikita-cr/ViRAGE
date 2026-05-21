@@ -48,6 +48,7 @@ def test_extract_json_block_supports_balanced_object_after_text() -> None:
 
     assert extract_json_block(raw) == '{"encoding": {"x": {"field": "a"}}}'
 
+
 def test_extract_json_block_preserves_top_level_repeat_spec() -> None:
     raw = (
         '<json>{"$schema":"https://vega.github.io/schema/vega-lite/v5.json",'

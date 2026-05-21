@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 from pandas.errors import ParserError
 
-
 CSV_ENCODINGS: tuple[str, ...] = ("utf-8", "utf-8-sig", "cp1251", "latin1")
 
 

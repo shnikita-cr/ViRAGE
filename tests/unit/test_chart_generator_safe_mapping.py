@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from src.application.settings import ViRAGESettings
 from src.domain.models import CandidateSpec, CandidateSpecSet, DataPreparationResult
 from src.infrastructure.runtime import RuntimeContext
-from src.application.settings import ViRAGESettings
 from src.services.chart_generator import ChartGeneratorService
 
 
@@ -31,7 +31,8 @@ def test_chart_generator_maps_original_fields_to_safe_prepared_fields(tmp_path):
             renamed_column_count=2,
         ),
         candidate_spec_set=CandidateSpecSet(candidate_specs=[candidate], selected_candidate_spec=candidate),
-        runtime=RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", spec_generation_backend="template")),
+        runtime=RuntimeContext(
+            settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", spec_generation_backend="template")),
     )
 
     encoding = artifact.spec_json["encoding"]

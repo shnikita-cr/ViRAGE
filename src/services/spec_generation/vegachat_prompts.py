@@ -161,9 +161,9 @@ def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
             "family must match the analytical task. Do not hide required meaning only in tooltip."
         )
     return (
-        "ChartSquared-style pre-generation checklist. The generated static PNG must satisfy these visible criteria; "
-        "avoid every critical failure before relying on retry loops:\n"
-        + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+            "ChartSquared-style pre-generation checklist. The generated static PNG must satisfy these visible criteria; "
+            "avoid every critical failure before relying on retry loops:\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
     )
 
 

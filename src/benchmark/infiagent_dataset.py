@@ -72,12 +72,12 @@ def scan_source_root(source_root: str | Path = DEFAULT_SOURCE_ROOT) -> dict[str,
 
 
 def convert_da_agent_dataset(
-    *,
-    source_root: str | Path = DEFAULT_SOURCE_ROOT,
-    output_path: str | Path,
-    include_constraints: bool = True,
-    include_format: bool = True,
-    dataset_name: str = "infiagent_dabench_da_dev",
+        *,
+        source_root: str | Path = DEFAULT_SOURCE_ROOT,
+        output_path: str | Path,
+        include_constraints: bool = True,
+        include_format: bool = True,
+        dataset_name: str = "infiagent_dabench_da_dev",
 ) -> list[dict[str, Any]]:
     paths = default_paths(source_root)
     errors = validate_paths(paths)

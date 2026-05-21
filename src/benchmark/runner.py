@@ -15,8 +15,6 @@ from src.benchmark.progress import ConsoleProgressBar
 from src.benchmark.resume import load_case_results, should_reuse_case
 
 
-
-
 def _classify_benchmark_error(exc: BaseException) -> str:
     text = f"{type(exc).__name__}: {exc}".lower()
     if "health check" in text or ("model" in text and "not found" in text) or "503" in text or "overloaded" in text:
@@ -26,6 +24,7 @@ def _classify_benchmark_error(exc: BaseException) -> str:
     if "parse" in text or "json" in text:
         return "parse_failed"
     return "failed"
+
 
 class VegaChatBenchmarkRunner:
     """Run ViRAGE on VegaChat/NLV/ChartLLM-style benchmark cases and write evaluation artifacts."""
@@ -73,9 +72,9 @@ class VegaChatBenchmarkRunner:
         self._write_report(report, output)
         return report
 
-
     @staticmethod
-    def _ordered_results(cases: Iterable[BenchmarkCase], results_by_id: dict[str, BenchmarkCaseResult]) -> list[BenchmarkCaseResult]:
+    def _ordered_results(cases: Iterable[BenchmarkCase], results_by_id: dict[str, BenchmarkCaseResult]) -> list[
+        BenchmarkCaseResult]:
         return [results_by_id[case.case_id] for case in cases if case.case_id in results_by_id]
 
     def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> BenchmarkCaseResult:

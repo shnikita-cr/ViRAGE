@@ -17,7 +17,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Render ground-truth Vega-Lite specs and evaluate them with the PNG-only VLM judge."
     )
-    parser.add_argument("--cases", required=True, help="Path to NLV/ChartLLM-compatible benchmark cases or corpus root.")
+    parser.add_argument("--cases", required=True,
+                        help="Path to NLV/ChartLLM-compatible benchmark cases or corpus root.")
     parser.add_argument("--config", default="ui/config/project.toml", help="Path to ViRAGE project config TOML.")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/vlm_judge_ground_truth")
     parser.add_argument("--limit", type=int, default=None, help="Optional case limit for smoke runs.")

@@ -35,7 +35,8 @@ def main() -> None:
     if artifact_run_dir:
         run_dir = Path(artifact_run_dir)
         print("\nImportant artifact paths:")
-        for rel in ["input/query.txt", "input/context.json", "nodes", "model_calls.csv", "stages.csv", "run_status.json"]:
+        for rel in ["input/query.txt", "input/context.json", "nodes", "model_calls.csv", "stages.csv",
+                    "run_status.json"]:
             path = run_dir / rel
             print(f"- {path.resolve()} {'[exists]' if path.exists() else '[missing]'}")
 
