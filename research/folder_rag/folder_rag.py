@@ -14,6 +14,7 @@ from typing import Any, Iterable
 import chromadb
 from ollama import Client, ResponseError
 
+
 SUPPORTED_EXTENSIONS = {
     ".py", ".java", ".kt", ".kts", ".js", ".jsx", ".ts", ".tsx",
     ".html", ".css", ".scss", ".sass", ".json", ".yaml", ".yml",
@@ -349,14 +350,14 @@ def validate_manifest(folder: Path, args: argparse.Namespace) -> None:
         return
     problems: list[str] = []
     if manifest.get("folder") != str(folder.resolve()):
-        problems.append("папка отличается от папки, по которой был построен индекс")
+        problems.append("folder differs from the folder used to build the index")
     if manifest.get("embedding_model") != args.embedding_model:
-        problems.append("embedding-модель отличается от модели индекса")
+        problems.append("embedding model differs from the indexed embedding model")
     if manifest.get("collection") != args.collection:
-        problems.append("имя Chroma collection отличается от сохранённого")
+        problems.append("Chroma collection name differs from the saved collection name")
     if problems:
         joined = "; ".join(problems)
-        raise RuntimeError(f"Нельзя безопасно переиспользовать индекс: {joined}. Запусти с --reindex.")
+        raise RuntimeError(f"The index cannot be safely reused: {joined}. Run with --reindex.")
 
 
 def index_chunks(collection: Any, chunks: list[Chunk], client: Client, args: argparse.Namespace) -> None:
@@ -393,7 +394,7 @@ def build_or_reuse_index(folder: Path, client: Client, args: argparse.Namespace)
     files = collect_text_files(folder, max_file_mb=args.max_file_mb)
     chunks = build_chunks(files, max_chars=args.chunk_chars, overlap_lines=args.overlap_lines)
     if not chunks:
-        raise RuntimeError("Не найдено подходящих текстовых/кодовых файлов для индексации.")
+        raise RuntimeError("No suitable text/code files were found for indexing.")
 
     index_chunks(collection=collection, chunks=chunks, client=client, args=args)
     save_manifest(folder=folder, args=args, files_count=len(files), chunks_count=len(chunks))
@@ -413,16 +414,16 @@ def compact_memory_if_needed(client: Client, args: argparse.Namespace) -> None:
     if len(text) <= args.memory_max_chars:
         return
     prompt = (
-        "Сожми рабочую память проекта. Сохрани только проверяемые факты, архитектурные выводы, "
-        "важные решения, риски, вопросы и ссылки на файлы/строки, если они есть. "
-        "Не добавляй новые факты. Пиши на языке исходной памяти.\n\n"
-        f"ТЕКУЩАЯ MEMORY:\n{text[-args.memory_max_chars * 2:]}"
+        "Compress the project working memory. Keep only verifiable facts, architectural conclusions, "
+        "important decisions, risks, questions, and file/line references if present. "
+        "Do not add new facts. Write in English only. If the existing memory contains non-English text, translate the retained facts to English.\n\n"
+        f"CURRENT MEMORY:\n{text[-args.memory_max_chars * 2:]}"
     )
     compacted = chat(
         client=client,
         model=args.model,
         messages=[
-            {"role": "system", "content": "Ты аккуратно сжимаешь рабочую память RAG-анализа."},
+            {"role": "system", "content": "You carefully compress the working memory of a RAG analysis."},
             {"role": "user", "content": prompt},
         ],
     )
@@ -445,28 +446,28 @@ def deep_analyze_files(files: list[TextFile], client: Client, args: argparse.Nam
         memory_tail = read_memory_tail(max_chars=7000)
         file_text = file.text[:args.deep_max_file_chars]
         prompt = (
-            "Проанализируй файл для рабочей памяти локального RAG по папке. "
-            "Нужно извлечь только важные и проверяемые факты. "
-            "Учитывай вопрос пользователя, но не выдумывай ответ.\n\n"
-            f"ВОПРОС ПОЛЬЗОВАТЕЛЯ:\n{query}\n\n"
-            f"ТЕКУЩАЯ MEMORY, МОЖНО ИСПОЛЬЗОВАТЬ КАК КОНТЕКСТ:\n{memory_tail}\n\n"
-            f"ФАЙЛ: {file.rel_path}\n"
+            "Analyze this file for the working memory of a local folder RAG system. "
+            "Extract only important and verifiable facts. "
+            "Consider the user question, but do not invent an answer.\n\n"
+            f"USER QUESTION:\n{query}\n\n"
+            f"CURRENT MEMORY, MAY BE USED AS CONTEXT:\n{memory_tail}\n\n"
+            f"FILE: {file.rel_path}\n"
             f"SHA256: {file.sha256}\n\n"
-            f"СОДЕРЖИМОЕ ФАЙЛА, ВОЗМОЖНО УСЕЧЕНО:\n{file_text}\n\n"
-            "Верни кратко:\n"
-            "- назначение файла;\n"
-            "- ключевые классы/функции/контракты;\n"
-            "- важные зависимости;\n"
-            "- факты, полезные для вопроса пользователя;\n"
-            "- потенциальные проблемы, если они прямо следуют из кода.\n"
-            "Каждый пункт должен ссылаться на файл, например `path/to/file.py`."
+            f"FILE CONTENT, POSSIBLY TRUNCATED:\n{file_text}\n\n"
+            "Return briefly:\n"
+            "- file purpose;\n"
+            "- key classes/functions/contracts;\n"
+            "- important dependencies;\n"
+            "- facts useful for the user question;\n"
+            "- potential issues if they directly follow from the code.\n"
+            "Each item must reference the file, for example `path/to/file.py`."
         )
         try:
             result = chat(
                 client=client,
                 model=args.model,
                 messages=[
-                    {"role": "system", "content": "Ты senior-разработчик, анализирующий кодовую базу для RAG-памяти."},
+                    {"role": "system", "content": "You are a senior developer analyzing a codebase for RAG memory. Write in English only."},
                     {"role": "user", "content": prompt},
                 ],
             )
@@ -522,27 +523,26 @@ def build_detailed_answer(client: Client, args: argparse.Namespace, query: str, 
     memory_tail = read_memory_tail(max_chars=14000)
     context = format_context(chunks)
     prompt = (
-        "Ответь на вопрос пользователя на том же языке, на котором задан вопрос. "
-        "Используй найденные источники как главный источник истины. "
-        "Рабочую память можно использовать только как дополнительный ориентир. "
-        "Не придумывай факты, которых нет в источниках. "
-        "Каждое важное утверждение подтверждай ссылкой на источник в формате `[path/to/file.ext:start-end]`. "
-        "Если данных недостаточно, прямо укажи, чего не хватает.\n\n"
-        "Формат ответа:\n"
-        "# Краткий ответ\n"
-        "# Подробный ответ\n"
-        "# Подтверждения из источников\n"
-        "# Ограничения ответа\n\n"
-        f"ВОПРОС:\n{query}\n\n"
-        f"РАБОЧАЯ MEMORY.MD, НЕ ИСТОЧНИК ИСТИНЫ:\n{memory_tail}\n\n"
-        f"НАЙДЕННЫЕ ИСТОЧНИКИ:\n{context}\n"
+        "Answer in English only, regardless of the user question language. "
+        "Use the retrieved sources as the primary source of truth. "
+        "Use the working memory only as additional guidance. "
+        "Do not invent facts that are not present in the sources. "
+        "Support every important claim with a source reference in the format `[path/to/file.ext:start-end]`. "
+        "If the available data is insufficient, clearly state what is missing.\n\n"
+        "Answer format:\n"
+        "# Short answer\n"
+        "# Detailed answer\n"
+        "# Source evidence\n"
+        "# Answer limitations\n\n"
+        f"QUESTION:\n{query}\n\n"
+        f"WORKING MEMORY.MD, NOT A SOURCE OF TRUTH:\n{memory_tail}\n\n"
+        f"RETRIEVED SOURCES:\n{context}\n"
     )
     return chat(
         client=client,
         model=args.model,
         messages=[
-            {"role": "system",
-             "content": "Ты senior-разработчик и аналитик кодовой базы. Отвечай строго по источникам."},
+            {"role": "system", "content": "You are a senior developer and codebase analyst. Answer strictly from the sources. Write in English only."},
             {"role": "user", "content": prompt},
         ],
     )
@@ -550,28 +550,28 @@ def build_detailed_answer(client: Client, args: argparse.Namespace, query: str, 
 
 def build_short_answer(client: Client, args: argparse.Namespace, query: str, detailed_answer: str) -> str:
     prompt = (
-        "Сделай краткий строковый ответ на том же языке, что и вопрос пользователя. "
-        "Длина: 1-3 предложения. Сохрани главный вывод и не добавляй новых фактов.\n\n"
-        f"ВОПРОС:\n{query}\n\n"
-        f"РАЗВЁРНУТЫЙ ОТВЕТ:\n{detailed_answer}"
+        "Create a short plain-text answer in English only, regardless of the user question language. "
+        "Length: 1-3 sentences. Keep the main conclusion and do not add new facts.\n\n"
+        f"QUESTION:\n{query}\n\n"
+        f"DETAILED ANSWER:\n{detailed_answer}"
     )
     return chat(
         client=client,
         model=args.model,
         messages=[
-            {"role": "system", "content": "Ты сжимаешь ответ без потери смысла."},
+            {"role": "system", "content": "You compress an answer without losing meaning."},
             {"role": "user", "content": prompt},
         ],
     )
 
 
 def save_result(
-        folder: Path,
-        args: argparse.Namespace,
-        query: str,
-        short_answer: str,
-        detailed_answer: str,
-        chunks: list[RetrievedChunk],
+    folder: Path,
+    args: argparse.Namespace,
+    query: str,
+    short_answer: str,
+    detailed_answer: str,
+    chunks: list[RetrievedChunk],
 ) -> Path:
     base_name = f"result_{datetime.now().strftime('%Y_%m_%d_%H_%M')}"
     output_path = script_dir() / f"{base_name}.md"
@@ -612,7 +612,7 @@ def main() -> int:
     args = parse_args()
     folder = Path(args.folder).expanduser().resolve()
     if not folder.exists() or not folder.is_dir():
-        print(f"Ошибка: папка не найдена или не является директорией: {folder}", file=sys.stderr)
+        print(f"Error: folder was not found or is not a directory: {folder}", file=sys.stderr)
         return 2
 
     ensure_memory(folder)
@@ -627,7 +627,7 @@ def main() -> int:
 
         chunks = retrieve(collection=collection, client=client, args=args, query=args.query)
         if not chunks:
-            raise RuntimeError("ChromaDB не вернула релевантные фрагменты.")
+            raise RuntimeError("ChromaDB did not return any relevant chunks.")
 
         detailed_answer = build_detailed_answer(client=client, args=args, query=args.query, chunks=chunks)
         short_answer = build_short_answer(client=client, args=args, query=args.query, detailed_answer=detailed_answer)
@@ -654,12 +654,12 @@ def main() -> int:
         return 0
     except ResponseError as error:
         print(f"Ollama error: {error}", file=sys.stderr)
-        print("Проверь, что Ollama запущена и модели загружены:", file=sys.stderr)
+        print("Check that Ollama is running and the models are available:", file=sys.stderr)
         print(f"  ollama pull {args.model}", file=sys.stderr)
         print(f"  ollama pull {args.embedding_model}", file=sys.stderr)
         return 1
     except Exception as error:
-        print(f"Ошибка: {error}", file=sys.stderr)
+        print(f"Error: {error}", file=sys.stderr)
         return 1
 
 
