@@ -29,13 +29,19 @@ def main() -> None:
     parser.add_argument("--failure-policy", choices=["fail", "analyze_anyway"], default="fail")
     parser.add_argument("--debug-artifacts", action="store_true")
     parser.add_argument("--skip-convert", action="store_true", help="Use --cases as-is and do not regenerate it first.")
+    parser.add_argument("--all-cases", action="store_true",
+                        help="Do not filter InfiAgent cases by chart answerability during conversion.")
     args = parser.parse_args()
 
     cases_path = Path(args.cases)
     if not args.skip_convert:
         paths = default_paths(args.source_root)
         print(f"Converting InfiAgent data from: {paths.source_root}")
-        convert_da_agent_dataset(source_root=args.source_root, output_path=cases_path)
+        convert_da_agent_dataset(
+            source_root=args.source_root,
+            output_path=cases_path,
+            chart_answerable_only=not args.all_cases,
+        )
 
     config = load_project_config(args.config)
     config.mode = "benchmark"

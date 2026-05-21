@@ -147,5 +147,7 @@ class CompactDataProfileService(BaseService):
                 "max": getattr(column, "max_value", None),
                 "sample_values": list(getattr(column, "sample_values", []) or [])[
                                  : int(settings.spec_generation_max_sample_values)],
+                "flags": list(getattr(column, "field_quality_flags", []) or []),
+                "recommended_preparation": list(getattr(column, "recommended_preparation", []) or []),
             })
         return payload

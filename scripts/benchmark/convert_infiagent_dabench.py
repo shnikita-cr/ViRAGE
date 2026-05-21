@@ -21,6 +21,8 @@ def main() -> None:
     parser.add_argument("--no-constraints", action="store_true", help="Do not append constraints to the user query.")
     parser.add_argument("--no-format", action="store_true",
                         help="Do not append required answer format to the user query.")
+    parser.add_argument("--chart-answerable-only", action="store_true",
+                        help="Write only cases that can reasonably be answered from a static chart image.")
     args = parser.parse_args()
 
     cases = convert_da_agent_dataset(
@@ -29,6 +31,7 @@ def main() -> None:
         include_constraints=not args.no_constraints,
         include_format=not args.no_format,
         dataset_name=args.dataset_name,
+        chart_answerable_only=args.chart_answerable_only,
     )
     print(f"Converted cases: {len(cases)}")
     print(f"Output: {Path(args.output).resolve()}")

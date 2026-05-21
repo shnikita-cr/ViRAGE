@@ -19,6 +19,10 @@ class DataColumnProfile(BaseModel):
     outlier_ratio: float = 0.0
     is_identifier: bool = False
     is_high_cardinality: bool = False
+    raw_dtype: str | None = None
+    missing_like_ratio: float = 0.0
+    field_quality_flags: list[str] = Field(default_factory=list)
+    recommended_preparation: list[str] = Field(default_factory=list)
 
 
 class DataProfile(BaseModel):

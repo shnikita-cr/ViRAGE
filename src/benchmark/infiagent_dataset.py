@@ -70,6 +70,61 @@ def scan_source_root(source_root: str | Path = DEFAULT_SOURCE_ROOT) -> dict[str,
         "label_samples": sample_labels,
     }
 
+CHART_ANSWERABLE_KEYWORDS = (
+    "compare", "comparison", "trend", "over time", "relationship", "versus", " vs ", "against",
+    "distribution", "spread", "outlier", "highest", "lowest", "largest", "smallest", "top", "bottom",
+    "increase", "decrease", "which", "more", "less", "higher", "lower", "difference between",
+)
+
+NOT_CHART_ANSWERABLE_KEYWORDS = (
+    "correlation coefficient", "pearson", "spearman", "p-value", "p value", "shapiro", "kolmogorov",
+    "normality test", "is normal", "rmse", "accuracy", "train", "test split", "one-hot", "one hot",
+    "regression model", "machine learning", "predict", "standard deviation", "variance", "calculate the exact",
+    "exact value", "hypothesis test", "statistical test",
+)
+
+NOT_CHART_ANSWERABLE_LABEL_PARTS = (
+    "correlation", "coefficient", "p_value", "p-value", "rmse", "accuracy", "is_normal", "std",
+    "standard_deviation", "variance", "model", "prediction",
+)
+
+
+def classify_chart_answerability(row: dict[str, Any], expected_parts: list[list[str]]) -> dict[str, Any]:
+    text = " ".join(
+        str(row.get(key, ""))
+        for key in ("question", "constraints", "format", "concepts", "level")
+    ).lower()
+    labels = " ".join(" ".join(str(part).lower() for part in item) for item in expected_parts)
+
+    matched_exclusions = [keyword for keyword in NOT_CHART_ANSWERABLE_KEYWORDS if keyword in text]
+    matched_label_exclusions = [keyword for keyword in NOT_CHART_ANSWERABLE_LABEL_PARTS if keyword in labels]
+    if matched_exclusions or matched_label_exclusions:
+        return {
+            "status": "requires_computation",
+            "is_chart_answerable": False,
+            "reason": "requires exact computation, statistical testing, or model evaluation",
+            "matched_keywords": matched_exclusions,
+            "matched_label_keywords": matched_label_exclusions,
+        }
+
+    matched_positive = [keyword for keyword in CHART_ANSWERABLE_KEYWORDS if keyword in text]
+    if matched_positive:
+        return {
+            "status": "answerable_by_chart",
+            "is_chart_answerable": True,
+            "reason": "question is a visual comparison/trend/distribution/relationship task",
+            "matched_keywords": matched_positive,
+            "matched_label_keywords": [],
+        }
+
+    return {
+        "status": "uncertain",
+        "is_chart_answerable": False,
+        "reason": "no strong visual-analysis cue found; excluded from strict chart-grounded benchmark",
+        "matched_keywords": [],
+        "matched_label_keywords": [],
+    }
+
 
 def convert_da_agent_dataset(
         *,
@@ -78,6 +133,7 @@ def convert_da_agent_dataset(
         include_constraints: bool = True,
         include_format: bool = True,
         dataset_name: str = "infiagent_dabench_da_dev",
+        chart_answerable_only: bool = False,
 ) -> list[dict[str, Any]]:
     paths = default_paths(source_root)
     errors = validate_paths(paths)
@@ -87,6 +143,7 @@ def convert_da_agent_dataset(
     labels = _load_labels_by_id(paths.labels_file)
     cases: list[dict[str, Any]] = []
     missing_tables: list[str] = []
+    excluded_cases: list[dict[str, Any]] = []
 
     for row in _iter_jsonl(paths.questions_file):
         case_id = str(row.get("id", "")).strip()
@@ -100,6 +157,15 @@ def convert_da_agent_dataset(
 
         expected_parts = labels.get(case_id, [])
         expected_answer = format_common_answers(expected_parts)
+        answerability = classify_chart_answerability(row, expected_parts)
+        if chart_answerable_only and not bool(answerability.get("is_chart_answerable")):
+            excluded_cases.append({
+                "case_id": f"infiagent_{case_id}",
+                "file_name": file_name,
+                "reason": answerability.get("reason", "not chart-answerable"),
+                "answerability": answerability,
+            })
+            continue
         question = build_query_text(row, include_constraints=include_constraints, include_format=include_format)
         cases.append({
             "case_id": f"infiagent_{case_id}",
@@ -118,6 +184,7 @@ def convert_da_agent_dataset(
                 "format": row.get("format", ""),
                 "common_answers": expected_parts,
                 "original_question": row.get("question", ""),
+                "chart_answerability": answerability,
             },
         })
 
@@ -131,6 +198,9 @@ def convert_da_agent_dataset(
         "dataset_name": dataset_name,
         "source_paths": paths.as_dict(),
         "cases_written": len(cases),
+        "chart_answerable_only": chart_answerable_only,
+        "excluded_cases_count": len(excluded_cases),
+        "excluded_cases": excluded_cases[:100],
         "missing_tables_count": len(missing_tables),
         "missing_tables": missing_tables[:50],
         "include_constraints": include_constraints,

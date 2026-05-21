@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, Field, model_validator
@@ -70,6 +71,10 @@ class _QueryRequestAnalysisSchema(BaseModel):
     chart_quality_requirements: list[str] = Field(default_factory=list)
     rag_queries: list[str] = Field(default_factory=list)
     visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
+    analysis_task: str = "descriptive_analytics"
+    recommended_chart_family: str = "auto"
+    aggregation_plan: dict[str, Any] = Field(default_factory=dict)
+    chart_answerability: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -98,6 +103,14 @@ class QueryRequestAnalysisResult(BaseModel):
     chart_quality_requirements: list[str] = Field(default_factory=list)
     rag_queries: list[str] = Field(default_factory=list)
     visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
+    analysis_task: str = "descriptive_analytics"
+    recommended_chart_family: str = "auto"
+    aggregation_plan: dict[str, Any] = Field(default_factory=dict)
+    chart_answerability: dict[str, Any] = Field(default_factory=dict)
+    analysis_task: str = "descriptive_analytics"
+    recommended_chart_family: str = "auto"
+    aggregation_plan: dict[str, Any] = Field(default_factory=dict)
+    chart_answerability: dict[str, Any] = Field(default_factory=dict)
 
 
 class QueryRequestAnalyzerService(BaseService):
@@ -131,7 +144,11 @@ class QueryRequestAnalyzerService(BaseService):
             "Return one strict JSON object matching the schema. Use exact original field names for selected_fields, "
             "grounded_fields, mappings.column_name, and missing_fields. Do not invent fields.\n"
             "Also return chart quality requirements that the generated chart must satisfy. These requirements must include "
-            "readable axis titles, readable labels, required legends, data source/field names, and aggregation names where aggregation is used.\n\n"
+            "readable axis titles, readable labels, required legends, data source/field names, and aggregation names where aggregation is used.\n"
+            "Determine analysis_task, recommended_chart_family, aggregation_plan, and chart_answerability. "
+            "Do not delegate chart type or aggregation choice to retrieved examples: retrieval may suggest patterns, but this analyzer must provide the primary recommendation.\n"
+            "Use these chart task guidelines: trend over date/year/time -> line; relationship/against/versus between two numeric fields -> point/scatter; distribution -> histogram or boxplot; group comparison -> bar; composition/share/broken down by -> stacked bar when part-to-whole is intended.\n"
+            "For chart_answerability, mark answerable_by_chart only when a static chart can reasonably answer the question without exact hidden calculations, statistical tests, model training, or table-only computation.\n\n"
             f"User request:\n{query}\n\n"
             f"User context:\n{context_lines}\n\n"
             f"Dataset profile:\n{self._profile_context(data_profile, compact_data_profile)}\n"
@@ -184,6 +201,13 @@ class QueryRequestAnalyzerService(BaseService):
             missing_fields=self._dedupe(parsed.missing_fields),
             confidence=parsed.confidence,
         )
+        task_policy = self._task_policy(parsed, original_query, request)
+        recommended_chart = str(task_policy.get("recommended_chart_family") or "").strip()
+        if recommended_chart:
+            understanding = understanding.model_copy(update={
+                "candidate_charts": self._dedupe([recommended_chart, *understanding.candidate_charts]),
+                "task_type": task_policy.get("analysis_task") or understanding.task_type,
+            })
         return QueryRequestAnalysisResult(
             query_understanding=understanding,
             request_analysis=request,
@@ -191,11 +215,88 @@ class QueryRequestAnalyzerService(BaseService):
             visual_constraints=self._dedupe(parsed.visual_constraints),
             chart_quality_requirements=self._quality_requirements(parsed.chart_quality_requirements),
             rag_queries=self._dedupe(parsed.rag_queries),
-            visual_judge_requirements=self._normalize_visual_judge_requirements(parsed),
+            visual_judge_requirements=self._normalize_visual_judge_requirements(parsed, task_policy),
+            analysis_task=task_policy["analysis_task"],
+            recommended_chart_family=task_policy["recommended_chart_family"],
+            aggregation_plan=task_policy["aggregation_plan"],
+            chart_answerability=task_policy["chart_answerability"],
         )
 
     @staticmethod
-    def _normalize_visual_judge_requirements(parsed: _QueryRequestAnalysisSchema) -> dict[str, Any]:
+    def _task_policy(
+            parsed: _QueryRequestAnalysisSchema,
+            original_query: str,
+            request: RequestAnalysisResult,
+    ) -> dict[str, Any]:
+        text = " ".join([original_query, parsed.intent, parsed.task_type, parsed.analysis_goal]).lower()
+        operations_text = " ".join(parsed.requested_operations).lower()
+        selected_count = len(request.selected_fields)
+
+        analysis_task = (parsed.analysis_task or parsed.task_type or "descriptive_analytics").strip()
+        recommended_chart = (parsed.recommended_chart_family or "").strip().lower()
+        aggregation = dict(parsed.aggregation_plan or {})
+
+        if re.search(r"\b(over time|trend|by year|by month|per year|per month|time series)\b", text):
+            analysis_task = "trend"
+            recommended_chart = "line"
+        elif re.search(r"\b(relationship|correlation|against|versus|vs\.?|scatter)\b", text) and selected_count >= 2:
+            analysis_task = "relationship"
+            recommended_chart = "point"
+        elif re.search(r"\b(distribution|spread|histogram|frequency)\b", text):
+            analysis_task = "distribution"
+            recommended_chart = "histogram"
+        elif re.search(r"\b(share|proportion|composition|part[- ]?to[- ]?whole|broken down by)\b", text):
+            analysis_task = "composition"
+            recommended_chart = "stacked_bar"
+        elif re.search(r"\b(compare|comparison|highest|lowest|largest|smallest|rank|ranking|top|bottom|by category|between groups?)\b", text):
+            analysis_task = "comparison"
+            recommended_chart = recommended_chart if recommended_chart not in {"", "auto"} else "bar"
+        elif recommended_chart in {"", "auto"}:
+            recommended_chart = QueryRequestAnalyzerService._normalize_chart_names(parsed.candidate_charts[:1] or ["bar"])[0]
+
+        if not aggregation:
+            agg = "none"
+            if re.search(r"\b(average|mean)\b", text):
+                agg = "mean"
+            elif re.search(r"\b(total|sum)\b", text):
+                agg = "sum"
+            elif re.search(r"\b(count|number of|how many)\b", text):
+                agg = "count"
+            elif re.search(r"\b(median)\b", text):
+                agg = "median"
+            elif re.search(r"\b(maximum|max|highest|largest)\b", text):
+                agg = "max"
+            elif re.search(r"\b(minimum|min|lowest|smallest)\b", text):
+                agg = "min"
+            elif "aggregate:" in operations_text:
+                agg = operations_text.split("aggregate:", 1)[1].split()[0].strip(" ,;.") or "auto"
+            aggregation = {"operation": agg, "source": "heuristic_from_query"}
+
+        chart_answerability = dict(parsed.chart_answerability or {})
+        answerability_status = str(chart_answerability.get("status") or "").strip().lower()
+        if not answerability_status:
+            not_chart_keywords = (
+                "p-value", "p value", "shapiro", "kolmogorov", "normality test", "rmse",
+                "model accuracy", "train", "test split", "one-hot", "one hot", "regression model",
+                "correlation coefficient", "exact coefficient", "standard deviation", "variance"
+            )
+            if any(keyword in text for keyword in not_chart_keywords):
+                answerability_status = "requires_computation"
+                reason = "The request asks for exact statistical/model computation rather than a chart-readable visual answer."
+            else:
+                answerability_status = "answerable_by_chart"
+                reason = "The request can reasonably be answered from a static chart."
+            chart_answerability = {"status": answerability_status, "reason": reason}
+
+        return {
+            "analysis_task": analysis_task or "descriptive_analytics",
+            "recommended_chart_family": recommended_chart or "auto",
+            "aggregation_plan": aggregation,
+            "chart_answerability": chart_answerability,
+        }
+
+    @staticmethod
+    def _normalize_visual_judge_requirements(parsed: _QueryRequestAnalysisSchema, task_policy: dict[str, Any] | None = None) -> dict[str, Any]:
         raw = dict(parsed.visual_judge_requirements or {})
         must_be_visible = QueryRequestAnalyzerService._dedupe([
             *[str(item) for item in raw.get("must_be_visible", []) if str(item).strip()],
@@ -212,11 +313,21 @@ class QueryRequestAnalyzerService(BaseService):
                 f"Is {field} visibly represented by an axis, legend, panel, label, color, shape, size, or another visible mark?"
                 for field in parsed.selected_fields[:6]],
         ])
+        policy = dict(task_policy or {})
+        recommended_chart = str(policy.get("recommended_chart_family") or parsed.recommended_chart_family or "auto")
+        analysis_task = str(policy.get("analysis_task") or parsed.analysis_task or parsed.task_type or "descriptive_analytics")
+        if recommended_chart and recommended_chart != "auto":
+            must_be_visible.append(f"The chart should visually use a {recommended_chart} chart family unless the data makes that impossible.")
+            questions.append(f"Does the visible chart type match the intended {analysis_task} task and {recommended_chart} chart family?")
         return {
-            "must_be_visible": must_be_visible,
+            "must_be_visible": QueryRequestAnalyzerService._dedupe(must_be_visible),
             "acceptable_visual_encodings": raw.get("acceptable_visual_encodings", {}),
             "critical_failures": critical_failures,
-            "yes_no_questions": questions[:12],
+            "yes_no_questions": QueryRequestAnalyzerService._dedupe(questions)[:12],
+            "analysis_task": analysis_task,
+            "recommended_chart_family": recommended_chart,
+            "aggregation_plan": policy.get("aggregation_plan", parsed.aggregation_plan or {}),
+            "chart_answerability": policy.get("chart_answerability", parsed.chart_answerability or {}),
         }
 
     def _normalize_variants(self, values: list[_QueryVariantSchema], original_query: str, rag_queries: list[str]) -> \
@@ -305,4 +416,8 @@ class QueryRequestAnalyzerService(BaseService):
                 "critical_failures": ["The requested metric is not visible in the static chart."],
                 "yes_no_questions": ["Does the chart visibly compare the requested fields?"],
             },
+            "analysis_task": "comparison",
+            "recommended_chart_family": "bar",
+            "aggregation_plan": {"operation": "mean", "source": "example"},
+            "chart_answerability": {"status": "answerable_by_chart", "reason": "The question asks for a visual comparison."},
         }

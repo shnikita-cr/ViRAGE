@@ -18,7 +18,7 @@ from src.benchmark.resume import load_case_results, should_reuse_case
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegalite_plot_drawing import VegaLitePlotDrawingService
-from src.services.visual_feedback.semantic_chart_judge import SemanticChartJudgeService
+from src.services.visual_feedback.visual_chart_judge import VisualChartJudgeService
 
 
 class VLMJudgeBenchmarkResult(BaseModel):
@@ -100,14 +100,14 @@ class VLMJudgeBenchmarkRunner:
     """Evaluate VisualChartJudge on rendered ground-truth specs.
 
     This benchmark does not run ViRAGE generation. It renders each case's ground-truth Vega-Lite spec and passes only
-    the rendered PNG plus the user query into SemanticChartJudgeService. The judge must derive criteria internally.
+    the rendered PNG plus the user query into VisualChartJudgeService. The judge must derive criteria internally.
     """
 
     def __init__(self, pipeline: ViRAGEPipeline) -> None:
         self.pipeline = pipeline
         self.validator = SpecValidatorService()
         self.renderer = VegaLitePlotDrawingService()
-        self.judge = SemanticChartJudgeService()
+        self.judge = VisualChartJudgeService()
 
     def run_dataset(
             self,

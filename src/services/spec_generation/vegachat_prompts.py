@@ -148,6 +148,10 @@ def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
     """Add ChartSquared-style pre-generation criteria without adding a new runtime module."""
     requirements = dict(getattr(request, "visual_judge_requirements", {}) or {})
     payload = {
+        "analysis_task": requirements.get("analysis_task"),
+        "recommended_chart_family": requirements.get("recommended_chart_family"),
+        "aggregation_plan": requirements.get("aggregation_plan", {}),
+        "chart_answerability": requirements.get("chart_answerability", {}),
         "must_be_visible": requirements.get("must_be_visible", []),
         "acceptable_visual_encodings": requirements.get("acceptable_visual_encodings", {}),
         "critical_failures_to_avoid": requirements.get("critical_failures", []),

@@ -47,8 +47,8 @@ class ChartAnswerJudgeResult(BaseModel):
     feedback_for_next_generation: str = ""
 
 
-class SemanticChartJudgeResult(BaseModel):
-    """Strict one-call VLM judge for chart-grounded semantic feedback."""
+class VisualChartJudgeResult(BaseModel):
+    """Strict one-call VLM judge for chart-grounded visual feedback."""
 
     input_scope: Literal["png_query_visual_requirements"] = "png_query_visual_requirements"
     chart_description: str = ""
@@ -69,6 +69,10 @@ class SemanticChartJudgeResult(BaseModel):
     feedback_for_next_generation: str = ""
     is_blank_or_unreadable: bool = False
     rationales: dict[str, str] = Field(default_factory=dict)
+
+
+# Backward-compatible alias for saved artifacts/tests that still import the old model name.
+SemanticChartJudgeResult = VisualChartJudgeResult
 
 
 class ChartGroundedAnalysisRecord(BaseModel):

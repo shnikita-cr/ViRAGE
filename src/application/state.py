@@ -31,6 +31,7 @@ from src.domain.models import (
     VLMChartDescriptionResult,
     VisualFeedbackExample,
     SemanticChartJudgeResult,
+    VisualChartJudgeResult,
     ChartGroundedAnalysisRecord,
     ChartRevisionRecord,
 )
@@ -76,6 +77,7 @@ class PipelineState(TypedDict, total=False):
     vlm_chart_description: NotRequired[VLMChartDescriptionResult]
     chart_fact_summary: NotRequired[ChartFactSummaryResult]
     chart_answer_judge: NotRequired[ChartAnswerJudgeResult]
+    visual_chart_judge: NotRequired[VisualChartJudgeResult]
     semantic_chart_judge: NotRequired[SemanticChartJudgeResult]
     chart_analysis: NotRequired[ChartGroundedAnalysisRecord]
     chart_revision_record: NotRequired[ChartRevisionRecord]

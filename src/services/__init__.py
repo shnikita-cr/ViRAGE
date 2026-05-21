@@ -3,9 +3,6 @@ from .data_preparation import DataPreparationService
 from .data_profiler import DataProfilerService
 from .empty_chart_check import EmptyChartCheckService
 from .evaluation_summary import EvaluationSummaryService
-from .fact_extractor import FactExtractorService
-from .insights import InsightsService
-from .reasoner import ReasonerService
 from .scenegraph_check import ScenegraphCheckService
 from .spec_score import SpecScoreService
 from .spec_validator import SpecValidatorService
@@ -20,9 +17,6 @@ __all__ = [
     "DataProfilerService",
     "EmptyChartCheckService",
     "EvaluationSummaryService",
-    "FactExtractorService",
-    "InsightsService",
-    "ReasonerService",
     "ScenegraphCheckService",
     "SpecScoreService",
     "SpecValidatorService",

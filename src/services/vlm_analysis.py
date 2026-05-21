@@ -75,7 +75,7 @@ class VLMAnalysisService(BaseService):
     def _prompt(analysis_rubric: AnalysisRubric) -> str:
         return (
             "You are VLMChartAnalysisAI. Analyze only the accepted rendered chart image. "
-            "Do not decide whether the chart must be regenerated; that is handled by SemanticChartJudgeAI. "
+            "Do not decide whether the chart must be regenerated; that is handled by VisualChartJudgeAI. "
             "Do not assume access to the source table. Extract useful, chart-grounded insights for the user.\n\n"
             f"Analysis rubric JSON:\n{analysis_rubric.model_dump_json(indent=2)}\n\n"
             "Return structured JSON with:\n"

@@ -155,11 +155,25 @@ AutoRAG используется offline для выбора retrieval-конф�
 - duration;
 - token usage.
 
-Второе направление — качество аналитической системы. Для него подготовлен лёгкий runner, ориентированный на chart-grounded analysis и последующую адаптацию под InfiAgent-DABench:
+Второе направление — качество аналитической системы через chart-grounded режим. Для InfiAgent-DABench используется локальная структура:
 
-    python scripts/benchmark/run_analysis_agent_smoke.py
+    Datasets/InfiAgent/examples/DA-Agent/data/da-dev-questions.jsonl
+    Datasets/InfiAgent/examples/DA-Agent/data/da-dev-labels.jsonl
+    Datasets/InfiAgent/examples/DA-Agent/data/da-dev-tables/
 
-Финальный анализ должен опираться на принятое изображение графика, а не на прямой расчёт по таблице.
+Проверка структуры:
+
+    python scripts/benchmark/infiagent_scan.py
+
+Конвертация только задач, которые можно разумно ответить по графику:
+
+    python scripts/benchmark/convert_infiagent_dabench.py --chart-answerable-only
+
+Запуск benchmark:
+
+    python scripts/benchmark/run_infiagent_chart_grounded.py --limit 10
+
+Финальный анализ должен опираться на принятое изображение графика, а не на прямой расчёт по таблице. Для диагностического полного набора можно добавить `--all-cases`.
 
 ## Установка
 

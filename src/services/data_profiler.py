@@ -13,6 +13,7 @@ from src.services.data import read_dataframe
 
 _TEMPORAL_NAME_RE = re.compile(r"(^|[_\s-])(date|time|timestamp|year|month|day)([_\s-]|$)", re.IGNORECASE)
 _ID_NAME_RE = re.compile(r"(^|[_\s-])(id|uuid|guid|key)([_\s-]|$)", re.IGNORECASE)
+_MISSING_LIKE_VALUES = {"", "-", "--", "---", "na", "n/a", "nan", "none", "null", "missing"}
 
 
 class DataProfilerService(BaseService):
@@ -144,7 +145,9 @@ class DataProfilerService(BaseService):
             sample_size: int = 5,
     ) -> tuple[DataColumnProfile, list[str]]:
         quality_notes: list[str] = []
+        raw_dtype = str(series.dtype)
         missing_ratio = float(series.isna().mean()) if row_count else 0.0
+        missing_like_ratio = self._missing_like_ratio(series)
         unique_count = int(series.nunique(dropna=True))
         semantic_dtype = self._semantic_dtype(column_name, series)
         min_value, max_value, min_max_note = self._min_max(column_name, series, semantic_dtype)
@@ -154,15 +157,33 @@ class DataProfilerService(BaseService):
         outlier_count, outlier_ratio = self._outlier_stats(series, semantic_dtype)
         is_identifier = self._looks_identifier(column_name, unique_count, row_count)
         is_high_cardinality = semantic_dtype == "categorical" and unique_count > max(50, int(row_count * 0.5))
+        flags = self._field_quality_flags(
+            column_name=column_name,
+            series=series,
+            semantic_dtype=semantic_dtype,
+            missing_ratio=missing_ratio,
+            missing_like_ratio=missing_like_ratio,
+            unique_count=unique_count,
+            row_count=row_count,
+            is_identifier=is_identifier,
+            is_high_cardinality=is_high_cardinality,
+        )
+        recommended_preparation = self._recommended_preparation(flags, semantic_dtype)
 
         if missing_ratio >= 0.5:
             quality_notes.append(f"Column '{column_name}' has high missing ratio ({missing_ratio:.0%}).")
+        if missing_like_ratio >= 0.02:
+            quality_notes.append(
+                f"Column '{column_name}' contains missing-like string values ({missing_like_ratio:.0%}); treat them as nulls before numeric/statistical use."
+            )
         if unique_count <= 1 and row_count > 0:
             quality_notes.append(f"Column '{column_name}' is constant or nearly constant.")
         if is_identifier:
             quality_notes.append(f"Column '{column_name}' looks like an identifier.")
         if is_high_cardinality:
             quality_notes.append(f"Column '{column_name}' has high cardinality for a categorical field.")
+        if "numeric_string" in flags:
+            quality_notes.append(f"Column '{column_name}' looks numeric but is stored as text.")
         if outlier_count:
             quality_notes.append(
                 f"Column '{column_name}' has {outlier_count} potential numeric outliers ({outlier_ratio:.1%})."
@@ -183,9 +204,69 @@ class DataProfilerService(BaseService):
                 outlier_ratio=outlier_ratio,
                 is_identifier=is_identifier,
                 is_high_cardinality=is_high_cardinality,
+                raw_dtype=raw_dtype,
+                missing_like_ratio=missing_like_ratio,
+                field_quality_flags=flags,
+                recommended_preparation=recommended_preparation,
             ),
             quality_notes,
         )
+
+    @staticmethod
+    def _missing_like_ratio(series: pd.Series) -> float:
+        non_null = series.dropna()
+        if non_null.empty:
+            return 0.0
+        normalized = non_null.astype(str).str.strip().str.lower()
+        return float(normalized.isin(_MISSING_LIKE_VALUES).mean())
+
+    @classmethod
+    def _field_quality_flags(
+            cls,
+            *,
+            column_name: str,
+            series: pd.Series,
+            semantic_dtype: str,
+            missing_ratio: float,
+            missing_like_ratio: float,
+            unique_count: int,
+            row_count: int,
+            is_identifier: bool,
+            is_high_cardinality: bool,
+    ) -> list[str]:
+        flags: list[str] = []
+        if missing_ratio >= 0.5:
+            flags.append("many_missing")
+        if missing_like_ratio >= 0.02:
+            flags.append("missing_like_strings")
+        if is_identifier:
+            flags.append("identifier_like")
+        if is_high_cardinality:
+            flags.extend(["high_cardinality", "unsafe_for_color"])
+        if cls._is_temporal_name(column_name) or semantic_dtype == "datetime":
+            flags.append("year_like" if cls._is_year_like(column_name, series.dropna()) else "temporal_like")
+        if semantic_dtype == "numeric" and not pd.api.types.is_numeric_dtype(series):
+            flags.append("numeric_string")
+        if semantic_dtype == "numeric" and not is_identifier:
+            flags.append("good_for_measure")
+        if semantic_dtype in {"categorical", "boolean"} and not is_identifier and not is_high_cardinality:
+            flags.append("good_for_grouping")
+        if unique_count <= 1 and row_count > 0:
+            flags.append("constant_or_nearly_constant")
+        return cls._dedupe(flags)
+
+    @staticmethod
+    def _recommended_preparation(flags: list[str], semantic_dtype: str) -> list[str]:
+        recommendations: list[str] = []
+        if "missing_like_strings" in flags:
+            recommendations.append("normalize_missing_like_strings")
+        if "numeric_string" in flags:
+            recommendations.append("coerce_text_to_numeric")
+        if semantic_dtype == "datetime" or "year_like" in flags:
+            recommendations.append("normalize_temporal_values")
+        if "unsafe_for_color" in flags:
+            recommendations.append("avoid_color_encoding_without_filtering_or_faceting")
+        return recommendations
 
     def _semantic_dtype(self, column: str, series: pd.Series) -> str:
         non_null = series.dropna()
@@ -389,6 +470,10 @@ class DataProfilerService(BaseService):
             outlier_ratio=0.0,
             is_identifier=self._looks_identifier(column_name, int(series.nunique(dropna=True)), row_count),
             is_high_cardinality=False,
+            raw_dtype=str(series.dtype),
+            missing_like_ratio=self._missing_like_ratio(series),
+            field_quality_flags=["degraded_profile"],
+            recommended_preparation=["review_profile_column_errors"],
         )
 
     @staticmethod
