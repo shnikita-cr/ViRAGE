@@ -323,5 +323,12 @@ __all__ = [
     'SemanticFeedbackLoopSummary',
     'StepLog',
     'VLMAnalysisResult',
+    'ChartAnswerJudgeService',
+    'ChartFactSummaryService',
+    'FeedbackCorpusWriterService',
+    'VisualChartJudgeAdapters',
+    'VisualChartJudgeService',
+    'VLMChartDescriptionService',
+    'VLMAnalysisService',
     'traceable',
 ]

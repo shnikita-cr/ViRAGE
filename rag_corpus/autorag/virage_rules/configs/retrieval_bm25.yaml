@@ -1,0 +1,12 @@
+# AutoRAG retrieval experiment placeholder for ViRAGE rule corpus.
+# Use rag_corpus/autorag/virage_rules/corpus.parquet and qa.parquet as inputs.
+# This file is intentionally minimal because AutoRAG versions may differ.
+node_lines:
+  - node_line_name: retrieve_node_line
+    nodes:
+      - node_type: retrieval
+        strategy:
+          metrics: [retrieval_f1, retrieval_recall]
+        modules:
+          - module_type: bm25
+            top_k: [3, 5, 8]

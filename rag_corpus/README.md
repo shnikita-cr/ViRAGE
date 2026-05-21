@@ -1,43 +1,43 @@
-# ViRAGE RAG corpus workspace
+# ViRAGE RAG Corpus
 
-This folder stores only offline RAG assets and scripts.
+This directory stores the offline corpus pipeline for ViRAGE rule/guidance retrieval.
 
-## Runtime corpus
+The new corpus does **not** store runtime Vega-Lite specifications. Runtime retrieval should return guidance records such as chart patterns, readability rules, scale/plot-area rules, and VLM readability rules. `ChartGeneratorService` remains responsible for producing the final Vega-Lite specification.
 
-`rag_corpus/data/` is read by `src.visrag_core` at runtime. It must contain prepared JSON/JSONL rows with the fields expected by `VisRAGCorpus`:
+## Layout
 
-- `id`
-- `instruction`
-- `chart_type`
-- `field_roles`
-- `spec_template`
+- `raw/` — source datasets and raw inputs. Do not use directly at runtime.
+- `extracted/` — normalized source records extracted from raw files.
+- `processed/` — LLM-normalized rule records.
+- `autorag/virage_rules/` — AutoRAG parquet exports and reports.
+- `runtime/` — compact runtime export for future VisRAG rule retrieval.
+- `reports/` — corpus preparation summaries.
 
-## Iteration 1 AutoRAG assets
+## Record types
 
-`rag_corpus/normalized/jsonl/` contains normalized source corpora for benchmark/export.
-`rag_corpus/eval/` contains QA benchmark files.
-`rag_corpus/autorag/main/` is the default AutoRAG export target.
+- `chart_pattern` — which visualization family fits a task.
+- `readability_rule` — how to keep the chart readable.
+- `scale_plot_area_rule` — how to use plot area well and handle outlier-compressed charts carefully.
+- `vlm_readability_rule` — what must be visible in a static PNG for VLM judge/analysis.
 
-## Commands
+## Main commands
 
-Validate corpus and QA:
+Prepare processed records with Ollama:
 
-```bash
-python rag_corpus/scripts/validate_visrag_corpus.py \
-  --corpus-root rag_corpus/normalized/jsonl \
-  --qa-root rag_corpus/eval \
-  --out-dir rag_corpus/reports \
-  --strict
-```
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
 
-Export AutoRAG parquet:
+Prepare processed records with OpenAI:
 
-```bash
-python rag_corpus/scripts/export_autorag_dataset.py \
-  --corpus-src rag_corpus/normalized/jsonl \
-  --qa-src rag_corpus/eval \
-  --out-dir rag_corpus/autorag/main \
-  --strict
-```
+    python scripts/rag_corpus/run_prepare_corpus.py --provider openai --model gpt-4.1-mini
 
-Parquet export requires `pandas` and either `pyarrow` or `fastparquet`.
+Export AutoRAG files:
+
+    python scripts/rag_corpus/run_export_autorag.py
+
+Export runtime rules:
+
+    python scripts/rag_corpus/run_export_runtime.py
+
+## Important policy
+
+Runtime rule documents must not contain Vega-Lite `mark`, `encoding`, `$schema`, or `spec_template` payloads. They should provide concise generation guidance, not templates for copying.

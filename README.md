@@ -111,28 +111,30 @@ ViRAGE не использует оригинальный LLM-wrapper C-2. Вс�
 
 ## RAG-корпуса
 
-Серьёзные RAG-корпуса должны строиться из исходных датасетов, а не из вручную подготовленных демонстрационных записей.
+RAG-корпуса готовятся offline и больше не строятся вокруг готовых Vega-Lite spec-шаблонов. VisRAG должен возвращать правила и guidance, а конкретную Vega-Lite спецификацию строит `ChartGeneratorService`.
 
-Рекомендуемые источники:
+Основные типы документов:
 
-- Vega-Lite examples;
-- NLV corpus;
-- ChartLLM / VL2NL;
-- nvBench;
-- ChartUIE-8K;
-- Draco;
-- CompassQL / Voyager.
+- `chart_pattern` — какой визуальный паттерн подходит задаче;
+- `readability_rule` — как сделать график читаемым;
+- `scale_plot_area_rule` — как использовать площадь графика и не дать выбросам сжать основную структуру данных;
+- `vlm_readability_rule` — что должно быть видно в статичном PNG для VLM judge и VLM analysis.
 
-LLM-processing scripts должны преобразовывать исходники в записи следующих типов:
+Структура корпуса:
 
-- chart pattern;
-- visual requirement;
-- design constraint;
-- repair rule;
-- judge rule;
-- analysis rule.
+    rag_corpus/raw          исходные датасеты и feedback
+    rag_corpus/extracted    унифицированные source records
+    rag_corpus/processed    LLM-нормализованные rule records
+    rag_corpus/autorag      parquet-файлы для AutoRAG
+    rag_corpus/runtime      компактный runtime export
 
-AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный конфиг VisRAG.
+Подготовка выполняется через LLM-normalization с Ollama или OpenAI:
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
+    python scripts/rag_corpus/run_export_autorag.py
+    python scripts/rag_corpus/run_export_runtime.py
+
+AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `virage_rules.jsonl`.
 
 ## Benchmark
 

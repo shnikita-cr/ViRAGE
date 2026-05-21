@@ -1,0 +1,77 @@
+{
+  "raw_root": "/mnt/data/virage_corpus_work/rag_corpus/raw",
+  "sources": {
+    "chartllm": {
+      "by_suffix": {},
+      "file_count": 0,
+      "files": [],
+      "truncated": false
+    },
+    "chartsquared": {
+      "by_suffix": {},
+      "file_count": 0,
+      "files": [],
+      "truncated": false
+    },
+    "chartuie_8k": {
+      "by_suffix": {},
+      "file_count": 0,
+      "files": [],
+      "truncated": false
+    },
+    "manual_rules": {
+      "by_suffix": {
+        ".yaml": 1
+      },
+      "file_count": 1,
+      "files": [
+        {
+          "path": "/mnt/data/virage_corpus_work/rag_corpus/raw/manual_rules/seed_rules.yaml",
+          "relative_path": "manual_rules/seed_rules.yaml",
+          "size_bytes": 3830,
+          "suffix": ".yaml"
+        }
+      ],
+      "truncated": false
+    },
+    "nlv": {
+      "by_suffix": {},
+      "file_count": 0,
+      "files": [],
+      "truncated": false
+    },
+    "nvbench": {
+      "by_suffix": {},
+      "file_count": 0,
+      "files": [],
+      "truncated": false
+    },
+    "vega_lite_examples": {
+      "by_suffix": {},
+      "file_count": 0,
+      "files": [],
+      "truncated": false
+    },
+    "virage_feedback": {
+      "by_suffix": {
+        ".jsonl": 2
+      },
+      "file_count": 2,
+      "files": [
+        {
+          "path": "/mnt/data/virage_corpus_work/rag_corpus/raw/virage_feedback/visual_feedback.jsonl",
+          "relative_path": "virage_feedback/visual_feedback.jsonl",
+          "size_bytes": 193278,
+          "suffix": ".jsonl"
+        },
+        {
+          "path": "/mnt/data/virage_corpus_work/rag_corpus/raw/virage_feedback/visual_feedback_nlv.jsonl",
+          "relative_path": "virage_feedback/visual_feedback_nlv.jsonl",
+          "size_bytes": 108488,
+          "suffix": ".jsonl"
+        }
+      ],
+      "truncated": false
+    }
+  }
+}

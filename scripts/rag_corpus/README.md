@@ -1,39 +1,34 @@
-# RAG corpus scripts
+# ViRAGE RAG corpus scripts
 
-The scripts are numbered to make the corpus pipeline repeatable.
+These scripts prepare offline RAG corpora for ViRAGE. The pipeline is LLM-normalization based and produces rule/guidance documents, not Vega-Lite spec templates.
 
-## Raw source bootstrap
+## Basic flow
 
-These steps are optional after `rag_corpus/raw` is already available.
+    python scripts/rag_corpus/sources/scan_sources.py
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
+    python scripts/rag_corpus/run_export_autorag.py
+    python scripts/rag_corpus/run_export_runtime.py
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\rag_corpus\00_load_raw_repositories.ps1
-powershell -ExecutionPolicy Bypass -File scripts\rag_corpus\01_load_chart_llm_hf.ps1
-powershell -ExecutionPolicy Bypass -File scripts\rag_corpus\02_generate_raw_manifest.ps1
-powershell -ExecutionPolicy Bypass -File scripts\rag_corpus\03_append_chart_llm_hf_manifest.ps1
-python scripts\rag_corpus\04_inspect_raw_corpus.py --raw-root rag_corpus\raw --out-dir rag_corpus\reports
-```
+## With OpenAI
 
-## Current repeatable pipeline from cleaned corpus
+    python scripts/rag_corpus/run_prepare_corpus.py --provider openai --model gpt-4.1-mini
 
-Use this after `rag_corpus/cleaned` has been curated manually.
+## Resume / retry
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\rag_corpus\10_run_pipeline_from_cleaned.ps1
-```
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --resume
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --retry-failed
 
-This runs:
+## Folder roles
 
-1. cleaned inventory;
-2. Vega-Lite normalization;
-3. AutoRAG corpus export;
-4. AutoRAG QA export;
-5. ViRAGE runtime corpus export;
-6. real-corpus VisRAG pytest smoke tests.
+- `common/` — shared schemas, IO, LLM client, validation.
+- `sources/` — extraction from raw datasets.
+- `normalize/` — LLM normalization, merge, dedupe, validation.
+- `autorag/` — export to AutoRAG parquet files.
+- `runtime/` — export compact runtime rule documents.
 
-## File roles
+## Rule types
 
-- `rag_corpus/normalized/jsonl/*.jsonl` is the source-of-truth normalized corpus.
-- `rag_corpus/autorag/**/*.parquet` is derived data for AutoRAG offline evaluation.
-- `rag_corpus/data/*.jsonl` is the runtime corpus consumed by `src/visrag_core`.
-- Smoke checks live in `tests/integration`, not in `scripts/rag_corpus`.
+- `chart_pattern`
+- `readability_rule`
+- `scale_plot_area_rule`
+- `vlm_readability_rule`
