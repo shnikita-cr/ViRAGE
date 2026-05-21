@@ -4,7 +4,7 @@ import json
 
 from pydantic import BaseModel, Field
 
-from src.domain.models import ChartAnswerJudgeResult, ChartFactSummaryResult, RequestAnalysisResult
+from src.domain.models import ChartAnswerJudgeResult, ChartFactSummaryResult, QueryRequestAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_structured
 from src.services.base import BaseService
@@ -27,7 +27,7 @@ class ChartAnswerJudgeService(BaseService):
             query: str,
             chart_facts: ChartFactSummaryResult,
             runtime: RuntimeContext,
-            request_analysis: RequestAnalysisResult | None = None,
+            request_analysis: QueryRequestAnalysisResult | None = None,
     ) -> ChartAnswerJudgeResult:
         if runtime.reasoning_llm is None:
             raise RuntimeError("Chart answer judge requires runtime.reasoning_llm.")

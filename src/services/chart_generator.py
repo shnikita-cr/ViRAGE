@@ -4,8 +4,7 @@ from src.domain.models import (
     CandidateSpecSet,
     DataPreparationResult,
     DataProfile,
-    QueryUnderstandingResult,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     SpecGenerationRequest,
     VegaLiteSpecArtifact,
     VisRAGResult,
@@ -27,9 +26,7 @@ class ChartGeneratorService(BaseService):
             *,
             query: str = "",
             data_profile: DataProfile | None = None,
-            compact_data_profile: dict | None = None,
-            request_analysis: RequestAnalysisResult | None = None,
-            query_understanding: QueryUnderstandingResult | None = None,
+            query_request_analysis: QueryRequestAnalysisResult | None = None,
             visrag: VisRAGResult | None = None,
             generation_attempt_number: int = 1,
             max_generation_attempts: int = 1,
@@ -38,7 +35,6 @@ class ChartGeneratorService(BaseService):
             previous_invalid_spec: dict | None = None,
             previous_semantic_feedback: list[str] | None = None,
             previous_chart_facts: list[dict] | None = None,
-            chart_quality_requirements: list[str] | None = None,
             visual_judge_requirements: dict | None = None,
     ) -> VegaLiteSpecArtifact:
         backend = self._select_backend(runtime)
@@ -54,9 +50,7 @@ class ChartGeneratorService(BaseService):
             prepared=prepared,
             candidate_spec_set=candidate_spec_set,
             data_profile=data_profile,
-            compact_data_profile=compact_data_profile,
-            request_analysis=request_analysis,
-            query_understanding=query_understanding,
+            query_request_analysis=query_request_analysis,
             visrag=visrag,
             generation_attempt_number=generation_attempt_number,
             max_generation_attempts=max_generation_attempts,
@@ -65,7 +59,6 @@ class ChartGeneratorService(BaseService):
             previous_invalid_spec=previous_invalid_spec,
             previous_semantic_feedback=list(previous_semantic_feedback or []),
             previous_chart_facts=list(previous_chart_facts or []),
-            chart_quality_requirements=list(chart_quality_requirements or []),
             visual_judge_requirements=dict(visual_judge_requirements or {}),
         )
         result = backend.generate(request, runtime)
@@ -87,9 +80,7 @@ class ChartGeneratorService(BaseService):
             *,
             query: str = "",
             data_profile: DataProfile | None = None,
-            compact_data_profile: dict | None = None,
-            request_analysis: RequestAnalysisResult | None = None,
-            query_understanding: QueryUnderstandingResult | None = None,
+            query_request_analysis: QueryRequestAnalysisResult | None = None,
             visrag: VisRAGResult | None = None,
             generation_attempt_number: int = 1,
             max_generation_attempts: int = 1,
@@ -98,7 +89,6 @@ class ChartGeneratorService(BaseService):
             previous_invalid_spec: dict | None = None,
             previous_semantic_feedback: list[str] | None = None,
             previous_chart_facts: list[dict] | None = None,
-            chart_quality_requirements: list[str] | None = None,
             visual_judge_requirements: dict | None = None,
     ) -> VegaLiteSpecArtifact:
         return self.invoke(
@@ -107,9 +97,7 @@ class ChartGeneratorService(BaseService):
             runtime=runtime,
             query=query,
             data_profile=data_profile,
-            compact_data_profile=compact_data_profile,
-            request_analysis=request_analysis,
-            query_understanding=query_understanding,
+            query_request_analysis=query_request_analysis,
             visrag=visrag,
             generation_attempt_number=generation_attempt_number,
             max_generation_attempts=max_generation_attempts,
@@ -118,7 +106,6 @@ class ChartGeneratorService(BaseService):
             previous_invalid_spec=previous_invalid_spec,
             previous_semantic_feedback=previous_semantic_feedback,
             previous_chart_facts=previous_chart_facts,
-            chart_quality_requirements=chart_quality_requirements,
             visual_judge_requirements=visual_judge_requirements,
         )
 

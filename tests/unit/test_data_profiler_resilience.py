@@ -25,13 +25,14 @@ def test_boolean_column_is_profiled_as_dimension_without_outlier_quantile_error(
     flag = next(column for column in profile.columns if column.name == "IsActive")
 
     assert profile.profile_status == "ok"
-    assert profile.column_errors == []
+    assert profile.errors == []
     assert flag.dtype == "boolean"
     assert flag.outlier_count == 0
     assert flag.outlier_ratio == 0.0
-    assert profile.field_roles["IsActive"] == "dimension"
-    assert "IsActive" in profile.likely_categorical_columns
-    assert "Sales" in profile.likely_numeric_columns
+    assert flag.role == "dimension"
+    assert flag.role == "dimension"
+    sales = next(column for column in profile.columns if column.name == "Sales")
+    assert sales.role == "measure"
 
 
 def test_boolean_like_strings_are_profiled_as_boolean_dimension(tmp_path):
@@ -51,8 +52,8 @@ def test_boolean_like_strings_are_profiled_as_boolean_dimension(tmp_path):
     flag = next(column for column in profile.columns if column.name == "Flag")
 
     assert flag.dtype == "boolean"
-    assert profile.field_roles["Flag"] == "dimension"
-    assert "Flag" in profile.likely_categorical_columns
+    assert flag.role == "dimension"
+    assert flag.role == "dimension"
 
 
 def test_column_level_profile_error_degrades_without_failing_pipeline(tmp_path, monkeypatch):
@@ -83,12 +84,13 @@ def test_column_level_profile_error_degrades_without_failing_pipeline(tmp_path, 
     broken = next(column for column in profile.columns if column.name == "Broken")
 
     assert profile.profile_status == "degraded"
-    assert len(profile.column_errors) == 1
-    assert profile.column_errors[0]["failure_class"] == "data_profile_error"
-    assert profile.column_errors[0]["recoverable"] is True
+    assert len(profile.errors) == 1
+    assert profile.errors[0]["failure_class"] == "data_profile_error"
+    assert profile.errors[0]["recoverable"] is True
     assert broken.dtype == "categorical"
-    assert profile.field_roles["Broken"] == "dimension"
-    assert "Value" in profile.likely_numeric_columns
+    assert broken.role == "dimension"
+    value = next(column for column in profile.columns if column.name == "Value")
+    assert value.role == "measure"
 
     error_artifacts = list((tmp_path / "artifacts" / "test_degraded" / "artifacts").glob("*_data_profile_*error*.json"))
     assert not error_artifacts

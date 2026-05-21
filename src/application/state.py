@@ -12,12 +12,9 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
-    QueryIntentBundle,
-    QueryUnderstandingResult,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
@@ -58,14 +55,10 @@ class PipelineState(TypedDict, total=False):
     semantic_retry_feedback: NotRequired[str]
     semantic_retry_reasons: NotRequired[list[str]]
 
-    query_request_analysis: NotRequired[dict[str, Any]]
-    query_understanding: NotRequired[QueryUnderstandingResult]
-    query_intent_bundle: NotRequired[QueryIntentBundle]
-    request_analysis: NotRequired[RequestAnalysisResult]
+    query_request_analysis: NotRequired[QueryRequestAnalysisResult]
     analysis_rubric: NotRequired[AnalysisRubric]
     data_profile: NotRequired[DataProfile]
     data_preparation: NotRequired[DataPreparationResult]
-    compact_data_profile: NotRequired[dict[str, Any]]
     visrag: NotRequired[VisRAGResult]
     candidate_spec_set: NotRequired[CandidateSpecSet]
     vega_spec: NotRequired[VegaLiteSpecArtifact]
@@ -84,7 +77,6 @@ class PipelineState(TypedDict, total=False):
     visual_feedback_examples: NotRequired[list[VisualFeedbackExample]]
     semantic_feedback_loop_summary: NotRequired[SemanticFeedbackLoopSummary]
     vlm_analysis: NotRequired[VLMAnalysisResult]
-    insights: NotRequired[InsightsResult]
     structural_spec_metric: NotRequired[StructuralSpecMetric]
     evaluation_summary: NotRequired[EvaluationSummaryResult]
 

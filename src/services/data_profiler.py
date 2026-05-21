@@ -22,15 +22,9 @@ class DataProfilerService(BaseService):
         df = self._ensure_unique_columns(df)
 
         columns: list[DataColumnProfile] = []
-        numeric: list[str] = []
-        categorical: list[str] = []
-        time_like: list[str] = []
         quality_notes: list[str] = []
-        field_roles: dict[str, str] = {}
-        schema_hints: list[str] = []
         complexity_hints: list[str] = []
-        cleaning_hints: list[str] = []
-        column_errors: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
 
         row_count = int(len(df))
         col_count = int(len(df.columns))
@@ -51,9 +45,6 @@ class DataProfilerService(BaseService):
         for column in df.columns:
             column_name = str(column)
             safe_name = column_name_map[column_name]
-            if safe_name != column_name:
-                cleaning_hints.append(f"Column '{column_name}' can be normalized to '{safe_name}' for renderer safety.")
-
             try:
                 column_profile, column_quality_notes = self._profile_column(
                     column_name=column_name,
@@ -66,7 +57,7 @@ class DataProfilerService(BaseService):
                 quality_notes.extend(column_quality_notes)
             except Exception as exc:  # noqa: BLE001 - column-level degradation is intentional.
                 error_payload = self._column_error_payload(column_name=column_name, series=df[column], exc=exc)
-                column_errors.append(error_payload)
+                errors.append(error_payload)
                 quality_notes.append(
                     f"Column '{column_name}' could not be fully profiled and was treated as categorical: {type(exc).__name__}: {exc}"
                 )
@@ -80,51 +71,29 @@ class DataProfilerService(BaseService):
                 )
 
             columns.append(column_profile)
-            semantic_dtype = column_profile.dtype
 
-            if semantic_dtype == "numeric":
-                numeric.append(column_name)
-                field_roles[column_name] = "measure"
-            elif semantic_dtype == "datetime":
-                time_like.append(column_name)
-                field_roles[column_name] = "temporal"
-            else:
-                categorical.append(column_name)
-                field_roles[column_name] = "dimension"
-
-        if not numeric:
-            quality_notes.append("No numeric columns detected; numeric chart options may be limited.")
-        if time_like:
-            quality_notes.append(f"Detected time-like columns: {', '.join(time_like)}.")
+        if not any(column.role == "measure" for column in columns):
+            quality_notes.append("No numeric measure columns detected; numeric chart options may be limited.")
+        temporal_columns = [column.name for column in columns if column.role == "temporal"]
+        if temporal_columns:
+            quality_notes.append(f"Detected time-like columns: {', '.join(temporal_columns)}.")
         if row_count > 100_000:
             quality_notes.append("Large dataset detected; sampling or aggregation may be required downstream.")
             complexity_hints.append("large_dataset")
         if col_count > 30:
             complexity_hints.append("wide_dataset")
-        if duplicate_rows:
-            cleaning_hints.append("preserve_row_multiplicity")
-        if column_errors:
+        if errors:
             complexity_hints.append("degraded_profile")
-            cleaning_hints.append("review_profile_column_errors")
-        schema_hints.extend([f"{column.name}:{column.dtype}" for column in columns])
 
         profile = DataProfile(
             row_count=row_count,
             col_count=col_count,
             columns=columns,
-            likely_numeric_columns=numeric,
-            likely_categorical_columns=categorical,
-            likely_time_columns=time_like,
             quality_notes=self._dedupe(quality_notes),
-            typed_columns=[f"{column.name}:{column.dtype}" for column in columns],
-            field_roles=field_roles,
-            schema_hints=self._dedupe(schema_hints),
             complexity_hints=self._dedupe(complexity_hints),
-            cleaning_hints=self._dedupe(cleaning_hints),
-            column_name_map=column_name_map,
             data_complexity="large" if row_count > 100_000 or col_count > 30 else "standard",
-            profile_status="degraded" if column_errors else "ok",
-            column_errors=column_errors,
+            profile_status="degraded" if errors else "ok",
+            errors=errors,
             sample_strategy="random",
             sample_seed=sample_seed,
             sample_size=min(sample_size, row_count) if row_count else 0,
@@ -192,9 +161,9 @@ class DataProfilerService(BaseService):
         return (
             DataColumnProfile(
                 name=column_name,
-                original_name=column_name,
                 safe_name=safe_name,
                 dtype=semantic_dtype,
+                role=self._field_role(semantic_dtype, is_identifier),
                 missing_ratio=missing_ratio,
                 unique_count=unique_count,
                 min_value=min_value,
@@ -206,11 +175,24 @@ class DataProfilerService(BaseService):
                 is_high_cardinality=is_high_cardinality,
                 raw_dtype=raw_dtype,
                 missing_like_ratio=missing_like_ratio,
-                field_quality_flags=flags,
-                recommended_preparation=recommended_preparation,
+                quality_flags=flags,
+                preparation_hints=recommended_preparation,
             ),
             quality_notes,
         )
+
+
+    @staticmethod
+    def _field_role(semantic_dtype: str, is_identifier: bool) -> str:
+        if is_identifier:
+            return "identifier"
+        if semantic_dtype == "numeric":
+            return "measure"
+        if semantic_dtype == "datetime":
+            return "temporal"
+        if semantic_dtype == "categorical" or semantic_dtype == "boolean":
+            return "dimension"
+        return "unknown"
 
     @staticmethod
     def _missing_like_ratio(series: pd.Series) -> float:
@@ -249,8 +231,13 @@ class DataProfilerService(BaseService):
             flags.append("numeric_string")
         if semantic_dtype == "numeric" and not is_identifier:
             flags.append("good_for_measure")
+        if semantic_dtype == "datetime":
+            flags.append("good_for_temporal_axis")
         if semantic_dtype in {"categorical", "boolean"} and not is_identifier and not is_high_cardinality:
             flags.append("good_for_grouping")
+            flags.append("safe_for_color")
+        if is_high_cardinality:
+            flags.append("unsafe_for_color")
         if unique_count <= 1 and row_count > 0:
             flags.append("constant_or_nearly_constant")
         return cls._dedupe(flags)
@@ -460,9 +447,9 @@ class DataProfilerService(BaseService):
     ) -> DataColumnProfile:
         return DataColumnProfile(
             name=column_name,
-            original_name=column_name,
             safe_name=safe_name,
             dtype="categorical",
+            role="dimension",
             missing_ratio=float(series.isna().mean()) if row_count else 0.0,
             unique_count=int(series.nunique(dropna=True)),
             sample_values=self._sample_values(series, sample_seed=sample_seed, sample_size=sample_size),
@@ -472,8 +459,8 @@ class DataProfilerService(BaseService):
             is_high_cardinality=False,
             raw_dtype=str(series.dtype),
             missing_like_ratio=self._missing_like_ratio(series),
-            field_quality_flags=["degraded_profile"],
-            recommended_preparation=["review_profile_column_errors"],
+            quality_flags=["degraded_profile"],
+            preparation_hints=["review_profile_column_errors"],
         )
 
     @staticmethod

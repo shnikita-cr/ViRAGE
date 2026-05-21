@@ -10,7 +10,7 @@ from src.domain.models import (
     DataColumnProfile,
     DataPreparationResult,
     DataProfile,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
 )
 from src.infrastructure.runtime import RuntimeContext
 from src.services.chart_generator import ChartGeneratorService
@@ -77,12 +77,11 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
         row_count=2,
         col_count=2,
         columns=[
-            DataColumnProfile(name="Region.Name", original_name="Region.Name", safe_name="Region_Name",
-                              dtype="categorical", missing_ratio=0.0, unique_count=2),
-            DataColumnProfile(name="Metric Value (%)", original_name="Metric Value (%)", safe_name="Metric_Value",
-                              dtype="numeric", missing_ratio=0.0, unique_count=2),
+            DataColumnProfile(name="Region.Name", safe_name="Region_Name",
+                              dtype="categorical", role="dimension", missing_ratio=0.0, unique_count=2),
+            DataColumnProfile(name="Metric Value (%)", safe_name="Metric_Value",
+                              dtype="numeric", role="measure", missing_ratio=0.0, unique_count=2),
         ],
-        field_roles={"Region.Name": "dimension", "Metric Value (%)": "measure"},
     )
 
     artifact = ChartGeneratorService().invoke(
@@ -91,7 +90,7 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
         runtime=runtime,
         query="compare metric by region",
         data_profile=profile,
-        request_analysis=RequestAnalysisResult(selected_fields=["Region.Name", "Metric Value (%)"]),
+        query_request_analysis=QueryRequestAnalysisResult(normalized_query="compare metric by region", selected_fields=["Region.Name", "Metric Value (%)"]),
     )
 
     assert artifact.generation_backend == "vegachat_codegen"

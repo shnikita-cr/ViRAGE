@@ -7,7 +7,7 @@ from pathlib import Path
 from src.domain.models import (
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     VLMChartDescriptionResult,
     VegaLiteSpecArtifact,
     VisualFeedbackExample,
@@ -31,7 +31,7 @@ class FeedbackCorpusWriterService(BaseService):
             vlm_description: VLMChartDescriptionResult,
             chart_facts: ChartFactSummaryResult,
             judge_result: ChartAnswerJudgeResult,
-            request_analysis: RequestAnalysisResult | None = None,
+            request_analysis: QueryRequestAnalysisResult | None = None,
     ) -> VisualFeedbackExample:
         return VisualFeedbackExample(
             status="accepted" if judge_result.retry_recommendation == "accept" else "rejected_or_needs_improvement",
@@ -65,7 +65,7 @@ class FeedbackCorpusWriterService(BaseService):
             needs_regeneration: bool,
             vega_spec: VegaLiteSpecArtifact,
             rendered_png_path: str,
-            request_analysis: RequestAnalysisResult | None = None,
+            request_analysis: QueryRequestAnalysisResult | None = None,
             attempt_number: int = 1,
     ) -> VisualFeedbackExample:
         cleaned_comment = comment.strip()

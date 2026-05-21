@@ -62,7 +62,7 @@ class VegaChatBenchmarkEvaluator:
             vision_metric = self.vision_score.invoke(
                 PlotImageArtifact(image_path=generated_image_path),
                 runtime=runtime,
-                query_understanding=pipeline_result.query_understanding,
+                query_request_analysis=pipeline_result.query_request_analysis,
                 user_prompt=case.query,
                 reference_image_path=reference_image_path,
             )

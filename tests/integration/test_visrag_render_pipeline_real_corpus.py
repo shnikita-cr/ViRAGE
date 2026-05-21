@@ -11,9 +11,8 @@ from src.domain.models import (
     DataColumnProfile,
     DataPreparationResult,
     DataProfile,
-    QueryUnderstandingResult,
+    QueryRequestAnalysisResult,
     QueryVariant,
-    RequestAnalysisResult,
 )
 from src.infrastructure.runtime import RuntimeContext
 from src.services.chart_generator import ChartGeneratorService
@@ -98,6 +97,7 @@ def build_data_profile(rows: list[dict[str, Any]], field_roles: dict[str, str]) 
                 missing_ratio=float(series.isna().mean()),
                 unique_count=int(series.nunique(dropna=True)),
                 sample_values=[value for value in series.dropna().head(5).tolist()],
+                role=field_roles.get(str(column_name), "unknown"),
             )
         )
 
@@ -105,7 +105,6 @@ def build_data_profile(rows: list[dict[str, Any]], field_roles: dict[str, str]) 
         row_count=int(len(dataframe)),
         col_count=int(len(dataframe.columns)),
         columns=columns,
-        field_roles=field_roles,
     )
 
 
@@ -126,22 +125,17 @@ def run_render_pipeline_case(
     pd.DataFrame(rows).to_csv(dataset_path, index=False)
 
     data_profile = build_data_profile(rows, field_roles)
-    query_understanding = QueryUnderstandingResult(
-        intent=intent,
-        user_goal=query,
-        candidate_charts=candidate_charts,
-        query_variants=[QueryVariant(kind="original", text=query, confidence=1.0)],
-        confidence=1.0,
-    )
-    request_analysis = RequestAnalysisResult(
+    query_analysis = QueryRequestAnalysisResult(
+        normalized_query=query,
+        analysis_task=intent,
+        recommended_chart_family=(candidate_charts[0] if candidate_charts else "auto"),
         selected_fields=selected_fields,
-        grounded_fields=selected_fields,
+        query_variants=[QueryVariant(kind="canonical", text=query, confidence=1.0)],
         confidence=1.0,
     )
 
     visrag_result = VisRAGService().invoke(
-        query_understanding=query_understanding,
-        request_analysis=request_analysis,
+        query_analysis=query_analysis,
         data_profile=data_profile,
         runtime=runtime,
     )

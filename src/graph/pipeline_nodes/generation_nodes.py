@@ -7,7 +7,7 @@ class GenerationPipelineNodesMixin:
     @traceable(name="virage.visrag")
     def visrag_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
-        result = self.visrag.invoke(state["query_understanding"], state["request_analysis"], state["data_profile"],
+        result = self.visrag.invoke(state["query_request_analysis"], state["data_profile"],
                                     runtime=self.runtime)
         artifact_paths = self._save(state, "visrag", result.model_dump())
         candidate_set = result.candidate_spec_set
@@ -24,7 +24,7 @@ class GenerationPipelineNodesMixin:
                 stage="visrag",
                 title="Spec retrieval",
                 summary=selected.summary if selected else "no candidate",
-                inputs=[state["query_understanding"].intent],
+                inputs=[state["query_request_analysis"].normalized_query],
                 outputs=[item.chart_family for item in (candidate_set.candidate_specs[:3] if candidate_set else [])],
                 details=self._stage_details(before) | {"artifact": artifact_paths["visrag"],
                                                        "retrieval_query": result.retrieval_query},
@@ -49,9 +49,7 @@ class GenerationPipelineNodesMixin:
             runtime=self.runtime,
             query=state["query"],
             data_profile=state.get("data_profile"),
-            compact_data_profile=state.get("compact_data_profile"),
-            request_analysis=state.get("request_analysis"),
-            query_understanding=state.get("query_understanding"),
+            query_request_analysis=state.get("query_request_analysis"),
             visrag=state.get("visrag"),
             generation_attempt_number=technical_attempt,
             max_generation_attempts=max_generation_attempts,
@@ -60,7 +58,6 @@ class GenerationPipelineNodesMixin:
             previous_invalid_spec=technical_feedback.get("invalid_spec"),
             previous_semantic_feedback=semantic_feedback_items,
             previous_chart_facts=semantic_chart_fact_history,
-            chart_quality_requirements=list(state.get("chart_quality_requirements", [])),
             visual_judge_requirements=state.get("visual_judge_requirements"),
         )
         artifact_paths = self._save(state, "vega_spec", _vega_spec_artifact_payload(result))

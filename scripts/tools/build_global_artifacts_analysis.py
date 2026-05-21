@@ -582,8 +582,8 @@ def extract_data_profile(run_dir: Path) -> dict[str, Any]:
     row["data_profile_col_count"] = payload.get("column_count") or payload.get("col_count")
     row["data_profile_status"] = payload.get("profile_status")
     row["data_profile_complexity"] = payload.get("data_complexity")
-    row["data_profile_column_errors_count"] = len(payload.get("column_errors") or []) if isinstance(
-        payload.get("column_errors"), list) else 0
+    row["data_profile_errors_count"] = len(payload.get("errors") or []) if isinstance(
+        payload.get("errors"), list) else 0
     row["data_profile_quality_notes_count"] = len(payload.get("quality_notes") or []) if isinstance(
         payload.get("quality_notes"), list) else 0
 
@@ -1077,7 +1077,7 @@ def write_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
         "data_profile_status",
         "data_profile_complexity",
         "data_profile_quality_notes_count",
-        "data_profile_column_errors_count",
+        "data_profile_errors_count",
         "data_profile_renamed_column_count",
         "prepared_row_count",
         "prepared_col_count",

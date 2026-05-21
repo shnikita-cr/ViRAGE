@@ -49,7 +49,7 @@ class VisualFeedbackPipelineNodesMixin:
             query=state["query"],
             plot_image=plot_image,
             runtime=self.runtime,
-            request_analysis=state.get("request_analysis"),
+            request_analysis=state.get("query_request_analysis"),
             visual_judge_requirements=state.get("visual_judge_requirements"),
         )
         vlm_description = VisualChartJudgeAdapters.to_vlm_description(result)
@@ -57,8 +57,8 @@ class VisualFeedbackPipelineNodesMixin:
         answer_judge = VisualChartJudgeAdapters.to_answer_judge(result)
         retry_reasons = _semantic_retry_reasons(answer_judge)
         used_fields = []
-        if state.get("request_analysis") is not None:
-            used_fields = list(state["request_analysis"].selected_fields)
+        if state.get("query_request_analysis") is not None:
+            used_fields = list(state["query_request_analysis"].selected_fields)
         chart_analysis = VisualChartJudgeAdapters.to_chart_analysis_record(
             query=state["query"],
             result=result,
@@ -162,7 +162,7 @@ class VisualFeedbackPipelineNodesMixin:
             query=state["query"],
             chart_facts=state["chart_fact_summary"],
             runtime=self.runtime,
-            request_analysis=state.get("request_analysis"),
+            request_analysis=state.get("query_request_analysis"),
         )
         attempt_number = max(1, int(state.get("semantic_attempt_number", 1) or 1))
         artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_answer_judge", result.model_dump())
@@ -300,7 +300,7 @@ class VisualFeedbackPipelineNodesMixin:
                 vlm_description=state["vlm_chart_description"],
                 chart_facts=state["chart_fact_summary"],
                 judge_result=judge,
-                request_analysis=state.get("request_analysis"),
+                request_analysis=state.get("query_request_analysis"),
             )
             artifact_paths = self._save_into(
                 artifact_paths,
@@ -366,7 +366,7 @@ class VisualFeedbackPipelineNodesMixin:
             vlm_description=state["vlm_chart_description"],
             chart_facts=state["chart_fact_summary"],
             judge_result=state["chart_answer_judge"],
-            request_analysis=state.get("request_analysis"),
+            request_analysis=state.get("query_request_analysis"),
         )
         artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_feedback_example",
                                     example.model_dump())

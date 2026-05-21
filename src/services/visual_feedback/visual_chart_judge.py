@@ -11,7 +11,7 @@ from src.domain.models import (
     ChartGroundedAnalysisRecord,
     ChartRevisionRecord,
     PlotImageArtifact,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     VisualChartJudgeResult,
     VLMChartDescriptionResult,
 )
@@ -57,7 +57,7 @@ class VisualChartJudgeService(BaseService):
             query: str,
             plot_image: PlotImageArtifact,
             runtime: RuntimeContext,
-            request_analysis: RequestAnalysisResult | None = None,
+            request_analysis: QueryRequestAnalysisResult | None = None,
             visual_judge_requirements: dict[str, Any] | None = None,
     ) -> VisualChartJudgeResult:
         if runtime.vlm is None:
@@ -124,7 +124,7 @@ class VisualChartJudgeService(BaseService):
     def _prompt(
             *,
             query: str,
-            request_analysis: RequestAnalysisResult | None,
+            request_analysis: QueryRequestAnalysisResult | None,
             visual_judge_requirements: dict[str, Any] | None,
             use_chartsquared: bool,
             chartsquared_max_eval_questions: int,

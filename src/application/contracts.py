@@ -13,12 +13,9 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
-    QueryIntentBundle,
-    QueryUnderstandingResult,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
@@ -46,9 +43,7 @@ class PipelineResult(BaseModel):
     query: str
     data_path: str
 
-    query_understanding: QueryUnderstandingResult | None = None
-    query_intent_bundle: QueryIntentBundle | None = None
-    request_analysis: RequestAnalysisResult | None = None
+    query_request_analysis: QueryRequestAnalysisResult | None = None
     analysis_rubric: AnalysisRubric | None = None
     data_profile: DataProfile | None = None
     data_preparation: DataPreparationResult | None = None
@@ -66,7 +61,6 @@ class PipelineResult(BaseModel):
     visual_feedback_examples: list[VisualFeedbackExample] = Field(default_factory=list)
     semantic_feedback_loop_summary: SemanticFeedbackLoopSummary | None = None
     vlm_analysis: VLMAnalysisResult | None = None
-    insights: InsightsResult | None = None
     structural_spec_metric: StructuralSpecMetric | None = None
     evaluation_summary: EvaluationSummaryResult | None = None
 

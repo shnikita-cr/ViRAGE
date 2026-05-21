@@ -5,12 +5,11 @@ from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, InsightsResult, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
+from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
     VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
 from src.services.chart_generator import ChartGeneratorService
-from src.services.compact_data_profile import CompactDataProfileService
 from src.services.data_preparation import DataPreparationService
 from src.services.data_profiler import DataProfilerService
 from src.services.empty_chart_check import EmptyChartCheckService
@@ -144,14 +143,13 @@ def _build_live_chart_preview_payload(state: PipelineState, empty_chart_check: A
 def _data_profile_artifact_payload(profile: Any, runtime: RuntimeContext) -> dict[str, Any]:
     columns = []
     for column in getattr(profile, "columns", []) or []:
-        original = getattr(column, "original_name", None) or getattr(column, "name", "")
+        original = getattr(column, "name", "")
         safe = getattr(column, "safe_name", None) or original
         columns.append({
             "original_name": original,
             "safe_name": safe,
             "type": getattr(column, "dtype", "unknown"),
-            "role": getattr(profile, "field_roles", {}).get(original,
-                                                            getattr(profile, "field_roles", {}).get(safe, "unknown")),
+            "role": getattr(column, "role", "unknown"),
             "missing_ratio": getattr(column, "missing_ratio", 0.0),
             "unique_count": getattr(column, "unique_count", 0),
             "min": getattr(column, "min_value", None),
@@ -163,8 +161,8 @@ def _data_profile_artifact_payload(profile: Any, runtime: RuntimeContext) -> dic
             "is_high_cardinality": getattr(column, "is_high_cardinality", False),
             "raw_dtype": getattr(column, "raw_dtype", None),
             "missing_like_ratio": getattr(column, "missing_like_ratio", 0.0),
-            "field_quality_flags": list(getattr(column, "field_quality_flags", []) or []),
-            "recommended_preparation": list(getattr(column, "recommended_preparation", []) or []),
+            "quality_flags": list(getattr(column, "quality_flags", []) or []),
+            "preparation_hints": list(getattr(column, "preparation_hints", []) or []),
         })
     return {
         "row_count": getattr(profile, "row_count", 0),
@@ -177,8 +175,7 @@ def _data_profile_artifact_payload(profile: Any, runtime: RuntimeContext) -> dic
         "columns": columns,
         "quality_notes": list(getattr(profile, "quality_notes", []) or []),
         "complexity_hints": list(getattr(profile, "complexity_hints", []) or []),
-        "cleaning_hints": list(getattr(profile, "cleaning_hints", []) or []),
-        "column_errors": list(getattr(profile, "column_errors", []) or []),
+        "errors": list(getattr(profile, "errors", []) or []),
     }
 
 
@@ -203,7 +200,6 @@ class BasePipelineNodes:
         self.query_request_analyzer = QueryRequestAnalyzerService()
         self.data_profiler = DataProfilerService()
         self.data_preparation = DataPreparationService()
-        self.compact_data_profile = CompactDataProfileService()
         self.visrag = VisRAGService()
         self.chart_generator = ChartGeneratorService()
         self.spec_validator = SpecValidatorService()
@@ -300,12 +296,10 @@ class BasePipelineNodes:
     @staticmethod
     def _analysis_rubric(state: PipelineState) -> AnalysisRubric:
         focus_areas: list[str] = []
-        understanding = state.get("query_understanding")
-        request = state.get("request_analysis")
-        if understanding is not None:
-            focus_areas.extend([understanding.task_type or "", understanding.analysis_goal or ""])
-        if request is not None:
-            focus_areas.extend(request.selected_fields)
+        analysis = state.get("query_request_analysis")
+        if analysis is not None:
+            focus_areas.extend([analysis.analysis_task or "", analysis.normalized_query or ""])
+            focus_areas.extend(list(analysis.selected_fields or []))
         return AnalysisRubric(focus_areas=list(dict.fromkeys(item for item in focus_areas if item)))
 
 __all__ = [
@@ -325,7 +319,6 @@ __all__ = [
     'PipelineState',
     'PipelineStage',
     'AnalysisRubric',
-    'InsightsResult',
     'PlotImageArtifact',
     'SemanticFeedbackLoopSummary',
     'StepLog',

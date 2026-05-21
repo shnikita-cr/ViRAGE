@@ -7,8 +7,7 @@ from src.domain.models import (
     CandidateSpecSet,
     DataColumnProfile,
     DataProfile,
-    QueryUnderstandingResult,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     VisRAGResult,
     VisRAGRetrievedExample,
 )
@@ -32,8 +31,7 @@ class VisRAGService(BaseService):
 
     def invoke(
             self,
-            query_understanding: QueryUnderstandingResult,
-            request_analysis: RequestAnalysisResult,
+            query_analysis: QueryRequestAnalysisResult,
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGResult:
@@ -49,7 +47,7 @@ class VisRAGService(BaseService):
                 candidate_spec_set=empty_set,
             )
 
-        request = self._to_core_request(query_understanding, request_analysis, data_profile, runtime)
+        request = self._to_core_request(query_analysis, data_profile, runtime)
         core = VisRAGCoreService(
             VisRAGConfig(
                 corpus_root=self._corpus_root(runtime),
@@ -78,64 +76,42 @@ class VisRAGService(BaseService):
 
     def _to_core_request(
             self,
-            query_understanding: QueryUnderstandingResult,
-            request_analysis: RequestAnalysisResult,
+            query_analysis: QueryRequestAnalysisResult,
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGRequest:
         request = VisRAGRequest(
-            query=self._search_query(query_understanding, request_analysis),
+            query=self._search_query(query_analysis),
             data_profile=VisRAGDataProfile(
-                columns=[self._to_core_column(column, data_profile) for column in data_profile.columns]),
-            preferred_chart_types=[canonicalize_chart_type(item) for item in query_understanding.candidate_charts],
-            selected_fields=list(request_analysis.selected_fields),
+                columns=[self._to_core_column(column) for column in data_profile.columns]),
+            preferred_chart_types=[canonicalize_chart_type(query_analysis.recommended_chart_family)],
+            selected_fields=list(query_analysis.selected_fields),
             selected_fields_policy="auto",
             top_k=runtime.settings.visrag_top_k_examples,
         )
         policy_decision = resolve_grounding_policy(
             request,
-            request_confidence=self._request_confidence(query_understanding, request_analysis),
-            ambiguity_notes=self._ambiguity_notes(query_understanding, request_analysis),
+            request_confidence=query_analysis.confidence if query_analysis.confidence > 0 else None,
+            ambiguity_notes=list(query_analysis.ambiguity.notes),
         )
         return request.model_copy(
             update={"selected_fields_policy": policy_decision.selected_fields_policy.value}
         )
 
     @staticmethod
-    def _request_confidence(
-            query_understanding: QueryUnderstandingResult,
-            request_analysis: RequestAnalysisResult,
-    ) -> float | None:
-        if request_analysis.confidence > 0:
-            return request_analysis.confidence
-        if query_understanding.confidence > 0:
-            return query_understanding.confidence
-        return None
-
-    @staticmethod
-    def _ambiguity_notes(
-            query_understanding: QueryUnderstandingResult,
-            request_analysis: RequestAnalysisResult,
-    ) -> list[str]:
-        return [
-            *list(query_understanding.ambiguity_notes),
-            *list(request_analysis.ambiguity_report),
-        ]
-
-    @staticmethod
-    def _search_query(query_understanding: QueryUnderstandingResult, request_analysis: RequestAnalysisResult) -> str:
+    def _search_query(query_analysis: QueryRequestAnalysisResult) -> str:
         query_parts = [
-            query_understanding.intent,
-            query_understanding.user_goal or "",
-            query_understanding.analysis_goal or "",
-            *[variant.text for variant in query_understanding.query_variants],
-            *request_analysis.selected_fields,
+            query_analysis.normalized_query,
+            query_analysis.analysis_task,
+            query_analysis.recommended_chart_family,
+            *[variant.text for variant in query_analysis.query_variants],
+            *query_analysis.selected_fields,
         ]
-        return " ".join(part for part in query_parts if part).strip()
+        return " ".join(str(part) for part in query_parts if part).strip()
 
     @staticmethod
-    def _to_core_column(column: DataColumnProfile, data_profile: DataProfile) -> VisRAGColumnProfile:
-        role = data_profile.field_roles.get(column.name)
+    def _to_core_column(column: DataColumnProfile) -> VisRAGColumnProfile:
+        role = column.role
         semantic_type = semantic_type_from_role_or_dtype(role, column.dtype, column.dtype)
         return VisRAGColumnProfile(
             name=column.name,

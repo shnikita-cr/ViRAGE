@@ -152,8 +152,7 @@ soft_fail
 VisRAG вычисляет итоговую policy автоматически на основании:
 
 ```text
-query_understanding
-request_analysis
+query_request_analysis
 data_profile
 selected_fields
 request confidence
@@ -172,7 +171,7 @@ soft_fail
 
 ## 7. `prefer`
 
-Backward-compatible режим.
+Базовый режим предпочтительного grounding.
 
 Поведение:
 

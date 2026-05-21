@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from src.domain.models import CandidateSpecSet, DataPreparationResult, DataProfile, SpecGenerationRequest
+from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
 
 VEGA_LITE_SCHEMA_URL = "https://vega.github.io/schema/vega-lite/v5.json"
 
@@ -20,7 +21,7 @@ def build_vegachat_codegen_prompt(
 ) -> str:
     parts = [
         _system_contract(prompt_version),
-        _dataset_contract(request.data_profile, request.prepared, request.compact_data_profile),
+        _dataset_contract(request.data_profile, request.prepared),
         _request_contract(request),
         _chartsquared_generation_contract(request),
         _validation_feedback_contract(request),
@@ -73,40 +74,14 @@ Generation rules adapted from VegaChat-style correction loops:
 """
 
 
-def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult,
-                      compact_profile: dict[str, Any] | None = None) -> str:
+def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult) -> str:
     lines = ["Dataset schema and safe field names:"]
-    if compact_profile:
-        compact_payload = {
-            "row_count": compact_profile.get("row_count"),
-            "column_count": compact_profile.get("column_count"),
-            "selected_safe_fields": compact_profile.get("selected_safe_fields", []),
-            "candidate_dimensions": compact_profile.get("candidate_dimensions", []),
-            "candidate_measures": compact_profile.get("candidate_measures", []),
-            "columns": compact_profile.get("columns", []),
-            "quality_notes_top": compact_profile.get("quality_notes_top", []),
-            "column_mapping_original_to_safe": compact_profile.get("column_mapping_original_to_safe", {}),
-        }
-        lines.append(json.dumps(compact_payload, ensure_ascii=False, indent=2, default=str))
-        return "\n".join(lines)
-
-    if data_profile is None:
+    if data_profile is not None:
+        lines.append(DataProfilePromptFormatter.for_chart_generation(data_profile))
+    else:
         for safe in prepared.safe_columns:
             original = prepared.reverse_column_name_map.get(safe, safe)
             lines.append(f"- original={original!r}; safe={safe!r}; type=unknown; role=unknown")
-    else:
-        by_original = {column.original_name or column.name: column for column in data_profile.columns}
-        for safe in prepared.safe_columns[:30]:
-            original = prepared.reverse_column_name_map.get(safe, safe)
-            column = by_original.get(original)
-            dtype = column.dtype if column is not None else "unknown"
-            role = data_profile.field_roles.get(original, "unknown")
-            unique = column.unique_count if column is not None else None
-            lines.append(f"- original={original!r}; safe={safe!r}; type={dtype}; role={role}; unique={unique}")
-        lines.append(f"Rows={data_profile.row_count}; columns={data_profile.col_count}")
-        if data_profile.quality_notes:
-            lines.append("Quality notes: " + "; ".join(data_profile.quality_notes[:5]))
-
     if prepared.column_name_map:
         compact_mapping = {original: safe for original, safe in prepared.column_name_map.items() if original != safe}
         if compact_mapping:
@@ -117,41 +92,35 @@ def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparatio
 
 def _request_contract(request: SpecGenerationRequest) -> str:
     lines = ["User request:", request.query]
-    if request.query_understanding is not None:
-        understanding = request.query_understanding
-        lines.append("Query intent summary:")
-        lines.append(json.dumps({
-            "intent": understanding.intent,
-            "task_type": understanding.task_type,
-            "candidate_charts": understanding.candidate_charts[:5],
-            "requested_operations": understanding.requested_operations[:8],
-            "analysis_goal": understanding.analysis_goal,
-            "constraints": understanding.constraints[:8],
-        }, ensure_ascii=False, indent=2, default=str))
-    if request.request_analysis is not None:
-        safe_selected = [_to_safe(field, request.prepared) for field in request.request_analysis.selected_fields]
-        lines.append("Grounded request fields:")
-        lines.append(json.dumps({
-            "selected_original_fields": request.request_analysis.selected_fields,
+    analysis = request.query_request_analysis
+    if analysis is not None:
+        safe_selected = [_to_safe(field, request.prepared) for field in analysis.selected_fields]
+        payload = {
+            "normalized_query": analysis.normalized_query,
+            "analysis_task": analysis.analysis_task,
+            "recommended_chart_family": analysis.recommended_chart_family,
+            "selected_original_fields": analysis.selected_fields,
             "selected_safe_fields": safe_selected,
-            "missing_fields": request.request_analysis.missing_fields,
-            "confidence": request.request_analysis.confidence,
-        }, ensure_ascii=False, indent=2, default=str))
-    quality_requirements = list(getattr(request, "chart_quality_requirements", []) or [])[:8]
-    if quality_requirements:
-        lines.append("Chart quality requirements:")
-        lines.append(json.dumps(quality_requirements, ensure_ascii=False, indent=2))
+            "field_bindings": {key: value.model_dump() for key, value in analysis.field_bindings.items()},
+            "aggregation_plan": analysis.aggregation_plan,
+            "chart_answerability": analysis.chart_answerability,
+            "assumptions": analysis.assumptions,
+            "ambiguity": analysis.ambiguity.model_dump(),
+        }
+        lines.append("Query request analysis:")
+        lines.append(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
     return "\n".join(lines)
 
 
 def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
     """Add ChartSquared-style pre-generation criteria without adding a new runtime module."""
     requirements = dict(getattr(request, "visual_judge_requirements", {}) or {})
+    analysis = request.query_request_analysis
     payload = {
-        "analysis_task": requirements.get("analysis_task"),
-        "recommended_chart_family": requirements.get("recommended_chart_family"),
-        "aggregation_plan": requirements.get("aggregation_plan", {}),
-        "chart_answerability": requirements.get("chart_answerability", {}),
+        "analysis_task": analysis.analysis_task if analysis is not None else None,
+        "recommended_chart_family": analysis.recommended_chart_family if analysis is not None else None,
+        "aggregation_plan": analysis.aggregation_plan if analysis is not None else {},
+        "chart_answerability": analysis.chart_answerability if analysis is not None else {},
         "must_be_visible": requirements.get("must_be_visible", []),
         "acceptable_visual_encodings": requirements.get("acceptable_visual_encodings", {}),
         "critical_failures_to_avoid": requirements.get("critical_failures", []),

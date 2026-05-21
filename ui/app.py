@@ -168,7 +168,7 @@ def save_manual_feedback_for_result(
         needs_regeneration=needs_regeneration,
         vega_spec=result.vega_spec,
         rendered_png_path=image_path or "",
-        request_analysis=result.request_analysis,
+        request_analysis=result.query_request_analysis,
         attempt_number=(result.semantic_feedback_loop_summary.attempt_count if result.semantic_feedback_loop_summary else 1),
     )
     corpus_path = writer.append_to_corpus(example, runtime)

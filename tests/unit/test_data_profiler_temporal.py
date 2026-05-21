@@ -15,8 +15,8 @@ def test_numeric_year_column_is_temporal(tmp_path):
 
     profile = DataProfilerService().invoke(str(data_path), runtime)
 
-    assert "Year" in profile.likely_time_columns
     year_profile = next(column for column in profile.columns if column.name == "Year")
+    assert year_profile.role == "temporal"
     assert year_profile.dtype == "datetime"
     assert year_profile.min_value.startswith("1970")
     assert year_profile.max_value.startswith("1982")

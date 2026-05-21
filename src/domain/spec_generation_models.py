@@ -4,8 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from src.domain.data_models import DataPreparationResult, DataProfile, RequestAnalysisResult
-from src.domain.query_models import QueryUnderstandingResult
+from src.domain.data_models import DataPreparationResult, DataProfile, QueryRequestAnalysisResult
 from src.domain.visrag_models import CandidateSpecSet, VisRAGResult
 
 SpecGenerationBackendName = Literal["template", "vegachat_codegen"]
@@ -16,9 +15,7 @@ class SpecGenerationRequest(BaseModel):
     prepared: DataPreparationResult
     candidate_spec_set: CandidateSpecSet
     data_profile: DataProfile | None = None
-    compact_data_profile: dict[str, Any] | None = None
-    request_analysis: RequestAnalysisResult | None = None
-    query_understanding: QueryUnderstandingResult | None = None
+    query_request_analysis: QueryRequestAnalysisResult | None = None
     visrag: VisRAGResult | None = None
     generation_attempt_number: int = Field(default=1, ge=1)
     max_generation_attempts: int = Field(default=1, ge=1)
@@ -27,7 +24,6 @@ class SpecGenerationRequest(BaseModel):
     previous_invalid_spec: dict[str, Any] | None = None
     previous_semantic_feedback: list[str] = Field(default_factory=list)
     previous_chart_facts: list[dict[str, Any]] = Field(default_factory=list)
-    chart_quality_requirements: list[str] = Field(default_factory=list)
     visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
 
 

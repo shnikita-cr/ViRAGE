@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.domain.models import DataPreparationResult, DataProfile, QueryUnderstandingResult, RequestAnalysisResult
+from src.domain.models import DataPreparationResult, DataProfile, QueryRequestAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.data import read_dataframe
@@ -13,10 +13,9 @@ class DataPreparationService(BaseService):
             self,
             data_path: str,
             data_profile: DataProfile,
-            request_analysis: RequestAnalysisResult,
+            request_analysis: QueryRequestAnalysisResult,
             run_id: str,
             runtime: RuntimeContext,
-            query_understanding: QueryUnderstandingResult | None = None,
     ) -> DataPreparationResult:
         df = read_dataframe(data_path)
         df = _ensure_unique_columns(df)
@@ -39,13 +38,15 @@ class DataPreparationService(BaseService):
         #     df = df[_unique(fields)].copy()
         #     operations.append(f"select_fields:{','.join(df.columns)}")
 
-        for original_column in data_profile.likely_time_columns:
+        for column_profile in data_profile.temporal_columns():
+            original_column = column_profile.name
             safe_column = column_name_map.get(original_column, original_column)
             if safe_column in df.columns:
                 df[safe_column] = _parse_temporal(original_column, df[safe_column])
                 operations.append(f"to_datetime:{original_column}->{safe_column}")
 
-        for original_column in data_profile.likely_numeric_columns:
+        for column_profile in data_profile.measure_columns():
+            original_column = column_profile.name
             safe_column = column_name_map.get(original_column, original_column)
             if safe_column in df.columns and df[safe_column].isna().any():
                 median = df[safe_column].median()
@@ -69,16 +70,11 @@ class DataPreparationService(BaseService):
 
 
 def _build_column_name_map(*, data_profile: DataProfile, original_columns: list[str]) -> dict[str, str]:
-    if data_profile.column_name_map:
-        mapping = {str(original): str(safe) for original, safe in data_profile.column_name_map.items()}
-    else:
-        mapping = {}
-
+    mapping = {str(original): str(safe) for original, safe in data_profile.original_to_safe_map().items()}
     missing = [column for column in original_columns if column not in mapping]
     if missing:
         generated = _build_unique_safe_mapping(missing, used=set(mapping.values()))
         mapping.update(generated)
-
     return {column: mapping.get(column, column) for column in original_columns}
 
 
