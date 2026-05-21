@@ -50,6 +50,17 @@ class AnalysisBenchmarkResult(BaseModel):
     completion_tokens: int = 0
     total_tokens: int = 0
     error: str | None = None
+    evaluation_mode: str = "none"
+    evaluation_verdict: str = "unknown"
+    evaluation_score: float = 0.0
+    chart_groundedness: float = 0.0
+    hallucination_risk: float = 0.0
+    exact_match: bool = False
+    numeric_match_rate: float | None = None
+    expected_items_count: int = 0
+    matched_items_count: int = 0
+    evaluation_rationale: str = ""
+    artifact_run_dir: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_flat_row(self) -> dict[str, Any]:
@@ -70,6 +81,17 @@ class AnalysisBenchmarkResult(BaseModel):
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
+            "evaluation_mode": self.evaluation_mode,
+            "evaluation_verdict": self.evaluation_verdict,
+            "evaluation_score": self.evaluation_score,
+            "chart_groundedness": self.chart_groundedness,
+            "hallucination_risk": self.hallucination_risk,
+            "exact_match": self.exact_match,
+            "numeric_match_rate": self.numeric_match_rate,
+            "expected_items_count": self.expected_items_count,
+            "matched_items_count": self.matched_items_count,
+            "evaluation_rationale": self.evaluation_rationale,
+            "artifact_run_dir": self.artifact_run_dir,
             "error": self.error,
             **{f"metadata.{key}": value for key, value in self.metadata.items()},
         }
@@ -83,6 +105,11 @@ class AnalysisBenchmarkReport(BaseModel):
     mean_confidence: float | None = None
     mean_duration_seconds: float | None = None
     total_tokens: int = 0
+    mean_evaluation_score: float | None = None
+    correct_rate: float | None = None
+    partial_or_correct_rate: float | None = None
+    mean_chart_groundedness: float | None = None
+    mean_hallucination_risk: float | None = None
     results: list[AnalysisBenchmarkResult] = Field(default_factory=list)
 
     @classmethod
@@ -92,6 +119,7 @@ class AnalysisBenchmarkReport(BaseModel):
         accepted = [item.chart_was_accepted for item in results if item.error is None]
         confidences = [item.confidence for item in results if item.error is None]
         durations = [item.duration_seconds for item in results if item.duration_seconds is not None]
+        evaluated = [item for item in results if item.evaluation_verdict != "unknown"]
         return cls(
             total_cases=total,
             successful_cases=success,
@@ -100,6 +128,11 @@ class AnalysisBenchmarkReport(BaseModel):
             mean_confidence=_mean(confidences),
             mean_duration_seconds=_mean(durations),
             total_tokens=sum(item.total_tokens for item in results),
+            mean_evaluation_score=_mean([item.evaluation_score for item in evaluated]),
+            correct_rate=_mean_bool([item.evaluation_verdict == "correct" for item in evaluated]),
+            partial_or_correct_rate=_mean_bool([item.evaluation_verdict in {"correct", "partially_correct"} for item in evaluated]),
+            mean_chart_groundedness=_mean([item.chart_groundedness for item in evaluated]),
+            mean_hallucination_risk=_mean([item.hallucination_risk for item in evaluated]),
             results=results,
         )
 
