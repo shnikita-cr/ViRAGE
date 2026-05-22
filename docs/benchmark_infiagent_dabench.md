@@ -48,11 +48,17 @@
 
 ## 3. Конвертировать InfiAgent в формат ViRAGE
 
-Команда по умолчанию:
+Команда для основного chart-grounded benchmark:
+
+    python scripts/benchmark/convert_infiagent_dabench.py --chart-answerable-only
+
+Она оставит только задачи, которые можно разумно ответить через статичный график без дополнительных статистических тестов, обучения моделей и точных скрытых вычислений.
+
+Если нужен диагностический полный набор без фильтра:
 
     python scripts/benchmark/convert_infiagent_dabench.py
 
-Она создаст:
+Скрипт создаст:
 
     artifacts/benchmarks/infiagent_cases.jsonl
     artifacts/benchmarks/infiagent_cases.manifest.json
@@ -76,7 +82,7 @@
 
     python scripts/benchmark/run_infiagent_chart_grounded.py --limit 3
 
-Скрипт сам выполнит конвертацию, если не указан `--skip-convert`.
+Скрипт сам выполнит конвертацию, если не указан `--skip-convert`. По умолчанию он включает chart-answerable фильтр. Для диагностического запуска всех задач используй `--all-cases`.
 
 Результаты будут здесь:
 
@@ -197,9 +203,9 @@
 
     python scripts/benchmark/infiagent_scan.py
 
-Затем конвертировать:
+Затем конвертировать chart-answerable поднабор:
 
-    python scripts/benchmark/convert_infiagent_dabench.py
+    python scripts/benchmark/convert_infiagent_dabench.py --chart-answerable-only
 
 Затем smoke:
 
@@ -221,4 +227,4 @@
 
 InfiAgent-DABench содержит задачи, которые часто требуют точных вычислений по таблице. ViRAGE в этом режиме проверяется как chart-grounded система: он должен строить график и отвечать по графику.
 
-Поэтому часть задач может честно провалиться, если точный ответ невозможно визуально восстановить с графика. Это не ошибка интеграции, а ограничение выбранной постановки.
+Поэтому основной запуск теперь фильтрует задачи до chart-answerable поднабора. Полный набор можно запускать только как диагностический стресс-тест через `--all-cases`; такие результаты нельзя напрямую трактовать как качество chart-grounded режима.

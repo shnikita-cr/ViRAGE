@@ -7,14 +7,12 @@ class GenerationPipelineNodesMixin:
     @traceable(name="virage.visrag")
     def visrag_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
-        result = self.visrag.invoke(state["query_request_analysis"], state["data_profile"],
-                                    runtime=self.runtime)
+        result = self.visrag.invoke(state["query_request_analysis"], state["data_profile"], runtime=self.runtime)
         artifact_paths = self._save(state, "visrag", result.model_dump())
-        candidate_set = result.candidate_spec_set
-        selected = candidate_set.selected_candidate_spec if candidate_set else None
+        guidance_summary = result.generation_guidance.prompt_text.splitlines()[0] if result.generation_guidance.prompt_text else "no guidance"
+        retrieved_types = result.diagnostics.retrieved_count_by_type
         return {
             "visrag": result,
-            "candidate_spec_set": candidate_set,
             "analysis_rubric": self._analysis_rubric(state),
             "stage": PipelineStage.VISRAG,
             "trace": self._trace(state, "visrag"),
@@ -22,12 +20,11 @@ class GenerationPipelineNodesMixin:
             "step_logs": self._append_log(
                 state,
                 stage="visrag",
-                title="Spec retrieval",
-                summary=selected.summary if selected else "no candidate",
+                title="Rule guidance retrieval",
+                summary=guidance_summary,
                 inputs=[state["query_request_analysis"].normalized_query],
-                outputs=[item.chart_family for item in (candidate_set.candidate_specs[:3] if candidate_set else [])],
-                details=self._stage_details(before) | {"artifact": artifact_paths["visrag"],
-                                                       "retrieval_query": result.retrieval_query},
+                outputs=[f"{key}:{value}" for key, value in sorted(retrieved_types.items())],
+                details=self._stage_details(before) | {"artifact": artifact_paths["visrag"]},
             ),
         }
 
@@ -45,7 +42,6 @@ class GenerationPipelineNodesMixin:
 
         result = self.chart_generator.invoke(
             state["data_preparation"],
-            state["candidate_spec_set"],
             runtime=self.runtime,
             query=state["query"],
             data_profile=state.get("data_profile"),
@@ -61,7 +57,7 @@ class GenerationPipelineNodesMixin:
             visual_judge_requirements=state.get("visual_judge_requirements"),
         )
         artifact_paths = self._save(state, "vega_spec", _vega_spec_artifact_payload(result))
-        selected = state["candidate_spec_set"].selected_candidate_spec if state.get("candidate_spec_set") else None
+        guidance_present = bool(state.get("visrag") and state["visrag"].generation_guidance.has_guidance)
         return {
             "vega_spec": result,
             "technical_status": "generated",
@@ -74,7 +70,7 @@ class GenerationPipelineNodesMixin:
                 stage="chart_generator",
                 title="Chart generation",
                 summary=f"Generated Vega-Lite specification; technical attempt {technical_attempt}, semantic attempt {semantic_attempt}",
-                inputs=[selected.chart_family if selected else "", f"semantic_feedback={len(semantic_feedback_items)}"],
+                inputs=[f"visrag_guidance={guidance_present}", f"semantic_feedback={len(semantic_feedback_items)}"],
                 outputs=[str((result.spec_without_runtime_data or result.spec_json).get("mark", ""))],
                 details={"artifact": artifact_paths["vega_spec"], "spec": _vega_spec_artifact_payload(result)["spec"]},
             ),

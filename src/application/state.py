@@ -7,7 +7,6 @@ from src.domain.models import (
     AnalysisRubric,
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
-    CandidateSpecSet,
     DataPreparationResult,
     DataProfile,
     EmptyChartCheckResult,
@@ -60,7 +59,6 @@ class PipelineState(TypedDict, total=False):
     data_profile: NotRequired[DataProfile]
     data_preparation: NotRequired[DataPreparationResult]
     visrag: NotRequired[VisRAGResult]
-    candidate_spec_set: NotRequired[CandidateSpecSet]
     vega_spec: NotRequired[VegaLiteSpecArtifact]
     spec_validation: NotRequired[SpecValidationResult]
     plot_rendering: NotRequired[PlotRenderingResult]

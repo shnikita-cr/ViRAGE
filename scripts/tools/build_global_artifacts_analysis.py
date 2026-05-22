@@ -469,20 +469,19 @@ def extract_spec_validation(run_dir: Path) -> tuple[dict[str, Any] | None, Path 
 def extract_chart_metadata(run_dir: Path) -> dict[str, Any]:
     row: dict[str, Any] = {}
 
-    _, candidate_set = find_json_by_logical_name(run_dir, "candidate_spec_set")
-    if isinstance(candidate_set, dict):
-        selected = (
-                candidate_set.get("selected_candidate_spec")
-                or candidate_set.get("selected")
-                or candidate_set.get("selected_candidate")
-        )
-
-        if isinstance(selected, dict):
-            row["selected_spec_id"] = selected.get("spec_id") or selected.get("id")
-            row["selected_chart_family"] = selected.get("chart_family")
-            row["selected_candidate_score"] = selected.get("score")
-            row["selected_field_mapping_json"] = dump_json_cell(selected.get("field_mapping"))
-            row["selected_encoding_roles_json"] = dump_json_cell(selected.get("encoding_roles"))
+    _, visrag_payload = find_json_by_logical_name(run_dir, "visrag")
+    if isinstance(visrag_payload, dict):
+        guidance = visrag_payload.get("generation_guidance") or {}
+        if isinstance(guidance, dict):
+            row["visrag_chart_pattern_count"] = len(guidance.get("chart_patterns") or [])
+            row["visrag_readability_rule_count"] = len(guidance.get("readability_rules") or [])
+            row["visrag_scale_rule_count"] = len(guidance.get("scale_plot_area_rules") or [])
+            row["visrag_vlm_rule_count"] = len(guidance.get("vlm_readability_rules") or [])
+            row["visrag_domain_rule_count"] = len(guidance.get("domain_semantics_rules") or [])
+            row["visrag_prompt_text"] = str(guidance.get("prompt_text") or "")[:2000]
+        diagnostics = visrag_payload.get("diagnostics") or {}
+        if isinstance(diagnostics, dict):
+            row["visrag_retrieved_count_by_type_json"] = dump_json_cell(diagnostics.get("retrieved_count_by_type"))
 
     vega_spec = None
     for logical_name in ("vega_spec", "vega_spec_raw"):

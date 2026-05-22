@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from src.visrag_core import canonicalize_chart_type
+from src.services.spec_metrics.chart_type_utils import canonicalize_chart_type, normalize_aggregate
 
 
-def test_stacked_and_grouped_bar_chart_aliases_resolve_to_bar():
-    assert canonicalize_chart_type("stacked_bar_chart") == "bar"
-    assert canonicalize_chart_type("stacked bar chart") == "bar"
-    assert canonicalize_chart_type("grouped_bar_chart") == "bar"
-    assert canonicalize_chart_type("grouped bar chart") == "bar"
+def test_canonicalize_chart_type_aliases() -> None:
+    assert canonicalize_chart_type("scatter") == "point"
+    assert canonicalize_chart_type("scatter plot") == "point"
+    assert canonicalize_chart_type("grouped_bar") == "bar"
+    assert canonicalize_chart_type("heat map") == "rect"
+
+
+def test_normalize_aggregate_aliases() -> None:
+    assert normalize_aggregate("avg") == "mean"
+    assert normalize_aggregate("average") == "mean"
+    assert normalize_aggregate("sum") == "sum"

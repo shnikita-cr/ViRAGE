@@ -34,9 +34,10 @@ Allowed record_type values:
 - readability_rule
 - scale_plot_area_rule
 - vlm_readability_rule
+- domain_semantics_rule
 Each record must include: record_type, title, task, chart_family, applies_when, guidance, avoid, severity, retrieval_text, prompt_text.
 Keep prompt_text short, practical, and suitable for a chart-generation prompt.
-Focus on rules that improve spec correctness, chart readability, plot area utilization, and static-PNG VLM readability.
+Focus on rules that improve spec correctness, chart readability, plot area utilization, static-PNG VLM readability, and optional domain term understanding.
 """.strip()
 
 

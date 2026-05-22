@@ -188,7 +188,6 @@ class ViRAGEPipeline:
             data_profile=final_state.get('data_profile'),
             data_preparation=final_state.get('data_preparation'),
             visrag=final_state.get('visrag'),
-            candidate_spec_set=final_state.get('candidate_spec_set'),
             vega_spec=final_state.get('vega_spec'),
             spec_validation=final_state.get('spec_validation'),
             plot_rendering=final_state.get('plot_rendering'),

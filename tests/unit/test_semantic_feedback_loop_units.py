@@ -28,7 +28,6 @@ def test_semantic_feedback_is_injected_into_spec_generation_prompt() -> None:
     request = SpecGenerationRequest(
         query="compare PSNR by Method",
         prepared=prepared,
-        candidate_spec_set={"candidate_specs": [], "retrieved_examples": []},  # type: ignore[arg-type]
         previous_semantic_feedback=["Previous chart did not show PSNR grouped by Method."],
         previous_chart_facts=[{"facts": ["The chart shows counts, not PSNR."]}],
     )

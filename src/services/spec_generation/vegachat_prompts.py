@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from src.domain.models import CandidateSpecSet, DataPreparationResult, DataProfile, SpecGenerationRequest
+from src.domain.models import DataPreparationResult, DataProfile, SpecGenerationRequest
 from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
 
 VEGA_LITE_SCHEMA_URL = "https://vega.github.io/schema/vega-lite/v5.json"
@@ -26,9 +26,8 @@ def build_vegachat_codegen_prompt(
         _chartsquared_generation_contract(request),
         _validation_feedback_contract(request),
         _semantic_feedback_contract(request),
-        _visrag_context(request.candidate_spec_set,
-                        max_context_chars=max_context_chars,
-                        top_k=rag_prompt_top_k) if include_visrag_context else "VisRAG context is disabled for this generation run.",
+        _visrag_context(request.visrag, max_context_chars=max_context_chars)
+        if include_visrag_context else "VisRAG context is disabled for this generation run.",
         _output_contract(),
     ]
 
@@ -182,65 +181,20 @@ def _semantic_feedback_contract(request: SpecGenerationRequest) -> str:
     )
 
 
-def _visrag_context(candidate_spec_set: CandidateSpecSet, *, max_context_chars: int, top_k: int = 2) -> str:
-    payload: dict[str, Any] = {
-        "selected_candidate": None,
-        "candidate_specs": [],
-        "retrieved_examples": [],
-        "ranking_hints": candidate_spec_set.ranking_hints[:5],
-    }
-
-    selected = candidate_spec_set.selected_candidate_spec
-    if selected is not None:
-        payload["selected_candidate"] = _candidate_payload(selected)
-
-    for candidate in candidate_spec_set.candidate_specs[:top_k]:
-        payload["candidate_specs"].append(_candidate_payload(candidate))
-
-    for example in candidate_spec_set.retrieved_examples[:top_k]:
-        payload["retrieved_examples"].append(
-            {
-                "example_id": example.example_id,
-                "chart_type": example.chart_type,
-                "instruction": example.instruction,
-                "description": example.description,
-                "score": example.score,
-                "rationale": example.rationale,
-                "tags": example.tags[:8],
-            }
-        )
-
-    text = (
-            "Retrieved VisRAG context. Use this as guidance, not as a template to copy blindly.\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+def _visrag_context(visrag, *, max_context_chars: int) -> str:
+    if visrag is None or not getattr(visrag.generation_guidance, "has_guidance", False):
+        return "No VisRAG guidance was retrieved for this generation run."
+    text = visrag.generation_guidance.prompt_text.strip()
+    if not text:
+        return "No VisRAG guidance was retrieved for this generation run."
+    header = (
+        "Retrieved VisRAG guidance. Use it as rules and constraints only; "
+        "do not copy any external Vega-Lite specification from RAG.\n"
     )
-    if len(text) > max_context_chars:
-        return text[:max_context_chars] + "\n[VisRAG context truncated]"
-    return text
-
-
-def _candidate_payload(candidate) -> dict[str, Any]:
-    spec_template = _strip_data(candidate.spec_template or {})
-    return {
-        "spec_id": candidate.spec_id,
-        "chart_family": candidate.chart_family,
-        "summary": candidate.summary,
-        "score": candidate.score,
-        "encoding_roles": candidate.encoding_roles,
-        "transform_types": candidate.transform_types,
-        "field_mapping": candidate.field_mapping,
-        "pattern_summary": _spec_pattern_summary(spec_template),
-    }
-
-
-def _spec_pattern_summary(spec: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(spec, dict):
-        return {}
-    summary: dict[str, Any] = {}
-    for key in ("mark", "encoding", "transform", "layer", "facet", "repeat", "concat", "hconcat", "vconcat", "resolve"):
-        if key in spec:
-            summary[key] = spec[key]
-    return summary
+    payload = header + text
+    if len(payload) > max_context_chars:
+        return payload[:max_context_chars] + "\n[VisRAG guidance truncated]"
+    return payload
 
 
 def _strip_data(value: Any) -> Any:
@@ -249,7 +203,6 @@ def _strip_data(value: Any) -> Any:
     if isinstance(value, list):
         return [_strip_data(item) for item in value]
     return value
-
 
 def _output_contract() -> str:
     return f"""

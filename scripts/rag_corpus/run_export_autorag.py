@@ -10,9 +10,11 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 
 import argparse
 import json
+from pathlib import Path
 
 from scripts.rag_corpus.autorag.export_corpus import export_autorag_corpus
 from scripts.rag_corpus.autorag.export_qa import export_autorag_qa
+from scripts.rag_corpus.autorag.export_all_config import export_all_config
 from scripts.rag_corpus.common.io import project_root, write_json
 
 
@@ -25,7 +27,8 @@ def main() -> None:
     output_root = root / args.output_root
     corpus_report = export_autorag_corpus(root / args.input, output_root / "corpus.parquet")
     qa_report = export_autorag_qa(root / args.input, output_root / "qa.parquet")
-    report = {"corpus": corpus_report, "qa": qa_report}
+    config_path = export_all_config(Path(args.output_root) / "configs" / "virage_rules_all.yaml")
+    report = {"corpus": corpus_report, "qa": qa_report, "config": str(config_path)}
     write_json(output_root / "export_report.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 

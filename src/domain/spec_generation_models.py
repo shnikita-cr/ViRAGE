@@ -5,15 +5,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from src.domain.data_models import DataPreparationResult, DataProfile, QueryRequestAnalysisResult
-from src.domain.visrag_models import CandidateSpecSet, VisRAGResult
+from src.domain.visrag_models import VisRAGResult
 
-SpecGenerationBackendName = Literal["template", "vegachat_codegen"]
+SpecGenerationBackendName = Literal["vegachat_codegen"]
 
 
 class SpecGenerationRequest(BaseModel):
     query: str
     prepared: DataPreparationResult
-    candidate_spec_set: CandidateSpecSet
     data_profile: DataProfile | None = None
     query_request_analysis: QueryRequestAnalysisResult | None = None
     visrag: VisRAGResult | None = None

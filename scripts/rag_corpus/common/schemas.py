@@ -17,6 +17,7 @@ RecordType = Literal[
     "readability_rule",
     "scale_plot_area_rule",
     "vlm_readability_rule",
+    "domain_semantics_rule",
 ]
 
 ALLOWED_RECORD_TYPES: set[str] = {
@@ -24,6 +25,7 @@ ALLOWED_RECORD_TYPES: set[str] = {
     "readability_rule",
     "scale_plot_area_rule",
     "vlm_readability_rule",
+    "domain_semantics_rule",
 }
 
 

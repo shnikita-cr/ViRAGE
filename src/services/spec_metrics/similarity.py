@@ -13,7 +13,7 @@ from src.services.spec_metrics.models import (
     TransformItem,
     View,
 )
-from src.visrag_core import canonicalize_chart_type
+from src.services.spec_metrics.chart_type_utils import canonicalize_chart_type
 
 
 def normalize_mark(value: str) -> str:

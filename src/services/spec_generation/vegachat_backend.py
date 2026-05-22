@@ -102,7 +102,8 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
             warning_messages=list(dict.fromkeys(warning_messages)),
             used_visrag_context=bool(
                 runtime.settings.spec_generation_include_visrag_context
-                and (request.candidate_spec_set.candidate_specs or request.candidate_spec_set.retrieved_examples)
+                and request.visrag is not None
+                and request.visrag.generation_guidance.has_guidance
             ),
             generation_attempt_number=request.generation_attempt_number,
             max_generation_attempts=request.max_generation_attempts,

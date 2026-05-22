@@ -29,6 +29,7 @@ QUESTION_TEMPLATES = {
     "readability_rule": "A generated chart needs better readability for {chart_family} / {task}. Which readability rule should be retrieved?",
     "scale_plot_area_rule": "A chart has poor plot area utilization or outlier-compressed marks. Which scale or plot-area rule should be retrieved?",
     "vlm_readability_rule": "A static PNG chart must be readable by a VLM judge. Which VLM readability rule should be retrieved?",
+    "domain_semantics_rule": "A dataset or user request contains domain-specific terms. Which domain semantics rule should be retrieved?",
 }
 
 

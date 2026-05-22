@@ -11,6 +11,7 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 import argparse
 import csv
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -41,8 +42,28 @@ def _flatten_text(value: Any) -> str:
     return compact_text(value)
 
 
+TEXT_ENCODINGS = ("utf-8-sig", "utf-8", "cp1251", "cp1252", "latin-1")
+
+
+def _read_text_with_fallback(path: Path) -> tuple[str, str]:
+    last_error: UnicodeDecodeError | None = None
+    for encoding in TEXT_ENCODINGS:
+        try:
+            return path.read_text(encoding=encoding), encoding
+        except UnicodeDecodeError as exc:
+            last_error = exc
+    if last_error is not None:
+        warnings.warn(
+            f"Could not decode {path} with strict encodings; using utf-8 replacement.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    return path.read_text(encoding="utf-8", errors="replace"), "utf-8-replace"
+
+
 def _load_json_records(path: Path) -> list[dict[str, Any]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    text, _encoding = _read_text_with_fallback(path)
+    payload = json.loads(text)
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
     if isinstance(payload, dict):
@@ -55,42 +76,77 @@ def _load_json_records(path: Path) -> list[dict[str, Any]]:
 
 
 def _load_jsonl_records(path: Path) -> list[dict[str, Any]]:
+    text, _encoding = _read_text_with_fallback(path)
     records = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if line.strip():
-                try:
-                    value = json.loads(line)
-                    if isinstance(value, dict):
-                        records.append(value)
-                except json.JSONDecodeError:
-                    records.append({"text": line.strip()})
+    for line in text.splitlines():
+        if line.strip():
+            try:
+                value = json.loads(line)
+                if isinstance(value, dict):
+                    records.append(value)
+            except json.JSONDecodeError:
+                records.append({"text": line.strip()})
     return records
 
 
 def _load_csv_records(path: Path) -> list[dict[str, Any]]:
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        return [dict(row) for row in reader]
+    text, _encoding = _read_text_with_fallback(path)
+    sample = text[:4096]
+    try:
+        dialect = csv.Sniffer().sniff(sample) if sample.strip() else csv.excel
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.DictReader(text.splitlines(), dialect=dialect)
+    if not reader.fieldnames:
+        return []
+    return [dict(row) for row in reader]
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:
     suffix = path.suffix.lower()
-    if suffix == ".json":
-        return _load_json_records(path)
-    if suffix == ".jsonl":
-        return _load_jsonl_records(path)
-    if suffix == ".csv":
-        return _load_csv_records(path)
+    try:
+        if suffix == ".json":
+            return _load_json_records(path)
+        if suffix == ".jsonl":
+            return _load_jsonl_records(path)
+        if suffix == ".csv":
+            return _load_csv_records(path)
+    except (OSError, json.JSONDecodeError, csv.Error, ValueError) as exc:
+        warnings.warn(
+            f"Skipping ChartSquared source file {path}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     return []
 
+
+
+
+def _sanitize_record_keys(value: Any) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item_value in value.items():
+            safe_key = "__extra_columns__" if key is None else str(key)
+            if safe_key in sanitized:
+                existing = sanitized[safe_key]
+                if not isinstance(existing, list):
+                    existing = [existing]
+                existing.append(_sanitize_record_keys(item_value))
+                sanitized[safe_key] = existing
+            else:
+                sanitized[safe_key] = _sanitize_record_keys(item_value)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_record_keys(item) for item in value]
+    return value
 
 def extract_chartsquared(input_dir: Path) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     for path in sorted(input_dir.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in {".json", ".jsonl", ".csv"}:
             continue
-        for idx, item in enumerate(_load_records(path)):
+        for idx, raw_item in enumerate(_load_records(path)):
+            item = _sanitize_record_keys(raw_item)
             text = compact_text(_flatten_text(item), max_chars=4000)
             if not text:
                 continue

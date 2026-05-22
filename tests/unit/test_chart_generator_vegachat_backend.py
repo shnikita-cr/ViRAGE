@@ -5,12 +5,12 @@ from pathlib import Path
 
 from src.application.settings import ViRAGESettings
 from src.domain.models import (
-    CandidateSpec,
-    CandidateSpecSet,
     DataColumnProfile,
     DataPreparationResult,
     DataProfile,
     QueryRequestAnalysisResult,
+    VisRAGGenerationGuidance,
+    VisRAGResult,
 )
 from src.infrastructure.runtime import RuntimeContext
 from src.services.chart_generator import ChartGeneratorService
@@ -48,7 +48,7 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
             "<explain>Compare mean metric by region.</explain>"
             "<json>{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\","
             "\"mark\":\"bar\","
-            "\"encoding\":{"
+            "\"encoding\":{" 
             "\"x\":{\"field\":\"Region_Name\",\"type\":\"nominal\"},"
             "\"y\":{\"field\":\"Metric_Value\",\"type\":\"quantitative\",\"aggregate\":\"mean\"}"
             "}}</json>"
@@ -57,12 +57,6 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
     runtime.current_run_id = "run"
     runtime.ensure_run_dir()
 
-    candidate = CandidateSpec(
-        spec_id="example",
-        chart_family="bar",
-        summary="Bar comparison",
-        spec_template={"mark": "bar", "encoding": {}},
-    )
     prepared = DataPreparationResult(
         output_path="prepared.csv",
         row_count=2,
@@ -83,14 +77,24 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
                               dtype="numeric", role="measure", missing_ratio=0.0, unique_count=2),
         ],
     )
+    visrag = VisRAGResult(
+        generation_guidance=VisRAGGenerationGuidance(
+            prompt_text="VisRAG rule guidance:\n- Use a bar chart for category comparison."
+        )
+    )
 
     artifact = ChartGeneratorService().invoke(
         prepared=prepared,
-        candidate_spec_set=CandidateSpecSet(candidate_specs=[candidate], selected_candidate_spec=candidate),
         runtime=runtime,
         query="compare metric by region",
         data_profile=profile,
-        query_request_analysis=QueryRequestAnalysisResult(normalized_query="compare metric by region", selected_fields=["Region.Name", "Metric Value (%)"]),
+        query_request_analysis=QueryRequestAnalysisResult(
+            normalized_query="compare metric by region",
+            analysis_task="comparison",
+            recommended_chart_family="bar",
+            selected_fields=["Region.Name", "Metric Value (%)"],
+        ),
+        visrag=visrag,
     )
 
     assert artifact.generation_backend == "vegachat_codegen"
@@ -100,5 +104,6 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
     assert artifact.spec_without_runtime_data["encoding"]["x"]["field"] == "Region_Name"
     assert artifact.spec_json["encoding"]["x"]["field"] == "Region_Name"
     assert artifact.spec_json["encoding"]["y"]["field"] == "Metric_Value"
+    assert "VisRAG rule guidance" in str(runtime.spec_llm.prompts[0])
     assert (tmp_path / "artifacts" / "run" / "model_calls.csv").exists()
     assert list((tmp_path / "artifacts" / "run" / "model_calls").glob("*_chart_generator_spec-01.json"))

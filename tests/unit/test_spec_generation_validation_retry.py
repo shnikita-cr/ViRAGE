@@ -6,8 +6,6 @@ from typing import Any
 
 from src.application.settings import ViRAGESettings
 from src.domain.models import (
-    CandidateSpec,
-    CandidateSpecSet,
     DataPreparationResult,
     SpecValidationResult,
     VegaLiteSpecArtifact,
@@ -59,12 +57,6 @@ class FakeSpecValidator:
 
 
 def _base_state() -> dict[str, Any]:
-    candidate = CandidateSpec(
-        spec_id="bar_example",
-        chart_family="bar",
-        summary="Bar chart",
-        spec_template={"mark": "bar", "encoding": {}},
-    )
     prepared = DataPreparationResult(
         output_path="prepared.csv",
         row_count=2,
@@ -76,7 +68,6 @@ def _base_state() -> dict[str, Any]:
         "run_id": "run",
         "query": "compare value by category",
         "data_preparation": prepared,
-        "candidate_spec_set": CandidateSpecSet(candidate_specs=[candidate], selected_candidate_spec=candidate),
         "vega_spec": VegaLiteSpecArtifact(
             spec_json={
                 "$schema": "https://vega.github.io/schema/vega-lite/v5.json",

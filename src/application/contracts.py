@@ -8,7 +8,6 @@ from src.domain.models import (
     AnalysisRubric,
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
-    CandidateSpecSet,
     DataPreparationResult,
     DataProfile,
     EmptyChartCheckResult,
@@ -48,7 +47,6 @@ class PipelineResult(BaseModel):
     data_profile: DataProfile | None = None
     data_preparation: DataPreparationResult | None = None
     visrag: VisRAGResult | None = None
-    candidate_spec_set: CandidateSpecSet | None = None
     vega_spec: VegaLiteSpecArtifact | None = None
     spec_validation: SpecValidationResult | None = None
     plot_rendering: PlotRenderingResult | None = None
