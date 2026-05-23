@@ -19,12 +19,25 @@ The new corpus does **not** store runtime Vega-Lite specifications. Runtime retr
 - `readability_rule` — how to keep the chart readable.
 - `scale_plot_area_rule` — how to use plot area well and handle outlier-compressed charts carefully.
 - `vlm_readability_rule` — what must be visible in a static PNG for VLM judge/analysis.
+- `domain_semantics_rule` — optional domain-term guidance for specialized datasets.
 
 ## Main commands
 
 Prepare processed records with Ollama:
 
     python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
+
+Prepare only ChartSquared prompts, which is the recommended cheap mode for ChartAF/VLM-feedback rules:
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode prompts_only
+
+Prepare a sampled ChartSquared subset, which is the default when ChartSquared is enabled:
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode sample --chartsquared-limit 300
+
+Prepare full ChartSquared only for long offline runs:
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode full
 
 Prepare processed records with OpenAI:
 
