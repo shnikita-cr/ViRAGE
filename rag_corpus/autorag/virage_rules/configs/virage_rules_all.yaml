@@ -1,0 +1,18 @@
+# AutoRAG all-in-one optimization config for ViRAGE rule/guidance corpus.
+# This file intentionally contains multiple retriever variants in one config so
+# AutoRAG can evaluate combinations together and report the best result.
+# Paths are relative to this project root unless overwritten by the AutoRAG CLI.
+
+node_lines:
+  - node_line_name: retrieve_node_line
+    nodes:
+      - node_type: retrieval
+        strategy:
+          metrics: [retrieval_f1, retrieval_recall, retrieval_precision]
+        top_k: [1, 2, 3, 5, 8]
+        modules:
+          - module_type: bm25
+          - module_type: vectordb
+            embedding_model: [openai, huggingface, ollama]
+          - module_type: hybrid_rrf
+            weight_range: [[4, 6], [5, 5], [6, 4]]
