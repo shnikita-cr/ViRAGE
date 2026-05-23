@@ -430,13 +430,13 @@ python scripts/rag_corpus/run_autorag_optimization.py --dry-run
 python scripts/rag_corpus/run_autorag_optimization.py
 ```
 
-Важно: текущий скрипт вызывает:
+Важно: текущий скрипт вызывает актуальный CLI-формат AutoRAG с подкомандой `evaluate`:
 
 ```
-python -m autorag.cli --config ...
+python -m autorag.cli evaluate --config ... --qa_data_path ... --corpus_data_path ... --project_dir ...
 ```
 
-Если установленная версия AutoRAG использует другую CLI-команду, запуск может потребовать корректировки под твою версию. Сам конфиг лежит здесь:
+Именно подкоманда `evaluate` обязательна: запуск вида `python -m autorag.cli --config ...` падает с ошибкой `No such option: --config`. Сам конфиг лежит здесь:
 
 ```
 rag_corpus/autorag/virage_rules/configs/virage_rules_all.yaml

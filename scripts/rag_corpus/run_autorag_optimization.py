@@ -17,25 +17,82 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 
 import argparse
 import subprocess
+from pathlib import Path
 
 from scripts.rag_corpus.common.io import project_root
 
 
+DEFAULT_PROJECT_ROOT = "rag_corpus/autorag/virage_rules"
+DEFAULT_CONFIG = "configs/virage_rules_all.yaml"
+DEFAULT_QA_DATA = "qa.parquet"
+DEFAULT_CORPUS_DATA = "corpus.parquet"
+DEFAULT_OUTPUT_DIR = "."
+
+
+def _resolve_inside_project(project_dir: Path, value: str) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return project_dir / path
+
+
+def _require_existing_file(path: Path, label: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"{label} not found: {path}")
+    if not path.is_file():
+        raise FileNotFoundError(f"{label} is not a file: {path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run AutoRAG optimization for ViRAGE rule corpus.")
-    parser.add_argument("--project-root", default="rag_corpus/autorag/virage_rules")
-    parser.add_argument("--config", default="configs/virage_rules_all.yaml")
+    parser.add_argument("--project-root", default=DEFAULT_PROJECT_ROOT)
+    parser.add_argument("--config", default=DEFAULT_CONFIG)
+    parser.add_argument("--qa-data", default=DEFAULT_QA_DATA)
+    parser.add_argument("--corpus-data", default=DEFAULT_CORPUS_DATA)
+    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     root = project_root()
-    project = root / args.project_root
-    config = project / args.config
-    cmd = [sys.executable, "-m", "autorag.cli", "--config", str(config)]
+    autorag_project = root / args.project_root
+    config = _resolve_inside_project(autorag_project, args.config)
+    qa_data = _resolve_inside_project(autorag_project, args.qa_data)
+    corpus_data = _resolve_inside_project(autorag_project, args.corpus_data)
+    output_dir = _resolve_inside_project(autorag_project, args.output_dir)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "autorag.cli",
+        "evaluate",
+        "--config",
+        str(config),
+        "--qa_data_path",
+        str(qa_data),
+        "--corpus_data_path",
+        str(corpus_data),
+        "--project_dir",
+        str(output_dir),
+    ]
     if args.dry_run:
-        print(" ".join(cmd))
+        print(" ".join(cmd), flush=True)
+        missing = [
+            ("AutoRAG config", config),
+            ("AutoRAG QA dataset", qa_data),
+            ("AutoRAG corpus dataset", corpus_data),
+        ]
+        missing = [(label, path) for label, path in missing if not path.is_file()]
+        if missing:
+            print("Missing files for real run:", file=sys.stderr)
+            for label, path in missing:
+                print(f"- {label}: {path}", file=sys.stderr)
         return
-    subprocess.run(cmd, cwd=project, check=True)
+
+    _require_existing_file(config, "AutoRAG config")
+    _require_existing_file(qa_data, "AutoRAG QA dataset")
+    _require_existing_file(corpus_data, "AutoRAG corpus dataset")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(cmd, cwd=root, check=True)
 
 
 if __name__ == "__main__":
