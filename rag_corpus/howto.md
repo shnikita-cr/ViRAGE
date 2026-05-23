@@ -37,13 +37,13 @@ OpenAI вместо Ollama
 Скачать внешние источники без лишних вложенных папок
 
     New-Item -ItemType Directory -Force rag_corpus\raw
-
+    
     git clone https://github.com/vega/vega-lite.git rag_corpus\raw\vega_lite_examples
     Test-Path rag_corpus\raw\vega_lite_examples\examples\specs
-
+    
     git clone https://github.com/chartsquared/C-2.git rag_corpus\raw\chartsquared
     Test-Path rag_corpus\raw\chartsquared
-
+    
     New-Item -ItemType Directory -Force datasets
     git clone https://github.com/giahy2507/nlvcorpus.github.io.git .\datasets\nlv_corpus
     Invoke-WebRequest "https://docs.google.com/spreadsheets/d/1GMWktNGJCwC8U1dvT0gMggVRRYqN3uL28zjVDbxYJOg/export?format=csv&gid=0" -OutFile .\datasets\nlv_corpus\NLV_Corpus.csv
@@ -74,7 +74,7 @@ InfiAgent должен лежать здесь:
     Remove-Item -Force rag_corpus\processed\all_rules.validated.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\normalization_failures.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force rag_corpus\runtime -ErrorAction SilentlyContinue
-
+    
     New-Item -ItemType Directory -Force rag_corpus\extracted
     New-Item -ItemType Directory -Force rag_corpus\processed\llm_normalized
     New-Item -ItemType Directory -Force rag_corpus\runtime
@@ -144,36 +144,7 @@ NLV с RAG, перезапустить failed/missing
 
     python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag --retry-failed --disable-analytics-tail
 
-Сравнить NLV no RAG и RAG
 
-    @'
-    import json
-    from pathlib import Path
-
-    no_rag = json.loads(Path('artifacts/benchmarks/nlv_no_rag/benchmark_report.json').read_text(encoding='utf-8'))
-    rag = json.loads(Path('artifacts/benchmarks/nlv_rag/benchmark_report.json').read_text(encoding='utf-8'))
-
-    metrics = [
-        'total_cases',
-        'successful_cases',
-        'failed_cases',
-        'visualization_error_rate',
-        'empty_chart_rate',
-        'mean_spec_score',
-        'mean_vision_score',
-        'median_spec_score',
-        'median_vision_score',
-        'mean_duration_seconds',
-        'total_tokens',
-    ]
-
-    print('metric,no_rag,rag,delta_rag_minus_no_rag')
-    for metric in metrics:
-        a = no_rag.get(metric)
-        b = rag.get(metric)
-        delta = None if not isinstance(a, (int, float)) or not isinstance(b, (int, float)) else round(b - a, 6)
-        print(f'{metric},{a},{b},{delta}')
-    '@ | python -
 
 InfiAgent chart-answerable, smoke
 
