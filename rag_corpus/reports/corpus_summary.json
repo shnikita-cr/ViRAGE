@@ -1,37 +1,37 @@
 {
   "deduplication": {
-    "kept": 19,
-    "rejected": 0
+    "kept": 96,
+    "rejected": 26
   },
   "merge": {
     "by_record_type": {
-      "chart_pattern": 2,
-      "domain_semantics_rule": 4,
-      "readability_rule": 5,
-      "scale_plot_area_rule": 5,
-      "vlm_readability_rule": 3
+      "chart_pattern": 21,
+      "domain_semantics_rule": 21,
+      "readability_rule": 30,
+      "scale_plot_area_rule": 30,
+      "vlm_readability_rule": 20
     },
-    "total": 19
+    "total": 122
   },
   "normalization": {
     "failures": 0,
-    "records_written": 19,
-    "sources_attempted": 5
+    "records_written": 61,
+    "sources_attempted": 15
   },
   "validation": {
-    "avg_prompt_text_chars": 45.05,
-    "avg_retrieval_text_chars": 27.63,
+    "avg_prompt_text_chars": 42.46,
+    "avg_retrieval_text_chars": 27.54,
     "by_record_type": {
-      "chart_pattern": 2,
-      "domain_semantics_rule": 4,
-      "readability_rule": 5,
-      "scale_plot_area_rule": 5,
-      "vlm_readability_rule": 3
+      "chart_pattern": 18,
+      "domain_semantics_rule": 16,
+      "readability_rule": 24,
+      "scale_plot_area_rule": 21,
+      "vlm_readability_rule": 17
     },
     "by_source_dataset": {
-      "vega_lite_examples": 19
+      "vega_lite_examples": 96
     },
     "rejected": 0,
-    "total": 19
+    "total": 96
   }
 }

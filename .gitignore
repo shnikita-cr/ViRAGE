@@ -86,3 +86,4 @@ datasets
 /rag_corpus/manifests
 /rag_corpus/extracted
 /rag_corpus/extracted
+/rag_corpus/processed
