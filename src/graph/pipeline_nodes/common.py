@@ -5,7 +5,7 @@ from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
+from src.domain.models import AnalysisRubric, InsightsResult, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
     VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
