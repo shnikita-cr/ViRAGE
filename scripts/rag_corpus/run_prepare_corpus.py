@@ -19,6 +19,12 @@ from scripts.rag_corpus.normalize.merge_processed_records import merge_processed
 from scripts.rag_corpus.normalize.normalize_with_llm import _target_record_types_arg, run_normalization
 from scripts.rag_corpus.normalize.validate_processed_records import validate_processed
 from scripts.rag_corpus.sources.extract_chartsquared import extract_chartsquared
+from scripts.rag_corpus.sources.extract_chartsquared_rules import extract_chartsquared_rules
+from scripts.rag_corpus.sources.extract_compassql import extract_compassql
+from scripts.rag_corpus.sources.extract_draco import extract_draco
+from scripts.rag_corpus.sources.extract_from_data_to_viz import extract_from_data_to_viz
+from scripts.rag_corpus.sources.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
+from scripts.rag_corpus.sources.extract_taskvis import extract_taskvis
 from scripts.rag_corpus.sources.extract_manual_rules import extract_manual_rules
 from scripts.rag_corpus.sources.extract_vega_lite_examples import extract_vega_lite_examples
 from scripts.rag_corpus.sources.extract_virage_feedback import extract_virage_feedback
@@ -34,6 +40,12 @@ def _write_source_records(root: Path, *, sources: set[str], chartsquared_mode: s
         ("virage_feedback", extract_virage_feedback, root / "rag_corpus/raw/virage_feedback"),
         ("chartsquared", extract_chartsquared, root / "rag_corpus/raw/chartsquared"),
         ("vega_lite_examples", extract_vega_lite_examples, root / "rag_corpus/raw/vega_lite_examples"),
+        ("taskvis", extract_taskvis, root / "rag_corpus/raw_external_rules/taskvis"),
+        ("draco", extract_draco, root / "rag_corpus/raw_external_rules/draco"),
+        ("from_data_to_viz", extract_from_data_to_viz, root / "rag_corpus/raw_external_rules/from_data_to_viz"),
+        ("ft_visual_vocabulary", extract_ft_visual_vocabulary, root / "rag_corpus/raw_external_rules/ft_visual_vocabulary"),
+        ("compassql", extract_compassql, root / "rag_corpus/raw_external_rules/compassql"),
+        ("chartsquared_rules", extract_chartsquared_rules, root / "rag_corpus/raw_external_rules/chartsquared"),
     ]
     extractors = [item for item in extractor_specs if item[0] in sources]
     progress = StageProgress("extraction", total=len(extractors))
@@ -65,7 +77,7 @@ def main() -> None:
     parser.add_argument(
         "--sources",
         nargs="*",
-        choices=["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples"],
+        choices=["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples", "taskvis", "draco", "from_data_to_viz", "ft_visual_vocabulary", "compassql", "chartsquared_rules"],
         default=None,
         help="Source extractors to run. Defaults to all sources.",
     )
@@ -109,13 +121,18 @@ def main() -> None:
         clean_progress.finish(extra="processed outputs reset")
 
     scan_progress = StageProgress("scan-sources", total=1)
-    inventory = scan_sources(root / "rag_corpus/raw")
+    inventory = {
+        "raw": scan_sources(root / "rag_corpus/raw"),
+        "raw_external_rules": scan_sources(root / "rag_corpus/raw_external_rules"),
+    }
     write_json(root / "rag_corpus/manifests/raw_inventory.json", inventory)
-    write_text(root / "rag_corpus/manifests/source_inventory.md", inventory_markdown(inventory))
-    scan_progress.update(extra=f"sources={len(inventory.get('sources', [])) if isinstance(inventory, dict) else 'unknown'}")
+    write_text(root / "rag_corpus/manifests/source_inventory.md", inventory_markdown(inventory["raw"]) + "\n" + inventory_markdown(inventory["raw_external_rules"]))
+    raw_count = len(inventory["raw"].get("sources", {}))
+    external_count = len(inventory["raw_external_rules"].get("sources", {}))
+    scan_progress.update(extra=f"raw_sources={raw_count} external_sources={external_count}")
     scan_progress.finish()
 
-    selected_sources = set(args.sources or ["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples"])
+    selected_sources = set(args.sources or ["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples", "taskvis", "draco", "from_data_to_viz", "ft_visual_vocabulary", "compassql", "chartsquared_rules"])
     input_paths = _write_source_records(
         root,
         sources=selected_sources,

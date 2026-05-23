@@ -39,6 +39,10 @@ Allowed record_type values:
 Each record must include: record_type, title, task, chart_family, applies_when, guidance, avoid, severity, retrieval_text, prompt_text.
 Keep prompt_text short, practical, and suitable for a chart-generation prompt.
 Focus on rules that improve spec correctness, chart readability, plot area utilization, static-PNG VLM readability, and optional domain term understanding.
+For external semantic sources, convert concrete examples into abstract chart construction rules.
+Do not preserve source-specific domains, dataset names, field names, or examples in runtime guidance unless they are necessary for the rule itself.
+Keep source-specific details only in metadata-like wording, not in prompt_text.
+Do not create records from NLV examples or NLV ground-truth visualizations.
 """.strip()
 
 
