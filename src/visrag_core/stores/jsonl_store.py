@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -8,12 +9,7 @@ from src.visrag_core.stores.base import RuleCorpusRepository
 
 
 class JsonlRuleCorpusRepository(RuleCorpusRepository):
-    """Local JSONL runtime rule store.
-
-    This is the simplest current backend. It intentionally implements the same
-    repository interface that a future vector database or graph store should
-    implement, so service and generator code do not depend on the file format.
-    """
+    """Local JSONL runtime rule store."""
 
     backend_name = "jsonl"
 
@@ -25,6 +21,30 @@ class JsonlRuleCorpusRepository(RuleCorpusRepository):
         if self.path.is_file():
             return self.path
         return self.path / "virage_rules.jsonl"
+
+    def corpus_signature(self) -> dict[str, object]:
+        corpus_file = self._resolve_file()
+        if not corpus_file.exists():
+            return {
+                "backend": self.backend_name,
+                "uri": self.corpus_uri,
+                "resolved_path": corpus_file.as_posix(),
+                "exists": False,
+                "hash": "missing",
+                "cache_key": f"jsonl:{corpus_file.as_posix()}:missing",
+            }
+        stat = corpus_file.stat()
+        digest = hashlib.sha256(corpus_file.read_bytes()).hexdigest()
+        return {
+            "backend": self.backend_name,
+            "uri": self.corpus_uri,
+            "resolved_path": corpus_file.as_posix(),
+            "exists": True,
+            "size_bytes": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+            "hash": digest,
+            "cache_key": f"jsonl:{corpus_file.as_posix()}:{stat.st_mtime_ns}:{stat.st_size}:{digest}",
+        }
 
     def load_documents(self) -> list[VisRAGRuleDocument]:
         corpus_file = self._resolve_file()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Iterable
@@ -15,13 +16,13 @@ _REFERENCE_IMAGE_KEYS = ("reference_image_path", "gt_image_path", "image_path", 
 _ID_KEYS = ("case_id", "id", "example_id", "uid", "index")
 
 
-def load_benchmark_cases(path: str | Path) -> list[BenchmarkCase]:
+def load_benchmark_cases(path: str | Path, *, nlv_mode: str = "single_turn") -> list[BenchmarkCase]:
     """Load JSON/JSONL benchmark cases with flexible VegaChat/NLV/ChartLLM-style keys."""
 
     source = Path(path)
     root = source.parent if source.is_file() else source
     if source.is_dir():
-        nlv_cases = _try_load_nlv_corpus_cases(source)
+        nlv_cases = _try_load_nlv_corpus_cases(source, nlv_mode=nlv_mode)
         if nlv_cases is not None:
             return nlv_cases
         chart_llm_cases = _try_load_chart_llm_cases(source)
@@ -36,7 +37,7 @@ def load_benchmark_cases(path: str | Path) -> list[BenchmarkCase]:
     return cases
 
 
-def _try_load_nlv_corpus_cases(root: Path) -> list[BenchmarkCase] | None:
+def _try_load_nlv_corpus_cases(root: Path, *, nlv_mode: str = "single_turn") -> list[BenchmarkCase] | None:
     corpus_path = root / "NLV_Corpus.csv"
     specs_path = root / "vlSpecs.json"
     datasets_dir = root / "datasets"
@@ -56,19 +57,28 @@ def _try_load_nlv_corpus_cases(root: Path) -> list[BenchmarkCase] | None:
         if not utterance_set:
             continue
         prompt_parts = [part.strip() for part in utterance_set.split("|") if part.strip()]
-        query = "\n".join(prompt_parts) if prompt_parts else utterance_set
+        sequential_flag = str(row.get("sequential") or "").lower().strip()
+        utterance_type = "sequential" if sequential_flag == "y" or len(prompt_parts) > 1 else "single_turn"
+        if nlv_mode != "single_turn":
+            raise ValueError("Only nlv_mode='single_turn' is supported for the main ViRAGE benchmark.")
+        if utterance_type != "single_turn":
+            continue
+        query = prompt_parts[0] if prompt_parts else utterance_set
+        stable_id = _stable_case_id("nlv", dataset, vis_id, query)
         cases.append(BenchmarkCase(
-            case_id=f"nlv_{index}",
+            case_id=stable_id,
             query=query,
             data_path=(datasets_dir / f"{dataset}.csv").resolve().as_posix(),
             reference_spec=reference_spec,
             dataset_name="nlv_corpus",
-            utterance_type="sequential" if str(row.get("sequential")) == "y" else "single_turn",
+            utterance_type=utterance_type,
             metadata={
                 "dataset": dataset,
                 "visId": vis_id,
-                "sequential": str(row.get("sequential") or ""),
+                "sequential": sequential_flag,
                 "prompt_parts": prompt_parts,
+                "nlv_mode": nlv_mode,
+                "source_row_index": index,
             },
         ))
     return cases
@@ -178,7 +188,7 @@ def _case_from_payload(payload: dict[str, Any], *, index: int, root: Path) -> Be
         raise ValueError(f"Benchmark case #{index} has no query/prompt/utterance field.")
     if not data_path:
         raise ValueError(f"Benchmark case #{index} has no data_path/dataset_path/csv_path field.")
-    case_id = _first_string(payload, _ID_KEYS) or f"case_{index:05d}"
+    case_id = _first_string(payload, _ID_KEYS) or _stable_case_id("case", root.name or "dataset", str(index), query)
     reference_image_path = _first_string(payload, _REFERENCE_IMAGE_KEYS)
     return BenchmarkCase(
         case_id=case_id,
@@ -242,3 +252,10 @@ def _known_keys() -> set[str]:
     return set(_QUERY_KEYS + _DATA_PATH_KEYS + _REFERENCE_SPEC_KEYS + _REFERENCE_IMAGE_KEYS + _ID_KEYS + (
         "dataset_name", "dataset", "source", "difficulty", "level", "utterance_type", "query_type", "type",
     ))
+
+
+def _stable_case_id(prefix: str, *parts: str) -> str:
+    cleaned = [str(part).strip().lower().replace(" ", "_") for part in parts if str(part).strip()]
+    digest = hashlib.sha1("|".join(cleaned).encode("utf-8")).hexdigest()[:12]
+    readable = "_".join(cleaned[:2])[:80].strip("_")
+    return f"{prefix}_{readable}_{digest}" if readable else f"{prefix}_{digest}"

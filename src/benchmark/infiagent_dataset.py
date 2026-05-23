@@ -72,15 +72,16 @@ def scan_source_root(source_root: str | Path = DEFAULT_SOURCE_ROOT) -> dict[str,
 
 CHART_ANSWERABLE_KEYWORDS = (
     "compare", "comparison", "trend", "over time", "relationship", "versus", " vs ", "against",
-    "distribution", "spread", "outlier", "highest", "lowest", "largest", "smallest", "top", "bottom",
-    "increase", "decrease", "which", "more", "less", "higher", "lower", "difference between",
+    "distribution", "spread", "outlier", "increase", "decrease", "higher than", "lower than",
 )
 
 NOT_CHART_ANSWERABLE_KEYWORDS = (
     "correlation coefficient", "pearson", "spearman", "p-value", "p value", "shapiro", "kolmogorov",
     "normality test", "is normal", "rmse", "accuracy", "train", "test split", "one-hot", "one hot",
-    "regression model", "machine learning", "predict", "standard deviation", "variance", "calculate the exact",
-    "exact value", "hypothesis test", "statistical test",
+    "regression model", "machine learning", "predict", "standard deviation", "variance", "calculate",
+    "exact value", "exactly", "hypothesis test", "statistical test", "how many", "number of", "count of",
+    "what is the", "which", "highest", "lowest", "largest", "smallest", "top", "bottom", "sum of",
+    "average of", "mean of", "median of", "difference between", "percentage", "ratio",
 )
 
 NOT_CHART_ANSWERABLE_LABEL_PARTS = (
@@ -102,7 +103,8 @@ def classify_chart_answerability(row: dict[str, Any], expected_parts: list[list[
         return {
             "status": "requires_computation",
             "is_chart_answerable": False,
-            "reason": "requires exact computation, statistical testing, or model evaluation",
+            "answerability_category": "table_or_computation_required",
+            "reason": "requires exact computation, table lookup, statistical testing, or model evaluation",
             "matched_keywords": matched_exclusions,
             "matched_label_keywords": matched_label_exclusions,
         }
@@ -110,9 +112,10 @@ def classify_chart_answerability(row: dict[str, Any], expected_parts: list[list[
     matched_positive = [keyword for keyword in CHART_ANSWERABLE_KEYWORDS if keyword in text]
     if matched_positive:
         return {
-            "status": "answerable_by_chart",
+            "status": "chart_sufficient",
             "is_chart_answerable": True,
-            "reason": "question is a visual comparison/trend/distribution/relationship task",
+            "answerability_category": "chart_sufficient",
+            "reason": "question is a visual comparison/trend/distribution/relationship task answerable from a chart image",
             "matched_keywords": matched_positive,
             "matched_label_keywords": [],
         }
@@ -120,6 +123,7 @@ def classify_chart_answerability(row: dict[str, Any], expected_parts: list[list[
     return {
         "status": "uncertain",
         "is_chart_answerable": False,
+        "answerability_category": "uncertain",
         "reason": "no strong visual-analysis cue found; excluded from strict chart-grounded benchmark",
         "matched_keywords": [],
         "matched_label_keywords": [],

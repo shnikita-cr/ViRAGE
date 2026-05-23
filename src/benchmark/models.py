@@ -102,10 +102,18 @@ class BenchmarkAggregateReport(BaseModel):
     empty_chart_rate: float | None = None
     mean_spec_score: float | None = None
     mean_vision_score: float | None = None
+    mean_spec_score_failure_as_zero: float | None = None
+    mean_vision_score_failure_as_zero: float | None = None
     median_spec_score: float | None = None
     median_vision_score: float | None = None
     mean_duration_seconds: float | None = None
+    p95_duration_seconds: float | None = None
+    mean_prompt_tokens: float | None = None
+    mean_completion_tokens: float | None = None
+    mean_total_tokens: float | None = None
     total_tokens: int = 0
+    chart_text_consistency_rate: float | None = None
+    stratified_metrics: dict[str, dict[str, float | int | None]] = Field(default_factory=dict)
     vegachat_metrics: dict[str, float] = Field(default_factory=dict)
     results: list[BenchmarkCaseResult] = Field(default_factory=list)
 
@@ -116,8 +124,15 @@ class BenchmarkAggregateReport(BaseModel):
         failed = total - successful
         spec_scores = [float(item.spec_score) for item in results if item.spec_score is not None]
         vision_scores = [float(item.vision_score) for item in results if item.vision_score is not None]
+        spec_scores_failure_as_zero = [float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0 for item in results]
+        vision_scores_failure_as_zero = [float(item.vision_score) if item.vision_score is not None and item.error is None else 0.0 for item in results]
         durations = [float(item.duration_seconds) for item in results if item.duration_seconds is not None]
         vegachat_metrics = _mean_metrics([item.metrics for item in results])
+        text_consistency_values = [
+            float(item.metrics["chart_text_consistency"])
+            for item in results
+            if "chart_text_consistency" in item.metrics
+        ]
         return cls(
             total_cases=total,
             successful_cases=successful,
@@ -126,10 +141,18 @@ class BenchmarkAggregateReport(BaseModel):
             empty_chart_rate=_mean_bool([item.empty_chart_rate_item for item in results]),
             mean_spec_score=_mean(spec_scores),
             mean_vision_score=_mean(vision_scores),
+            mean_spec_score_failure_as_zero=_mean(spec_scores_failure_as_zero),
+            mean_vision_score_failure_as_zero=_mean(vision_scores_failure_as_zero),
             median_spec_score=_median(spec_scores),
             median_vision_score=_median(vision_scores),
             mean_duration_seconds=_mean(durations),
+            p95_duration_seconds=_percentile(durations, 0.95),
+            mean_prompt_tokens=_mean([float(item.prompt_tokens) for item in results]),
+            mean_completion_tokens=_mean([float(item.completion_tokens) for item in results]),
+            mean_total_tokens=_mean([float(item.total_tokens) for item in results]),
             total_tokens=sum(item.total_tokens for item in results),
+            chart_text_consistency_rate=_mean(text_consistency_values),
+            stratified_metrics=_stratified_metrics(results),
             vegachat_metrics=vegachat_metrics,
             results=results,
         )
@@ -149,6 +172,16 @@ def _median(values: list[float]) -> float | None:
     return round((ordered[middle - 1] + ordered[middle]) / 2.0, 6)
 
 
+def _percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    if len(values) == 1:
+        return round(values[0], 6)
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * percentile))))
+    return round(ordered[index], 6)
+
+
 def _mean_bool(values: list[bool]) -> float | None:
     return round(sum(1 for value in values if value) / len(values), 6) if values else None
 
@@ -161,4 +194,33 @@ def _mean_metrics(metrics: list[dict[str, float]]) -> dict[str, float]:
         values = [value for value in values if value == value]
         if values:
             out[key] = round(sum(values) / len(values), 6)
+    return out
+
+
+def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[str, float | int | None]]:
+    groups: dict[str, list[BenchmarkCaseResult]] = {}
+    for item in results:
+        for key in ("dataset_name", "utterance_type", "difficulty", "analysis_task", "recommended_chart_family", "chart_type"):
+            value = item.dataset_name if key == "dataset_name" else item.metadata.get(key)
+            if value is None or value == "":
+                continue
+            groups.setdefault(f"{key}:{value}", []).append(item)
+    out: dict[str, dict[str, float | int | None]] = {}
+    for group, items in sorted(groups.items()):
+        out[group] = {
+            "cases": len(items),
+            "failed_cases": sum(1 for item in items if item.error is not None),
+            "visualization_error_rate": _mean_bool([item.visualization_error_rate_item for item in items]),
+            "empty_chart_rate": _mean_bool([item.empty_chart_rate_item for item in items]),
+            "mean_spec_score_failure_as_zero": _mean([
+                float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0
+                for item in items
+            ]),
+            "mean_vision_score_failure_as_zero": _mean([
+                float(item.vision_score) if item.vision_score is not None and item.error is None else 0.0
+                for item in items
+            ]),
+            "mean_total_tokens": _mean([float(item.total_tokens) for item in items]),
+            "mean_duration_seconds": _mean([float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
+        }
     return out

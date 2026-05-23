@@ -242,6 +242,8 @@ def extract_chartsquared(
                     "relative_source_path": str(path.relative_to(input_dir)) if path.is_relative_to(input_dir) else str(path),
                     "chartsquared_mode": mode,
                     "is_prompt_file": _is_prompt_file(path, input_dir),
+                    "source_weight": 0.75 if not _is_prompt_file(path, input_dir) else 1.0,
+                    "requires_manual_review_before_runtime": mode == "full",
                 },
                 raw=item,
             ))

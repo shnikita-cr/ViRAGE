@@ -126,7 +126,9 @@ def test_feedback_corpus_writer_appends_user_feedback_with_high_weight(tmp_path:
     assert payload["source"] == "virage_user_feedback"
     assert payload["requested_regeneration"] is True
     assert payload["feedback_weight"] == 3.0
-    assert payload["rag_usage"]["approved_for_rag"] is True
+    assert payload["rag_usage"]["approved_for_rag"] is False
+    assert payload["rag_usage"]["exported_to_rag"] is False
+    assert payload["rag_usage"]["saved_as_feedback_log"] is True
     assert payload["feedback_for_next_generation"] == "Use a horizontal bar chart with readable labels."
 
 

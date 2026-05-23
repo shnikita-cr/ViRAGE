@@ -36,7 +36,12 @@ class ValidationPipelineNodesMixin:
     def spec_validator_node(self, state: PipelineState) -> dict:
         attempt_number = max(1, int(state.get("technical_attempt_number", 1) or 1))
         current_spec = state["vega_spec"]
-        validation_result = self.spec_validator.invoke(current_spec)
+        try:
+            validation_result = self.spec_validator.invoke(current_spec, runtime=self.runtime)
+        except TypeError as exc:
+            if "runtime" not in str(exc):
+                raise
+            validation_result = self.spec_validator.invoke(current_spec)
         payload = self._validation_attempt_payload(attempt_number, current_spec, validation_result)
         artifact_paths = dict(state.get("artifact_paths", {}))
         artifact_paths = self._save_attempt_into(artifact_paths, state, "spec_validation", payload)

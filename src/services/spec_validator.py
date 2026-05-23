@@ -7,6 +7,7 @@ from typing import Any, Iterable
 import pandas as pd
 
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
+from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.data import read_dataframe
 from src.services.spec_repair import SpecRepairService
@@ -28,7 +29,7 @@ class SpecValidatorService(BaseService):
     grammar supported by the Vega-Lite runtime.
     """
 
-    def invoke(self, vega_spec: VegaLiteSpecArtifact) -> SpecValidationResult:
+    def invoke(self, vega_spec: VegaLiteSpecArtifact, runtime: RuntimeContext | None = None) -> SpecValidationResult:
         spec = deepcopy(vega_spec.spec_json)
         errors: list[str] = []
         repair_hints: list[str] = []
@@ -43,12 +44,12 @@ class SpecValidatorService(BaseService):
 
         normalized, repair_notes = self._normalize_spec(spec)
         repair_hints.extend(repair_notes)
-        dataset_path, dataset_columns = self._load_runtime_data(normalized, errors)
+        dataset_path, dataset_columns = self._load_runtime_data(normalized, errors, runtime=runtime)
         self._validate_vega_lite_shape(normalized, errors)
 
         if dataset_path is not None and dataset_columns:
             self._validate_referenced_fields(normalized, dataset_columns, errors, repair_hints)
-            validity = self._validate_with_vega_runtime(normalized, dataset_path)
+            validity = self._validate_with_vega_runtime(normalized, dataset_path, runtime=runtime)
             repair_hints.extend(validity['repair_hints'])
 
             # Technical failure: if the Vega runtime cannot compile/render, the graph-level technical loop should retry.
@@ -108,14 +109,14 @@ class SpecValidatorService(BaseService):
         return False
 
     @staticmethod
-    def _load_runtime_data(spec: dict[str, Any], errors: list[str]) -> tuple[Path | None, set[str]]:
+    def _load_runtime_data(spec: dict[str, Any], errors: list[str], *, runtime: RuntimeContext | None = None) -> tuple[Path | None, set[str]]:
         data = spec.get('data', {})
         data_url = data.get('url') if isinstance(data, dict) else None
         if not isinstance(data_url, str) or not data_url.strip():
             errors.append('Specification data.url must point to the prepared dataset path.')
             return None, set()
         try:
-            df = read_dataframe(data_url, nrows=5)
+            df = runtime.read_dataframe(data_url, nrows=5) if runtime is not None else read_dataframe(data_url, nrows=5)
         except Exception as exc:
             errors.append(f'Prepared dataset could not be read: {exc}')
             return None, set()
@@ -200,7 +201,7 @@ class SpecValidatorService(BaseService):
                 yield from SpecValidatorService._walk(item)
 
     @classmethod
-    def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path) -> dict[str, Any]:
+    def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path, *, runtime: RuntimeContext | None = None) -> dict[str, Any]:
         repair_hints: list[str] = []
         try:
             import vl_convert as vlc  # type: ignore
@@ -216,7 +217,7 @@ class SpecValidatorService(BaseService):
             }
 
         try:
-            df = read_dataframe(dataset_path)
+            df = runtime.read_dataframe(dataset_path) if runtime is not None else read_dataframe(dataset_path)
         except (FileNotFoundError, ValueError, OSError) as exc:
             return {
                 'is_valid_schema': False,

@@ -102,19 +102,36 @@ class FeedbackCorpusWriterService(BaseService):
             judge_result=judge_result,
             feedback_for_next_generation=cleaned_comment if needs_regeneration else "",
             rag_usage={
-                "approved_for_rag": True,
-                "exported_to_rag": True,
-                "approved_for_retrieval": True,
-                "priority": "high",
+                "approved_for_rag": False,
+                "exported_to_rag": False,
+                "approved_for_retrieval": False,
+                "saved_as_feedback_log": True,
+                "priority": "manual_review_required",
                 "weight": 3.0 if needs_regeneration else 2.0,
             },
         )
 
-    def append_to_corpus(self, example: VisualFeedbackExample, runtime: RuntimeContext) -> str:
+    def append_to_feedback_log(self, example: VisualFeedbackExample, runtime: RuntimeContext) -> str:
+        """Append feedback to a JSONL log only.
+
+        The log is not a runtime RAG corpus. A separate reviewed export step must
+        decide which feedback records are allowed to enter retrieval.
+        """
         path = Path(runtime.settings.semantic_feedback_corpus_path)
         if not path.is_absolute():
             path = Path.cwd() / path
         path.parent.mkdir(parents=True, exist_ok=True)
+        payload = example.model_dump()
+        payload["rag_usage"] = {
+            **(payload.get("rag_usage") or {}),
+            "approved_for_rag": False,
+            "exported_to_rag": False,
+            "approved_for_retrieval": False,
+            "saved_as_feedback_log": True,
+        }
         with path.open("a", encoding="utf-8") as file:
-            file.write(json.dumps(example.model_dump(), ensure_ascii=False, default=str, separators=(",", ":")) + "\n")
+            file.write(json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":")) + "\n")
         return path.as_posix()
+
+    def append_to_corpus(self, example: VisualFeedbackExample, runtime: RuntimeContext) -> str:
+        return self.append_to_feedback_log(example, runtime)

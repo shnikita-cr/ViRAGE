@@ -13,6 +13,7 @@ from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
 from src.benchmark.models import BenchmarkAggregateReport, BenchmarkCase, BenchmarkCaseResult
 from src.benchmark.progress import ConsoleProgressBar
 from src.benchmark.resume import load_case_results, should_reuse_case
+from src.benchmark.run_manifest import write_benchmark_manifest
 
 
 def _classify_benchmark_error(exc: BaseException) -> str:
@@ -41,12 +42,22 @@ class VegaChatBenchmarkRunner:
             limit: int | None = None,
             resume: bool = False,
             retry_failed: bool = False,
+            nlv_mode: str = "single_turn",
+            config_path: str | Path | None = None,
+            run_options: dict[str, object] | None = None,
     ) -> BenchmarkAggregateReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
-        cases = load_benchmark_cases(source)
+        cases = load_benchmark_cases(source, nlv_mode=nlv_mode)
+        write_benchmark_manifest(
+            output_dir=output,
+            cases_path=source,
+            config_path=config_path,
+            corpus_root=getattr(getattr(self.pipeline, "settings", None), "visrag_corpus_root", None),
+            run_options={"nlv_mode": nlv_mode, **(run_options or {})},
+        )
         if limit is not None:
             cases = cases[: max(0, limit)]
 
@@ -172,7 +183,10 @@ class VegaChatBenchmarkRunner:
             f"Visualization Error Rate: {report.visualization_error_rate}",
             f"Empty Chart Rate: {report.empty_chart_rate}",
             f"Mean Spec Score: {report.mean_spec_score}",
+            f"Mean Spec Score (failure as zero): {report.mean_spec_score_failure_as_zero}",
             f"Mean Vision Score: {report.mean_vision_score}",
+            f"Mean Vision Score (failure as zero): {report.mean_vision_score_failure_as_zero}",
+            f"Chart text consistency rate: {report.chart_text_consistency_rate}",
             f"Median Spec Score: {report.median_spec_score}",
             f"Median Vision Score: {report.median_vision_score}",
             f"Mean duration seconds: {report.mean_duration_seconds}",

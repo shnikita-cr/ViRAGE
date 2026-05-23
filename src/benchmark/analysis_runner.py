@@ -12,6 +12,7 @@ from src.benchmark.analysis_evaluator import EvaluationMode, HybridAnalysisEvalu
 from src.benchmark.analysis_models import AnalysisBenchmarkCase, AnalysisBenchmarkReport, AnalysisBenchmarkResult
 from src.benchmark.progress import ConsoleProgressBar
 from src.benchmark.resume import load_case_results, should_reuse_case
+from src.benchmark.run_manifest import write_benchmark_manifest
 
 FailurePolicy = Literal["fail", "analyze_anyway"]
 
@@ -46,11 +47,20 @@ class ChartGroundedAnalysisBenchmarkRunner:
             case_id: str | None = None,
             resume: bool = False,
             retry_failed: bool = False,
+            config_path: str | Path | None = None,
+            run_options: dict[str, object] | None = None,
     ) -> AnalysisBenchmarkReport:
         source = Path(cases_path)
         case_root = source.parent
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
+        write_benchmark_manifest(
+            output_dir=output,
+            cases_path=source,
+            config_path=config_path,
+            corpus_root=getattr(getattr(self.pipeline, "settings", None), "visrag_corpus_root", None),
+            run_options={"evaluation_mode": self.evaluator.mode, "failure_policy": self.failure_policy, **(run_options or {})},
+        )
         cases = self._load_cases(source)
         if case_id:
             cases = [case for case in cases if case.case_id == case_id]
@@ -118,9 +128,12 @@ class ChartGroundedAnalysisBenchmarkRunner:
                     prompt_tokens=token_usage.prompt_tokens,
                     completion_tokens=token_usage.completion_tokens,
                     total_tokens=token_usage.total_tokens,
-                    error="chart_not_accepted_after_visual_judge_retries",
+                    error=None,
+                    evaluation_mode="chart_rejected",
+                    evaluation_verdict="unknown",
+                    evaluation_score=0.0,
                     artifact_run_dir=artifact_run_dir,
-                    metadata=case.metadata,
+                    metadata={**case.metadata, "chart_rejection_reason": "chart_not_accepted_after_visual_judge_retries"},
                 )
                 self._write_case_result(result_row, output_dir)
                 return result_row

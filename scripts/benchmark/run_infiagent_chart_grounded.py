@@ -28,6 +28,8 @@ def main() -> None:
     parser.add_argument("--evaluation-mode", choices=["none", "rules", "llm", "hybrid"], default="hybrid")
     parser.add_argument("--failure-policy", choices=["fail", "analyze_anyway"], default="fail")
     parser.add_argument("--debug-artifacts", action="store_true")
+    parser.add_argument("--disable-vlm-loop", action="store_true",
+                        help="Disable semantic VLM retry loop for generator-only analysis benchmark runs.")
     parser.add_argument("--skip-convert", action="store_true", help="Use --cases as-is and do not regenerate it first.")
     parser.add_argument("--all-cases", action="store_true",
                         help="Do not filter InfiAgent cases by chart answerability during conversion.")
@@ -45,7 +47,7 @@ def main() -> None:
 
     config = load_project_config(args.config)
     config.mode = "benchmark"
-    config.settings.semantic_feedback_loop_enabled = True
+    config.settings.semantic_feedback_loop_enabled = not args.disable_vlm_loop
     config.settings.strict_image_only_analysis = True
     config.settings.enable_vision_score = False
     pipeline = ViRAGEPipeline.from_project_config(config)
@@ -62,11 +64,15 @@ def main() -> None:
         case_id=args.case_id,
         resume=args.resume,
         retry_failed=args.retry_failed,
+        config_path=Path(args.config),
+        run_options={"disable_vlm_loop": args.disable_vlm_loop, "all_cases": args.all_cases},
     )
     print(f"Cases: {report.total_cases}")
     print(f"Successful cases: {report.successful_cases}")
     print(f"Failed cases: {report.failed_cases}")
     print(f"Accepted chart rate: {report.accepted_chart_rate}")
+    print(f"Rejected chart rate: {report.rejected_chart_rate}")
+    print(f"Technical failure rate: {report.technical_failure_rate}")
     print(f"Mean evaluation score: {report.mean_evaluation_score}")
     print(f"Correct rate: {report.correct_rate}")
     print(f"Partial/correct rate: {report.partial_or_correct_rate}")

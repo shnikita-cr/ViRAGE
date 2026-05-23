@@ -13,6 +13,7 @@ from src.services.data import read_dataframe
 from src.services.spec_score import SpecScoreService
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegachat_spec_metrics import compute_vegachat_spec_score
+from src.benchmark.chart_text_metrics import chart_text_consistency_score
 from src.services.vision_score import VisionScoreService
 
 
@@ -79,6 +80,7 @@ class VegaChatBenchmarkEvaluator:
             vision_is_blank=vision_metric.is_blank if vision_metric else None,
             vision_metric=vision_metric,
         )
+        retrieval_report = self._retrieval_report(pipeline_result)
         return BenchmarkCaseResult(
             case_id=case.case_id,
             dataset_name=case.dataset_name,
@@ -104,9 +106,38 @@ class VegaChatBenchmarkEvaluator:
             metadata={
                 "difficulty": case.difficulty,
                 "utterance_type": case.utterance_type,
+                "retrieval_report": retrieval_report,
                 **case.metadata,
             },
         )
+
+    @staticmethod
+    def _retrieval_report(pipeline_result: PipelineResult) -> dict[str, Any]:
+        visrag = pipeline_result.visrag
+        if visrag is None:
+            return {"enabled": False}
+        debug = visrag.debug_retrieval
+        diagnostics = visrag.diagnostics
+        return {
+            "enabled": bool(visrag.corpus_status.get("enabled", False)),
+            "strategy": visrag.retrieval_strategy,
+            "corpus_hash": diagnostics.corpus_hash,
+            "corpus_backend": diagnostics.corpus_backend,
+            "corpus_uri": diagnostics.corpus_uri,
+            "retrieved_count_by_type": dict(diagnostics.retrieved_count_by_type or {}),
+            "queries": dict(debug.retrieval_queries or {}),
+            "retrieved": [
+                {
+                    "doc_id": document.doc_id,
+                    "record_type": document.record_type,
+                    "score": document.score,
+                    "source": (document.metadata or {}).get("source"),
+                    "title": document.title,
+                }
+                for document in debug.retrieved_documents
+            ],
+            "scores_by_type": dict(debug.scores_by_type or {}),
+        }
 
     def evaluate_spec_and_image(
             self,
@@ -209,6 +240,9 @@ class VegaChatBenchmarkEvaluator:
             metrics.update(detailed.to_metrics_dict())
         elif spec_score is not None:
             metrics["spec_score"] = float(spec_score)
+        consistency_score = chart_text_consistency_score(generated_spec)
+        if consistency_score is not None:
+            metrics["chart_text_consistency"] = float(consistency_score)
         if vision_score is not None:
             metrics["vision_judge"] = float(vision_score)
         if vision_metric is not None:

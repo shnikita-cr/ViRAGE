@@ -17,7 +17,7 @@ class DataPreparationService(BaseService):
             run_id: str,
             runtime: RuntimeContext,
     ) -> DataPreparationResult:
-        df = read_dataframe(data_path)
+        df = runtime.read_dataframe(data_path)
         df = _ensure_unique_columns(df)
         operations = ["preserve_row_multiplicity"]
 

@@ -21,10 +21,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export ViRAGE processed rule corpus to runtime JSONL.")
     parser.add_argument("--input", default="rag_corpus/processed/all_rules.validated.jsonl")
     parser.add_argument("--output", default="rag_corpus/runtime/virage_rules.jsonl")
+    parser.add_argument("--max-chartsquared-docs", type=int, default=1500)
     args = parser.parse_args()
     root = project_root()
     progress = StageProgress("runtime-export", total=2)
-    export_report = export_runtime_rules(root / args.input, root / args.output)
+    source_limits = {"chartsquared": max(0, int(args.max_chartsquared_docs))}
+    export_report = export_runtime_rules(root / args.input, root / args.output, source_limits=source_limits)
     progress.update(extra=f"documents={export_report.get('documents', 0)}")
     runtime_report = build_report(root / args.output)
     progress.update(extra="report written")

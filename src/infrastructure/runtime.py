@@ -8,7 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+import pandas as pd
+
 from src.application.settings import ViRAGESettings
+from src.application.dataset_context import read_dataframe_cached
 from src.domain.models import ModelCallLog, StageExecutionLog, StepLog, TokenUsage
 
 _MODEL_CALL_CSV_COLUMNS = [
@@ -64,6 +67,7 @@ class RuntimeContext:
     current_run_id: str | None = None
     step_callback: Callable[[StepLog], None] | None = None
     model_call_callback: Callable[[ModelCallLog], None] | None = None
+    dataframe_cache: dict[str, pd.DataFrame] = field(default_factory=dict)
 
     def ensure_run_dir(self, run_id: str | None = None) -> Path:
         rid = run_id or self.current_run_id
@@ -72,6 +76,9 @@ class RuntimeContext:
         path = self.settings.artifact_root / rid
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def read_dataframe(self, path: str | Path, *, nrows: int | None = None) -> pd.DataFrame:
+        return read_dataframe_cached(self.dataframe_cache, path, nrows=nrows)
 
     def reset_model_logs(self) -> None:
         self.model_call_logs.clear()

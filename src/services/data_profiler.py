@@ -18,7 +18,7 @@ _MISSING_LIKE_VALUES = {"", "-", "--", "---", "na", "n/a", "nan", "none", "null"
 
 class DataProfilerService(BaseService):
     def invoke(self, data_path: str, runtime: RuntimeContext) -> DataProfile:
-        df = read_dataframe(data_path)
+        df = runtime.read_dataframe(data_path)
         df = self._ensure_unique_columns(df)
 
         columns: list[DataColumnProfile] = []

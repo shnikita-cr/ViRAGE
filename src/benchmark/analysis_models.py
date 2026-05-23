@@ -102,38 +102,57 @@ class AnalysisBenchmarkReport(BaseModel):
     successful_cases: int = 0
     failed_cases: int = 0
     accepted_chart_rate: float | None = None
+    rejected_chart_rate: float | None = None
+    technical_failure_rate: float | None = None
     mean_confidence: float | None = None
     mean_duration_seconds: float | None = None
+    p95_duration_seconds: float | None = None
+    mean_prompt_tokens: float | None = None
+    mean_completion_tokens: float | None = None
+    mean_total_tokens: float | None = None
     total_tokens: int = 0
     mean_evaluation_score: float | None = None
+    mean_evaluation_score_failure_as_zero: float | None = None
     correct_rate: float | None = None
     partial_or_correct_rate: float | None = None
     mean_chart_groundedness: float | None = None
     mean_hallucination_risk: float | None = None
+    stratified_metrics: dict[str, dict[str, float | int | None]] = Field(default_factory=dict)
     results: list[AnalysisBenchmarkResult] = Field(default_factory=list)
 
     @classmethod
     def from_results(cls, results: list[AnalysisBenchmarkResult]) -> "AnalysisBenchmarkReport":
         total = len(results)
         success = sum(1 for item in results if item.error is None)
-        accepted = [item.chart_was_accepted for item in results if item.error is None]
+        technical_failures = sum(1 for item in results if item.error is not None and not str(item.error).startswith("chart_not_accepted"))
+        accepted = [item.chart_was_accepted for item in results]
+        rejected = [not item.chart_was_accepted and item.error is None for item in results]
         confidences = [item.confidence for item in results if item.error is None]
         durations = [item.duration_seconds for item in results if item.duration_seconds is not None]
         evaluated = [item for item in results if item.evaluation_verdict != "unknown"]
+        evaluation_scores_failure_as_zero = [item.evaluation_score if item.error is None else 0.0 for item in results]
         return cls(
             total_cases=total,
             successful_cases=success,
             failed_cases=total - success,
             accepted_chart_rate=_mean_bool(accepted),
+            rejected_chart_rate=_mean_bool(rejected),
+            technical_failure_rate=round(technical_failures / total, 6) if total else None,
             mean_confidence=_mean(confidences),
             mean_duration_seconds=_mean(durations),
+            p95_duration_seconds=_percentile(durations, 0.95),
+            mean_prompt_tokens=_mean([float(item.prompt_tokens) for item in results]),
+            mean_completion_tokens=_mean([float(item.completion_tokens) for item in results]),
+            mean_total_tokens=_mean([float(item.total_tokens) for item in results]),
             total_tokens=sum(item.total_tokens for item in results),
             mean_evaluation_score=_mean([item.evaluation_score for item in evaluated]),
+            mean_evaluation_score_failure_as_zero=_mean(evaluation_scores_failure_as_zero),
             correct_rate=_mean_bool([item.evaluation_verdict == "correct" for item in evaluated]),
             partial_or_correct_rate=_mean_bool(
                 [item.evaluation_verdict in {"correct", "partially_correct"} for item in evaluated]),
             mean_chart_groundedness=_mean([item.chart_groundedness for item in evaluated]),
             mean_hallucination_risk=_mean([item.hallucination_risk for item in evaluated]),
+            stratified_metrics=_stratified_metrics(results),
             results=results,
         )
 
@@ -144,3 +163,42 @@ def _mean(values: list[float]) -> float | None:
 
 def _mean_bool(values: list[bool]) -> float | None:
     return round(sum(1 for value in values if value) / len(values), 6) if values else None
+
+
+def _percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    if len(values) == 1:
+        return round(values[0], 6)
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * percentile))))
+    return round(ordered[index], 6)
+
+
+def _stratified_metrics(results: list[AnalysisBenchmarkResult]) -> dict[str, dict[str, float | int | None]]:
+    groups: dict[str, list[AnalysisBenchmarkResult]] = {}
+    for item in results:
+        for key in ("dataset_name", "level", "answerability_category"):
+            value = item.dataset_name if key == "dataset_name" else item.metadata.get(key)
+            if key == "answerability_category" and value is None:
+                chart_answerability = item.metadata.get("chart_answerability")
+                if isinstance(chart_answerability, dict):
+                    value = chart_answerability.get("answerability_category") or chart_answerability.get("status")
+            if value is None or value == "":
+                continue
+            groups.setdefault(f"{key}:{value}", []).append(item)
+    out: dict[str, dict[str, float | int | None]] = {}
+    for group, items in sorted(groups.items()):
+        out[group] = {
+            "cases": len(items),
+            "technical_failures": sum(1 for item in items if item.error is not None),
+            "accepted_chart_rate": _mean_bool([item.chart_was_accepted for item in items]),
+            "mean_evaluation_score_failure_as_zero": _mean([
+                item.evaluation_score if item.error is None else 0.0
+                for item in items
+            ]),
+            "mean_chart_groundedness": _mean([item.chart_groundedness for item in items if item.evaluation_verdict != "unknown"]),
+            "mean_total_tokens": _mean([float(item.total_tokens) for item in items]),
+            "mean_duration_seconds": _mean([float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
+        }
+    return out

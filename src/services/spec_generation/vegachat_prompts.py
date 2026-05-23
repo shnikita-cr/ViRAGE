@@ -27,7 +27,7 @@ def build_vegachat_codegen_prompt(
         _validation_feedback_contract(request),
         _semantic_feedback_contract(request),
         _visrag_context(request.visrag, max_context_chars=max_context_chars)
-        if include_visrag_context else "VisRAG context is disabled for this generation run.",
+        if include_visrag_context else "",
         _output_contract(),
     ]
 

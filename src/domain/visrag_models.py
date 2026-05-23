@@ -62,6 +62,7 @@ class VisRAGDebugRetrieval(BaseModel):
     retrieval_queries: dict[str, str] = Field(default_factory=dict)
     retrieved_documents: list[VisRAGRuleDocument] = Field(default_factory=list)
     filtered_documents: list[dict[str, Any]] = Field(default_factory=list)
+    scores_by_type: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
 
 
 class VisRAGDiagnostics(BaseModel):
@@ -69,6 +70,7 @@ class VisRAGDiagnostics(BaseModel):
     retrieved_count_by_type: dict[str, int] = Field(default_factory=dict)
     corpus_backend: str = "unknown"
     corpus_uri: str | None = None
+    corpus_hash: str = ""
 
 
 class VisRAGResult(BaseModel):
