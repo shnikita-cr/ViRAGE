@@ -12,6 +12,7 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
+    InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
     QueryRequestAnalysisResult,
@@ -59,6 +60,7 @@ class PipelineResult(BaseModel):
     visual_feedback_examples: list[VisualFeedbackExample] = Field(default_factory=list)
     semantic_feedback_loop_summary: SemanticFeedbackLoopSummary | None = None
     vlm_analysis: VLMAnalysisResult | None = None
+    insights: InsightsResult | None = None
     structural_spec_metric: StructuralSpecMetric | None = None
     evaluation_summary: EvaluationSummaryResult | None = None
 

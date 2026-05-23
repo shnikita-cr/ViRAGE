@@ -11,6 +11,7 @@ from src.domain.models import (
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
+    InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
     QueryRequestAnalysisResult,
@@ -75,6 +76,7 @@ class PipelineState(TypedDict, total=False):
     visual_feedback_examples: NotRequired[list[VisualFeedbackExample]]
     semantic_feedback_loop_summary: NotRequired[SemanticFeedbackLoopSummary]
     vlm_analysis: NotRequired[VLMAnalysisResult]
+    insights: NotRequired[InsightsResult]
     structural_spec_metric: NotRequired[StructuralSpecMetric]
     evaluation_summary: NotRequired[EvaluationSummaryResult]
 

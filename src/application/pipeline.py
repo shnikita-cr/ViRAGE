@@ -200,6 +200,7 @@ class ViRAGEPipeline:
             visual_feedback_examples=final_state.get('visual_feedback_examples', []),
             semantic_feedback_loop_summary=final_state.get('semantic_feedback_loop_summary'),
             vlm_analysis=final_state.get('vlm_analysis'),
+            insights=final_state.get('insights'),
             structural_spec_metric=final_state.get('structural_spec_metric'),
             evaluation_summary=final_state.get('evaluation_summary'),
             step_logs=final_state.get('step_logs', []),
