@@ -11,6 +11,7 @@ from src.domain.models import (
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.spec_generation import VegaChatCodegenBackend
+from src.services.spec_presentation_consistency import SpecPresentationConsistencyService
 from src.services.spec_generation.base import SpecGenerationBackend
 
 
@@ -52,13 +53,20 @@ class ChartGeneratorService(BaseService):
             visual_judge_requirements=dict(visual_judge_requirements or {}),
         )
         result = backend.generate(request, runtime)
+        presentation = SpecPresentationConsistencyService()
+        spec_json_result = presentation.normalize(result.spec_json)
+        spec_without_data_result = presentation.normalize(result.spec_without_runtime_data)
+        presentation_notes = [
+            *spec_json_result.changes,
+            *(note for note in spec_without_data_result.changes if note not in spec_json_result.changes),
+        ]
         return VegaLiteSpecArtifact(
-            spec_json=result.spec_json,
-            spec_without_runtime_data=result.spec_without_runtime_data,
+            spec_json=spec_json_result.spec,
+            spec_without_runtime_data=spec_without_data_result.spec,
             version="v2",
             generation_backend=result.backend_name,
             generation_explanation=result.explanation,
-            generation_warnings=list(result.warning_messages),
+            generation_warnings=[*result.warning_messages, *presentation_notes],
             generation_artifacts=dict(result.artifact_paths),
         )
 

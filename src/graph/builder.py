@@ -1,213 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import StageExecutionLog, StepLog, TokenUsage
 from src.graph.nodes import PipelineNodes
+from src.graph.stage_executor import wrap_stage_node
+
+_wrap_stage_node = wrap_stage_node
 from src.infrastructure.runtime import RuntimeContext
 
 
 def _mark_completed(state: PipelineState) -> dict[str, Any]:
     return {"stage": PipelineStage.COMPLETED}
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _duration_ms(started_at: datetime, finished_at: datetime) -> float:
-    return max((finished_at - started_at).total_seconds() * 1000.0, 0.0)
-
-
-def _state_keys(value: Any) -> list[str]:
-    if isinstance(value, dict):
-        return sorted(str(key) for key in value.keys())
-    return []
-
-
-def _pipeline_stage_value(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, PipelineStage):
-        return value.value
-    return str(value)
-
-
-def _sum_token_usage(logs: list[Any]) -> TokenUsage:
-    usage = TokenUsage()
-    for item in logs:
-        token_usage = getattr(item, "token_usage", None)
-        if token_usage is None:
-            continue
-        usage.prompt_tokens += int(getattr(token_usage, "prompt_tokens", 0) or 0)
-        usage.completion_tokens += int(getattr(token_usage, "completion_tokens", 0) or 0)
-        usage.total_tokens += int(getattr(token_usage, "total_tokens", 0) or 0)
-    return usage
-
-
-def _artifact_paths_delta(state: PipelineState, output: dict[str, Any] | None) -> dict[str, str]:
-    if not isinstance(output, dict):
-        return {}
-    before = state.get("artifact_paths", {})
-    after = output.get("artifact_paths")
-    if not isinstance(before, dict) or not isinstance(after, dict):
-        return {}
-    delta: dict[str, str] = {}
-    for key, value in after.items():
-        if before.get(key) != value:
-            delta[str(key)] = str(value)
-    return delta
-
-
-def _enrich_step_logs_with_duration(
-        *,
-        state: PipelineState,
-        output: dict[str, Any] | None,
-        duration_ms: float,
-        duration_seconds: float,
-) -> None:
-    if not isinstance(output, dict):
-        return
-    step_logs = output.get("step_logs")
-    if not isinstance(step_logs, list):
-        return
-    previous_count = len(state.get("step_logs", []))
-    if len(step_logs) <= previous_count:
-        return
-    enriched = list(step_logs)
-    for index in range(previous_count, len(enriched)):
-        log = enriched[index]
-        details = dict(getattr(log, "details", {}) or {})
-        details.setdefault("duration_ms", round(duration_ms, 6))
-        details.setdefault("duration_seconds", round(duration_seconds, 6))
-        if hasattr(log, "model_copy"):
-            enriched[index] = log.model_copy(update={
-                "duration_ms": round(duration_ms, 6),
-                "duration_seconds": round(duration_seconds, 6),
-                "details": details,
-            })
-        else:
-            enriched[index] = log
-        try:
-            # Emit the enriched log as the final completed-step update. The node may have already emitted
-            # an immediate start/update log; UI collapse keeps this latest one with duration.
-            from src.domain.models import StepLog
-
-            if isinstance(enriched[index], StepLog):
-                # Runtime is not available here; caller emits after this helper.
-                pass
-        except Exception:
-            pass
-    output["step_logs"] = enriched
-
-
-_STAGE_TITLES = {
-    "data_profiler": "Data profiling",
-    "query_request_analysis": "Query and request analysis",
-    "data_preparation": "Data preparation",
-    "visrag": "Spec retrieval",
-    "chart_generator": "Chart generation",
-    "spec_validator": "Spec validation",
-    "technical_decision": "Technical retry decision",
-    "vegalite_plot_drawing": "Vega-Lite rendering",
-    "scenegraph_check": "Scenegraph check",
-    "empty_chart_check": "Empty chart check",
-    "spec_score": "Spec score",
-    "semantic_loop_gate": "Semantic VLM gate",
-    "visual_chart_judge": "PNG-only visual chart judge",
-    "vlm_chart_description": "PNG-only VLM description",
-    "chart_fact_summary": "Chart fact summary",
-    "chart_answer_judge": "Semantic answer judge",
-    "semantic_decision": "Semantic retry decision",
-    "feedback_corpus_writer": "Feedback corpus writer",
-    "vlm_analysis": "Chart-grounded VLM analysis",
-    "evaluation_summary": "Evaluation summary",
-    "completed": "Completed",
-}
-
-
-def _emit_stage_started(runtime: RuntimeContext, name: str) -> None:
-    runtime.emit_step(
-        StepLog(
-            stage=name,
-            title=_STAGE_TITLES.get(name, name.replace("_", " ").title()),
-            summary="Running now",
-            details={"status": "running"},
-        )
-    )
-
-
-def _wrap_stage_node(
-        *,
-        name: str,
-        callable_node: Callable[[PipelineState], dict[str, Any]],
-        runtime: RuntimeContext,
-) -> Callable[[PipelineState], dict[str, Any]]:
-    def wrapped(state: PipelineState) -> dict[str, Any]:
-        started = datetime.now(timezone.utc)
-        model_call_start_count = len(runtime.model_call_logs)
-        input_keys = _state_keys(state)
-        output: dict[str, Any] | None = None
-        status = "succeeded"
-        error: str | None = None
-
-        try:
-            _emit_stage_started(runtime, name)
-            output = callable_node(state)
-            if output is None:
-                output = {}
-            if not isinstance(output, dict):
-                raise TypeError(f"Pipeline node {name!r} must return a dict, got {type(output).__name__}.")
-            return output
-        except Exception as exc:
-            status = "failed"
-            error = f"{type(exc).__name__}: {exc}"
-            raise
-        finally:
-            finished = datetime.now(timezone.utc)
-            model_call_end_count = len(runtime.model_call_logs)
-            stage_calls = runtime.model_call_logs[model_call_start_count:model_call_end_count]
-            output_keys = _state_keys(output)
-            pipeline_stage = _pipeline_stage_value(output.get("stage") if isinstance(output, dict) else None)
-            artifact_paths = _artifact_paths_delta(state, output)
-
-            log = StageExecutionLog(
-                node_name=name,
-                pipeline_stage=pipeline_stage or name,
-                status=status,
-                started_at=started.isoformat(),
-                finished_at=finished.isoformat(),
-                duration_ms=round(_duration_ms(started, finished), 6),
-                duration_seconds=round(max((finished - started).total_seconds(), 0.0), 6),
-                input_keys=input_keys,
-                output_keys=output_keys,
-                artifact_paths=artifact_paths,
-                model_call_start_index=model_call_start_count + 1 if stage_calls else model_call_start_count,
-                model_call_end_index=model_call_end_count,
-                model_call_count=len(stage_calls),
-                token_usage=_sum_token_usage(stage_calls),
-                error=error,
-            )
-            enriched_log = runtime.add_stage_execution_log(log)
-            if isinstance(output, dict):
-                _enrich_step_logs_with_duration(
-                    state=state,
-                    output=output,
-                    duration_ms=log.duration_ms,
-                    duration_seconds=log.duration_seconds,
-                )
-                previous_count = len(state.get("step_logs", []))
-                step_logs = output.get("step_logs")
-                if isinstance(step_logs, list) and len(step_logs) > previous_count:
-                    for item in step_logs[previous_count:]:
-                        runtime.emit_step(item)
-            if status == "succeeded" and isinstance(output, dict):
-                output["stage_execution_logs"] = [*state.get("stage_execution_logs", []), enriched_log]
-
-    return wrapped
 
 
 def _route_technical_decision(state: PipelineState) -> str:
@@ -273,7 +78,7 @@ def build_pipeline_graph(runtime: RuntimeContext):
     ]
 
     for name, callable_node in base_steps:
-        graph.add_node(name, _wrap_stage_node(name=name, callable_node=callable_node, runtime=runtime))
+        graph.add_node(name, wrap_stage_node(name=name, callable_node=callable_node, runtime=runtime))
 
     graph.add_edge(START, "data_profiler")
     graph.add_edge("data_profiler", "query_request_analysis")

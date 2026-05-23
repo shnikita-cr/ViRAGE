@@ -1,7 +1,15 @@
 from __future__ import annotations
 
-from .common import *  # noqa: F401,F403
-
+from src.application.state import PipelineState
+from src.domain.enums import PipelineStage
+from src.domain.models import PlotImageArtifact, SemanticFeedbackLoopSummary
+from src.graph.pipeline_nodes.common import (
+    _actionable_semantic_feedback,
+    _semantic_feedback_text,
+    _semantic_retry_reasons,
+)
+from src.observability import traceable
+from src.services.visual_feedback import VisualChartJudgeAdapters
 
 class VisualFeedbackPipelineNodesMixin:
     @traceable(name="virage.semantic_loop_gate")

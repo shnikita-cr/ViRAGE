@@ -6,6 +6,7 @@ from typing import Callable
 from src.application.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest, PipelineResult
 from src.application.project_config import ProjectConfig
+from src.application.pipeline_result_factory import PipelineResultFactory
 from src.application.settings import ViRAGESettings
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
@@ -179,33 +180,4 @@ class ViRAGEPipeline:
                 "has_token_summary": True,
             },
         )
-        return PipelineResult(
-            run_id=final_state['run_id'],
-            query=final_state['query'],
-            data_path=final_state['data_path'],
-            query_request_analysis=final_state.get('query_request_analysis'),
-            analysis_rubric=final_state.get('analysis_rubric'),
-            data_profile=final_state.get('data_profile'),
-            data_preparation=final_state.get('data_preparation'),
-            visrag=final_state.get('visrag'),
-            vega_spec=final_state.get('vega_spec'),
-            spec_validation=final_state.get('spec_validation'),
-            plot_rendering=final_state.get('plot_rendering'),
-            scenegraph_check=final_state.get('scenegraph_check'),
-            empty_chart_check=final_state.get('empty_chart_check'),
-            plot_image=final_state.get('plot_image'),
-            vlm_chart_description=final_state.get('vlm_chart_description'),
-            chart_fact_summary=final_state.get('chart_fact_summary'),
-            chart_answer_judge=final_state.get('chart_answer_judge'),
-            visual_feedback_examples=final_state.get('visual_feedback_examples', []),
-            semantic_feedback_loop_summary=final_state.get('semantic_feedback_loop_summary'),
-            vlm_analysis=final_state.get('vlm_analysis'),
-            insights=final_state.get('insights'),
-            structural_spec_metric=final_state.get('structural_spec_metric'),
-            evaluation_summary=final_state.get('evaluation_summary'),
-            step_logs=final_state.get('step_logs', []),
-            stage_execution_logs=final_state.get('stage_execution_logs', []),
-            model_call_logs=final_state.get('model_call_logs', []),
-            token_usage_summary=final_state.get('token_usage_summary', self.runtime.token_usage_summary()),
-            artifact_paths=final_state.get('artifact_paths', {}),
-        )
+        return PipelineResultFactory.from_state(final_state, self.runtime)
