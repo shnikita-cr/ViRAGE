@@ -1,0 +1,10 @@
+{
+  "by_record_type": {
+    "chart_pattern": 2,
+    "domain_semantics_rule": 4,
+    "readability_rule": 5,
+    "scale_plot_area_rule": 5,
+    "vlm_readability_rule": 3
+  },
+  "total": 19
+}

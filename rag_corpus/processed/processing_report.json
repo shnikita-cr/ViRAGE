@@ -1,0 +1,16 @@
+{
+  "avg_prompt_text_chars": 45.05,
+  "avg_retrieval_text_chars": 27.63,
+  "by_record_type": {
+    "chart_pattern": 2,
+    "domain_semantics_rule": 4,
+    "readability_rule": 5,
+    "scale_plot_area_rule": 5,
+    "vlm_readability_rule": 3
+  },
+  "by_source_dataset": {
+    "vega_lite_examples": 19
+  },
+  "rejected": 0,
+  "total": 19
+}
