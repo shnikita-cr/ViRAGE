@@ -16,6 +16,7 @@ from typing import Any
 from scripts.rag_corpus.common.hashing import stable_hash
 from scripts.rag_corpus.common.io import ensure_dir, project_root, read_jsonl, write_jsonl
 from scripts.rag_corpus.common.llm_client import LLMClient, LLMClientConfig, parse_json_payload
+from scripts.rag_corpus.common.progress import StageProgress
 from scripts.rag_corpus.common.schemas import ALLOWED_RECORD_TYPES, CorpusSourceInfo, RagRuleRecord, SourceRecord
 from scripts.rag_corpus.common.text import compact_text, slugify
 
@@ -87,6 +88,38 @@ def _as_list(payload: Any) -> list[dict[str, Any]]:
     raise ValueError("LLM JSON payload must be an object or an array of objects.")
 
 
+def _coerce_text_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, (list, tuple, set)):
+        result: list[str] = []
+        for item in value:
+            if item is None:
+                continue
+            text = item.strip() if isinstance(item, str) else str(item).strip()
+            if text:
+                result.append(text)
+        return result
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def _normalize_raw_rule(raw_rule: dict[str, Any], source: SourceRecord) -> dict[str, Any]:
+    normalized = dict(raw_rule)
+    normalized["applies_when"] = _coerce_text_list(normalized.get("applies_when"))
+    normalized["guidance"] = _coerce_text_list(normalized.get("guidance"))
+    normalized["avoid"] = _coerce_text_list(normalized.get("avoid"))
+    normalized["severity"] = str(normalized.get("severity") or "medium").strip().lower() or "medium"
+    if not normalized.get("retrieval_text"):
+        normalized["retrieval_text"] = " ".join([source.title or "", source.text or ""]).strip()
+    if not normalized.get("prompt_text"):
+        normalized["prompt_text"] = " ".join(normalized.get("guidance") or []).strip()
+    return normalized
+
+
 def _record_doc_id(source: SourceRecord, raw_rule: dict[str, Any], index: int) -> str:
     record_type = str(raw_rule.get("record_type") or "rule")
     title = str(raw_rule.get("title") or source.title or index)
@@ -100,6 +133,7 @@ def normalize_one(client: LLMClient, source: SourceRecord, target_record_types: 
     valid: list[RagRuleRecord] = []
     failures: list[dict[str, Any]] = []
     for idx, raw_rule in enumerate(_as_list(payload)):
+        raw_rule = _normalize_raw_rule(raw_rule, source)
         if raw_rule.get("record_type") not in target_record_types:
             continue
         doc_id = _record_doc_id(source, raw_rule, idx)
@@ -175,6 +209,7 @@ def run_normalization(
         resume: bool,
         retry_failed: bool,
         target_record_types: set[str],
+        show_progress: bool = True,
 ) -> dict[str, Any]:
     ensure_dir(output_dir)
     sources = _load_sources(input_paths)
@@ -190,14 +225,18 @@ def run_normalization(
     client = LLMClient(LLMClientConfig(provider=provider, model=model, base_url=base_url, timeout_seconds=timeout_seconds))
     all_valid: list[RagRuleRecord] = []
     all_failures: list[dict[str, Any]] = []
-    for idx, source in enumerate(sources, start=1):
+    progress = StageProgress("llm-normalization", total=len(sources), enabled=show_progress)
+    for source in sources:
+        error_count_before = len(all_failures)
         try:
             valid, failures = normalize_one(client, source, target_record_types)
             all_valid.extend(valid)
             all_failures.extend(failures)
         except Exception as exc:  # noqa: BLE001
             all_failures.append({"source_record_id": source.record_id, "reason": f"normalization_failed: {type(exc).__name__}: {exc}", "source": source.model_dump()})
-        print(f"[{idx}/{len(sources)}] normalized source={source.record_id}")
+        new_errors = len(all_failures) - error_count_before
+        progress.update(error_increment=new_errors, extra=f"source={source.record_id} valid={len(all_valid)}")
+    progress.finish(extra=f"written={len(all_valid)} failures={len(all_failures)}")
     for record_type, rows in _group_by_type(all_valid).items():
         write_jsonl(output_dir / f"{record_type}.jsonl", rows, append=resume or retry_failed)
     if all_failures:
@@ -234,6 +273,7 @@ def main() -> None:
         resume=args.resume,
         retry_failed=args.retry_failed,
         target_record_types=_target_record_types_arg(args.record_types),
+        show_progress=True,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

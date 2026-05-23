@@ -24,6 +24,7 @@ from scripts.rag_corpus.sources.extract_vega_lite_examples import extract_vega_l
 from scripts.rag_corpus.sources.extract_virage_feedback import extract_virage_feedback
 from scripts.rag_corpus.sources.scan_sources import inventory_markdown, scan_sources
 from scripts.rag_corpus.common.io import read_jsonl, write_jsonl, write_text
+from scripts.rag_corpus.common.progress import StageProgress
 
 
 def _write_source_records(root: Path) -> list[Path]:
@@ -34,14 +35,18 @@ def _write_source_records(root: Path) -> list[Path]:
         ("chartsquared", extract_chartsquared, root / "rag_corpus/raw/chartsquared"),
         ("vega_lite_examples", extract_vega_lite_examples, root / "rag_corpus/raw/vega_lite_examples"),
     ]
+    progress = StageProgress("extraction", total=len(extractors))
     for name, func, input_dir in extractors:
-        records = func(input_dir)
-        out_path = root / f"rag_corpus/extracted/{name}.jsonl"
-        write_jsonl(out_path, [record.model_dump() for record in records])
-        outputs.append(out_path)
-        print(f"extracted {name}: {len(records)} records -> {out_path}")
+        try:
+            records = func(input_dir)
+            out_path = root / f"rag_corpus/extracted/{name}.jsonl"
+            write_jsonl(out_path, [record.model_dump() for record in records])
+            outputs.append(out_path)
+            progress.update(extra=f"{name}: {len(records)} records")
+        except Exception as exc:  # noqa: BLE001
+            progress.update(error_increment=1, extra=f"{name}: failed {type(exc).__name__}: {exc}")
+    progress.finish(extra=f"outputs={len(outputs)}")
     return outputs
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare ViRAGE rule/guidance RAG corpus with mandatory LLM normalization.")
@@ -58,14 +63,34 @@ def main() -> None:
 
     root = project_root()
     if args.clean_processed:
-        for path in (root / "rag_corpus/processed/llm_normalized",):
-            if path.exists():
+        paths_to_clean = [
+            root / "rag_corpus/processed/llm_normalized",
+            root / "rag_corpus/processed/all_rules.jsonl",
+            root / "rag_corpus/processed/all_rules.deduped.jsonl",
+            root / "rag_corpus/processed/all_rules.validated.jsonl",
+            root / "rag_corpus/processed/normalization_failures.jsonl",
+            root / "rag_corpus/processed/rejected_records.jsonl",
+            root / "rag_corpus/processed/processing_report.json",
+            root / "rag_corpus/processed/processing_report.md",
+            root / "rag_corpus/processed/merge_report.json",
+            root / "rag_corpus/processed/deduplication_report.json",
+        ]
+        clean_progress = StageProgress("clean-processed", total=len(paths_to_clean))
+        for path in paths_to_clean:
+            if path.is_dir():
                 shutil.rmtree(path)
+            elif path.exists():
+                path.unlink()
+            clean_progress.update(extra=str(path.relative_to(root)))
         (root / "rag_corpus/processed/llm_normalized").mkdir(parents=True, exist_ok=True)
+        clean_progress.finish(extra="processed outputs reset")
 
+    scan_progress = StageProgress("scan-sources", total=1)
     inventory = scan_sources(root / "rag_corpus/raw")
     write_json(root / "rag_corpus/manifests/raw_inventory.json", inventory)
     write_text(root / "rag_corpus/manifests/source_inventory.md", inventory_markdown(inventory))
+    scan_progress.update(extra=f"sources={len(inventory.get('sources', [])) if isinstance(inventory, dict) else 'unknown'}")
+    scan_progress.finish()
 
     input_paths = _write_source_records(root)
     normalization_report = run_normalization(
@@ -80,12 +105,23 @@ def main() -> None:
         resume=args.resume,
         retry_failed=args.retry_failed,
         target_record_types=_target_record_types_arg(args.record_types),
+        show_progress=True,
     )
+    merge_progress = StageProgress("merge", total=1)
     merge_report = merge_processed_records(root / "rag_corpus/processed/llm_normalized", root / "rag_corpus/processed")
-    kept, rejected = deduplicate_records(read_jsonl(root / "rag_corpus/processed/all_rules.jsonl"))
+    merge_progress.update(extra=f"records={merge_report.get('records', merge_report.get('total', 'unknown'))}")
+    merge_progress.finish()
+
+    all_rules = read_jsonl(root / "rag_corpus/processed/all_rules.jsonl")
+    dedup_progress = StageProgress("deduplication", total=len(all_rules))
+    kept, rejected = deduplicate_records(all_rules)
+    dedup_progress.set(done=len(all_rules), errors=len(rejected), extra=f"kept={len(kept)} rejected={len(rejected)}")
+    dedup_progress.finish()
     write_jsonl(root / "rag_corpus/processed/all_rules.deduped.jsonl", kept)
     if rejected:
         write_jsonl(root / "rag_corpus/processed/rejected_records.jsonl", rejected)
+
+    validation_progress = StageProgress("validation", total=len(kept))
     validation_report = validate_processed(
         root / "rag_corpus/processed/all_rules.deduped.jsonl",
         root / "rag_corpus/processed/all_rules.validated.jsonl",
@@ -93,6 +129,8 @@ def main() -> None:
         root / "rag_corpus/processed/processing_report.json",
         root / "rag_corpus/processed/processing_report.md",
     )
+    validation_progress.set(done=len(kept), errors=validation_report.get("rejected", 0), extra=f"valid={validation_report.get('total', 0)} rejected={validation_report.get('rejected', 0)}")
+    validation_progress.finish()
     final_report = {
         "normalization": normalization_report,
         "merge": merge_report,

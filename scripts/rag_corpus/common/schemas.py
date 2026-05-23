@@ -20,6 +20,30 @@ RecordType = Literal[
     "domain_semantics_rule",
 ]
 
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, (list, tuple, set)):
+        result: list[str] = []
+        for item in value:
+            if item is None:
+                continue
+            if isinstance(item, str):
+                text = item.strip()
+            else:
+                text = str(item).strip()
+            if text:
+                result.append(text)
+        return result
+    text = str(value).strip()
+    return [text] if text else []
+
+
 ALLOWED_RECORD_TYPES: set[str] = {
     "chart_pattern",
     "readability_rule",
@@ -72,12 +96,23 @@ class RagRuleRecord(BaseModel):
     source: CorpusSourceInfo
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("applies_when", "guidance", "avoid", mode="before")
+    @classmethod
+    def _coerce_list_fields(cls, value: Any) -> list[str]:
+        return _coerce_string_list(value)
+
     @field_validator("doc_id", "title", "retrieval_text", "prompt_text")
     @classmethod
     def _required_text(cls, value: str) -> str:
         if not str(value).strip():
             raise ValueError("Required text field is empty.")
         return str(value).strip()
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _normalize_severity(cls, value: Any) -> str:
+        text = str(value or "medium").strip().lower()
+        return text or "medium"
 
     @model_validator(mode="after")
     def _no_spec_payload(self) -> "RagRuleRecord":

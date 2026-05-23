@@ -12,6 +12,7 @@ import argparse
 import json
 
 from scripts.rag_corpus.common.io import project_root, write_json
+from scripts.rag_corpus.common.progress import StageProgress
 from scripts.rag_corpus.runtime.build_runtime_report import build_report
 from scripts.rag_corpus.runtime.export_runtime_rules import export_runtime_rules
 
@@ -22,8 +23,12 @@ def main() -> None:
     parser.add_argument("--output", default="rag_corpus/runtime/virage_rules.jsonl")
     args = parser.parse_args()
     root = project_root()
+    progress = StageProgress("runtime-export", total=2)
     export_report = export_runtime_rules(root / args.input, root / args.output)
+    progress.update(extra=f"documents={export_report.get('documents', 0)}")
     runtime_report = build_report(root / args.output)
+    progress.update(extra="report written")
+    progress.finish()
     report = {"export": export_report, "runtime": runtime_report}
     write_json(root / "rag_corpus/runtime/runtime_export_report.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
