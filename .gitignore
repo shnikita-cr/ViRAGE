@@ -85,5 +85,5 @@ datasets
 /rag_corpus/extracted
 /rag_corpus/manifests
 /rag_corpus/extracted
-/rag_corpus/extracted
 /rag_corpus/processed
+/rag_corpus/raw_external_rules/
