@@ -27,18 +27,22 @@ from scripts.rag_corpus.common.io import read_jsonl, write_jsonl, write_text
 from scripts.rag_corpus.common.progress import StageProgress
 
 
-def _write_source_records(root: Path) -> list[Path]:
+def _write_source_records(root: Path, *, sources: set[str], chartsquared_mode: str, chartsquared_limit: int | None) -> list[Path]:
     outputs: list[Path] = []
-    extractors = [
+    extractor_specs = [
         ("manual_rules", extract_manual_rules, root / "rag_corpus/raw/manual_rules"),
         ("virage_feedback", extract_virage_feedback, root / "rag_corpus/raw/virage_feedback"),
         ("chartsquared", extract_chartsquared, root / "rag_corpus/raw/chartsquared"),
         ("vega_lite_examples", extract_vega_lite_examples, root / "rag_corpus/raw/vega_lite_examples"),
     ]
+    extractors = [item for item in extractor_specs if item[0] in sources]
     progress = StageProgress("extraction", total=len(extractors))
     for name, func, input_dir in extractors:
         try:
-            records = func(input_dir)
+            if name == "chartsquared":
+                records = func(input_dir, mode=chartsquared_mode, sample_limit=chartsquared_limit)
+            else:
+                records = func(input_dir)
             out_path = root / f"rag_corpus/extracted/{name}.jsonl"
             write_jsonl(out_path, [record.model_dump() for record in records])
             outputs.append(out_path)
@@ -58,6 +62,25 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--record-types", nargs="*", default=None)
+    parser.add_argument(
+        "--sources",
+        nargs="*",
+        choices=["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples"],
+        default=None,
+        help="Source extractors to run. Defaults to all sources.",
+    )
+    parser.add_argument(
+        "--chartsquared-mode",
+        choices=["prompts_only", "sample", "full"],
+        default="sample",
+        help="ChartSquared extraction mode: prompts_only, sample, or full.",
+    )
+    parser.add_argument(
+        "--chartsquared-limit",
+        type=int,
+        default=300,
+        help="Maximum number of ChartSquared files to inspect in sample mode, including prompt files.",
+    )
     parser.add_argument("--clean-processed", action="store_true", help="Remove processed outputs before running.")
     args = parser.parse_args()
 
@@ -92,7 +115,13 @@ def main() -> None:
     scan_progress.update(extra=f"sources={len(inventory.get('sources', [])) if isinstance(inventory, dict) else 'unknown'}")
     scan_progress.finish()
 
-    input_paths = _write_source_records(root)
+    selected_sources = set(args.sources or ["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples"])
+    input_paths = _write_source_records(
+        root,
+        sources=selected_sources,
+        chartsquared_mode=args.chartsquared_mode,
+        chartsquared_limit=args.chartsquared_limit,
+    )
     normalization_report = run_normalization(
         input_paths=input_paths,
         output_dir=root / "rag_corpus/processed/llm_normalized",

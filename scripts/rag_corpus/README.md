@@ -9,6 +9,22 @@ These scripts prepare offline RAG corpora for ViRAGE. The pipeline is LLM-normal
     python scripts/rag_corpus/run_export_autorag.py
     python scripts/rag_corpus/run_export_runtime.py
 
+## ChartSquared modes
+
+ChartSquared / C-2 can be large, so it has three extraction modes:
+
+- `prompts_only` — extracts only ChartAF/prompt files. This is the cheapest and most useful mode for VLM judge and feedback rules.
+- `sample` — extracts all prompt files plus a deterministic sample of ChartUIE/task files. This is the default.
+- `full` — extracts every supported ChartSquared file. Use only for long offline runs.
+
+Examples:
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode prompts_only
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode sample --chartsquared-limit 300
+
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode full
+
 ## With OpenAI
 
     python scripts/rag_corpus/run_prepare_corpus.py --provider openai --model gpt-4.1-mini
@@ -32,3 +48,4 @@ These scripts prepare offline RAG corpora for ViRAGE. The pipeline is LLM-normal
 - `readability_rule`
 - `scale_plot_area_rule`
 - `vlm_readability_rule`
+- `domain_semantics_rule`
