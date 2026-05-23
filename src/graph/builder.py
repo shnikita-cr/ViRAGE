@@ -41,6 +41,12 @@ def _route_semantic_decision(state: PipelineState) -> str:
     return "accepted"
 
 
+def _route_analytics_tail(state: PipelineState, *, runtime: RuntimeContext) -> str:
+    if bool(getattr(runtime.settings, "analytics_tail_enabled", True)):
+        return "enabled"
+    return "disabled"
+
+
 def build_pipeline_graph(runtime: RuntimeContext):
     """Build the ViRAGE pipeline with LangGraph instead of a custom sequential runner."""
     try:
@@ -96,7 +102,11 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph.add_edge("vegalite_plot_drawing", "scenegraph_check")
     graph.add_edge("scenegraph_check", "empty_chart_check")
     graph.add_edge("empty_chart_check", "spec_score")
-    graph.add_edge("spec_score", "semantic_loop_gate")
+    graph.add_conditional_edges(
+        "spec_score",
+        lambda state: _route_analytics_tail(state, runtime=runtime),
+        {"enabled": "semantic_loop_gate", "disabled": "completed"},
+    )
     graph.add_conditional_edges(
         "semantic_loop_gate",
         _route_semantic_gate,

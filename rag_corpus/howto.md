@@ -109,37 +109,40 @@ Smoke-подготовка RAG-корпуса
 
     python -c "from pathlib import Path; p=Path('rag_corpus/runtime/virage_rules.jsonl'); print(p.exists(), p.stat().st_size if p.exists() else 0)"
 
+
+Для NLV отключаем аналитический хвост графа: после рендера и benchmark-метрик не запускаются semantic/VLM analysis и evaluation summary.
+
 NLV без RAG, smoke
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag_smoke --limit 20
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag_smoke --limit 20 --disable-analytics-tail
 
 NLV без RAG, полный запуск
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --disable-analytics-tail
 
 NLV без RAG, продолжить
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --resume
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --resume --disable-analytics-tail
 
 NLV без RAG, перезапустить failed/missing
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --retry-failed
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --retry-failed --disable-analytics-tail
 
 NLV с RAG, smoke
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag_smoke --limit 20
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag_smoke --limit 20 --disable-analytics-tail
 
 NLV с RAG, полный запуск
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag --disable-analytics-tail
 
 NLV с RAG, продолжить
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag --resume
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag --resume --disable-analytics-tail
 
 NLV с RAG, перезапустить failed/missing
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag --retry-failed
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag --retry-failed --disable-analytics-tail
 
 Сравнить NLV no RAG и RAG
 

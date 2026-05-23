@@ -20,6 +20,7 @@ vega_output_format = "png"
 enable_scenegraph_check = true
 enable_empty_chart_check = true
 enable_spec_score = true
+analytics_tail_enabled = true
 enable_vision_score = true
 enable_evaluation_summary = true
 strict_image_only_analysis = true

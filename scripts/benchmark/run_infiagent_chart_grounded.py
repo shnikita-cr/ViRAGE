@@ -30,6 +30,8 @@ def main() -> None:
     parser.add_argument("--debug-artifacts", action="store_true")
     parser.add_argument("--disable-vlm-loop", action="store_true",
                         help="Disable semantic VLM retry loop for generator-only analysis benchmark runs.")
+    parser.add_argument("--disable-analytics-tail", action="store_true",
+                        help="Disable the post-render analytics tail. Not suitable for the main InfiAgent answer benchmark.")
     parser.add_argument("--skip-convert", action="store_true", help="Use --cases as-is and do not regenerate it first.")
     parser.add_argument("--all-cases", action="store_true",
                         help="Do not filter InfiAgent cases by chart answerability during conversion.")
@@ -48,6 +50,10 @@ def main() -> None:
     config = load_project_config(args.config)
     config.mode = "benchmark"
     config.settings.semantic_feedback_loop_enabled = not args.disable_vlm_loop
+    if args.disable_analytics_tail:
+        config.settings.analytics_tail_enabled = False
+        config.settings.semantic_feedback_loop_enabled = False
+        config.settings.enable_evaluation_summary = False
     config.settings.strict_image_only_analysis = True
     config.settings.enable_vision_score = False
     pipeline = ViRAGEPipeline.from_project_config(config)
@@ -65,7 +71,12 @@ def main() -> None:
         resume=args.resume,
         retry_failed=args.retry_failed,
         config_path=Path(args.config),
-        run_options={"disable_vlm_loop": args.disable_vlm_loop, "all_cases": args.all_cases},
+        run_options={
+            "disable_vlm_loop": args.disable_vlm_loop,
+            "disable_analytics_tail": args.disable_analytics_tail,
+            "analytics_tail_enabled": not args.disable_analytics_tail,
+            "all_cases": args.all_cases,
+        },
     )
     print(f"Cases: {report.total_cases}")
     print(f"Successful cases: {report.successful_cases}")

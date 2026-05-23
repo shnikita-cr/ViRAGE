@@ -29,6 +29,7 @@ from ui.app_components import (
     live_chart_preview_from_step,
     append_live_chart_preview_once,
     path_from_config_label,
+    read_table_preview_from_bytes,
     read_table_preview_from_path,
     render_chart,
     render_live,
@@ -73,6 +74,7 @@ def run_app() -> None:
         selected_chart_index = CHART_MODE_OPTIONS.index(pending_run["chart_mode"])
         selected_metrics_index = 0 if pending_run["compute_metrics"] else 1
         selected_visrag_enabled = bool(pending_run.get("visrag_enabled", True))
+        selected_analytics_tail_enabled = bool(pending_run.get("analytics_tail_enabled", True))
         selected_spec_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
         selected_semantic_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
         selected_semantic_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
@@ -83,6 +85,7 @@ def run_app() -> None:
         selected_chart_index = 0
         selected_metrics_index = 0
         selected_visrag_enabled = True
+        selected_analytics_tail_enabled = True
         selected_spec_attempts = 3
         selected_semantic_enabled = False
         selected_semantic_attempts = 2
@@ -103,6 +106,7 @@ def run_app() -> None:
         try:
             selected_config_defaults = load_project_config(selected_config_path)
             configured_visrag_enabled = bool(getattr(selected_config_defaults.settings, "visrag_enabled", True))
+            configured_analytics_tail_enabled = bool(getattr(selected_config_defaults.settings, "analytics_tail_enabled", True))
             configured_spec_attempts = int(selected_config_defaults.settings.spec_generation_max_attempts)
             configured_semantic_enabled = bool(selected_config_defaults.settings.semantic_feedback_loop_enabled)
             configured_semantic_attempts = int(selected_config_defaults.settings.semantic_feedback_max_attempts)
@@ -110,6 +114,7 @@ def run_app() -> None:
             configured_semantic_save = bool(selected_config_defaults.settings.semantic_feedback_save_rejected_specs)
         except Exception:
             configured_visrag_enabled = True
+            configured_analytics_tail_enabled = True
             configured_spec_attempts = 3
             configured_semantic_enabled = False
             configured_semantic_attempts = 2
@@ -117,6 +122,7 @@ def run_app() -> None:
             configured_semantic_save = True
         if not pending_run:
             selected_visrag_enabled = configured_visrag_enabled
+            selected_analytics_tail_enabled = configured_analytics_tail_enabled
             selected_spec_attempts = configured_spec_attempts
             selected_semantic_enabled = configured_semantic_enabled
             selected_semantic_attempts = configured_semantic_attempts
@@ -145,6 +151,13 @@ def run_app() -> None:
             value=bool(selected_visrag_enabled),
             disabled=controls_disabled,
             help="If disabled, VisRAG retrieval is skipped and the spec generator works from query + data profile only.",
+        )
+
+        analytics_tail_enabled = st.checkbox(
+            "Enable analytics tail",
+            value=bool(selected_analytics_tail_enabled),
+            disabled=controls_disabled,
+            help="If disabled, the graph stops after chart rendering and benchmark metrics. VLM analysis and evaluation summary are skipped.",
         )
 
         spec_generation_max_attempts = st.slider(
@@ -198,6 +211,7 @@ def run_app() -> None:
                 f"- `{pending_run['chart_mode']}`\n"
                 f"- metrics: `{METRICS_ENABLED if pending_run['compute_metrics'] else METRICS_DISABLED}`\n"
                 f"- RAG enabled: `{pending_run.get('visrag_enabled', True)}`\n"
+                f"- analytics tail: `{pending_run.get('analytics_tail_enabled', True)}`\n"
                 f"- spec attempts: `{pending_run.get('spec_generation_max_attempts', 3)}`\n"
                 f"- semantic loop: `{pending_run.get('semantic_feedback_loop_enabled', False)}`\n"
                 f"- semantic attempts: `{pending_run.get('semantic_feedback_max_attempts', 2)}`"
@@ -246,6 +260,7 @@ def run_app() -> None:
             chart_mode=chart_mode,
             compute_metrics=compute_metrics,
             visrag_enabled=visrag_enabled,
+            analytics_tail_enabled=analytics_tail_enabled,
             spec_generation_max_attempts=spec_generation_max_attempts,
             semantic_feedback_loop_enabled=semantic_feedback_loop_enabled,
             semantic_feedback_max_attempts=semantic_feedback_max_attempts,
@@ -302,6 +317,7 @@ def run_app() -> None:
     locked_chart_mode = pending_run["chart_mode"]
     locked_compute_metrics = bool(pending_run["compute_metrics"])
     locked_visrag_enabled = bool(pending_run.get("visrag_enabled", True))
+    locked_analytics_tail_enabled = bool(pending_run.get("analytics_tail_enabled", True))
     locked_spec_generation_max_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
     locked_semantic_feedback_loop_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
     locked_semantic_feedback_max_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
@@ -319,6 +335,7 @@ def run_app() -> None:
             project_config=project_config,
             compute_metrics=locked_compute_metrics,
             visrag_enabled=locked_visrag_enabled,
+            analytics_tail_enabled=locked_analytics_tail_enabled,
             spec_generation_max_attempts=locked_spec_generation_max_attempts,
             semantic_feedback_loop_enabled=locked_semantic_feedback_loop_enabled,
             semantic_feedback_max_attempts=locked_semantic_feedback_max_attempts,
@@ -372,6 +389,7 @@ def run_app() -> None:
             f"<code>{locked_config_label}</code> · <code>{locked_chart_mode}</code> · "
             f"metrics <code>{METRICS_ENABLED if locked_compute_metrics else METRICS_DISABLED}</code> · "
             f"RAG <code>{locked_visrag_enabled}</code> · "
+            f"analytics tail <code>{locked_analytics_tail_enabled}</code> · "
             f"spec attempts <code>{locked_spec_generation_max_attempts}</code> · "
             f"semantic loop <code>{locked_semantic_feedback_loop_enabled}</code>"
         )
@@ -446,6 +464,7 @@ def run_app() -> None:
         "chart_mode": locked_chart_mode,
         "compute_metrics": locked_compute_metrics,
         "visrag_enabled": locked_visrag_enabled,
+        "analytics_tail_enabled": locked_analytics_tail_enabled,
         "spec_generation_max_attempts": locked_spec_generation_max_attempts,
         "semantic_feedback_loop_enabled": locked_semantic_feedback_loop_enabled,
         "semantic_feedback_max_attempts": locked_semantic_feedback_max_attempts,

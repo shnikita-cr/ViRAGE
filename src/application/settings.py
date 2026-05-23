@@ -30,6 +30,7 @@ class ViRAGESettings(BaseModel):
     enable_scenegraph_check: bool = Field(default=True)
     enable_empty_chart_check: bool = Field(default=True)
     enable_spec_score: bool = Field(default=True)
+    analytics_tail_enabled: bool = Field(default=True)
     enable_vision_score: bool = Field(default=True)
     enable_evaluation_summary: bool = Field(default=True)
     benchmark_output_dir: Path = Field(default=Path("./artifacts/benchmarks"))

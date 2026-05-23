@@ -28,13 +28,19 @@ def main() -> None:
     parser.add_argument("--nlv-mode", choices=["single_turn"], default="single_turn",
                         help="NLV loader mode. The main benchmark intentionally supports only single_turn cases.")
     parser.add_argument("--disable-vlm-loop", action="store_true",
-                        help="Disable semantic VLM retry loop for generator-only benchmark runs.")
+                        help="Disable only the semantic VLM retry loop.")
+    parser.add_argument("--disable-analytics-tail", action="store_true",
+                        help="Stop the graph after chart rendering and benchmark metrics. Skips VLM analysis and evaluation summary.")
     args = parser.parse_args()
 
     config = load_project_config(args.config)
     config.mode = "benchmark"
     if args.disable_vlm_loop:
         config.settings.semantic_feedback_loop_enabled = False
+    if args.disable_analytics_tail:
+        config.settings.analytics_tail_enabled = False
+        config.settings.semantic_feedback_loop_enabled = False
+        config.settings.enable_evaluation_summary = False
     pipeline = ViRAGEPipeline.from_project_config(config)
     report = VegaChatBenchmarkRunner(pipeline).run_dataset(
         cases_path=Path(args.cases),
@@ -44,7 +50,11 @@ def main() -> None:
         retry_failed=args.retry_failed,
         nlv_mode=args.nlv_mode,
         config_path=Path(args.config),
-        run_options={"disable_vlm_loop": args.disable_vlm_loop},
+        run_options={
+            "disable_vlm_loop": args.disable_vlm_loop,
+            "disable_analytics_tail": args.disable_analytics_tail,
+            "analytics_tail_enabled": not args.disable_analytics_tail,
+        },
     )
     print(f"Cases: {report.total_cases}")
     print(f"VER: {report.visualization_error_rate}")
