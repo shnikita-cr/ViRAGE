@@ -82,3 +82,6 @@ examples
 /rag_corpus/autorag/vega_lite/trials
 datasets
 /research/folder_rag/temp
+/rag_corpus/extracted
+/rag_corpus/manifests
+/rag_corpus/extracted
