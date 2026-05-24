@@ -94,3 +94,4 @@ datasets
 # Generated RAG and benchmark artifacts
 /rag_corpus/autorag.zip
 /rag_corpus/reports/corpus_summary.json
+/rag_corpus/feedback
