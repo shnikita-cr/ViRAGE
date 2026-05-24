@@ -21,7 +21,6 @@ foreach ($cfg in $configs) {
     --qa_data_path rag_corpus\autorag\virage_rules\qa.parquet `
     --corpus_data_path rag_corpus\autorag\virage_rules\corpus.parquet `
     --project_dir $cfg.ProjectDir `
-    --full_ingest False
 }
 
 python scripts\rag_corpus\collect_autorag_summary.py `
