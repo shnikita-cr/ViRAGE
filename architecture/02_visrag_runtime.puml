@@ -1,0 +1,42 @@
+@startuml
+title ViRAGE runtime VisRAG
+
+hide empty description
+skinparam componentStyle rectangle
+
+QueryRequestAnalysis --> TypedQueryBuilder
+DataProfile --> TypedQueryBuilder
+TypedQueryBuilder --> RuleRetriever
+RuntimeRuleStore --> RuleRetriever
+
+RuleRetriever --> CompatibilityReranker
+QueryRequestAnalysis --> CompatibilityReranker
+DataProfile --> CompatibilityReranker
+
+CompatibilityReranker --> SelectedChartPatterns
+CompatibilityReranker --> SelectedReadabilityRules
+CompatibilityReranker --> SelectedScaleRules
+CompatibilityReranker --> SelectedVLMReadabilityRules
+CompatibilityReranker --> SelectedDomainRules
+CompatibilityReranker --> RejectedRules
+
+SelectedChartPatterns --> GuidanceComposer
+SelectedReadabilityRules --> GuidanceComposer
+SelectedScaleRules --> GuidanceComposer
+SelectedVLMReadabilityRules --> GuidanceComposer
+SelectedDomainRules --> GuidanceComposer
+QueryRequestAnalysis --> GuidanceComposer
+
+GuidanceComposer --> GenerationGuidance
+GenerationGuidance --> ChartGenerator
+RejectedRules --> RetrievalReport
+RuleRetriever --> RetrievalReport
+
+note right of CompatibilityReranker
+Examples:
+- reject choropleth rule for line trend without geo fields
+- reject network rule without source/target fields
+- reject word cloud rule without text field
+- boost line/time rules for temporal trend requests
+end note
+@enduml

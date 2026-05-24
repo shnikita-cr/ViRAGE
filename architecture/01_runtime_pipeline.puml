@@ -1,0 +1,54 @@
+@startuml
+title ViRAGE runtime pipeline
+
+hide empty description
+skinparam componentStyle rectangle
+
+[*] --> DataProfiler
+DataProfiler --> QueryRequestAnalysis
+QueryRequestAnalysis --> DataPreparation
+DataPreparation --> VisRAG
+VisRAG --> ChartGenerator
+ChartGenerator --> SpecValidator
+SpecValidator --> TechnicalDecision
+TechnicalDecision --> ChartGenerator : retry invalid spec
+TechnicalDecision --> VegaLiteRendering : ok
+VegaLiteRendering --> ScenegraphCheck
+ScenegraphCheck --> EmptyChartCheck
+EmptyChartCheck --> SpecScore
+
+SpecScore --> AnalyticsTailGate
+AnalyticsTailGate --> Completed : analytics_tail_enabled = false
+AnalyticsTailGate --> SemanticLoopGate : analytics_tail_enabled = true
+
+SemanticLoopGate --> VisualChartJudge : strict
+SemanticLoopGate --> VLMChartDescription : debug_full_chain
+SemanticLoopGate --> VLMAnalysis : disabled
+
+VisualChartJudge --> SemanticDecision
+VLMChartDescription --> ChartFactSummary
+ChartFactSummary --> ChartAnswerJudge
+ChartAnswerJudge --> SemanticDecision
+
+SemanticDecision --> FeedbackCorpusWriter : retry
+FeedbackCorpusWriter --> ChartGenerator
+SemanticDecision --> VLMAnalysis : accepted
+SemanticDecision --> EvaluationSummary : failed
+
+VLMAnalysis --> EvaluationSummary
+EvaluationSummary --> Completed
+Completed --> [*]
+
+note right of VisRAG
+Runtime RAG retrieves rule guidance only.
+It does not retrieve final Vega-Lite specs.
+Compatibility reranker removes rules that
+contradict query analysis or data shape.
+end note
+
+note right of AnalyticsTailGate
+For NLV benchmark the analytics tail is disabled.
+For InfiAgent it stays enabled because the answer
+is judged from the chart-grounded analysis.
+end note
+@enduml

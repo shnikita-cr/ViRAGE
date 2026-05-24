@@ -14,7 +14,7 @@ from src.domain.models import (
 )
 from src.visrag_core.composer import compose_generation_guidance
 from src.visrag_core.constants import DEFAULT_TOP_K, RULE_TYPES
-from src.visrag_core.filters import domain_semantics_gate
+from src.visrag_core.filters import domain_semantics_gate, rerank_by_compatibility
 from src.visrag_core.query_builder import build_typed_queries
 from src.visrag_core.rule_retrieval import RuleRetriever, RuleRetrieverOptions, build_rule_retriever
 from src.visrag_core.stores import RuleCorpusRepository
@@ -129,26 +129,37 @@ class VisRAGEngine:
                 query_analysis=query_analysis,
                 corpus_key=f"{corpus_key}:{record_type}",
             )
-            picked = ranked[:top_k]
+            reranked, compatibility_filtered = rerank_by_compatibility(ranked, query_analysis, data_profile)
+            filtered.extend(compatibility_filtered)
+            picked = reranked[:top_k]
             selected_by_type[record_type] = picked
             all_selected.extend(picked)
             scores_by_type[record_type] = [
-                {"doc_id": doc.doc_id, "score": doc.score, "source": (doc.metadata or {}).get("source")}
-                for doc in ranked[:max(top_k, 5)]
+                {
+                    "doc_id": doc.doc_id,
+                    "score": doc.score,
+                    "source": (doc.metadata or {}).get("source_dataset") or (doc.metadata or {}).get("source"),
+                }
+                for doc in reranked[:max(top_k, 5)]
             ]
-            if len(ranked) > top_k:
+            if len(reranked) > top_k:
                 filtered.extend([
                     {"doc_id": doc.doc_id, "record_type": doc.record_type, "reason": "below_top_k", "score": doc.score}
-                    for doc in ranked[top_k:top_k + 5]
+                    for doc in reranked[top_k:top_k + 5]
                 ])
 
         guidance = compose_generation_guidance(selected_by_type, query_analysis)
+        compatibility_filter_count = sum(
+            1 for item in filtered if str(item.get("reason", "")).startswith(("incompatible_chart_family", "missing_required_data"))
+        )
         diagnostics = VisRAGDiagnostics(
             retrieved_count_by_type={key: len(value) for key, value in selected_by_type.items()},
             corpus_backend=self.repository.backend_name,
             corpus_uri=self.repository.corpus_uri,
             corpus_hash=str(self._corpus_signature.get("hash") or ""),
-            warnings=[],
+            warnings=[
+                f"Compatibility reranker removed {compatibility_filter_count} incompatible retrieved rules."
+            ] if compatibility_filter_count else [],
         )
         debug = VisRAGDebugRetrieval(
             retrieval_queries=queries,

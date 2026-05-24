@@ -1,0 +1,51 @@
+@startuml
+title RAG corpus and AutoRAG pipeline
+
+hide empty description
+skinparam componentStyle rectangle
+
+RawExternalSources --> Extractors
+Extractors --> ExtractedJsonl
+ExtractedJsonl --> LLMNormalization
+LLMNormalization --> MergedRules
+MergedRules --> ExactDeduplication
+ExactDeduplication --> QualityFilter
+QualityFilter --> Validation
+Validation --> ValidatedRules
+
+ValidatedRules --> RuntimeExport
+RuntimeExport --> RuntimeJsonl
+RuntimeJsonl --> ViRAGRuntime
+
+ValidatedRules --> AutoRAGExport
+AutoRAGExport --> CorpusParquet
+AutoRAGExport --> QAParquet
+CorpusParquet --> TrainTestSplit
+QAParquet --> TrainTestSplit
+
+TrainTestSplit --> TrainParquet
+TrainTestSplit --> TestParquet
+TrainParquet --> AutoRAGValidate
+TrainParquet --> AutoRAGEvaluateTrain
+AutoRAGEvaluateTrain --> BestConfig
+BestConfig --> AutoRAGEvaluateTest
+TestParquet --> AutoRAGEvaluateTest
+AutoRAGEvaluateTest --> AutoRAGSummary
+BestConfig --> RuntimeConfig
+RuntimeConfig --> ViRAGBenchmark
+
+ExactDeduplication --> ManualEmbeddingDedup : optional manual step
+ManualEmbeddingDedup --> QualityFilter
+
+note right of QualityFilter
+Removes short slogans, documentation noise,
+NLV leakage, excessive repeated readability
+clusters and source dominance.
+end note
+
+note right of TrainTestSplit
+70/30 split prevents selecting retrieval
+settings only on the same QA records used
+for final validation.
+end note
+@enduml

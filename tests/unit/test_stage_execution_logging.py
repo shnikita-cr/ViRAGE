@@ -80,7 +80,7 @@ def test_model_call_logs_are_saved_to_single_model_calls_csv(tmp_path: Path) -> 
 
 def test_wrapped_graph_node_records_stage_execution_log(tmp_path: Path) -> None:
     from src.domain.enums import PipelineStage
-    from src.graph.builder import _wrap_stage_node
+    from src.graph.stage_executor import wrap_stage_node
 
     runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path))
     runtime.current_run_id = "run-1"
@@ -89,7 +89,7 @@ def test_wrapped_graph_node_records_stage_execution_log(tmp_path: Path) -> None:
     def node(state):
         return {"stage": PipelineStage.DATA_PREPARATION, "value": 42}
 
-    wrapped = _wrap_stage_node(name="data_preparation", callable_node=node, runtime=runtime)
+    wrapped = wrap_stage_node(name="data_preparation", callable_node=node, runtime=runtime)
     output = wrapped({"run_id": "run-1", "stage_execution_logs": []})
 
     assert output["value"] == 42
@@ -105,7 +105,7 @@ def test_wrapped_graph_node_records_stage_execution_log(tmp_path: Path) -> None:
 
 
 def test_wrapped_graph_node_emits_started_step_before_execution(tmp_path: Path) -> None:
-    from src.graph.builder import _wrap_stage_node
+    from src.graph.stage_executor import wrap_stage_node
 
     emitted = []
     runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path))
@@ -118,7 +118,7 @@ def test_wrapped_graph_node_emits_started_step_before_execution(tmp_path: Path) 
         assert emitted[-1].summary == "Running now"
         return {"value": 1}
 
-    wrapped = _wrap_stage_node(name="chart_generator", callable_node=node, runtime=runtime)
+    wrapped = wrap_stage_node(name="chart_generator", callable_node=node, runtime=runtime)
     wrapped({"run_id": "run-1", "stage_execution_logs": []})
 
     assert emitted[0].title == "Chart generation"

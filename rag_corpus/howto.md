@@ -311,3 +311,31 @@ InfiAgent, инспекция кейса
     Test-Path .\datasets\nlv_corpus\datasets
     Test-Path rag_corpus\runtime\virage_rules.jsonl
     Test-Path ui\config\project-gemma4-bench_rag_autorag.toml
+
+Актуальный строгий NLV-сценарий после AutoRAG
+
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --disable-analytics-tail
+
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag --disable-analytics-tail
+
+    python scripts\benchmark\compare_runs.py --left artifacts\benchmarks\nlv_no_rag --right artifacts\benchmarks\nlv_rag_autorag --output artifacts\benchmarks\nlv_compare_no_rag_vs_rag_autorag
+
+Пояснение: `project-gemma4-bench_rag_autorag.toml` использует более строгий runtime RAG режим: BM25 и только один `chart_pattern`. Это нужно потому, что текущий AutoRAG-запуск показал резкое падение качества при увеличении `top_k`. Для NLV правила читаемости, площади графика и VLM-читаемости отключены, чтобы не добавлять шум к задаче построения спецификации.
+
+Ручная семантическая дедупликация корпуса
+
+    ollama pull nomic-embed-text
+
+    python scripts\rag_corpus\normalize\deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
+
+Проверить удалённые кластеры
+
+    notepad rag_corpus\processed\semantic_duplicate_clusters.jsonl
+
+Если удаляются похожие, но разные правила, поднять порог до `0.97`. Если остаётся много повторов, снизить до `0.93`.
+
+Контроль качества корпуса перед runtime export
+
+    python -c "import json,collections,statistics; from pathlib import Path; rows=[json.loads(x) for x in Path('rag_corpus/processed/all_rules.validated.jsonl').read_text(encoding='utf-8').splitlines() if x.strip()]; lens=[len(str(r.get('prompt_text') or r.get('guidance') or '')) for r in rows]; print('total',len(rows)); print('types',collections.Counter(r.get('record_type') for r in rows)); print('sources',collections.Counter(r.get('source_dataset') or (r.get('source') or {}).get('dataset') or (r.get('metadata') or {}).get('source_dataset') for r in rows)); print('prompt_len', min(lens), statistics.median(lens), round(statistics.mean(lens),2), max(lens))"
+
+Старые архивы и сгенерированные отчёты не должны храниться как исходный код проекта. Их нужно держать в `artifacts` или отдельной папке эксперимента.
