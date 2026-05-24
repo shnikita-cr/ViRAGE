@@ -23,7 +23,7 @@ DEFAULT_REJECTED = "rag_corpus/processed/quality_rejected_records.jsonl"
 DEFAULT_REPORT_JSON = "rag_corpus/processed/filter_report.json"
 DEFAULT_REPORT_MD = "rag_corpus/processed/filter_report.md"
 
-DEFAULT_MIN_PROMPT_CHARS = 120
+DEFAULT_MIN_PROMPT_CHARS = 5
 DEFAULT_MIN_RETRIEVAL_CHARS = 24
 DEFAULT_MAX_DUPLICATES_PER_KEY = 3
 DEFAULT_MAX_NOISE_CLUSTER_RECORDS = 30
