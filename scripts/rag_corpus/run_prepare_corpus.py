@@ -96,7 +96,7 @@ def main() -> None:
     )
     parser.add_argument("--clean-processed", action="store_true", help="Remove processed outputs before running.")
     parser.add_argument("--skip-quality-filter", action="store_true", help="Skip post-deduplication quality filtering.")
-    parser.add_argument("--min-prompt-chars", type=int, default=120, help="Reject normalized rules with shorter prompt_text.")
+    parser.add_argument("--min-prompt-chars", type=int, default=5, help="Reject normalized rules with shorter prompt_text.")
     parser.add_argument("--min-retrieval-chars", type=int, default=24, help="Reject normalized rules with shorter retrieval_text.")
     parser.add_argument("--max-duplicates-per-key", type=int, default=3, help="Limit near-duplicate normalized rules.")
     parser.add_argument("--max-noise-cluster-records", type=int, default=30, help="Limit repeated generic readability clusters.")
