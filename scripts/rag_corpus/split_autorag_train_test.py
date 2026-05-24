@@ -13,6 +13,7 @@ import random
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from scripts.rag_corpus.common.io import ensure_dir, project_root, write_json, write_text
@@ -39,11 +40,28 @@ def _metadata(value: Any) -> dict[str, Any]:
 
 
 def _retrieval_gt(value: Any) -> list[str]:
-    data = _load_json(value, [])
+    """Return AutoRAG retrieval ground-truth ids from parquet-safe values.
+
+    Pandas/pyarrow may read list columns back as numpy.ndarray values.  The
+    previous implementation treated those arrays as unknown values, returned an
+    empty list for every row, and therefore dropped all QA records during the
+    train/test split.
+    """
+    if isinstance(value, str):
+        data = _load_json(value, [])
+    elif isinstance(value, np.ndarray):
+        data = value.tolist()
+    elif isinstance(value, (list, tuple, set)):
+        data = list(value)
+    else:
+        data = _load_json(value, [])
+
     if isinstance(data, str):
         return [data]
-    if isinstance(data, list):
-        return [str(item) for item in data]
+    if isinstance(data, np.ndarray):
+        data = data.tolist()
+    if isinstance(data, (list, tuple, set)):
+        return [str(item) for item in data if item is not None and str(item).strip()]
     return []
 
 
@@ -122,6 +140,14 @@ def split_autorag_data(
     test_corpus = corpus_df[corpus_df["_split"] == "test"].drop(columns=["_split"])
     train_qa = pd.DataFrame(qa_rows_train, columns=qa_df.columns)
     test_qa = pd.DataFrame(qa_rows_test, columns=qa_df.columns)
+
+    if train_qa.empty or test_qa.empty:
+        raise ValueError(
+            "Train/test split produced an empty QA subset. "
+            "Check qa.parquet retrieval_gt values and split ratio. "
+            f"train_questions={len(train_qa)}, test_questions={len(test_qa)}, "
+            f"dropped_questions={len(qa_rows_dropped)}"
+        )
 
     train_corpus.to_parquet(train_dir / "corpus.parquet", index=False)
     test_corpus.to_parquet(test_dir / "corpus.parquet", index=False)
