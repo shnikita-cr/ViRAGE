@@ -15,6 +15,7 @@ from pathlib import Path
 
 from scripts.rag_corpus.common.io import project_root, write_json
 from scripts.rag_corpus.normalize.deduplicate_records import deduplicate_records
+from scripts.rag_corpus.normalize.filter_processed_records import filter_file
 from scripts.rag_corpus.normalize.merge_processed_records import merge_processed_records
 from scripts.rag_corpus.normalize.normalize_with_llm import _target_record_types_arg, run_normalization
 from scripts.rag_corpus.normalize.validate_processed_records import validate_processed
@@ -94,6 +95,12 @@ def main() -> None:
         help="Maximum number of ChartSquared files to inspect in sample mode, including prompt files.",
     )
     parser.add_argument("--clean-processed", action="store_true", help="Remove processed outputs before running.")
+    parser.add_argument("--skip-quality-filter", action="store_true", help="Skip post-deduplication quality filtering.")
+    parser.add_argument("--min-prompt-chars", type=int, default=120, help="Reject normalized rules with shorter prompt_text.")
+    parser.add_argument("--min-retrieval-chars", type=int, default=24, help="Reject normalized rules with shorter retrieval_text.")
+    parser.add_argument("--max-duplicates-per-key", type=int, default=3, help="Limit near-duplicate normalized rules.")
+    parser.add_argument("--max-noise-cluster-records", type=int, default=30, help="Limit repeated generic readability clusters.")
+    parser.add_argument("--source-limit", action="append", default=[], help="Limit records per source, format source=limit. Can be repeated.")
     args = parser.parse_args()
 
     root = project_root()
@@ -102,13 +109,17 @@ def main() -> None:
             root / "rag_corpus/processed/llm_normalized",
             root / "rag_corpus/processed/all_rules.jsonl",
             root / "rag_corpus/processed/all_rules.deduped.jsonl",
+            root / "rag_corpus/processed/all_rules.filtered.jsonl",
             root / "rag_corpus/processed/all_rules.validated.jsonl",
             root / "rag_corpus/processed/normalization_failures.jsonl",
             root / "rag_corpus/processed/rejected_records.jsonl",
+            root / "rag_corpus/processed/quality_rejected_records.jsonl",
             root / "rag_corpus/processed/processing_report.json",
             root / "rag_corpus/processed/processing_report.md",
             root / "rag_corpus/processed/merge_report.json",
             root / "rag_corpus/processed/deduplication_report.json",
+            root / "rag_corpus/processed/filter_report.json",
+            root / "rag_corpus/processed/filter_report.md",
         ]
         clean_progress = StageProgress("clean-processed", total=len(paths_to_clean))
         for path in paths_to_clean:
@@ -163,24 +174,50 @@ def main() -> None:
     kept, rejected = deduplicate_records(all_rules)
     dedup_progress.set(done=len(all_rules), errors=len(rejected), extra=f"kept={len(kept)} rejected={len(rejected)}")
     dedup_progress.finish()
-    write_jsonl(root / "rag_corpus/processed/all_rules.deduped.jsonl", kept)
+    deduped_path = root / "rag_corpus/processed/all_rules.deduped.jsonl"
+    filtered_path = root / "rag_corpus/processed/all_rules.filtered.jsonl"
+    write_jsonl(deduped_path, kept)
     if rejected:
         write_jsonl(root / "rag_corpus/processed/rejected_records.jsonl", rejected)
 
-    validation_progress = StageProgress("validation", total=len(kept))
+    if args.skip_quality_filter:
+        filter_report = {"input_total": len(kept), "kept": len(kept), "rejected": 0, "skipped": True}
+        validation_input = deduped_path
+    else:
+        from scripts.rag_corpus.normalize.filter_processed_records import _parse_source_limits
+        filter_progress = StageProgress("quality-filter", total=len(kept))
+        filter_report = filter_file(
+            deduped_path,
+            filtered_path,
+            root / "rag_corpus/processed/quality_rejected_records.jsonl",
+            root / "rag_corpus/processed/filter_report.json",
+            root / "rag_corpus/processed/filter_report.md",
+            min_prompt_chars=args.min_prompt_chars,
+            min_retrieval_chars=args.min_retrieval_chars,
+            max_duplicates_per_key=args.max_duplicates_per_key,
+            max_noise_cluster_records=args.max_noise_cluster_records,
+            source_limits=_parse_source_limits(args.source_limit),
+        )
+        filter_progress.set(done=len(kept), errors=filter_report.get("rejected", 0), extra=f"kept={filter_report.get('kept', 0)} rejected={filter_report.get('rejected', 0)}")
+        filter_progress.finish()
+        validation_input = filtered_path
+
+    filtered_count = int(filter_report.get("kept", len(kept)))
+    validation_progress = StageProgress("validation", total=filtered_count)
     validation_report = validate_processed(
-        root / "rag_corpus/processed/all_rules.deduped.jsonl",
+        validation_input,
         root / "rag_corpus/processed/all_rules.validated.jsonl",
         root / "rag_corpus/processed/rejected_records.jsonl",
         root / "rag_corpus/processed/processing_report.json",
         root / "rag_corpus/processed/processing_report.md",
     )
-    validation_progress.set(done=len(kept), errors=validation_report.get("rejected", 0), extra=f"valid={validation_report.get('total', 0)} rejected={validation_report.get('rejected', 0)}")
+    validation_progress.set(done=filtered_count, errors=validation_report.get("rejected", 0), extra=f"valid={validation_report.get('total', 0)} rejected={validation_report.get('rejected', 0)}")
     validation_progress.finish()
     final_report = {
         "normalization": normalization_report,
         "merge": merge_report,
         "deduplication": {"kept": len(kept), "rejected": len(rejected)},
+        "quality_filter": filter_report,
         "validation": validation_report,
     }
     write_json(root / "rag_corpus/reports/corpus_summary.json", final_report)
