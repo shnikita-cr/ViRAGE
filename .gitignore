@@ -88,3 +88,4 @@ datasets
 /rag_corpus/processed
 /rag_corpus/raw_external_rules/
 /rag_corpus/runtime
+/rag_corpus/autorag/virage_rules
