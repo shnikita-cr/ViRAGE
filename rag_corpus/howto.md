@@ -1,176 +1,209 @@
-# ViRAGE: внешний корпус правил, RAG и benchmark
+# ViRAGE: внешний корпус правил, очистка, AutoRAG и benchmark
 
 Команды запускать из корня проекта:
 
     D:\programming\projects\ViRAGE
 
-NLV используется только для оценки качества. В RAG-корпус NLV, его запросы, эталонные спецификации и правила, извлечённые из NLV, не добавляются.
+NLV используется только для оценки качества. Запросы, эталонные спецификации и правила, извлечённые из NLV, не добавляются в RAG-корпус.
 
-Проверка проекта
+## 1. Проверка окружения
 
     python -Wdefault -m compileall -q src ui scripts tests
     pytest -q
 
-Установка зависимостей
-
     pip install -r requirements.txt
     pip install -r requirements-dev.txt
-    pip install pandas pyarrow requests pydantic pyyaml
-
-Если нужен AutoRAG:
-
-    pip install AutoRAG
-
-Проверка Ollama
+    pip install pandas pyarrow requests pydantic pyyaml AutoRAG
 
     ollama list
     python -c "import requests; print(requests.get('http://localhost:11434/api/tags').json().keys())"
 
-OpenAI вместо Ollama
+Для LLM-нормализации и эмбеддингов:
 
-    $env:OPENAI_API_KEY="твой_ключ"
-    python -c "import os; print(bool(os.getenv('OPENAI_API_KEY')))"
+    ollama pull qwen2.5-coder:7b
+    ollama pull nomic-embed-text
+    ollama pull mxbai-embed-large
+    ollama pull bge-m3
 
-Скачать источники для внешнего корпуса правил
+## 2. Скачать внешние источники корпуса
 
     New-Item -ItemType Directory -Force rag_corpus\raw_external_rules
 
-    git clone https://github.com/ShenLeixian/TaskVis.git rag_corpus\raw_external_rules\taskvis
-    Test-Path rag_corpus\raw_external_rules\taskvis
-
     git clone https://github.com/uwdata/draco.git rag_corpus\raw_external_rules\draco
-    Test-Path rag_corpus\raw_external_rules\draco
-
     git clone https://github.com/holtzy/data_to_viz.git rag_corpus\raw_external_rules\from_data_to_viz
-    Test-Path rag_corpus\raw_external_rules\from_data_to_viz
-
     git clone https://github.com/Financial-Times/chart-doctor.git rag_corpus\raw_external_rules\ft_visual_vocabulary
-    Test-Path rag_corpus\raw_external_rules\ft_visual_vocabulary
-
     git clone https://github.com/vega/compassql.git rag_corpus\raw_external_rules\compassql
-    Test-Path rag_corpus\raw_external_rules\compassql
-
     git clone https://github.com/chartsquared/C-2.git rag_corpus\raw_external_rules\chartsquared
+
+TaskVis сейчас не используется в основном корпусе, потому что он даёт слишком много конкретных примеров. При необходимости его можно скачать отдельно:
+
+    git clone https://github.com/ShenLeixian/TaskVis.git rag_corpus\raw_external_rules\taskvis
+
+Проверка:
+
+    Test-Path rag_corpus\raw_external_rules\draco
+    Test-Path rag_corpus\raw_external_rules\from_data_to_viz
+    Test-Path rag_corpus\raw_external_rules\ft_visual_vocabulary
+    Test-Path rag_corpus\raw_external_rules\compassql
     Test-Path rag_corpus\raw_external_rules\chartsquared
 
-Скачать NLV только для benchmark
+## 3. Скачать NLV только для benchmark
 
     New-Item -ItemType Directory -Force datasets
     git clone https://github.com/giahy2507/nlvcorpus.github.io.git .\datasets\nlv_corpus
     Invoke-WebRequest "https://docs.google.com/spreadsheets/d/1GMWktNGJCwC8U1dvT0gMggVRRYqN3uL28zjVDbxYJOg/export?format=csv&gid=0" -OutFile .\datasets\nlv_corpus\NLV_Corpus.csv
+
     Test-Path .\datasets\nlv_corpus\NLV_Corpus.csv
     Test-Path .\datasets\nlv_corpus\vlSpecs.json
     Test-Path .\datasets\nlv_corpus\datasets
 
-InfiAgent должен лежать здесь
-
-    Datasets\InfiAgent
-
-Проверка InfiAgent
-
-    python scripts\benchmark\infiagent_scan.py --source-root Datasets\InfiAgent
-
-Очистить сгенерированные RAG-результаты
+## 4. Очистить старые результаты RAG
 
     Remove-Item -Recurse -Force rag_corpus\extracted -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force rag_corpus\processed\llm_normalized -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\all_rules.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\all_rules.deduped.jsonl -ErrorAction SilentlyContinue
+    Remove-Item -Force rag_corpus\processed\all_rules.filtered.jsonl -ErrorAction SilentlyContinue
+    Remove-Item -Force rag_corpus\processed\all_rules.semantic_deduped.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\all_rules.validated.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\normalization_failures.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force rag_corpus\runtime -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force rag_corpus\autorag\virage_rules -ErrorAction SilentlyContinue
-    Remove-Item -Recurse -Force rag_corpus\autorag\runs\semantic_rules_eval -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force rag_corpus\autorag\runs -ErrorAction SilentlyContinue
 
     New-Item -ItemType Directory -Force rag_corpus\extracted
     New-Item -ItemType Directory -Force rag_corpus\processed\llm_normalized
     New-Item -ItemType Directory -Force rag_corpus\runtime
     New-Item -ItemType Directory -Force rag_corpus\autorag\virage_rules
 
-Извлечь внешние источники без LLM-нормализации
+## 5. Извлечь внешние источники до LLM-нормализации
 
-    python scripts\rag_corpus\sources\extract_taskvis.py
     python scripts\rag_corpus\sources\extract_draco.py
     python scripts\rag_corpus\sources\extract_from_data_to_viz.py
     python scripts\rag_corpus\sources\extract_ft_visual_vocabulary.py
     python scripts\rag_corpus\sources\extract_compassql.py
     python scripts\rag_corpus\sources\extract_chartsquared_rules.py
 
-Проверить количество извлечённых записей
+Проверить количество исходных записей:
 
     python -c "from pathlib import Path; [print(p.name, sum(1 for _ in p.open(encoding='utf-8'))) for p in Path('rag_corpus/extracted').glob('*.jsonl')]"
 
-Ожидаемо должны быть файлы:
+## 6. LLM-нормализация, точная дедупликация, фильтры и валидация
 
-    rag_corpus\extracted\taskvis.jsonl
-    rag_corpus\extracted\draco.jsonl
-    rag_corpus\extracted\from_data_to_viz.jsonl
-    rag_corpus\extracted\ft_visual_vocabulary.jsonl
-    rag_corpus\extracted\compassql.jsonl
-    rag_corpus\extracted\chartsquared_rules.jsonl
+Основной запуск:
 
-Подготовить внешний корпус правил через Ollama
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --clean-processed
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model gemma4:31b-cloud --sources taskvis draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --clean-processed
+Продолжить после обрыва:
 
-Подготовить внешний корпус без ChartSquared
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --resume
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model gemma4:31b-cloud --sources taskvis draco from_data_to_viz ft_visual_vocabulary compassql --clean-processed
+Повторить только упавшие записи:
 
-Продолжить после обрыва
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --retry-failed
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model gemma4:31b-cloud --resume
+После этого должны появиться:
 
-Повторить только упавшие записи
+    rag_corpus\processed\all_rules.jsonl
+    rag_corpus\processed\all_rules.deduped.jsonl
+    rag_corpus\processed\all_rules.filtered.jsonl
+    rag_corpus\processed\all_rules.validated.jsonl
+    rag_corpus\processed\processing_report.md
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model gemma4:31b-cloud --retry-failed
+Открыть отчёт:
 
-Проверить обработанный корпус
-
-    Test-Path rag_corpus\processed\all_rules.deduped.jsonl
-    Test-Path rag_corpus\processed\all_rules.filtered.jsonl
-    Test-Path rag_corpus\processed\all_rules.validated.jsonl
     notepad rag_corpus\processed\processing_report.md
 
-Сформировать отчёт качества корпуса
+Сформировать отчёт качества корпуса:
 
     python scripts\rag_corpus\report_corpus_quality.py --input rag_corpus\processed\all_rules.validated.jsonl
     notepad rag_corpus\reports\corpus_quality_report.md
 
-Проверить состав по источникам
+Проверить отсутствие NLV в корпусе:
 
-    python -c "import json,collections; c=collections.Counter(); f=open('rag_corpus/processed/all_rules.deduped.jsonl',encoding='utf-8'); [c.update([json.loads(x).get('source_dataset') or json.loads(x).get('source') or json.loads(x).get('metadata',{}).get('source_dataset')]) for x in f]; print(c)"
+    python -c "from pathlib import Path; text=Path('rag_corpus/processed/all_rules.validated.jsonl').read_text(encoding='utf-8').lower(); print('nlv' in text, 'nlv_corpus' in text, 'utterance' in text)"
 
-Проверить состав по типам записей
+## 7. Ручная семантическая дедупликация по эмбеддингам
 
-    python -c "import json,collections; c=collections.Counter(); f=open('rag_corpus/processed/all_rules.deduped.jsonl',encoding='utf-8'); [c.update([json.loads(x).get('record_type')]) for x in f]; print(c)"
+Этот шаг пока запускается вручную. Он нужен не для замены обычной дедупликации, а для удаления смысловых повторов после LLM-нормализации.
 
-Проверить, что NLV не попал в корпус
+Сначала проверить, что эмбеддинги работают на контрольных примерах:
 
-    python -c "from pathlib import Path; text=Path('rag_corpus/processed/all_rules.deduped.jsonl').read_text(encoding='utf-8').lower(); print('nlv' in text, 'nlv_corpus' in text)"
+    python scripts\rag_corpus\normalize\test_embedding_dedup.py --model nomic-embed-text
 
-Экспорт runtime-корпуса
+Открыть отчёт:
+
+    notepad rag_corpus\processed\embedding_dedup_test\embedding_dedup_test_report.md
+
+В отчёте должны быть:
+
+    similar_line_rules: высокая близость
+    line_vs_scatter: ниже
+    line_vs_bar: ниже
+    scatter_vs_bar: ниже
+
+Скрипт перебирает пороги и показывает, при каком пороге похожие правила удаляются, а разные остаются. Если `recommended_threshold` пустой, модель или пороги не подходят для этого корпуса.
+
+Запуск дедупликации на корпусе:
+
+    python scripts\rag_corpus\normalize\deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
+
+Если удаляются похожие, но разные правила, поднять порог:
+
+    python scripts\rag_corpus\normalize\deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.97
+
+Если остаётся много повторов, снизить порог:
+
+    python scripts\rag_corpus\normalize\deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.93
+
+Выходные файлы:
+
+    rag_corpus\processed\all_rules.semantic_deduped.jsonl
+    rag_corpus\processed\semantic_duplicate_clusters.jsonl
+    rag_corpus\processed\semantic_dedup_report.json
+    rag_corpus\processed\semantic_dedup_skipped.jsonl
+    rag_corpus\processed\embedding_cache.jsonl
+
+Проверить удалённые кластеры:
+
+    notepad rag_corpus\processed\semantic_duplicate_clusters.jsonl
+    notepad rag_corpus\processed\semantic_dedup_report.json
+
+После ручной дедупликации желательно снова сформировать отчёт качества:
+
+    python scripts\rag_corpus\report_corpus_quality.py --input rag_corpus\processed\all_rules.semantic_deduped.jsonl --output rag_corpus\reports\corpus_quality_semantic_deduped_report.md
+    notepad rag_corpus\reports\corpus_quality_semantic_deduped_report.md
+
+## 8. Экспорт корпуса в runtime
+
+Из обычного валидированного профиля:
 
     python scripts\rag_corpus\run_export_runtime.py --profile validated
-    Test-Path rag_corpus\runtime\virage_rules.jsonl
 
-Экспорт runtime-корпуса из ручного semantic-dedup профиля
+Из ручного semantic-dedup профиля:
 
     python scripts\rag_corpus\run_export_runtime.py --profile semantic_deduped
 
-Проверить runtime-корпус
+Проверить runtime-корпус:
 
+    Test-Path rag_corpus\runtime\virage_rules.jsonl
     python -c "from pathlib import Path; p=Path('rag_corpus/runtime/virage_rules.jsonl'); print(p.exists(), p.stat().st_size if p.exists() else 0)"
 
-Экспорт для AutoRAG и разделение train/test 70/30
+После этого UI и benchmark будут читать актуальный runtime-корпус из:
+
+    rag_corpus\runtime\virage_rules.jsonl
+
+## 9. Экспорт AutoRAG и train/test split
+
+Из обычного валидированного профиля:
 
     python scripts\rag_corpus\run_export_autorag.py --profile validated --train-ratio 0.7 --split-seed 42
 
-Экспорт AutoRAG из ручного semantic-dedup профиля
+Из semantic-dedup профиля:
 
     python scripts\rag_corpus\run_export_autorag.py --profile semantic_deduped --train-ratio 0.7 --split-seed 42
 
-Проверить файлы AutoRAG
+Проверить файлы:
 
     Test-Path rag_corpus\autorag\virage_rules\corpus.parquet
     Test-Path rag_corpus\autorag\virage_rules\qa.parquet
@@ -180,176 +213,158 @@ InfiAgent должен лежать здесь
     Test-Path rag_corpus\autorag\virage_rules\splits\test\corpus.parquet
     Test-Path rag_corpus\autorag\virage_rules\splits\test\qa.parquet
 
-Открыть отчёт разделения
+Открыть отчёт split-а:
 
     notepad rag_corpus\autorag\virage_rules\splits\split_report.md
 
-Посмотреть parquet
+Проверить формат parquet:
 
-    python -c "import pandas as pd; pd.set_option('display.max_columns', None); pd.set_option('display.max_colwidth', 300); df=pd.read_parquet('rag_corpus/autorag/virage_rules/corpus.parquet'); print(df.head(10).to_string(index=False)); print(df.shape)"
-    python -c "import pandas as pd; pd.set_option('display.max_columns', None); pd.set_option('display.max_colwidth', 300); df=pd.read_parquet('rag_corpus/autorag/virage_rules/qa.parquet'); print(df.head(10).to_string(index=False)); print(df.shape)"
+    python -c "import pandas as pd; qa=pd.read_parquet('rag_corpus/autorag/virage_rules/splits/train/qa.parquet'); corpus=pd.read_parquet('rag_corpus/autorag/virage_rules/splits/train/corpus.parquet'); print('train qa', qa.shape); print('train corpus', corpus.shape); print(type(qa['retrieval_gt'].iloc[0]), qa['retrieval_gt'].iloc[0]); print(type(corpus['metadata'].iloc[0]), corpus['metadata'].iloc[0])"
 
-Подготовить Ollama-модели для AutoRAG
+## 10. AutoRAG validate/evaluate/extract/evaluate
 
-    ollama pull nomic-embed-text
-    ollama pull mxbai-embed-large
-    ollama pull bge-m3
-    ollama list
+Конфигурация `virage_rules_ollama_all.yaml` включает:
 
-AutoRAG validate на train
+    lexical_retrieval: BM25
+    semantic_retrieval: Chroma + Ollama embeddings
+    hybrid_retrieval: HybridRRF / HybridCC
+
+Гибридный блок исправлен: `HybridRRF.weight_range` задаётся как возрастающий диапазон `[4, 80]`. Нельзя использовать пары вроде `[6, 4]`, потому что AutoRAG вычисляет `max - min + 1` и падает на отрицательном числе.
+
+Validate на train:
 
     autorag validate --config rag_corpus\autorag\virage_rules\configs\virage_rules_ollama_all.yaml --qa_data_path rag_corpus\autorag\virage_rules\splits\train\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\splits\train\corpus.parquet
 
-AutoRAG evaluate на train
+Evaluate на train:
 
     Remove-Item -Recurse -Force rag_corpus\autorag\runs\ollama_all_train -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force rag_corpus\autorag\runs\ollama_all_train
 
     autorag evaluate --config rag_corpus\autorag\virage_rules\configs\virage_rules_ollama_all.yaml --qa_data_path rag_corpus\autorag\virage_rules\splits\train\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\splits\train\corpus.parquet --project_dir rag_corpus\autorag\runs\ollama_all_train
 
-Найти trial-папку
+Найти trial-папку:
 
     Get-ChildItem rag_corpus\autorag\runs\ollama_all_train -Directory
 
-Извлечь лучшую конфигурацию
+Извлечь лучшую конфигурацию:
 
     autorag extract_best_config --trial_path rag_corpus\autorag\runs\ollama_all_train\0 --output_path rag_corpus\autorag\runs\ollama_all_best_config.yaml
 
 Если trial-папка не `0`, подставить фактический путь из предыдущей команды.
 
-AutoRAG evaluate на test
+Evaluate на test:
 
     Remove-Item -Recurse -Force rag_corpus\autorag\runs\ollama_all_test -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force rag_corpus\autorag\runs\ollama_all_test
 
     autorag evaluate --config rag_corpus\autorag\runs\ollama_all_best_config.yaml --qa_data_path rag_corpus\autorag\virage_rules\splits\test\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\splits\test\corpus.parquet --project_dir rag_corpus\autorag\runs\ollama_all_test
 
-Запустить всю AutoRAG-цепочку одной командой
+Вся AutoRAG-цепочка одной командой:
 
     .\rag_corpus\autorag\virage_rules\configs\run_autorag_ollama_configs.ps1
 
-Собрать сводную таблицу AutoRAG
+Собрать сводку AutoRAG:
 
     python scripts\rag_corpus\collect_autorag_summary.py --runs-root rag_corpus\autorag\runs --output-dir rag_corpus\autorag\runs\summary
-
-Открыть сводку
-
     notepad rag_corpus\autorag\runs\summary\autorag_summary.md
 
-Оценить runtime-извлекатели ViRAGE
+## 11. Применить AutoRAG-настройку в runtime
 
-    python scripts\rag_corpus\run_evaluate_runtime_retrievers.py --backends keyword bm25 tfidf --top-k 1 2 3 5 8
-
-Применить рекомендованную настройку RAG
+Если AutoRAG выбрал конфигурацию, создать benchmark runtime-config:
 
     python scripts\rag_corpus\apply_runtime_retrieval_config.py --base-config ui\config\project-gemma4-bench_rag.toml --output-config ui\config\project-gemma4-bench_rag_autorag.toml
+
+Проверить:
+
     Test-Path ui\config\project-gemma4-bench_rag_autorag.toml
 
-Jupyter-проверка RAG вручную
+Для текущего корпуса AutoRAG ранее показывал, что лучший режим — BM25 с `top_k=1`. Поэтому для NLV нужно использовать строгий config, где лишние readability/plot-area/VLM правила не добавляют шум.
+
+## 12. Ручная проверка RAG в Jupyter
 
     New-Item -ItemType Directory -Force notebooks
     jupyter notebook notebooks\manual_rag_check.ipynb
 
-В блокноте вручную проверить начало цепочки: загрузить config, создать VisRAGService, вызвать retrieve_generation_guidance для собственного запроса и посмотреть retrieved rules. Длинный код проверки держать в отдельном notebook, не в этом howto.
+В блокноте вручную проверить начало цепочки:
 
-NLV без RAG, smoke
+    загрузить config
+    создать VisRAGService
+    вызвать retrieve_generation_guidance для собственного запроса
+    посмотреть prompt_text, retrieved rules и rejected rules
+
+Особенно проверить запрос:
+
+    Show average sales over time by region.
+
+Ожидаемо не должны возвращаться карты, если анализ запроса выбрал line/trend и в данных нет геометрии или координат.
+
+## 13. NLV benchmark
+
+NLV без RAG, smoke:
 
     python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag_smoke --limit 20 --disable-analytics-tail
 
-NLV без RAG, полный запуск
+NLV RAG после AutoRAG, smoke:
+
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag_smoke --limit 20 --disable-analytics-tail
+
+Сравнение smoke:
+
+    python scripts\benchmark\compare_runs.py --left artifacts\benchmarks\nlv_no_rag_smoke --right artifacts\benchmarks\nlv_rag_autorag_smoke --output artifacts\benchmarks\nlv_compare_autorag_smoke
+
+Полный NLV без RAG:
 
     python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --disable-analytics-tail
 
-Текущий RAG до нового корпуса, если нужно сохранить baseline
-
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag_current --disable-analytics-tail
-
-Новый внешний корпус без AutoRAG-настройки
-
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag.toml --output-dir artifacts\benchmarks\nlv_rag_semantic_rules --disable-analytics-tail
-
-Новый внешний корпус после AutoRAG-настройки
-
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_semantic_rules_autorag --disable-analytics-tail
-
-Сравнить no RAG и новый RAG
-
-    python scripts\benchmark\compare_runs.py --left artifacts\benchmarks\nlv_no_rag --right artifacts\benchmarks\nlv_rag_semantic_rules_autorag --output artifacts\benchmarks\nlv_compare_no_rag_vs_semantic_rag_autorag
-
-Красивая таблица NLV-метрик
-
-    python scripts\benchmark\nlv_compare.py --no-rag-report artifacts\benchmarks\nlv_no_rag\benchmark_report.json --rag-report artifacts\benchmarks\nlv_rag_semantic_rules_autorag\benchmark_report.json --output-dir artifacts\benchmarks\nlv_compare_metrics
-
-InfiAgent, smoke
-
-    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_semantic_rag_autorag_3 --limit 3
-
-InfiAgent, 20 кейсов
-
-    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_semantic_rag_autorag_20 --limit 20
-
-InfiAgent, полный запуск
-
-    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_semantic_rag_autorag
-
-InfiAgent, пересобрать отчёт
-
-    python scripts\benchmark\evaluate_infiagent_results.py --output-dir artifacts\benchmarks\infiagent_semantic_rag_autorag
-
-InfiAgent, инспекция кейса
-
-    python scripts\benchmark\inspect_infiagent_case.py --output-dir artifacts\benchmarks\infiagent_semantic_rag_autorag --case-id infiagent_0
-
-Проверка нужных скриптов
-
-    Test-Path scripts\rag_corpus\sources\extract_taskvis.py
-    Test-Path scripts\rag_corpus\sources\extract_draco.py
-    Test-Path scripts\rag_corpus\sources\extract_from_data_to_viz.py
-    Test-Path scripts\rag_corpus\sources\extract_ft_visual_vocabulary.py
-    Test-Path scripts\rag_corpus\sources\extract_compassql.py
-    Test-Path scripts\rag_corpus\sources\extract_chartsquared_rules.py
-    Test-Path scripts\rag_corpus\run_prepare_corpus.py
-    Test-Path scripts\rag_corpus\run_export_runtime.py
-    Test-Path scripts\rag_corpus\run_export_autorag.py
-    Test-Path scripts\rag_corpus\run_evaluate_runtime_retrievers.py
-    Test-Path scripts\rag_corpus\apply_runtime_retrieval_config.py
-    Test-Path scripts\benchmark\run_vegachat_compatible_benchmark.py
-    Test-Path scripts\benchmark\run_infiagent_chart_grounded.py
-    Test-Path scripts\benchmark\compare_runs.py
-    Test-Path scripts\benchmark\nlv_compare.py
-
-Что должно быть готово перед финальным benchmark
-
-    Test-Path .\datasets\nlv_corpus\NLV_Corpus.csv
-    Test-Path .\datasets\nlv_corpus\vlSpecs.json
-    Test-Path .\datasets\nlv_corpus\datasets
-    Test-Path rag_corpus\runtime\virage_rules.jsonl
-    Test-Path ui\config\project-gemma4-bench_rag_autorag.toml
-
-Актуальный строгий NLV-сценарий после AutoRAG
-
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --disable-analytics-tail
+Полный NLV RAG после AutoRAG:
 
     python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag --disable-analytics-tail
 
+Сравнение:
+
     python scripts\benchmark\compare_runs.py --left artifacts\benchmarks\nlv_no_rag --right artifacts\benchmarks\nlv_rag_autorag --output artifacts\benchmarks\nlv_compare_no_rag_vs_rag_autorag
 
-Пояснение: `project-gemma4-bench_rag_autorag.toml` использует более строгий runtime RAG режим: BM25 и только один `chart_pattern`. Это нужно потому, что текущий AutoRAG-запуск показал резкое падение качества при увеличении `top_k`. Для NLV правила читаемости, площади графика и VLM-читаемости отключены, чтобы не добавлять шум к задаче построения спецификации.
+    python scripts\benchmark\nlv_compare.py --no-rag-report artifacts\benchmarks\nlv_no_rag\benchmark_report.json --rag-report artifacts\benchmarks\nlv_rag_autorag\benchmark_report.json --output-dir artifacts\benchmarks\nlv_compare_metrics
 
-Ручная семантическая дедупликация корпуса
+## 14. InfiAgent benchmark
 
-    ollama pull nomic-embed-text
+Проверка данных:
 
-    python scripts\rag_corpus\normalize\deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
+    python scripts\benchmark\infiagent_scan.py --source-root Datasets\InfiAgent
 
-Проверить удалённые кластеры
+Smoke:
 
-    notepad rag_corpus\processed\semantic_duplicate_clusters.jsonl
+    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag_20 --limit 20
 
-Если удаляются похожие, но разные правила, поднять порог до `0.97`. Если остаётся много повторов, снизить до `0.93`.
+Полный запуск:
 
-Контроль качества корпуса перед runtime export
+    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag
 
-    python -c "import json,collections,statistics; from pathlib import Path; rows=[json.loads(x) for x in Path('rag_corpus/processed/all_rules.validated.jsonl').read_text(encoding='utf-8').splitlines() if x.strip()]; lens=[len(str(r.get('prompt_text') or r.get('guidance') or '')) for r in rows]; print('total',len(rows)); print('types',collections.Counter(r.get('record_type') for r in rows)); print('sources',collections.Counter(r.get('source_dataset') or (r.get('source') or {}).get('dataset') or (r.get('metadata') or {}).get('source_dataset') for r in rows)); print('prompt_len', min(lens), statistics.median(lens), round(statistics.mean(lens),2), max(lens))"
+Отчёт:
 
-Старые архивы и сгенерированные отчёты не должны храниться как исходный код проекта. Их нужно держать в `artifacts` или отдельной папке эксперимента.
+    python scripts\benchmark\evaluate_infiagent_results.py --output-dir artifacts\benchmarks\infiagent_rag_autorag
+
+## 15. Что считать готовностью
+
+Перед финальным benchmark должны быть готовы:
+
+    Test-Path rag_corpus\runtime\virage_rules.jsonl
+    Test-Path ui\config\project-gemma4-bench_rag_autorag.toml
+    Test-Path .\datasets\nlv_corpus\NLV_Corpus.csv
+    Test-Path .\datasets\nlv_corpus\vlSpecs.json
+    Test-Path .\datasets\nlv_corpus\datasets
+
+Критерий успеха на NLV:
+
+    mean_spec_score растёт
+    improved > degraded
+    broken_by_rag не растёт
+    empty_chart_rate не растёт
+    visualization_error_rate не растёт
+
+Критерий успеха на InfiAgent:
+
+    accepted_chart_rate растёт
+    chart_groundedness растёт
+    hallucination_risk падает
+    correct_rate или partial_or_correct_rate не падает

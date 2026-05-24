@@ -79,11 +79,16 @@ node_lines:
         top_k: [1, 2, 3, 5, 8]
         modules:
           - module_type: hybrid_rrf
-            weight_range: [[4, 6], [5, 5], [6, 4]]
+            # AutoRAG HybridRRF expects an ascending [min, max] range.
+            # Do not use pair-like weights such as [6, 4]: AutoRAG computes
+            # max - min + 1 internally and fails when the range is reversed.
+            weight_range:
+              - [4, 80]
           - module_type: hybrid_cc
             normalize_method: [mm, tmm, z, dbsf]
-            weight_range: [0.2, 0.5, 0.8]
-            test_weight_size: 7
+            weight_range:
+              - [0.2, 0.8]
+            test_weight_size: [7]
 """
 
 
