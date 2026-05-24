@@ -2,77 +2,22 @@ mode = "streamlit"
 
 [settings]
 visrag_enabled = false
-graph_recursion_limit = 100
 artifact_root = "./artifacts-nlv-27b"
-visrag_corpus_root = "./rag_corpus/runtime"
-visrag_runtime_store_backend = "jsonl"
-visrag_top_k_chart_patterns = 2
-visrag_top_k_readability_rules = 2
-visrag_top_k_scale_plot_area_rules = 1
-visrag_top_k_vlm_readability_rules = 2
-visrag_top_k_domain_semantics_rules = 1
-visrag_retriever_backend = "bm25"
-visrag_embedding_provider = "ollama"
-visrag_embedding_model = "nomic-embed-text"
-visrag_embedding_base_url = "http://localhost:11434"
-visrag_embedding_timeout_seconds = 60.0
-vega_output_format = "png"
-enable_scenegraph_check = true
-enable_empty_chart_check = true
-enable_spec_score = true
 analytics_tail_enabled = false
-enable_vision_score = true
-enable_evaluation_summary = true
-strict_image_only_analysis = true
-streamlit_compute_metrics = true
-streamlit_show_step_logs = true
-spec_generation_backend = "vegachat_codegen"
-spec_generation_max_attempts = 3
-spec_generation_response_parse_retries = 0
-spec_generation_prompt_version = "vega_chat_v1"
-spec_generation_include_visrag_context = true
-spec_generation_max_context_chars = 3000
-data_profile_sample_strategy = "random"
-data_profile_sample_seed = 42
-data_profile_sample_size = 5
-semantic_feedback_loop_enabled = true
-semantic_feedback_max_attempts = 2
-semantic_feedback_min_accept_confidence = 0.75
-semantic_feedback_save_rejected_specs = true
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
-semantic_feedback_include_png_path = true
-visual_judge_use_chartsquared = true
-chartsquared_project_root = ""
-chartsquared_max_eval_questions = 8
-chartsquared_prompt_max_chars = 6000
-
-
-[streamlit]
-compute_metrics = true
-show_step_logs = true
 
 [reasoning_model]
 provider = "ollama"
 model = "gemma3:27b-cloud"
-temperature = 0.0
-base_url = "http://localhost:11434"
-timeout_seconds = 60.0
 
 [spec_model]
 provider = "ollama"
 model = "gemma3:27b-cloud"
-temperature = 0.0
-base_url = "http://localhost:11434"
-timeout_seconds = 60.0
 
 [vlm_model]
 provider = "ollama"
 model = "gemma3:27b-cloud"
-temperature = 0.0
-timeout_seconds = 60.0
 
 [vision_judge_model]
 provider = "ollama"
 model = "gemma3:27b-cloud"
-temperature = 0.0
-timeout_seconds = 60.0
