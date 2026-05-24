@@ -19,6 +19,7 @@ from scripts.rag_corpus.sources.extract_external_rules_common import (
     chunk_text,
     extract_markdown_like,
     iter_candidate_files,
+    is_relevant_visualization_source,
     make_source_record,
     read_text_with_fallback,
     write_extractor_cli,
@@ -50,16 +51,27 @@ def _extract_constraint_records(input_dir: Path) -> list[SourceRecord]:
             "Use this source only to extract abstract visualization design rules, not executable logic.",
         ])
         for idx, chunk in enumerate(chunk_text(combined, max_chars=4200, min_chars=220), start=1):
+            title = f"Draco constraints from {path.stem} #{idx}"
+            keep, reason = is_relevant_visualization_source(
+                title=title,
+                text=chunk,
+                path=path,
+                source_dataset="draco",
+                source_type="draco_constraint_source",
+                min_chars=180,
+            )
+            if not keep:
+                continue
             records.append(make_source_record(
                 input_dir=input_dir,
                 path=path,
                 source_dataset="draco",
                 source_type="draco_constraint_source",
-                title=f"Draco constraints from {path.stem} #{idx}",
+                title=title,
                 text=chunk,
                 preferred_record_type="chart_pattern",
                 record_prefix="draco_constraint",
-                metadata={"constraint_source": True, "file_suffix": path.suffix.lower()},
+                metadata={"constraint_source": True, "file_suffix": path.suffix.lower(), "source_prefilter": reason},
             ))
     return records
 

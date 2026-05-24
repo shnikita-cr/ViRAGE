@@ -37,6 +37,87 @@ _BINARY_SUFFIXES = {
 }
 
 
+_VISUALIZATION_TERMS = {
+    "chart", "plot", "visual", "visualization", "visualisation", "graph", "axis", "axes",
+    "legend", "tooltip", "label", "mark", "encoding", "channel", "aggregate", "aggregation",
+    "bin", "histogram", "scatter", "line", "bar", "map", "choropleth", "heatmap", "boxplot",
+    "violin", "distribution", "correlation", "trend", "ranking", "comparison", "compare",
+    "category", "categorical", "quantitative", "temporal", "time", "date", "color", "size",
+    "facet", "sort", "filter", "scale", "readability", "overplot", "outlier", "data",
+}
+
+_SOURCE_NOISE_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in [
+        r"\b(load|install|import|require)\s+(the\s+)?(package|library|module|dependency|dependencies)\b",
+        r"\b(pip|npm|yarn|conda|poetry|cargo|docker|webpack|vite)\b",
+        r"\b(unit\s+test|test\s+suite|pytest|jest|coverage|ci|github\s+action)\b",
+        r"\b(provider\s+tos|terms\s+of\s+service|license|copyright)\b",
+        r"\b(api\s+key|token|authentication|authorization|login|account)\b",
+        r"\b(html|css|javascript|typescript|python|r\s+code|script|function|class|method)\b.*\b(example|implementation|utility|helper)\b",
+        r"\b(file|folder|directory|repository|repo|readme)\b.*\b(structure|organization|layout)\b",
+        r"\b(organize|name|rename|document|describe)\b.*\b(script|function|test|file|module)\b",
+        r"\b(release|changelog|contributing|contribution|issue|pull\s+request)\b",
+        r"\b(load\s+required\s+libraries|check\s+provider\s+tos|organize\s+.*scripts|name\s+functions\s+clearly|describe\s+tests\s+clearly)\b",
+    ]
+]
+
+_TITLE_NOISE_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in [
+        r"^(installation|install|setup|getting started|quick start|usage|api|development|contributing|license|tests?|examples?)$",
+        r"^(load required libraries|provider tos|organize .*scripts|name functions clearly|describe tests clearly)$",
+    ]
+]
+
+def _tokenize_for_relevance(text: str) -> set[str]:
+    return set(re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower()))
+
+def is_relevant_visualization_source(
+    *,
+    title: str,
+    text: str,
+    path: Path | None = None,
+    source_dataset: str = "",
+    source_type: str = "",
+    min_chars: int = 160,
+) -> tuple[bool, str]:
+    """Return whether a raw source fragment is worth sending to LLM normalization.
+
+    The filter is intentionally conservative for true visualization guidance and
+    strict for repository/documentation noise. It prevents expensive LLM calls on
+    setup pages, source-code organization notes and short headings that cannot be
+    converted into reliable RAG rules.
+    """
+    title_text = compact_text(title or "", max_chars=240)
+    body = compact_text(text or "", max_chars=6000)
+    combined = f"{title_text}. {body}".strip()
+    if len(body) < min_chars:
+        return False, "too_short_raw_text"
+    lower_title = title_text.lower().strip()
+    for pattern in _TITLE_NOISE_PATTERNS:
+        if pattern.search(lower_title):
+            return False, "noise_title"
+    for pattern in _SOURCE_NOISE_PATTERNS:
+        if pattern.search(combined):
+            # Keep if the same fragment strongly discusses visualization design.
+            tokens = _tokenize_for_relevance(combined)
+            if len(tokens & _VISUALIZATION_TERMS) < 4:
+                return False, "documentation_or_code_noise"
+    tokens = _tokenize_for_relevance(combined)
+    vis_hits = len(tokens & _VISUALIZATION_TERMS)
+    if vis_hits < 2:
+        return False, "not_visualization_guidance"
+    path_text = str(path or "").replace("\\", "/").lower()
+    bad_path_parts = (
+        "/test", "/tests", "/example", "/examples", "/demo", "/demos", "/doc/api",
+        "/site", "/website", "/assets", "/static", "/css", "/js", "/scripts",
+    )
+    if any(part in path_text for part in bad_path_parts) and vis_hits < 4:
+        return False, "low_value_repository_area"
+    return True, "kept"
+
+
 def read_text_with_fallback(path: Path) -> str:
     last_error: Exception | None = None
     for encoding in TEXT_ENCODINGS:
@@ -257,7 +338,17 @@ def extract_markdown_like(
         if not sections:
             cleaned = clean_markdown(text)
             sections = [(path.stem.replace("_", " "), chunk) for chunk in chunk_text(cleaned)]
-        for title, body in sections[:max_records_per_file]:
+        kept_in_file = 0
+        for title, body in sections:
+            keep, reason = is_relevant_visualization_source(
+                title=title,
+                text=body,
+                path=path,
+                source_dataset=source_dataset,
+                source_type=source_type,
+            )
+            if not keep:
+                continue
             records.append(make_source_record(
                 input_dir=input_dir,
                 path=path,
@@ -267,8 +358,11 @@ def extract_markdown_like(
                 text=body,
                 preferred_record_type=preferred_record_type,
                 record_prefix=record_prefix,
-                metadata={"file_suffix": path.suffix.lower()},
+                metadata={"file_suffix": path.suffix.lower(), "source_prefilter": reason},
             ))
+            kept_in_file += 1
+            if kept_in_file >= max_records_per_file:
+                break
     return records
 
 
@@ -292,11 +386,22 @@ def extract_json_like(
             loaded = load_json_like_records(path)
         except Exception:
             continue
-        for idx, payload in enumerate(loaded[:max_records_per_file]):
+        kept_in_file = 0
+        for idx, payload in enumerate(loaded):
             text = flatten_json(payload)
             if len(text) < 120:
                 continue
             title = compact_text(payload.get("title") or payload.get("name") or payload.get("task") or path.stem, max_chars=160)
+            keep, reason = is_relevant_visualization_source(
+                title=title,
+                text=text,
+                path=path,
+                source_dataset=source_dataset,
+                source_type=source_type,
+                min_chars=120,
+            )
+            if not keep:
+                continue
             records.append(make_source_record(
                 input_dir=input_dir,
                 path=path,
@@ -307,8 +412,11 @@ def extract_json_like(
                 preferred_record_type=preferred_record_type,
                 record_prefix=record_prefix,
                 raw=payload,
-                metadata={"file_suffix": path.suffix.lower(), "record_index": idx},
+                metadata={"file_suffix": path.suffix.lower(), "record_index": idx, "source_prefilter": reason},
             ))
+            kept_in_file += 1
+            if kept_in_file >= max_records_per_file:
+                break
     return records
 
 

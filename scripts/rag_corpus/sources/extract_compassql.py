@@ -16,6 +16,7 @@ from scripts.rag_corpus.sources.extract_external_rules_common import (
     chunk_text,
     extract_markdown_like,
     iter_candidate_files,
+    is_relevant_visualization_source,
     make_source_record,
     read_text_with_fallback,
     write_extractor_cli,
@@ -47,16 +48,27 @@ def _extract_rank_constraint_code(input_dir: Path) -> list[SourceRecord]:
         body = "\n".join(useful_lines[:220])
         body += "\nUse this source only to extract abstract visualization recommendation and encoding rules, not executable code."
         for idx, chunk in enumerate(chunk_text(body, max_chars=4200, min_chars=220), start=1):
+            title = f"CompassQL recommendation logic from {path.stem} #{idx}"
+            keep, reason = is_relevant_visualization_source(
+                title=title,
+                text=chunk,
+                path=path,
+                source_dataset="compassql",
+                source_type="compassql_recommendation_source",
+                min_chars=180,
+            )
+            if not keep:
+                continue
             records.append(make_source_record(
                 input_dir=input_dir,
                 path=path,
                 source_dataset="compassql",
                 source_type="compassql_recommendation_source",
-                title=f"CompassQL recommendation logic from {path.stem} #{idx}",
+                title=title,
                 text=chunk,
                 preferred_record_type="chart_pattern",
                 record_prefix="compassql_code",
-                metadata={"code_source": True, "file_suffix": path.suffix.lower()},
+                metadata={"code_source": True, "file_suffix": path.suffix.lower(), "source_prefilter": reason},
             ))
     return records
 
