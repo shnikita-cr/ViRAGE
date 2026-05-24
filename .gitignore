@@ -87,3 +87,4 @@ datasets
 /rag_corpus/extracted
 /rag_corpus/processed
 /rag_corpus/raw_external_rules/
+/rag_corpus/runtime
