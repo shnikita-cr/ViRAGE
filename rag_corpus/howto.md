@@ -152,27 +152,75 @@ InfiAgent должен лежать здесь
 
     python -c "from pathlib import Path; p=Path('rag_corpus/runtime/virage_rules.jsonl'); print(p.exists(), p.stat().st_size if p.exists() else 0)"
 
-Экспорт для AutoRAG
+Экспорт для AutoRAG и разделение train/test 70/30
 
-    python scripts\rag_corpus\run_export_autorag.py
+    python scripts\rag_corpus\run_export_autorag.py --train-ratio 0.7 --split-seed 42
+
+Проверить файлы AutoRAG
+
     Test-Path rag_corpus\autorag\virage_rules\corpus.parquet
     Test-Path rag_corpus\autorag\virage_rules\qa.parquet
-    Test-Path rag_corpus\autorag\virage_rules\configs\virage_rules_all.yaml
+    Test-Path rag_corpus\autorag\virage_rules\configs\virage_rules_ollama_all.yaml
+    Test-Path rag_corpus\autorag\virage_rules\splits\train\corpus.parquet
+    Test-Path rag_corpus\autorag\virage_rules\splits\train\qa.parquet
+    Test-Path rag_corpus\autorag\virage_rules\splits\test\corpus.parquet
+    Test-Path rag_corpus\autorag\virage_rules\splits\test\qa.parquet
+
+Открыть отчёт разделения
+
+    notepad rag_corpus\autorag\virage_rules\splits\split_report.md
 
 Посмотреть parquet
 
     python -c "import pandas as pd; pd.set_option('display.max_columns', None); pd.set_option('display.max_colwidth', 300); df=pd.read_parquet('rag_corpus/autorag/virage_rules/corpus.parquet'); print(df.head(10).to_string(index=False)); print(df.shape)"
     python -c "import pandas as pd; pd.set_option('display.max_columns', None); pd.set_option('display.max_colwidth', 300); df=pd.read_parquet('rag_corpus/autorag/virage_rules/qa.parquet'); print(df.head(10).to_string(index=False)); print(df.shape)"
 
-AutoRAG напрямую
+Подготовить Ollama-модели для AutoRAG
 
-    New-Item -ItemType Directory -Force rag_corpus\autorag\runs\semantic_rules_eval
+    ollama pull nomic-embed-text
+    ollama pull mxbai-embed-large
+    ollama pull bge-m3
+    ollama list
 
-    autorag evaluate --config rag_corpus\autorag\virage_rules\configs\virage_rules_all.yaml --qa_data_path rag_corpus\autorag\virage_rules\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\corpus.parquet --project_dir rag_corpus\autorag\runs\semantic_rules_eval
+AutoRAG validate на train
 
-Если команда autorag недоступна
+    autorag validate --config rag_corpus\autorag\virage_rules\configs\virage_rules_ollama_all.yaml --qa_data_path rag_corpus\autorag\virage_rules\splits\train\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\splits\train\corpus.parquet
 
-    python -m autorag.cli evaluate --config rag_corpus\autorag\virage_rules\configs\virage_rules_all.yaml --qa_data_path rag_corpus\autorag\virage_rules\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\corpus.parquet --project_dir rag_corpus\autorag\runs\semantic_rules_eval
+AutoRAG evaluate на train
+
+    Remove-Item -Recurse -Force rag_corpus\autorag\runs\ollama_all_train -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force rag_corpus\autorag\runs\ollama_all_train
+
+    autorag evaluate --config rag_corpus\autorag\virage_rules\configs\virage_rules_ollama_all.yaml --qa_data_path rag_corpus\autorag\virage_rules\splits\train\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\splits\train\corpus.parquet --project_dir rag_corpus\autorag\runs\ollama_all_train
+
+Найти trial-папку
+
+    Get-ChildItem rag_corpus\autorag\runs\ollama_all_train -Directory
+
+Извлечь лучшую конфигурацию
+
+    autorag extract_best_config --trial_path rag_corpus\autorag\runs\ollama_all_train\0 --output_path rag_corpus\autorag\runs\ollama_all_best_config.yaml
+
+Если trial-папка не `0`, подставить фактический путь из предыдущей команды.
+
+AutoRAG evaluate на test
+
+    Remove-Item -Recurse -Force rag_corpus\autorag\runs\ollama_all_test -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force rag_corpus\autorag\runs\ollama_all_test
+
+    autorag evaluate --config rag_corpus\autorag\runs\ollama_all_best_config.yaml --qa_data_path rag_corpus\autorag\virage_rules\splits\test\qa.parquet --corpus_data_path rag_corpus\autorag\virage_rules\splits\test\corpus.parquet --project_dir rag_corpus\autorag\runs\ollama_all_test
+
+Запустить всю AutoRAG-цепочку одной командой
+
+    .\rag_corpus\autorag\virage_rules\configs\run_autorag_ollama_configs.ps1
+
+Собрать сводную таблицу AutoRAG
+
+    python scripts\rag_corpus\collect_autorag_summary.py --runs-root rag_corpus\autorag\runs --output-dir rag_corpus\autorag\runs\summary
+
+Открыть сводку
+
+    notepad rag_corpus\autorag\runs\summary\autorag_summary.md
 
 Оценить runtime-извлекатели ViRAGE
 
