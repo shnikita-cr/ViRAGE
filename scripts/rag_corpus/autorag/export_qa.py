@@ -9,7 +9,6 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
@@ -59,8 +58,10 @@ def export_autorag_qa(input_path: Path, out_path: Path) -> dict[str, Any]:
             "qid": item.qid,
             "query": item.query,
             "generation_gt": item.generation_gt,
-            "retrieval_gt": json.dumps(item.retrieval_gt, ensure_ascii=False),
-            "metadata": json.dumps(item.metadata, ensure_ascii=False, sort_keys=True),
+            # AutoRAG accepts retrieval_gt as a list; keeping it as a list avoids
+            # an unnecessary JSON-string round trip before validation/evaluation.
+            "retrieval_gt": item.retrieval_gt,
+            "metadata": item.metadata,
         })
     ensure_dir(out_path.parent)
     pd.DataFrame(rows).to_parquet(out_path, index=False)

@@ -9,7 +9,6 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
@@ -45,13 +44,15 @@ def export_autorag_corpus(input_path: Path, out_path: Path) -> dict[str, Any]:
         rows.append({
             "doc_id": record.doc_id,
             "contents": _contents(record),
-            "metadata": json.dumps({
+            # AutoRAG expects corpus metadata to be a dictionary, not a JSON string.
+            # It will add last_modified_datetime itself when the key is absent.
+            "metadata": {
                 "record_type": record.record_type,
                 "task": record.task,
                 "chart_family": record.chart_family,
                 "severity": record.severity,
                 "source_dataset": record.source.dataset,
-            }, ensure_ascii=False, sort_keys=True),
+            },
         })
     ensure_dir(out_path.parent)
     pd.DataFrame(rows).to_parquet(out_path, index=False)
