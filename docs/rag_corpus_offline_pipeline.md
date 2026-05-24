@@ -37,7 +37,16 @@ Runtime RAG не должен хранить готовые Vega-Lite специ
 
     python scripts/rag_corpus/normalize/deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
 
-Её результат нужно проверять по `semantic_duplicate_clusters.jsonl`, чтобы не удалить похожие, но разные правила.
+Её результат нужно проверять по `semantic_duplicate_clusters.jsonl`, чтобы не удалить похожие, но разные правила. После этого runtime/AutoRAG export можно запускать с явным профилем корпуса.
+
+Проверка качества корпуса одной командой:
+
+    python scripts/rag_corpus/report_corpus_quality.py --input rag_corpus/processed/all_rules.validated.jsonl
+
+Результаты:
+
+    rag_corpus/reports/corpus_quality_report.json
+    rag_corpus/reports/corpus_quality_report.md
 
 ## Источники
 
@@ -74,7 +83,12 @@ TaskVis временно не используется в основном ко�
 
 Runtime corpus экспортируется так:
 
-    python scripts/rag_corpus/run_export_runtime.py
+    python scripts/rag_corpus/run_export_runtime.py --profile validated
+
+Для ручной проверки альтернативных профилей:
+
+    python scripts/rag_corpus/run_export_runtime.py --profile filtered
+    python scripts/rag_corpus/run_export_runtime.py --profile semantic_deduped
 
 После последних AutoRAG-экспериментов для текущего корпуса наиболее безопасный NLV-режим:
 
@@ -108,7 +122,11 @@ Runtime corpus экспортируется так:
 
 Экспорт с train/test split:
 
-    python scripts/rag_corpus/run_export_autorag.py --train-ratio 0.7 --split-seed 42
+    python scripts/rag_corpus/run_export_autorag.py --profile validated --train-ratio 0.7 --split-seed 42
+
+Для проверки ручной эмбеддинг-дедупликации:
+
+    python scripts/rag_corpus/run_export_autorag.py --profile semantic_deduped --train-ratio 0.7 --split-seed 42
 
 Validate на train:
 

@@ -13,20 +13,34 @@ import json
 
 from scripts.rag_corpus.common.io import project_root, write_json
 from scripts.rag_corpus.common.progress import StageProgress
+
+CORPUS_PROFILES = {
+    "validated": "rag_corpus/processed/all_rules.validated.jsonl",
+    "filtered": "rag_corpus/processed/all_rules.filtered.jsonl",
+    "semantic_deduped": "rag_corpus/processed/all_rules.semantic_deduped.jsonl",
+    "deduped": "rag_corpus/processed/all_rules.deduped.jsonl",
+}
+
+
+def resolve_input_path(profile: str, input_path: str | None) -> str:
+    if input_path:
+        return input_path
+    return CORPUS_PROFILES[profile]
 from scripts.rag_corpus.runtime.build_runtime_report import build_report
 from scripts.rag_corpus.runtime.export_runtime_rules import export_runtime_rules
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export ViRAGE processed rule corpus to runtime JSONL.")
-    parser.add_argument("--input", default="rag_corpus/processed/all_rules.validated.jsonl")
+    parser.add_argument("--input", default=None, help="Explicit processed JSONL path. Overrides --profile.")
+    parser.add_argument("--profile", choices=sorted(CORPUS_PROFILES), default="validated", help="Processed corpus profile to export when --input is not provided.")
     parser.add_argument("--output", default="rag_corpus/runtime/virage_rules.jsonl")
     parser.add_argument("--max-chartsquared-docs", type=int, default=1500)
     args = parser.parse_args()
     root = project_root()
     progress = StageProgress("runtime-export", total=2)
     source_limits = {"chartsquared": max(0, int(args.max_chartsquared_docs))}
-    export_report = export_runtime_rules(root / args.input, root / args.output, source_limits=source_limits)
+    export_report = export_runtime_rules(root / resolve_input_path(args.profile, args.input), root / args.output, source_limits=source_limits)
     progress.update(extra=f"documents={export_report.get('documents', 0)}")
     runtime_report = build_report(root / args.output)
     progress.update(extra="report written")

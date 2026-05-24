@@ -6,7 +6,6 @@ from src.domain.models import DataProfile, QueryRequestAnalysisResult, VisRAGRes
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.visrag_core import VisRAGCoreOptions, VisRAGEngine, create_rule_corpus_repository
-from src.visrag_core.constants import DEFAULT_TOP_K
 from src.visrag_core.rule_retrieval import RuleRetriever, build_rule_retriever
 from src.visrag_core.stores import RuleCorpusRepository
 
@@ -29,17 +28,18 @@ class VisRAGService(BaseService):
             data_profile: DataProfile,
             runtime: RuntimeContext,
     ) -> VisRAGResult:
+        visrag_options = runtime.settings.visrag_runtime_options()
         repository = create_rule_corpus_repository(
-            backend=str(getattr(runtime.settings, "visrag_runtime_store_backend", "jsonl") or "jsonl"),
-            uri=getattr(runtime.settings, "visrag_corpus_root", None),
+            backend=str(visrag_options["store_backend"] or "jsonl"),
+            uri=visrag_options["corpus_root"],
         )
         options = VisRAGCoreOptions(
-            enabled=bool(getattr(runtime.settings, "visrag_enabled", True)),
-            retriever_name=str(getattr(runtime.settings, "visrag_retriever_backend", "bm25") or "bm25"),
-            embedding_provider=getattr(runtime.settings, "visrag_embedding_provider", None),
-            embedding_model=getattr(runtime.settings, "visrag_embedding_model", None),
-            embedding_base_url=getattr(runtime.settings, "visrag_embedding_base_url", None),
-            top_k_by_type=self._top_k_by_type(runtime),
+            enabled=bool(visrag_options["enabled"]),
+            retriever_name=str(visrag_options["retriever_backend"] or "bm25"),
+            embedding_provider=visrag_options["embedding_provider"],
+            embedding_model=visrag_options["embedding_model"],
+            embedding_base_url=visrag_options["embedding_base_url"],
+            top_k_by_type=dict(visrag_options["top_k_by_type"]),
         )
         signature = repository.corpus_signature()
         documents = [] if not options.enabled else self._load_documents(repository, signature)
@@ -79,11 +79,3 @@ class VisRAGService(BaseService):
         cls._retriever_cache[cache_key] = retriever
         return retriever
 
-    @staticmethod
-    def _top_k_by_type(runtime: RuntimeContext) -> dict[str, int]:
-        values: dict[str, int] = {}
-        for record_type, default_value in DEFAULT_TOP_K.items():
-            setting_name = f"visrag_top_k_{record_type}s"
-            value = getattr(runtime.settings, setting_name, None)
-            values[record_type] = max(0, int(value if value is not None else default_value))
-        return values

@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.visrag_core.constants import DEFAULT_TOP_K, RULE_TYPES
+
 
 class ViRAGESettings(BaseModel):
     artifact_root: Path = Field(default=Path("./artifacts"))
@@ -69,3 +71,26 @@ class ViRAGESettings(BaseModel):
     model_health_check_required_roles: list[str] = Field(
         default_factory=lambda: ["reasoning", "vlm", "vision_judge"])
     vlm_fail_soft: bool = Field(default=True)
+
+    def visrag_top_k_by_type(self) -> dict[str, int]:
+        """Return one normalized top-k map used by runtime, reports and benchmarks."""
+        values: dict[str, int] = {}
+        for record_type in RULE_TYPES:
+            default_value = DEFAULT_TOP_K.get(record_type, 1)
+            setting_name = f"visrag_top_k_{record_type}s"
+            raw_value = getattr(self, setting_name, default_value)
+            values[record_type] = max(0, int(raw_value))
+        return values
+
+    def visrag_runtime_options(self) -> dict[str, object]:
+        """Single source of truth for runtime VisRAG options."""
+        return {
+            "enabled": self.visrag_enabled,
+            "corpus_root": self.visrag_corpus_root,
+            "store_backend": self.visrag_runtime_store_backend,
+            "retriever_backend": self.visrag_retriever_backend,
+            "embedding_provider": self.visrag_embedding_provider,
+            "embedding_model": self.visrag_embedding_model,
+            "embedding_base_url": self.visrag_embedding_base_url,
+            "top_k_by_type": self.visrag_top_k_by_type(),
+        }

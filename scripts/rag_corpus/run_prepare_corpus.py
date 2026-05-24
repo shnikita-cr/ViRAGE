@@ -34,6 +34,79 @@ from scripts.rag_corpus.common.io import read_jsonl, write_jsonl, write_text
 from scripts.rag_corpus.common.progress import StageProgress
 
 
+DEFAULT_SOURCES = [
+    "manual_rules",
+    "virage_feedback",
+    "chartsquared",
+    "vega_lite_examples",
+    "taskvis",
+    "draco",
+    "from_data_to_viz",
+    "ft_visual_vocabulary",
+    "compassql",
+    "chartsquared_rules",
+]
+
+PROCESSED_OUTPUTS = [
+    "rag_corpus/processed/llm_normalized",
+    "rag_corpus/processed/all_rules.jsonl",
+    "rag_corpus/processed/all_rules.deduped.jsonl",
+    "rag_corpus/processed/all_rules.filtered.jsonl",
+    "rag_corpus/processed/all_rules.validated.jsonl",
+    "rag_corpus/processed/normalization_failures.jsonl",
+    "rag_corpus/processed/rejected_records.jsonl",
+    "rag_corpus/processed/quality_rejected_records.jsonl",
+    "rag_corpus/processed/processing_report.json",
+    "rag_corpus/processed/processing_report.md",
+    "rag_corpus/processed/merge_report.json",
+    "rag_corpus/processed/deduplication_report.json",
+    "rag_corpus/processed/filter_report.json",
+    "rag_corpus/processed/filter_report.md",
+]
+
+
+def _clean_processed_outputs(root: Path) -> None:
+    progress = StageProgress("clean-processed", total=len(PROCESSED_OUTPUTS))
+    for relative_path in PROCESSED_OUTPUTS:
+        path = root / relative_path
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.exists():
+            path.unlink()
+        progress.update(extra=relative_path)
+    (root / "rag_corpus/processed/llm_normalized").mkdir(parents=True, exist_ok=True)
+    progress.finish(extra="processed outputs reset")
+
+
+def _write_source_inventory(root: Path) -> None:
+    progress = StageProgress("scan-sources", total=1)
+    inventory = {
+        "raw": scan_sources(root / "rag_corpus/raw"),
+        "raw_external_rules": scan_sources(root / "rag_corpus/raw_external_rules"),
+    }
+    write_json(root / "rag_corpus/manifests/raw_inventory.json", inventory)
+    write_text(
+        root / "rag_corpus/manifests/source_inventory.md",
+        inventory_markdown(inventory["raw"]) + "\n" + inventory_markdown(inventory["raw_external_rules"]),
+    )
+    raw_count = len(inventory["raw"].get("sources", {}))
+    external_count = len(inventory["raw_external_rules"].get("sources", {}))
+    progress.update(extra=f"raw_sources={raw_count} external_sources={external_count}")
+    progress.finish()
+
+
+def _deduplicate_file(root: Path) -> tuple[list[dict], list[dict], Path]:
+    all_rules = read_jsonl(root / "rag_corpus/processed/all_rules.jsonl")
+    progress = StageProgress("deduplication", total=len(all_rules))
+    kept, rejected = deduplicate_records(all_rules)
+    progress.set(done=len(all_rules), errors=len(rejected), extra=f"kept={len(kept)} rejected={len(rejected)}")
+    progress.finish()
+    deduped_path = root / "rag_corpus/processed/all_rules.deduped.jsonl"
+    write_jsonl(deduped_path, kept)
+    if rejected:
+        write_jsonl(root / "rag_corpus/processed/rejected_records.jsonl", rejected)
+    return kept, rejected, deduped_path
+
 def _write_source_records(root: Path, *, sources: set[str], chartsquared_mode: str, chartsquared_limit: int | None) -> list[Path]:
     outputs: list[Path] = []
     extractor_specs = [
@@ -78,7 +151,7 @@ def main() -> None:
     parser.add_argument(
         "--sources",
         nargs="*",
-        choices=["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples", "taskvis", "draco", "from_data_to_viz", "ft_visual_vocabulary", "compassql", "chartsquared_rules"],
+        choices=DEFAULT_SOURCES,
         default=None,
         help="Source extractors to run. Defaults to all sources.",
     )
@@ -105,45 +178,11 @@ def main() -> None:
 
     root = project_root()
     if args.clean_processed:
-        paths_to_clean = [
-            root / "rag_corpus/processed/llm_normalized",
-            root / "rag_corpus/processed/all_rules.jsonl",
-            root / "rag_corpus/processed/all_rules.deduped.jsonl",
-            root / "rag_corpus/processed/all_rules.filtered.jsonl",
-            root / "rag_corpus/processed/all_rules.validated.jsonl",
-            root / "rag_corpus/processed/normalization_failures.jsonl",
-            root / "rag_corpus/processed/rejected_records.jsonl",
-            root / "rag_corpus/processed/quality_rejected_records.jsonl",
-            root / "rag_corpus/processed/processing_report.json",
-            root / "rag_corpus/processed/processing_report.md",
-            root / "rag_corpus/processed/merge_report.json",
-            root / "rag_corpus/processed/deduplication_report.json",
-            root / "rag_corpus/processed/filter_report.json",
-            root / "rag_corpus/processed/filter_report.md",
-        ]
-        clean_progress = StageProgress("clean-processed", total=len(paths_to_clean))
-        for path in paths_to_clean:
-            if path.is_dir():
-                shutil.rmtree(path)
-            elif path.exists():
-                path.unlink()
-            clean_progress.update(extra=str(path.relative_to(root)))
-        (root / "rag_corpus/processed/llm_normalized").mkdir(parents=True, exist_ok=True)
-        clean_progress.finish(extra="processed outputs reset")
+        _clean_processed_outputs(root)
 
-    scan_progress = StageProgress("scan-sources", total=1)
-    inventory = {
-        "raw": scan_sources(root / "rag_corpus/raw"),
-        "raw_external_rules": scan_sources(root / "rag_corpus/raw_external_rules"),
-    }
-    write_json(root / "rag_corpus/manifests/raw_inventory.json", inventory)
-    write_text(root / "rag_corpus/manifests/source_inventory.md", inventory_markdown(inventory["raw"]) + "\n" + inventory_markdown(inventory["raw_external_rules"]))
-    raw_count = len(inventory["raw"].get("sources", {}))
-    external_count = len(inventory["raw_external_rules"].get("sources", {}))
-    scan_progress.update(extra=f"raw_sources={raw_count} external_sources={external_count}")
-    scan_progress.finish()
+    _write_source_inventory(root)
 
-    selected_sources = set(args.sources or ["manual_rules", "virage_feedback", "chartsquared", "vega_lite_examples", "taskvis", "draco", "from_data_to_viz", "ft_visual_vocabulary", "compassql", "chartsquared_rules"])
+    selected_sources = set(args.sources or DEFAULT_SOURCES)
     input_paths = _write_source_records(
         root,
         sources=selected_sources,
@@ -169,16 +208,8 @@ def main() -> None:
     merge_progress.update(extra=f"records={merge_report.get('records', merge_report.get('total', 'unknown'))}")
     merge_progress.finish()
 
-    all_rules = read_jsonl(root / "rag_corpus/processed/all_rules.jsonl")
-    dedup_progress = StageProgress("deduplication", total=len(all_rules))
-    kept, rejected = deduplicate_records(all_rules)
-    dedup_progress.set(done=len(all_rules), errors=len(rejected), extra=f"kept={len(kept)} rejected={len(rejected)}")
-    dedup_progress.finish()
-    deduped_path = root / "rag_corpus/processed/all_rules.deduped.jsonl"
+    kept, rejected, deduped_path = _deduplicate_file(root)
     filtered_path = root / "rag_corpus/processed/all_rules.filtered.jsonl"
-    write_jsonl(deduped_path, kept)
-    if rejected:
-        write_jsonl(root / "rag_corpus/processed/rejected_records.jsonl", rejected)
 
     if args.skip_quality_filter:
         filter_report = {"input_total": len(kept), "kept": len(kept), "rejected": 0, "skipped": True}

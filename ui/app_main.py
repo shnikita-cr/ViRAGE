@@ -35,6 +35,9 @@ from ui.app_components import (
     render_live,
     render_live_chart_previews,
     render_loading_status,
+    run_setting_defaults_from_config,
+    run_setting_defaults_from_pending,
+    run_settings_summary,
     render_manual_feedback_form,
     render_metrics,
     render_spec_generation_validation_details,
@@ -73,24 +76,12 @@ def run_app() -> None:
         selected_config_index = labels.index(pending_run["config_label"])
         selected_chart_index = CHART_MODE_OPTIONS.index(pending_run["chart_mode"])
         selected_metrics_index = 0 if pending_run["compute_metrics"] else 1
-        selected_visrag_enabled = bool(pending_run.get("visrag_enabled", True))
-        selected_analytics_tail_enabled = bool(pending_run.get("analytics_tail_enabled", True))
-        selected_spec_attempts = int(pending_run.get("spec_generation_max_attempts", 3))
-        selected_semantic_enabled = bool(pending_run.get("semantic_feedback_loop_enabled", False))
-        selected_semantic_attempts = int(pending_run.get("semantic_feedback_max_attempts", 2))
-        selected_semantic_confidence = float(pending_run.get("semantic_feedback_min_accept_confidence", 0.75))
-        selected_semantic_save = bool(pending_run.get("semantic_feedback_save_rejected_specs", True))
     else:
         selected_config_index = default_index
         selected_chart_index = 0
         selected_metrics_index = 0
-        selected_visrag_enabled = True
-        selected_analytics_tail_enabled = True
-        selected_spec_attempts = 3
-        selected_semantic_enabled = False
-        selected_semantic_attempts = 2
-        selected_semantic_confidence = 0.75
-        selected_semantic_save = True
+
+    selected_settings = run_setting_defaults_from_pending(pending_run)
 
     with st.sidebar:
         st.header("Run configuration")
@@ -105,29 +96,10 @@ def run_app() -> None:
         selected_config_path = path_from_config_label(selected_config_label, config_files)
         try:
             selected_config_defaults = load_project_config(selected_config_path)
-            configured_visrag_enabled = bool(getattr(selected_config_defaults.settings, "visrag_enabled", True))
-            configured_analytics_tail_enabled = bool(getattr(selected_config_defaults.settings, "analytics_tail_enabled", True))
-            configured_spec_attempts = int(selected_config_defaults.settings.spec_generation_max_attempts)
-            configured_semantic_enabled = bool(selected_config_defaults.settings.semantic_feedback_loop_enabled)
-            configured_semantic_attempts = int(selected_config_defaults.settings.semantic_feedback_max_attempts)
-            configured_semantic_confidence = float(selected_config_defaults.settings.semantic_feedback_min_accept_confidence)
-            configured_semantic_save = bool(selected_config_defaults.settings.semantic_feedback_save_rejected_specs)
         except Exception:
-            configured_visrag_enabled = True
-            configured_analytics_tail_enabled = True
-            configured_spec_attempts = 3
-            configured_semantic_enabled = False
-            configured_semantic_attempts = 2
-            configured_semantic_confidence = 0.75
-            configured_semantic_save = True
+            selected_config_defaults = None
         if not pending_run:
-            selected_visrag_enabled = configured_visrag_enabled
-            selected_analytics_tail_enabled = configured_analytics_tail_enabled
-            selected_spec_attempts = configured_spec_attempts
-            selected_semantic_enabled = configured_semantic_enabled
-            selected_semantic_attempts = configured_semantic_attempts
-            selected_semantic_confidence = configured_semantic_confidence
-            selected_semantic_save = configured_semantic_save
+            selected_settings = run_setting_defaults_from_config(selected_config_defaults)
 
         chart_mode = st.radio(
             "Chart output",
@@ -148,14 +120,14 @@ def run_app() -> None:
 
         visrag_enabled = st.checkbox(
             "Enable RAG / VisRAG context",
-            value=bool(selected_visrag_enabled),
+            value=bool(selected_settings["visrag_enabled"]),
             disabled=controls_disabled,
             help="If disabled, VisRAG retrieval is skipped and the spec generator works from query + data profile only.",
         )
 
         analytics_tail_enabled = st.checkbox(
             "Enable analytics tail",
-            value=bool(selected_analytics_tail_enabled),
+            value=bool(selected_settings["analytics_tail_enabled"]),
             disabled=controls_disabled,
             help="If disabled, the graph stops after chart rendering and benchmark metrics. VLM analysis and evaluation summary are skipped.",
         )
@@ -164,7 +136,7 @@ def run_app() -> None:
             "Spec generation attempts",
             min_value=1,
             max_value=8,
-            value=max(1, min(8, int(selected_spec_attempts))),
+            value=max(1, min(8, int(selected_settings["spec_generation_max_attempts"]))),
             step=1,
             disabled=controls_disabled,
             help="Maximum number of graph-level generate → spec validation attempts. Default from config is 3.",
@@ -172,7 +144,7 @@ def run_app() -> None:
 
         semantic_feedback_loop_enabled = st.checkbox(
             "Enable semantic VLM loop",
-            value=bool(selected_semantic_enabled),
+            value=bool(selected_settings["semantic_feedback_loop_enabled"]),
             disabled=controls_disabled,
             help="If enabled, a PNG-only VLM description and semantic judge can trigger spec regeneration.",
         )
@@ -181,7 +153,7 @@ def run_app() -> None:
             "Semantic VLM attempts",
             min_value=1,
             max_value=5,
-            value=max(1, min(5, int(selected_semantic_attempts))),
+            value=max(1, min(5, int(selected_settings["semantic_feedback_max_attempts"]))),
             step=1,
             disabled=controls_disabled or not semantic_feedback_loop_enabled,
             help="Maximum semantic attempts. Each rejected attempt saves comments and loops back to spec generation.",
@@ -191,14 +163,14 @@ def run_app() -> None:
             "Semantic accept confidence",
             min_value=0.0,
             max_value=1.0,
-            value=max(0.0, min(1.0, float(selected_semantic_confidence))),
+            value=max(0.0, min(1.0, float(selected_settings["semantic_feedback_min_accept_confidence"]))),
             step=0.05,
             disabled=controls_disabled or not semantic_feedback_loop_enabled,
         )
 
         semantic_feedback_save_rejected_specs = st.checkbox(
             "Save rejected specs to feedback corpus",
-            value=bool(selected_semantic_save),
+            value=bool(selected_settings["semantic_feedback_save_rejected_specs"]),
             disabled=controls_disabled or not semantic_feedback_loop_enabled,
         )
 

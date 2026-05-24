@@ -128,8 +128,14 @@ InfiAgent должен лежать здесь
 Проверить обработанный корпус
 
     Test-Path rag_corpus\processed\all_rules.deduped.jsonl
+    Test-Path rag_corpus\processed\all_rules.filtered.jsonl
     Test-Path rag_corpus\processed\all_rules.validated.jsonl
     notepad rag_corpus\processed\processing_report.md
+
+Сформировать отчёт качества корпуса
+
+    python scripts\rag_corpus\report_corpus_quality.py --input rag_corpus\processed\all_rules.validated.jsonl
+    notepad rag_corpus\reports\corpus_quality_report.md
 
 Проверить состав по источникам
 
@@ -145,8 +151,12 @@ InfiAgent должен лежать здесь
 
 Экспорт runtime-корпуса
 
-    python scripts\rag_corpus\run_export_runtime.py
+    python scripts\rag_corpus\run_export_runtime.py --profile validated
     Test-Path rag_corpus\runtime\virage_rules.jsonl
+
+Экспорт runtime-корпуса из ручного semantic-dedup профиля
+
+    python scripts\rag_corpus\run_export_runtime.py --profile semantic_deduped
 
 Проверить runtime-корпус
 
@@ -154,7 +164,11 @@ InfiAgent должен лежать здесь
 
 Экспорт для AutoRAG и разделение train/test 70/30
 
-    python scripts\rag_corpus\run_export_autorag.py --train-ratio 0.7 --split-seed 42
+    python scripts\rag_corpus\run_export_autorag.py --profile validated --train-ratio 0.7 --split-seed 42
+
+Экспорт AutoRAG из ручного semantic-dedup профиля
+
+    python scripts\rag_corpus\run_export_autorag.py --profile semantic_deduped --train-ratio 0.7 --split-seed 42
 
 Проверить файлы AutoRAG
 

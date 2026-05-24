@@ -80,22 +80,27 @@ class RuntimeContext:
     def read_dataframe(self, path: str | Path, *, nrows: int | None = None) -> pd.DataFrame:
         return read_dataframe_cached(self.dataframe_cache, path, nrows=nrows)
 
+    @staticmethod
+    def _remove_paths(paths: list[Path]) -> None:
+        for path in paths:
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+            elif path.exists():
+                path.unlink()
+
     def reset_model_logs(self) -> None:
         self.model_call_logs.clear()
         try:
             run_dir = self.ensure_run_dir()
         except Exception:
             return
-        calls_dir = run_dir / "model_calls"
-        if calls_dir.exists():
-            shutil.rmtree(calls_dir)
-        for csv_name in ("model_calls.csv", "model_call_tokens.csv", "model_call_timings.csv"):
-            csv_path = run_dir / csv_name
-            if csv_path.exists():
-                csv_path.unlink()
-        legacy_path = run_dir / "artifacts" / "model_call_logs.json"
-        if legacy_path.exists():
-            legacy_path.unlink()
+        self._remove_paths([
+            run_dir / "model_calls",
+            run_dir / "model_calls.csv",
+            run_dir / "model_call_tokens.csv",
+            run_dir / "model_call_timings.csv",
+            run_dir / "artifacts" / "model_call_logs.json",
+        ])
 
     def reset_stage_execution_logs(self) -> None:
         self.stage_execution_logs.clear()
@@ -103,20 +108,14 @@ class RuntimeContext:
             run_dir = self.ensure_run_dir()
         except Exception:
             return
-        for csv_name in ("stages.csv", "stage_timings.csv", "stage_tokens.csv"):
-            csv_path = run_dir / csv_name
-            if csv_path.exists():
-                csv_path.unlink()
-        # Remove legacy directory and JSON-only stage markers from previous implementations.
-        legacy_stage_dir = run_dir / "stage_executions"
-        if legacy_stage_dir.exists():
-            shutil.rmtree(legacy_stage_dir)
-        legacy_artifacts_dir = run_dir / "artifacts"
-        if legacy_artifacts_dir.exists():
-            shutil.rmtree(legacy_artifacts_dir)
-        nodes_dir = run_dir / "nodes"
-        if nodes_dir.exists():
-            shutil.rmtree(nodes_dir)
+        self._remove_paths([
+            run_dir / "stages.csv",
+            run_dir / "stage_timings.csv",
+            run_dir / "stage_tokens.csv",
+            run_dir / "stage_executions",
+            run_dir / "artifacts",
+            run_dir / "nodes",
+        ])
 
     def reset_artifact_indices(self, *, run_id: str | None = None) -> None:
         rid = run_id or self.current_run_id
@@ -167,9 +166,7 @@ class RuntimeContext:
         run_dir = self.ensure_run_dir(run_id)
         self._write_model_call_csvs(run_dir)
         self._write_stage_execution_csvs(run_dir)
-        legacy_path = run_dir / "artifacts" / "model_call_logs.json"
-        if legacy_path.exists():
-            legacy_path.unlink()
+        self._remove_paths([run_dir / "artifacts" / "model_call_logs.json"])
 
     def save_run_status(
             self,
@@ -269,11 +266,7 @@ class RuntimeContext:
             for log in self.model_call_logs:
                 writer.writerow(self._model_call_csv_row(log))
 
-        # Remove legacy split files so new runs keep a single analysis CSV.
-        for legacy_name in ("model_call_tokens.csv", "model_call_timings.csv"):
-            legacy_path = run_dir / legacy_name
-            if legacy_path.exists():
-                legacy_path.unlink()
+        self._remove_paths([run_dir / "model_call_tokens.csv", run_dir / "model_call_timings.csv"])
 
     def _write_stage_execution_csvs(self, run_dir: Path) -> None:
         """Write one compact CSV with stage token and timing statistics."""
@@ -284,11 +277,7 @@ class RuntimeContext:
             for log in self.stage_execution_logs:
                 writer.writerow(self._stage_csv_row(log))
 
-        # Remove legacy split files so new runs keep a single analysis CSV.
-        for legacy_name in ("stage_timings.csv", "stage_tokens.csv"):
-            legacy_path = run_dir / legacy_name
-            if legacy_path.exists():
-                legacy_path.unlink()
+        self._remove_paths([run_dir / "stage_timings.csv", run_dir / "stage_tokens.csv"])
 
     @staticmethod
     def _model_call_filename(log: ModelCallLog) -> str:

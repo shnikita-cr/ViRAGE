@@ -38,6 +38,49 @@ METRICS_OPTIONS = [METRICS_ENABLED, METRICS_DISABLED]
 
 EXPECTED_STAGE_COUNT = 24
 
+RUN_SETTING_DEFAULTS = {
+    "visrag_enabled": True,
+    "analytics_tail_enabled": True,
+    "spec_generation_max_attempts": 3,
+    "semantic_feedback_loop_enabled": False,
+    "semantic_feedback_max_attempts": 2,
+    "semantic_feedback_min_accept_confidence": 0.75,
+    "semantic_feedback_save_rejected_specs": True,
+}
+
+
+def run_setting_defaults_from_config(project_config: ProjectConfig | None) -> dict[str, Any]:
+    if project_config is None:
+        return dict(RUN_SETTING_DEFAULTS)
+    settings = project_config.settings
+    return {
+        "visrag_enabled": bool(settings.visrag_enabled),
+        "analytics_tail_enabled": bool(settings.analytics_tail_enabled),
+        "spec_generation_max_attempts": int(settings.spec_generation_max_attempts),
+        "semantic_feedback_loop_enabled": bool(settings.semantic_feedback_loop_enabled),
+        "semantic_feedback_max_attempts": int(settings.semantic_feedback_max_attempts),
+        "semantic_feedback_min_accept_confidence": float(settings.semantic_feedback_min_accept_confidence),
+        "semantic_feedback_save_rejected_specs": bool(settings.semantic_feedback_save_rejected_specs),
+    }
+
+
+def run_setting_defaults_from_pending(pending_run: dict[str, Any] | None) -> dict[str, Any]:
+    values = dict(RUN_SETTING_DEFAULTS)
+    if pending_run:
+        for key in RUN_SETTING_DEFAULTS:
+            if key in pending_run:
+                values[key] = pending_run[key]
+    return values
+
+
+def run_settings_summary(settings: dict[str, Any]) -> str:
+    return (
+        f"RAG `{settings.get('visrag_enabled', True)}` · "
+        f"analytics tail `{settings.get('analytics_tail_enabled', True)}` · "
+        f"spec attempts `{settings.get('spec_generation_max_attempts', 3)}` · "
+        f"semantic loop `{settings.get('semantic_feedback_loop_enabled', False)}`"
+    )
+
 
 def render_loading_status(slot, message: str) -> None:
     slot.markdown(
