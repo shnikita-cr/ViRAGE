@@ -307,12 +307,12 @@ def deduplicate(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Manual semantic deduplication for ViRAGE RAG rules using Ollama embeddings.")
+    parser = argparse.ArgumentParser(description="Embedding-based deduplication for ViRAGE RAG rules using Ollama embeddings.")
     parser.add_argument("--input", type=Path, default=Path("rag_corpus/processed/all_rules.filtered.jsonl"))
-    parser.add_argument("--output", type=Path, default=Path("rag_corpus/processed/all_rules.semantic_deduped.jsonl"))
-    parser.add_argument("--duplicates-output", type=Path, default=Path("rag_corpus/processed/semantic_duplicate_clusters.jsonl"))
-    parser.add_argument("--report-output", type=Path, default=Path("rag_corpus/processed/semantic_dedup_report.json"))
-    parser.add_argument("--skipped-output", type=Path, default=Path("rag_corpus/processed/semantic_dedup_skipped.jsonl"))
+    parser.add_argument("--output", type=Path, default=Path("rag_corpus/processed/all_rules.embedding_deduped.jsonl"))
+    parser.add_argument("--duplicates-output", type=Path, default=Path("rag_corpus/processed/embedding_duplicate_clusters.jsonl"))
+    parser.add_argument("--report-output", type=Path, default=Path("rag_corpus/processed/embedding_dedup_report.json"))
+    parser.add_argument("--skipped-output", type=Path, default=Path("rag_corpus/processed/embedding_dedup_skipped.jsonl"))
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--threshold", type=float, default=0.95)
@@ -332,7 +332,7 @@ def main() -> int:
     rows = read_jsonl(args.input)
     records, skipped_short = build_records(rows, args.fields, args.group_mode, args.min_text_chars)
     print(f"Loaded rows: {len(rows)}")
-    print(f"Records for semantic deduplication: {len(records)}")
+    print(f"Records for embedding deduplication: {len(records)}")
     print(f"Skipped short records: {len(skipped_short)}")
 
     embeddings = embed_records(records, args.model, args.base_url, args.timeout, args.retries, args.cache)
@@ -355,7 +355,7 @@ def main() -> int:
         "input_records": len(rows),
         "embedded_records": len(records),
         "kept_records": len(kept_rows),
-        "removed_semantic_duplicates": len(duplicates),
+        "removed_embedding_duplicates": len(duplicates),
         "skipped_short_records": len(skipped_short),
         "skipped_large_groups": len(skipped_groups),
     }

@@ -20,7 +20,7 @@ from scripts.rag_corpus.common.progress import StageProgress
 CORPUS_PROFILES = {
     "validated": "rag_corpus/processed/all_rules.validated.jsonl",
     "filtered": "rag_corpus/processed/all_rules.filtered.jsonl",
-    "semantic_deduped": "rag_corpus/processed/all_rules.semantic_deduped.jsonl",
+    "embedding_deduped": "rag_corpus/processed/all_rules.embedding_deduped.jsonl",
     "deduped": "rag_corpus/processed/all_rules.deduped.jsonl",
 }
 

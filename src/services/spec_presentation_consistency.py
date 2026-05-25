@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import re
 from typing import Any
 
 
@@ -27,12 +28,19 @@ class PresentationConsistencyResult:
     changes: list[str] = field(default_factory=list)
 
 
-class SpecPresentationConsistencyService:
-    """Conservative presentation-layer normalization for Vega-Lite specs.
+@dataclass(frozen=True)
+class RepeatFieldReference:
+    name: str
 
-    This service does not try to infer semantic synonyms. It only enforces one rule:
-    the same encoded field/aggregate/bin/timeUnit within one specification should use
-    one visible label across axis, legend, tooltip and explicit channel titles.
+
+class SpecPresentationConsistencyService:
+    """Deterministic presentation-layer normalization for Vega-Lite specs.
+
+    The service keeps the generated chart structure intact and only normalizes visible text:
+    chart title, axis titles, legend titles and tooltip titles. For ordinary fields it builds
+    concrete labels from the encoded field and aggregate. For Vega-Lite repeat references it
+    keeps the specification parametric: a repeated field is labelled as a generic value while
+    row/column headers provide the concrete field names in each repeated view.
     """
 
     CHANNEL_PRIORITY = {
@@ -48,15 +56,80 @@ class SpecPresentationConsistencyService:
         "tooltip": 60,
     }
 
+    AGGREGATE_LABELS = {
+        "mean": "Average",
+        "average": "Average",
+        "sum": "Total",
+        "count": "Count",
+        "valid": "Count",
+        "missing": "Missing Count",
+        "distinct": "Distinct Count",
+        "median": "Median",
+        "min": "Minimum",
+        "max": "Maximum",
+        "q1": "First Quartile",
+        "q3": "Third Quartile",
+        "ci0": "Confidence Interval Lower Bound",
+        "ci1": "Confidence Interval Upper Bound",
+        "stderr": "Standard Error",
+        "stdev": "Standard Deviation",
+        "variance": "Variance",
+    }
+
+    TIME_UNIT_LABELS = {
+        "year": "Year",
+        "quarter": "Quarter",
+        "month": "Month",
+        "date": "Date",
+        "day": "Day",
+        "hours": "Hour",
+        "minutes": "Minute",
+        "seconds": "Second",
+        "milliseconds": "Millisecond",
+        "yearquarter": "Year-Quarter",
+        "yearmonth": "Year-Month",
+        "yearmonthdate": "Date",
+        "monthdate": "Month-Date",
+        "hoursminutes": "Hour-Minute",
+        "hoursminutesseconds": "Hour-Minute-Second",
+    }
+
+    GENERIC_TITLES = {
+        "average", "mean", "avg", "total", "sum", "count", "value", "values", "metric", "metrics",
+        "measure", "measurement", "comparison", "trend", "distribution", "chart", "plot", "visualization",
+        "relationship", "relationships", "data", "result", "results",
+    }
+    AGGREGATE_WORDS = {
+        "average": "mean",
+        "mean": "mean",
+        "avg": "mean",
+        "total": "sum",
+        "sum": "sum",
+        "count": "count",
+        "median": "median",
+        "minimum": "min",
+        "min": "min",
+        "maximum": "max",
+        "max": "max",
+    }
+    POSITION_CHANNELS = {"x", "y", "x2", "y2"}
+    GROUP_CHANNELS = {"color", "shape", "detail", "strokeDash", "row", "column"}
+    TOOLTIP_CHANNEL = "tooltip"
+    COMPOSITION_KEYS = ("layer", "spec", "concat", "hconcat", "vconcat")
+
     def normalize(self, spec: dict[str, Any]) -> PresentationConsistencyResult:
         if not isinstance(spec, dict):
             return PresentationConsistencyResult(spec={})
+
         normalized = deepcopy(spec)
+        changes: list[str] = []
+        self._normalize_node(normalized, root=normalized, changes=changes)
+
+        # Keep the older consistency pass for cases with nested user-provided titles that do not
+        # match the deterministic labels exactly. This is now a fallback, not the main label source.
         label_uses: dict[PresentationLabelKey, list[PresentationLabelUse]] = {}
         self._collect_label_uses(normalized, label_uses, path=())
-        changes: list[str] = []
         replacements: dict[str, str] = {}
-
         for key, uses in label_uses.items():
             labels = [use.label for use in uses if use.label.strip()]
             unique_labels = self._unique(labels)
@@ -79,6 +152,402 @@ class SpecPresentationConsistencyService:
         if replacements:
             self._normalize_titles(normalized, replacements)
         return PresentationConsistencyResult(spec=normalized, changes=self._dedupe(changes))
+
+    @classmethod
+    def _normalize_node(cls, node: Any, *, root: dict[str, Any], changes: list[str]) -> None:
+        if isinstance(node, dict):
+            encoding = node.get("encoding")
+            if isinstance(encoding, dict):
+                cls._normalize_encoding(encoding, root=root, changes=changes)
+                cls._normalize_view_title(node, encoding, root=root, changes=changes)
+            for key in cls.COMPOSITION_KEYS:
+                child = node.get(key)
+                if isinstance(child, list):
+                    for item in child:
+                        cls._normalize_node(item, root=root, changes=changes)
+                elif isinstance(child, dict):
+                    cls._normalize_node(child, root=root, changes=changes)
+        elif isinstance(node, list):
+            for item in node:
+                cls._normalize_node(item, root=root, changes=changes)
+
+    @classmethod
+    def _normalize_encoding(cls, encoding: dict[str, Any], *, root: dict[str, Any], changes: list[str]) -> None:
+        for channel, channel_def in list(encoding.items()):
+            cls._normalize_channel(channel, channel_def, root=root, changes=changes)
+
+    @classmethod
+    def _normalize_channel(cls, channel: str, channel_def: Any, *, root: dict[str, Any], changes: list[str]) -> None:
+        if isinstance(channel_def, list):
+            for item in channel_def:
+                cls._normalize_channel(channel, item, root=root, changes=changes)
+            return
+        if not isinstance(channel_def, dict):
+            return
+
+        label = cls._label_for_channel(channel_def, channel=channel, root=root)
+        if not label:
+            return
+
+        if channel == cls.TOOLTIP_CHANNEL:
+            cls._set_channel_title(channel_def, label, changes=changes, channel=channel)
+            return
+
+        if channel in cls.POSITION_CHANNELS:
+            axis = channel_def.get("axis")
+            if axis is None:
+                axis = {}
+                channel_def["axis"] = axis
+            if isinstance(axis, dict):
+                cls._set_nested_title(axis, label, changes=changes, owner=f"encoding.{channel}.axis")
+            return
+
+        if channel in cls.GROUP_CHANNELS:
+            legend = channel_def.get("legend")
+            if legend is None and channel not in {"detail", "row", "column"}:
+                legend = {}
+                channel_def["legend"] = legend
+            if isinstance(legend, dict):
+                cls._set_nested_title(legend, label, changes=changes, owner=f"encoding.{channel}.legend")
+            elif channel in {"row", "column"}:
+                cls._set_channel_title(channel_def, label, changes=changes, channel=channel)
+            return
+
+        cls._set_channel_title(channel_def, label, changes=changes, channel=channel)
+
+    @classmethod
+    def _normalize_view_title(
+        cls,
+        view: dict[str, Any],
+        encoding: dict[str, Any],
+        *,
+        root: dict[str, Any],
+        changes: list[str],
+    ) -> None:
+        title = cls._chart_title(encoding, root=root)
+        if not title:
+            return
+        current_title = cls._title_text(view.get("title"))
+        if current_title and not cls._should_replace_chart_title(current_title, encoding):
+            return
+        cls._set_view_title(view, title, changes=changes)
+
+    @classmethod
+    def _should_replace_chart_title(cls, title: str, encoding: dict[str, Any]) -> bool:
+        normalized = cls._normalize_text(title)
+        if not normalized or normalized in cls.GENERIC_TITLES:
+            return True
+        measure = cls._primary_measure(encoding)
+        dimension = cls._primary_dimension(encoding)
+        aggregate = cls._aggregate_from_channel(measure) if measure else ""
+        measure_field = cls._field_from_channel(measure) if measure else None
+        dimension_field = cls._field_from_channel(dimension) if dimension else None
+        if aggregate and measure_field and measure_field.lower() not in normalized:
+            return True
+        if aggregate and cls._title_has_wrong_aggregate(normalized, aggregate):
+            return True
+        # Keep descriptive titles, but repair titles that mention only an aggregate and a dimension.
+        if aggregate and dimension_field and dimension_field.lower() in normalized and measure_field and measure_field.lower() not in normalized:
+            return True
+        return False
+
+    @classmethod
+    def _title_has_wrong_aggregate(cls, normalized_title: str, expected_aggregate: str) -> bool:
+        expected = cls._canonical_aggregate(expected_aggregate)
+        for word, aggregate in cls.AGGREGATE_WORDS.items():
+            if re.search(rf"\b{re.escape(word)}\b", normalized_title) and cls._canonical_aggregate(aggregate) != expected:
+                return True
+        return False
+
+    @classmethod
+    def _chart_title(cls, encoding: dict[str, Any], *, root: dict[str, Any]) -> str:
+        x_def = cls._first_channel_def(encoding.get("x"))
+        y_def = cls._first_channel_def(encoding.get("y"))
+        color_def = cls._first_channel_def(encoding.get("color"))
+        group_def = color_def or cls._first_channel_def(encoding.get("shape")) or cls._first_channel_def(encoding.get("detail"))
+
+        x_field = cls._field_from_channel(x_def)
+        y_field = cls._field_from_channel(y_def)
+        group_field = cls._field_from_channel(group_def)
+        x_time = cls._time_unit_from_channel(x_def)
+        y_time = cls._time_unit_from_channel(y_def)
+        x_is_repeat = isinstance(x_field, RepeatFieldReference)
+        y_is_repeat = isinstance(y_field, RepeatFieldReference)
+
+        if x_is_repeat or y_is_repeat:
+            repeated_label = cls._repeated_measure_group_label(root)
+            dimension = cls._field_display_label(y_field if x_is_repeat else x_field, root=root)
+            agg = cls._aggregate_label(cls._aggregate_from_channel(y_def if y_is_repeat else x_def))
+            prefix = f"{agg} " if agg else ""
+            if dimension:
+                return f"{prefix}{repeated_label} by {dimension}"
+            return f"{prefix}{repeated_label}".strip()
+
+        if x_time and y_field:
+            measure = cls._label_for_channel(y_def or {}, channel="y", root=root)
+            time_label = cls._field_display_label(x_field, root=root, time_unit=x_time)
+            if measure and time_label:
+                title = f"{measure} over {time_label}"
+                if group_field:
+                    title += f" by {cls._field_display_label(group_field, root=root)}"
+                return title
+
+        if y_time and x_field:
+            measure = cls._label_for_channel(x_def or {}, channel="x", root=root)
+            time_label = cls._field_display_label(y_field, root=root, time_unit=y_time)
+            if measure and time_label:
+                title = f"{measure} over {time_label}"
+                if group_field:
+                    title += f" by {cls._field_display_label(group_field, root=root)}"
+                return title
+
+        if x_field and y_field:
+            x_type = cls._channel_type(x_def)
+            y_type = cls._channel_type(y_def)
+            x_agg = cls._aggregate_from_channel(x_def)
+            y_agg = cls._aggregate_from_channel(y_def)
+            x_label = cls._label_for_channel(x_def or {}, channel="x", root=root)
+            y_label = cls._label_for_channel(y_def or {}, channel="y", root=root)
+
+            if y_agg or (x_type in {"nominal", "ordinal"} and y_type == "quantitative"):
+                title = f"{y_label} by {x_label}" if x_label and y_label else ""
+            elif x_agg or (y_type in {"nominal", "ordinal"} and x_type == "quantitative"):
+                title = f"{x_label} by {y_label}" if x_label and y_label else ""
+            else:
+                title = f"{y_label} vs {x_label}" if x_label and y_label else ""
+            if title and group_field:
+                title += f" by {cls._field_display_label(group_field, root=root)}"
+            return title
+
+        measure = cls._primary_measure(encoding)
+        dimension = cls._primary_dimension(encoding)
+        if measure and dimension:
+            measure_label = cls._label_for_channel(measure, channel="y", root=root)
+            dimension_label = cls._field_display_label(cls._field_from_channel(dimension), root=root)
+            if measure_label and dimension_label:
+                return f"{measure_label} by {dimension_label}"
+        return ""
+
+    @classmethod
+    def _primary_measure(cls, encoding: dict[str, Any]) -> dict[str, Any] | None:
+        for channel in ("y", "x", "theta", "size", "radius"):
+            channel_def = cls._first_channel_def(encoding.get(channel))
+            if isinstance(channel_def, dict) and cls._channel_type(channel_def) == "quantitative":
+                return channel_def
+        return None
+
+    @classmethod
+    def _primary_dimension(cls, encoding: dict[str, Any]) -> dict[str, Any] | None:
+        for channel in ("x", "y", "color", "shape", "column", "row"):
+            channel_def = cls._first_channel_def(encoding.get(channel))
+            if isinstance(channel_def, dict) and cls._channel_type(channel_def) in {"nominal", "ordinal", "temporal"}:
+                return channel_def
+        return None
+
+    @classmethod
+    def _label_for_channel(cls, channel_def: dict[str, Any], *, channel: str, root: dict[str, Any]) -> str:
+        field = cls._field_from_channel(channel_def)
+        if field is None:
+            aggregate = cls._aggregate_from_channel(channel_def)
+            return cls._aggregate_label(aggregate) if aggregate else ""
+        time_unit = cls._time_unit_from_channel(channel_def)
+        return cls._measure_label(field, aggregate=cls._aggregate_from_channel(channel_def), root=root, time_unit=time_unit)
+
+    @classmethod
+    def _measure_label(
+        cls,
+        field: str | RepeatFieldReference,
+        *,
+        aggregate: str = "",
+        root: dict[str, Any],
+        time_unit: str = "",
+    ) -> str:
+        field_label = cls._field_display_label(field, root=root, time_unit=time_unit)
+        aggregate_label = cls._aggregate_label(aggregate)
+        if not aggregate_label:
+            return field_label
+        if aggregate_label == "Count" and field_label in {"*", "Record", "Records"}:
+            return "Count of Records"
+        if isinstance(field, RepeatFieldReference):
+            if aggregate_label == "Count":
+                return "Count"
+            return f"{aggregate_label} Value"
+        return f"{aggregate_label} {field_label}".strip()
+
+    @classmethod
+    def _field_display_label(
+        cls,
+        field: str | RepeatFieldReference | None,
+        *,
+        root: dict[str, Any],
+        time_unit: str = "",
+    ) -> str:
+        if field is None:
+            return ""
+        if isinstance(field, RepeatFieldReference):
+            return "Value"
+        if field == "*":
+            return "Records"
+        if time_unit:
+            label = cls.TIME_UNIT_LABELS.get(time_unit.lower())
+            if label:
+                return label
+        return cls._humanize_field_name(field)
+
+    @classmethod
+    def _repeated_measure_group_label(cls, root: dict[str, Any]) -> str:
+        repeat_fields = cls._all_repeat_fields(root)
+        if not repeat_fields:
+            return "Repeated Measures"
+        if cls._fields_look_like_metrics(repeat_fields):
+            return "Metrics"
+        return "Repeated Measures"
+
+    @staticmethod
+    def _all_repeat_fields(root: dict[str, Any]) -> list[str]:
+        repeat = root.get("repeat")
+        fields: list[str] = []
+        if isinstance(repeat, dict):
+            for key in ("row", "column", "layer"):
+                value = repeat.get(key)
+                if isinstance(value, list):
+                    fields.extend(str(item) for item in value if isinstance(item, str) and item.strip())
+                elif isinstance(value, str) and value.strip():
+                    fields.append(value.strip())
+        elif isinstance(repeat, list):
+            fields.extend(str(item) for item in repeat if isinstance(item, str) and item.strip())
+        return fields
+
+    @staticmethod
+    def _fields_look_like_metrics(fields: list[str]) -> bool:
+        if len(fields) < 2:
+            return False
+        metric_tokens = {
+            "score", "rate", "ratio", "value", "metric", "measure", "psnr", "ssim", "lpips",
+            "rmse", "mae", "mse", "accuracy", "precision", "recall", "runtime", "memory", "params",
+            "sales", "profit", "revenue", "cost", "count", "total", "mean", "average",
+        }
+        normalized = " ".join(fields).replace("_", " ").replace("-", " ").lower()
+        return any(token in normalized for token in metric_tokens)
+
+    @staticmethod
+    def _field_from_channel(channel_def: dict[str, Any] | None) -> str | RepeatFieldReference | None:
+        if not isinstance(channel_def, dict):
+            return None
+        field = channel_def.get("field")
+        if isinstance(field, str) and field.strip():
+            return field.strip()
+        if isinstance(field, dict):
+            repeat = field.get("repeat")
+            if isinstance(repeat, str) and repeat.strip():
+                return RepeatFieldReference(repeat.strip())
+        return None
+
+    @staticmethod
+    def _first_channel_def(channel_def: Any) -> dict[str, Any] | None:
+        if isinstance(channel_def, dict):
+            return channel_def
+        if isinstance(channel_def, list):
+            for item in channel_def:
+                if isinstance(item, dict):
+                    return item
+        return None
+
+    @staticmethod
+    def _channel_type(channel_def: dict[str, Any] | None) -> str:
+        if not isinstance(channel_def, dict):
+            return ""
+        value = channel_def.get("type")
+        return str(value or "").strip().lower()
+
+    @staticmethod
+    def _aggregate_from_channel(channel_def: dict[str, Any] | None) -> str:
+        if not isinstance(channel_def, dict):
+            return ""
+        aggregate = channel_def.get("aggregate")
+        if isinstance(aggregate, str):
+            return aggregate.strip().lower()
+        return ""
+
+    @staticmethod
+    def _time_unit_from_channel(channel_def: dict[str, Any] | None) -> str:
+        if not isinstance(channel_def, dict):
+            return ""
+        time_unit = channel_def.get("timeUnit")
+        if isinstance(time_unit, str):
+            return time_unit.strip().lower()
+        return ""
+
+    @classmethod
+    def _aggregate_label(cls, aggregate: str) -> str:
+        if not aggregate:
+            return ""
+        return cls.AGGREGATE_LABELS.get(aggregate.strip().lower(), cls._humanize_field_name(aggregate))
+
+    @classmethod
+    def _canonical_aggregate(cls, aggregate: str) -> str:
+        return cls.AGGREGATE_WORDS.get(aggregate.strip().lower(), aggregate.strip().lower())
+
+    @staticmethod
+    def _humanize_field_name(field: str) -> str:
+        text = str(field).strip()
+        if not text:
+            return ""
+        text = text.replace("_", " ").replace("-", " ")
+        text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
+        words = [word for word in text.split() if word]
+        if not words:
+            return ""
+        result: list[str] = []
+        for word in words:
+            if word.isupper() or any(char.isdigit() for char in word):
+                result.append(word)
+            elif len(word) <= 4 and word.lower() in {"psnr", "ssim", "lpips", "rmse", "mae", "mse"}:
+                result.append(word.upper())
+            else:
+                result.append(word[:1].upper() + word[1:])
+        return " ".join(result)
+
+    @staticmethod
+    def _set_nested_title(container: dict[str, Any], label: str, *, changes: list[str], owner: str) -> None:
+        current = container.get("title")
+        if current == label:
+            return
+        container["title"] = label
+        changes.append(f"Set {owner}.title to {label!r}.")
+
+    @classmethod
+    def _set_channel_title(cls, channel_def: dict[str, Any], label: str, *, changes: list[str], channel: str) -> None:
+        current = channel_def.get("title")
+        if current == label:
+            return
+        channel_def["title"] = label
+        changes.append(f"Set encoding.{channel}.title to {label!r}.")
+
+    @classmethod
+    def _set_view_title(cls, view: dict[str, Any], title: str, *, changes: list[str]) -> None:
+        current = cls._title_text(view.get("title"))
+        if current == title:
+            return
+        if isinstance(view.get("title"), dict):
+            view["title"]["text"] = title
+        else:
+            view["title"] = title
+        changes.append(f"Set chart title to {title!r}.")
+
+    @staticmethod
+    def _title_text(title: Any) -> str:
+        if isinstance(title, str):
+            return title.strip()
+        if isinstance(title, dict):
+            text = title.get("text")
+            if isinstance(text, str):
+                return text.strip()
+        return ""
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        return re.sub(r"\s+", " ", text.strip().lower())
 
     @classmethod
     def _collect_label_uses(

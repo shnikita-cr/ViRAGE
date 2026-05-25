@@ -25,6 +25,27 @@ NLV используется только для оценки качества. 
     ollama pull mxbai-embed-large
     ollama pull bge-m3
 
+
+## 1.1. Запуск полной цепочки скриптом
+
+Рядом с этим файлом лежит PowerShell-скрипт, который повторяет основную последовательность команд из `howto.md`:
+
+    .\rag_corpus\run_rag_corpus_pipeline.ps1
+
+Полный запуск с параметрами по умолчанию:
+
+    .\rag_corpus\run_rag_corpus_pipeline.ps1 -LlmModel qwen2.5-coder:7b -EmbeddingModel nomic-embed-text -EmbeddingThreshold 0.95 -ExportProfile embedding_deduped
+
+Если источники и NLV уже скачаны:
+
+    .\rag_corpus\run_rag_corpus_pipeline.ps1 -SkipDownload
+
+Если нужно выполнить только корпус, runtime export и AutoRAG-экспорт без AutoRAG/benchmark:
+
+    .\rag_corpus\run_rag_corpus_pipeline.ps1 -SkipDownload -SkipAutorag -SkipRuntimeConfigApply -SkipNlvSmoke -SkipInfiAgentSmoke
+
+Основной текст ниже оставлен как пошаговая версия тех же команд.
+
 ## 2. Скачать внешние источники корпуса
 
     New-Item -ItemType Directory -Force rag_corpus\raw_external_rules
@@ -64,7 +85,7 @@ TaskVis сейчас не используется в основном корп�
     Remove-Item -Force rag_corpus\processed\all_rules.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\all_rules.deduped.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\all_rules.filtered.jsonl -ErrorAction SilentlyContinue
-    Remove-Item -Force rag_corpus\processed\all_rules.semantic_deduped.jsonl -ErrorAction SilentlyContinue
+    Remove-Item -Force rag_corpus\processed\all_rules.embedding_deduped.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\all_rules.validated.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Force rag_corpus\processed\normalization_failures.jsonl -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force rag_corpus\runtime -ErrorAction SilentlyContinue
@@ -145,9 +166,9 @@ ChartSquared / C²:
 
     python -c "from pathlib import Path; text=Path('rag_corpus/processed/all_rules.validated.jsonl').read_text(encoding='utf-8').lower(); print('nlv' in text, 'nlv_corpus' in text, 'utterance' in text)"
 
-## 7. Ручная семантическая дедупликация по эмбеддингам
+## 7. Embedding-дедупликация
 
-Этот шаг пока запускается вручную. Он нужен не для замены обычной дедупликации, а для удаления смысловых повторов после LLM-нормализации.
+Этот шаг удаляет смысловые повторы после LLM-нормализации. Он не заменяет точную дедупликацию, а дополняет её за счёт эмбеддингов.
 
 Сначала проверить, что эмбеддинги работают на контрольных примерах:
 
@@ -166,7 +187,7 @@ ChartSquared / C²:
 
 Скрипт перебирает пороги и показывает, при каком пороге похожие правила удаляются, а разные остаются. Если `recommended_threshold` пустой, модель или пороги не подходят для этого корпуса.
 
-Запуск дедупликации на корпусе:
+Запуск embedding-дедупликации на корпусе:
 
     python scripts\rag_corpus\normalize\deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
 
@@ -180,21 +201,21 @@ ChartSquared / C²:
 
 Выходные файлы:
 
-    rag_corpus\processed\all_rules.semantic_deduped.jsonl
-    rag_corpus\processed\semantic_duplicate_clusters.jsonl
-    rag_corpus\processed\semantic_dedup_report.json
-    rag_corpus\processed\semantic_dedup_skipped.jsonl
+    rag_corpus\processed\all_rules.embedding_deduped.jsonl
+    rag_corpus\processed\embedding_duplicate_clusters.jsonl
+    rag_corpus\processed\embedding_dedup_report.json
+    rag_corpus\processed\embedding_dedup_skipped.jsonl
     rag_corpus\processed\embedding_cache.jsonl
 
 Проверить удалённые кластеры:
 
-    notepad rag_corpus\processed\semantic_duplicate_clusters.jsonl
-    notepad rag_corpus\processed\semantic_dedup_report.json
+    notepad rag_corpus\processed\embedding_duplicate_clusters.jsonl
+    notepad rag_corpus\processed\embedding_dedup_report.json
 
-После ручной дедупликации желательно снова сформировать отчёт качества:
+После embedding-дедупликации нужно снова сформировать отчёт качества:
 
-    python scripts\rag_corpus\report_corpus_quality.py --input rag_corpus\processed\all_rules.semantic_deduped.jsonl --output rag_corpus\reports\corpus_quality_semantic_deduped_report.md
-    notepad rag_corpus\reports\corpus_quality_semantic_deduped_report.md
+    python scripts\rag_corpus\report_corpus_quality.py --input rag_corpus\processed\all_rules.embedding_deduped.jsonl --output rag_corpus\reports\corpus_quality_embedding_deduped_report.md
+    notepad rag_corpus\reports\corpus_quality_embedding_deduped_report.md
 
 ## 8. Экспорт корпуса в runtime
 
@@ -202,9 +223,9 @@ ChartSquared / C²:
 
     python scripts\rag_corpus\run_export_runtime.py --profile validated
 
-Из ручного semantic-dedup профиля:
+Из embedding-dedup профиля:
 
-    python scripts\rag_corpus\run_export_runtime.py --profile semantic_deduped
+    python scripts\rag_corpus\run_export_runtime.py --profile embedding_deduped
 
 Проверить runtime-корпус:
 
@@ -221,9 +242,9 @@ ChartSquared / C²:
 
     python scripts\rag_corpus\run_export_autorag.py --profile validated --train-ratio 0.7 --split-seed 42
 
-Из semantic-dedup профиля:
+Из embedding-dedup профиля:
 
-    python scripts\rag_corpus\run_export_autorag.py --profile semantic_deduped --train-ratio 0.7 --split-seed 42
+    python scripts\rag_corpus\run_export_autorag.py --profile embedding_deduped --train-ratio 0.7 --split-seed 42
 
 Проверить файлы:
 
