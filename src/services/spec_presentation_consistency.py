@@ -158,7 +158,7 @@ class SpecPresentationConsistencyService:
         if isinstance(node, dict):
             encoding = node.get("encoding")
             if isinstance(encoding, dict):
-                cls._normalize_encoding(encoding, root=root, changes=changes)
+                cls._normalize_encoding(encoding, root=root, view=node, changes=changes)
                 cls._normalize_view_title(node, encoding, root=root, changes=changes)
             for key in cls.COMPOSITION_KEYS:
                 child = node.get(key)
@@ -172,20 +172,37 @@ class SpecPresentationConsistencyService:
                 cls._normalize_node(item, root=root, changes=changes)
 
     @classmethod
-    def _normalize_encoding(cls, encoding: dict[str, Any], *, root: dict[str, Any], changes: list[str]) -> None:
+    def _normalize_encoding(
+        cls,
+        encoding: dict[str, Any],
+        *,
+        root: dict[str, Any],
+        view: dict[str, Any],
+        changes: list[str],
+    ) -> None:
+        mark_type = cls._mark_type(view)
         for channel, channel_def in list(encoding.items()):
-            cls._normalize_channel(channel, channel_def, root=root, changes=changes)
+            cls._normalize_channel(channel, channel_def, root=root, mark_type=mark_type, changes=changes)
+        cls._remove_redundant_color_legend(encoding, changes=changes)
 
     @classmethod
-    def _normalize_channel(cls, channel: str, channel_def: Any, *, root: dict[str, Any], changes: list[str]) -> None:
+    def _normalize_channel(
+        cls,
+        channel: str,
+        channel_def: Any,
+        *,
+        root: dict[str, Any],
+        mark_type: str,
+        changes: list[str],
+    ) -> None:
         if isinstance(channel_def, list):
             for item in channel_def:
-                cls._normalize_channel(channel, item, root=root, changes=changes)
+                cls._normalize_channel(channel, item, root=root, mark_type=mark_type, changes=changes)
             return
         if not isinstance(channel_def, dict):
             return
 
-        label = cls._label_for_channel(channel_def, channel=channel, root=root)
+        label = cls._label_for_channel(channel_def, channel=channel, root=root, mark_type=mark_type)
         if not label:
             return
 
@@ -200,6 +217,7 @@ class SpecPresentationConsistencyService:
                 channel_def["axis"] = axis
             if isinstance(axis, dict):
                 cls._set_nested_title(axis, label, changes=changes, owner=f"encoding.{channel}.axis")
+                cls._remove_channel_title(channel_def, changes=changes, owner=f"encoding.{channel}")
             return
 
         if channel in cls.GROUP_CHANNELS:
@@ -209,6 +227,7 @@ class SpecPresentationConsistencyService:
                 channel_def["legend"] = legend
             if isinstance(legend, dict):
                 cls._set_nested_title(legend, label, changes=changes, owner=f"encoding.{channel}.legend")
+                cls._remove_channel_title(channel_def, changes=changes, owner=f"encoding.{channel}")
             elif channel in {"row", "column"}:
                 cls._set_channel_title(channel_def, label, changes=changes, channel=channel)
             return
@@ -224,32 +243,59 @@ class SpecPresentationConsistencyService:
         root: dict[str, Any],
         changes: list[str],
     ) -> None:
-        title = cls._chart_title(encoding, root=root)
+        title = cls._chart_title(encoding, root=root, view=view)
         if not title:
             return
-        current_title = cls._title_text(view.get("title"))
-        if current_title and not cls._should_replace_chart_title(current_title, encoding):
+        target_view = root if cls._is_repeat_root(root) and view is not root else view
+        current_title = cls._title_text(target_view.get("title"))
+        if current_title and not cls._should_replace_chart_title(current_title, encoding, root=root, view=view):
             return
-        cls._set_view_title(view, title, changes=changes)
+        cls._set_view_title(target_view, title, changes=changes)
 
     @classmethod
-    def _should_replace_chart_title(cls, title: str, encoding: dict[str, Any]) -> bool:
+    def _should_replace_chart_title(
+        cls,
+        title: str,
+        encoding: dict[str, Any],
+        *,
+        root: dict[str, Any],
+        view: dict[str, Any],
+    ) -> bool:
         normalized = cls._normalize_text(title)
         if not normalized or normalized in cls.GENERIC_TITLES:
+            return True
+        if cls._title_has_repeated_by_segments(title):
+            return True
+        mark_type = cls._mark_type(view)
+        if mark_type == "boxplot" and "distribution" not in normalized:
             return True
         measure = cls._primary_measure(encoding)
         dimension = cls._primary_dimension(encoding)
         aggregate = cls._aggregate_from_channel(measure) if measure else ""
         measure_field = cls._field_from_channel(measure) if measure else None
         dimension_field = cls._field_from_channel(dimension) if dimension else None
-        if aggregate and measure_field and measure_field.lower() not in normalized:
+        if aggregate and isinstance(measure_field, str) and cls._normalize_text(measure_field) not in normalized:
             return True
         if aggregate and cls._title_has_wrong_aggregate(normalized, aggregate):
             return True
-        # Keep descriptive titles, but repair titles that mention only an aggregate and a dimension.
-        if aggregate and dimension_field and dimension_field.lower() in normalized and measure_field and measure_field.lower() not in normalized:
+        if (
+            aggregate
+            and isinstance(dimension_field, str)
+            and cls._normalize_text(dimension_field) in normalized
+            and isinstance(measure_field, str)
+            and cls._normalize_text(measure_field) not in normalized
+        ):
             return True
+        deterministic = cls._chart_title(encoding, root=root, view=view)
+        if deterministic and cls._normalize_text(deterministic) != normalized:
+            if any(word in normalized for word in (" by ", " over ", " vs ")):
+                return True
         return False
+
+    @classmethod
+    def _title_has_repeated_by_segments(cls, title: str) -> bool:
+        parts = [cls._normalize_text(part) for part in re.split(r"\s+by\s+", title, flags=re.IGNORECASE)[1:]]
+        return len(parts) != len(set(parts))
 
     @classmethod
     def _title_has_wrong_aggregate(cls, normalized_title: str, expected_aggregate: str) -> bool:
@@ -260,73 +306,241 @@ class SpecPresentationConsistencyService:
         return False
 
     @classmethod
-    def _chart_title(cls, encoding: dict[str, Any], *, root: dict[str, Any]) -> str:
+    def _chart_title(cls, encoding: dict[str, Any], *, root: dict[str, Any], view: dict[str, Any]) -> str:
+        mark_type = cls._mark_type(view)
         x_def = cls._first_channel_def(encoding.get("x"))
         y_def = cls._first_channel_def(encoding.get("y"))
-        color_def = cls._first_channel_def(encoding.get("color"))
-        group_def = color_def or cls._first_channel_def(encoding.get("shape")) or cls._first_channel_def(encoding.get("detail"))
-
         x_field = cls._field_from_channel(x_def)
         y_field = cls._field_from_channel(y_def)
-        group_field = cls._field_from_channel(group_def)
         x_time = cls._time_unit_from_channel(x_def)
         y_time = cls._time_unit_from_channel(y_def)
         x_is_repeat = isinstance(x_field, RepeatFieldReference)
         y_is_repeat = isinstance(y_field, RepeatFieldReference)
 
         if x_is_repeat or y_is_repeat:
-            repeated_label = cls._repeated_measure_group_label(root)
-            dimension = cls._field_display_label(y_field if x_is_repeat else x_field, root=root)
-            agg = cls._aggregate_label(cls._aggregate_from_channel(y_def if y_is_repeat else x_def))
-            prefix = f"{agg} " if agg else ""
-            if dimension:
-                return f"{prefix}{repeated_label} by {dimension}"
-            return f"{prefix}{repeated_label}".strip()
+            return cls._repeat_chart_title(
+                encoding,
+                root=root,
+                mark_type=mark_type,
+                repeat_channel_def=y_def if y_is_repeat else x_def,
+                dimension_channel_def=x_def if y_is_repeat else y_def,
+            )
+
+        if mark_type == "boxplot":
+            measure = cls._boxplot_measure(encoding)
+            measure_label = cls._field_display_label(cls._field_from_channel(measure), root=root)
+            dimensions = cls._dimension_labels(encoding, root=root, exclude_defs=[measure])
+            if measure_label:
+                return cls._join_title(measure_label, "Distribution", dimensions)
+
+        if mark_type in {"line", "area"}:
+            if x_time and y_field:
+                measure = cls._label_for_channel(y_def or {}, channel="y", root=root, mark_type=mark_type)
+                time_label = cls._field_display_label(x_field, root=root, time_unit=x_time)
+                groups = cls._group_labels(encoding, root=root, exclude_defs=[x_def, y_def])
+                if measure and time_label:
+                    return cls._join_title(measure, f"over {time_label}", groups)
+            if y_time and x_field:
+                measure = cls._label_for_channel(x_def or {}, channel="x", root=root, mark_type=mark_type)
+                time_label = cls._field_display_label(y_field, root=root, time_unit=y_time)
+                groups = cls._group_labels(encoding, root=root, exclude_defs=[x_def, y_def])
+                if measure and time_label:
+                    return cls._join_title(measure, f"over {time_label}", groups)
 
         if x_time and y_field:
-            measure = cls._label_for_channel(y_def or {}, channel="y", root=root)
+            measure = cls._label_for_channel(y_def or {}, channel="y", root=root, mark_type=mark_type)
             time_label = cls._field_display_label(x_field, root=root, time_unit=x_time)
+            groups = cls._group_labels(encoding, root=root, exclude_defs=[x_def, y_def])
             if measure and time_label:
-                title = f"{measure} over {time_label}"
-                if group_field:
-                    title += f" by {cls._field_display_label(group_field, root=root)}"
-                return title
+                return cls._join_title(measure, f"over {time_label}", groups)
 
         if y_time and x_field:
-            measure = cls._label_for_channel(x_def or {}, channel="x", root=root)
+            measure = cls._label_for_channel(x_def or {}, channel="x", root=root, mark_type=mark_type)
             time_label = cls._field_display_label(y_field, root=root, time_unit=y_time)
+            groups = cls._group_labels(encoding, root=root, exclude_defs=[x_def, y_def])
             if measure and time_label:
-                title = f"{measure} over {time_label}"
-                if group_field:
-                    title += f" by {cls._field_display_label(group_field, root=root)}"
-                return title
+                return cls._join_title(measure, f"over {time_label}", groups)
 
         if x_field and y_field:
             x_type = cls._channel_type(x_def)
             y_type = cls._channel_type(y_def)
             x_agg = cls._aggregate_from_channel(x_def)
             y_agg = cls._aggregate_from_channel(y_def)
-            x_label = cls._label_for_channel(x_def or {}, channel="x", root=root)
-            y_label = cls._label_for_channel(y_def or {}, channel="y", root=root)
+            x_label = cls._label_for_channel(x_def or {}, channel="x", root=root, mark_type=mark_type)
+            y_label = cls._label_for_channel(y_def or {}, channel="y", root=root, mark_type=mark_type)
+            groups = cls._group_labels(encoding, root=root, exclude_defs=[x_def, y_def])
 
             if y_agg or (x_type in {"nominal", "ordinal"} and y_type == "quantitative"):
-                title = f"{y_label} by {x_label}" if x_label and y_label else ""
-            elif x_agg or (y_type in {"nominal", "ordinal"} and x_type == "quantitative"):
-                title = f"{x_label} by {y_label}" if x_label and y_label else ""
-            else:
-                title = f"{y_label} vs {x_label}" if x_label and y_label else ""
-            if title and group_field:
-                title += f" by {cls._field_display_label(group_field, root=root)}"
-            return title
+                return cls._join_title(y_label, f"by {x_label}" if x_label else "", groups)
+            if x_agg or (y_type in {"nominal", "ordinal"} and x_type == "quantitative"):
+                return cls._join_title(x_label, f"by {y_label}" if y_label else "", groups)
+            if x_label and y_label:
+                return cls._join_title(y_label, f"vs {x_label}", groups)
 
         measure = cls._primary_measure(encoding)
         dimension = cls._primary_dimension(encoding)
         if measure and dimension:
-            measure_label = cls._label_for_channel(measure, channel="y", root=root)
+            measure_label = cls._label_for_channel(measure, channel="y", root=root, mark_type=mark_type)
             dimension_label = cls._field_display_label(cls._field_from_channel(dimension), root=root)
             if measure_label and dimension_label:
-                return f"{measure_label} by {dimension_label}"
+                return cls._join_title(measure_label, f"by {dimension_label}", [])
         return ""
+
+    @staticmethod
+    def _is_repeat_root(root: dict[str, Any]) -> bool:
+        return isinstance(root.get("repeat"), (dict, list))
+
+    @staticmethod
+    def _mark_type(view: dict[str, Any]) -> str:
+        mark = view.get("mark") if isinstance(view, dict) else None
+        if isinstance(mark, str):
+            return mark.strip().lower()
+        if isinstance(mark, dict):
+            value = mark.get("type")
+            if isinstance(value, str):
+                return value.strip().lower()
+        return ""
+
+    @classmethod
+    def _repeat_chart_title(
+        cls,
+        encoding: dict[str, Any],
+        *,
+        root: dict[str, Any],
+        mark_type: str,
+        repeat_channel_def: dict[str, Any] | None,
+        dimension_channel_def: dict[str, Any] | None,
+    ) -> str:
+        repeated_label = cls._repeated_measure_group_label(root)
+        dimension_label = cls._field_display_label(cls._field_from_channel(dimension_channel_def), root=root)
+        aggregate_label = cls._aggregate_label(cls._aggregate_from_channel(repeat_channel_def))
+
+        if mark_type == "boxplot":
+            distribution_subject = "Metric" if repeated_label == "Metrics" else "Repeated Measure"
+            return cls._join_title(distribution_subject, "Distributions", [dimension_label])
+        if aggregate_label:
+            return cls._join_title(f"{aggregate_label} {repeated_label}", "", [dimension_label])
+        return cls._join_title(repeated_label, "", [dimension_label])
+
+    @classmethod
+    def _boxplot_measure(cls, encoding: dict[str, Any]) -> dict[str, Any] | None:
+        for channel in ("y", "x"):
+            channel_def = cls._first_channel_def(encoding.get(channel))
+            if isinstance(channel_def, dict) and cls._channel_type(channel_def) == "quantitative":
+                return channel_def
+        return cls._primary_measure(encoding)
+
+    @classmethod
+    def _dimension_labels(
+        cls,
+        encoding: dict[str, Any],
+        *,
+        root: dict[str, Any],
+        exclude_defs: list[dict[str, Any] | None] | None = None,
+    ) -> list[str]:
+        labels: list[str] = []
+        excluded = cls._field_identity_set(exclude_defs or [])
+        for channel in ("x", "y", "color", "xOffset", "yOffset", "column", "row", "shape", "detail"):
+            channel_def = cls._first_channel_def(encoding.get(channel))
+            field = cls._field_from_channel(channel_def)
+            if field is None:
+                continue
+            identity = cls._field_identity(field)
+            if identity in excluded:
+                continue
+            if cls._channel_type(channel_def) == "quantitative" and not isinstance(field, RepeatFieldReference):
+                continue
+            label = cls._field_display_label(field, root=root, time_unit=cls._time_unit_from_channel(channel_def))
+            if label:
+                labels.append(label)
+        return cls._unique_case_insensitive(labels)
+
+    @classmethod
+    def _group_labels(
+        cls,
+        encoding: dict[str, Any],
+        *,
+        root: dict[str, Any],
+        exclude_defs: list[dict[str, Any] | None] | None = None,
+    ) -> list[str]:
+        labels: list[str] = []
+        excluded = cls._field_identity_set(exclude_defs or [])
+        for channel in ("color", "shape", "detail", "xOffset", "yOffset", "column", "row"):
+            channel_def = cls._first_channel_def(encoding.get(channel))
+            field = cls._field_from_channel(channel_def)
+            if field is None:
+                continue
+            identity = cls._field_identity(field)
+            if identity in excluded:
+                continue
+            label = cls._field_display_label(field, root=root, time_unit=cls._time_unit_from_channel(channel_def))
+            if label:
+                labels.append(label)
+        return cls._unique_case_insensitive(labels)
+
+    @classmethod
+    def _join_title(cls, subject: str, relation: str, dimensions: list[str]) -> str:
+        parts = [part.strip() for part in (subject, relation) if part and part.strip()]
+        title = " ".join(parts).strip()
+        unique_dimensions = cls._unique_case_insensitive([item for item in dimensions if item])
+        if unique_dimensions:
+            title = f"{title} by {cls._join_labels(unique_dimensions)}" if title else cls._join_labels(unique_dimensions)
+        return re.sub(r"\s+", " ", title).strip()
+
+    @staticmethod
+    def _join_labels(labels: list[str]) -> str:
+        if not labels:
+            return ""
+        if len(labels) == 1:
+            return labels[0]
+        return f"{', '.join(labels[:-1])} and {labels[-1]}"
+
+    @staticmethod
+    def _field_identity(field: str | RepeatFieldReference | None) -> str:
+        if field is None:
+            return ""
+        if isinstance(field, RepeatFieldReference):
+            return f"repeat:{field.name.lower()}"
+        return f"field:{str(field).strip().lower()}"
+
+    @classmethod
+    def _field_identity_set(cls, channel_defs: list[dict[str, Any] | None]) -> set[str]:
+        return {cls._field_identity(cls._field_from_channel(item)) for item in channel_defs if isinstance(item, dict)}
+
+    @staticmethod
+    def _unique_case_insensitive(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for value in values:
+            text = value.strip()
+            key = text.lower()
+            if text and key not in seen:
+                seen.add(key)
+                result.append(text)
+        return result
+
+    @classmethod
+    def _remove_redundant_color_legend(cls, encoding: dict[str, Any], *, changes: list[str]) -> None:
+        color = cls._first_channel_def(encoding.get("color"))
+        if not isinstance(color, dict):
+            return
+        color_field = cls._field_identity(cls._field_from_channel(color))
+        if not color_field:
+            return
+        for channel in ("x", "y"):
+            channel_def = cls._first_channel_def(encoding.get(channel))
+            if color_field == cls._field_identity(cls._field_from_channel(channel_def)):
+                if color.get("legend") is not None:
+                    color["legend"] = None
+                    changes.append(f"Removed redundant color legend because color duplicates {channel} field.")
+                return
+
+    @staticmethod
+    def _remove_channel_title(channel_def: dict[str, Any], *, changes: list[str], owner: str) -> None:
+        if "title" in channel_def:
+            old_title = channel_def.pop("title")
+            if old_title:
+                changes.append(f"Removed conflicting {owner}.title {old_title!r}; nested title is authoritative.")
 
     @classmethod
     def _primary_measure(cls, encoding: dict[str, Any]) -> dict[str, Any] | None:
@@ -345,13 +559,23 @@ class SpecPresentationConsistencyService:
         return None
 
     @classmethod
-    def _label_for_channel(cls, channel_def: dict[str, Any], *, channel: str, root: dict[str, Any]) -> str:
+    def _label_for_channel(
+        cls,
+        channel_def: dict[str, Any],
+        *,
+        channel: str,
+        root: dict[str, Any],
+        mark_type: str = "",
+    ) -> str:
         field = cls._field_from_channel(channel_def)
         if field is None:
             aggregate = cls._aggregate_from_channel(channel_def)
             return cls._aggregate_label(aggregate) if aggregate else ""
         time_unit = cls._time_unit_from_channel(channel_def)
-        return cls._measure_label(field, aggregate=cls._aggregate_from_channel(channel_def), root=root, time_unit=time_unit)
+        aggregate = cls._aggregate_from_channel(channel_def)
+        if mark_type == "boxplot" and channel == cls.TOOLTIP_CHANNEL:
+            aggregate = ""
+        return cls._measure_label(field, aggregate=aggregate, root=root, time_unit=time_unit)
 
     @classmethod
     def _measure_label(
