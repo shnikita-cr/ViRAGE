@@ -23,7 +23,7 @@ DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/taskvis"
 DEFAULT_OUTPUT = "rag_corpus/extracted/taskvis.jsonl"
 
 
-def extract_taskvis(input_dir: Path) -> list[SourceRecord]:
+def extract_taskvis(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     """Extract TaskVis task-to-visualization guidance source records.
 
     TaskVis is used as a semantic source for analytical task patterns, not as a
@@ -40,6 +40,8 @@ def extract_taskvis(input_dir: Path) -> list[SourceRecord]:
         suffixes=TEXT_SUFFIXES,
         include_keywords=["task", "vis", "visual", "chart", "recommend", "rule", "readme", "paper"],
         exclude_keywords=["license", "package-lock", "node_modules"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=10,
     ))
     records.extend(extract_json_like(
@@ -49,6 +51,8 @@ def extract_taskvis(input_dir: Path) -> list[SourceRecord]:
         preferred_record_type="chart_pattern",
         source_type="taskvis_structured_task_record",
         include_keywords=["task", "vis", "visual", "chart", "rule", "data"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=40,
     ))
     return records

@@ -22,7 +22,7 @@ DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/chartsquared"
 DEFAULT_OUTPUT = "rag_corpus/extracted/chartsquared_rules.jsonl"
 
 
-def extract_chartsquared_rules(input_dir: Path) -> list[SourceRecord]:
+def extract_chartsquared_rules(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     """Extract C²/ChartSquared quality and feedback rules.
 
     This extractor intentionally targets prompts, criteria and feedback-oriented
@@ -39,6 +39,8 @@ def extract_chartsquared_rules(input_dir: Path) -> list[SourceRecord]:
         suffixes=TEXT_SUFFIXES,
         include_keywords=["prompt", "criteria", "feedback", "evaluation", "readability", "chartaf", "uie", "readme"],
         exclude_keywords=["license", "node_modules"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=12,
     ))
     records.extend(extract_json_like(
@@ -48,6 +50,8 @@ def extract_chartsquared_rules(input_dir: Path) -> list[SourceRecord]:
         preferred_record_type="vlm_readability_rule",
         source_type="chartsquared_feedback_criteria_record",
         include_keywords=["prompt", "criteria", "feedback", "evaluation", "chartaf", "uie"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=30,
     ))
     return records

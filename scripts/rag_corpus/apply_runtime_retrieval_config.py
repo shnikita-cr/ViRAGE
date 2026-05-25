@@ -25,8 +25,8 @@ from typing import Any
 from scripts.rag_corpus.common.io import ensure_dir, project_root, write_text
 
 DEFAULT_RECOMMENDED = "rag_corpus/autorag/virage_rules/runtime_retriever_eval/recommended_runtime_config.toml"
-DEFAULT_BASE_CONFIG = "ui/config/project-gemma4-bench_rag.toml"
-DEFAULT_OUTPUT_CONFIG = "ui/config/project-gemma4-bench_rag_autorag.toml"
+DEFAULT_BASE_CONFIG = "ui/config/benchmark/project-gemma4-bench_rag.toml"
+DEFAULT_OUTPUT_CONFIG = "ui/config/benchmark/project-gemma4-bench_rag_autorag.toml"
 ALLOWED_KEYS = {
     "visrag_retriever_backend",
     "visrag_top_k_chart_patterns",

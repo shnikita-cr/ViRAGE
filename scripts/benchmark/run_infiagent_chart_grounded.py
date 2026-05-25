@@ -19,7 +19,7 @@ def main() -> None:
         description="Run ViRAGE on InfiAgent-DABench as a chart-grounded analytical agent.")
     parser.add_argument("--source-root", default=str(DEFAULT_SOURCE_ROOT), help="Default: Datasets/InfiAgent")
     parser.add_argument("--cases", default="artifacts/benchmarks/infiagent_cases.jsonl")
-    parser.add_argument("--config", default="ui/config/project.toml")
+    parser.add_argument("--config", default="ui/config/app/project.toml")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/infiagent_chart_grounded")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--case-id", default=None)

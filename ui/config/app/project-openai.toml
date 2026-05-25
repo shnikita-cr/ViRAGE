@@ -1,0 +1,23 @@
+mode = "streamlit"
+
+[settings]
+visrag_retriever_backend = "openai"
+visrag_embedding_provider = "openai"
+visrag_embedding_model = "text-embedding-3-small"
+visrag_embedding_base_url = ""
+
+[reasoning_model]
+provider = "openai"
+model = "gpt-4.1-mini"
+
+[spec_model]
+provider = "openai"
+model = "gpt-4.1-mini"
+
+[vlm_model]
+provider = "openai"
+model = "gpt-4.1-mini"
+
+[vision_judge_model]
+provider = "openai"
+model = "gpt-4.1-mini"

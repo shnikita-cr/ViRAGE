@@ -16,7 +16,7 @@ from src.benchmark.analysis_runner import ChartGroundedAnalysisBenchmarkRunner
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run ViRAGE as a chart-grounded analytical agent.")
     parser.add_argument("--cases", required=True, help="Path to ViRAGE analysis benchmark JSON/JSONL/CSV cases.")
-    parser.add_argument("--config", default="ui/config/project.toml", help="Path to ViRAGE project config TOML.")
+    parser.add_argument("--config", default="ui/config/app/project.toml", help="Path to ViRAGE project config TOML.")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/chart_grounded_analysis")
     parser.add_argument("--limit", type=int, default=None, help="Optional case limit for smoke runs.")
     parser.add_argument("--case-id", default=None, help="Run a single case id.")

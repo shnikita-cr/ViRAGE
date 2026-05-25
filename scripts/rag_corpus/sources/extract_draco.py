@@ -32,9 +32,11 @@ _RULE_LINE_RE = re.compile(r"^\s*([^%#\n][^\n]{12,})", re.MULTILINE)
 _COMMENT_RE = re.compile(r"^\s*[%#]+\s?(.*)$", re.MULTILINE)
 
 
-def _extract_constraint_records(input_dir: Path) -> list[SourceRecord]:
+def _extract_constraint_records(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     files = iter_candidate_files(input_dir, suffixes={".lp", ".asp", ".pl"} | CODE_SUFFIXES, max_file_size=700_000)
+    from scripts.rag_corpus.sources.extract_external_rules_common import filter_candidate_paths
+    files = filter_candidate_paths(files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     files = [path for path in files if any(token in str(path).replace("\\", "/").lower() for token in ("constraint", "rule", "soft", "hard", "asp", "draco", "recommend", "rank"))]
     for path in files:
         try:
@@ -76,7 +78,7 @@ def _extract_constraint_records(input_dir: Path) -> list[SourceRecord]:
     return records
 
 
-def extract_draco(input_dir: Path) -> list[SourceRecord]:
+def extract_draco(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     records.extend(extract_markdown_like(
         input_dir,
@@ -87,9 +89,11 @@ def extract_draco(input_dir: Path) -> list[SourceRecord]:
         suffixes=TEXT_SUFFIXES,
         include_keywords=["readme", "doc", "constraint", "recommend", "design", "guide", "rank"],
         exclude_keywords=["license"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=10,
     ))
-    records.extend(_extract_constraint_records(input_dir))
+    records.extend(_extract_constraint_records(input_dir, include_paths=include_paths, exclude_paths=exclude_paths))
     return records
 
 

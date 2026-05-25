@@ -27,6 +27,7 @@ from src.services.visual_feedback.feedback_corpus_writer import FeedbackCorpusWr
 
 
 CONFIG_DIR = PROJECT_ROOT / "ui" / "config"
+APP_CONFIG_DIR = CONFIG_DIR / "app"
 
 CHART_MODE_INTERACTIVE = "Interactive plot"
 CHART_MODE_PNG = "PNG plot"
@@ -117,7 +118,8 @@ def resolve_project_path(path: str | Path) -> Path:
 
 
 def discover_config_files() -> list[Path]:
-    files = sorted(CONFIG_DIR.glob("*.toml"))
+    search_dir = APP_CONFIG_DIR if APP_CONFIG_DIR.exists() else CONFIG_DIR
+    files = sorted(search_dir.glob("*.toml"))
 
     default_path = resolve_project_path(DEFAULT_CONFIG_PATH)
     if default_path.exists() and default_path not in files:

@@ -1,0 +1,23 @@
+mode = "streamlit"
+
+[settings]
+visrag_enabled = false
+analytics_tail_enabled = false
+spec_generation_include_visrag_context = false
+semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
+
+[reasoning_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"
+
+[spec_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"
+
+[vlm_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"
+
+[vision_judge_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"

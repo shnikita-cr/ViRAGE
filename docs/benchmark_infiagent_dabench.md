@@ -112,7 +112,7 @@
 
 Если `artifacts/benchmarks/infiagent_cases.jsonl` уже создан:
 
-    python scripts/benchmark/run_chart_grounded_analysis_benchmark.py --cases artifacts/benchmarks/infiagent_cases.jsonl --config ui/config/project.toml --output-dir artifacts/benchmarks/infiagent_chart_grounded --evaluation-mode hybrid
+    python scripts/benchmark/run_chart_grounded_analysis_benchmark.py --cases artifacts/benchmarks/infiagent_cases.jsonl --config ui/config/app/project.toml --output-dir artifacts/benchmarks/infiagent_chart_grounded --evaluation-mode hybrid
 
 ## 8. Evaluation mode
 

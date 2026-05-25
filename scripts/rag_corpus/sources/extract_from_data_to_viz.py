@@ -17,7 +17,7 @@ DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/from_data_to_viz"
 DEFAULT_OUTPUT = "rag_corpus/extracted/from_data_to_viz.jsonl"
 
 
-def extract_from_data_to_viz(input_dir: Path) -> list[SourceRecord]:
+def extract_from_data_to_viz(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     return extract_markdown_like(
         input_dir,
         source_dataset="from_data_to_viz",
@@ -30,6 +30,8 @@ def extract_from_data_to_viz(input_dir: Path) -> list[SourceRecord]:
             "distribution", "correlation", "ranking", "part", "whole", "evolution", "map", "network",
         ],
         exclude_keywords=["license", "node_modules"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=12,
     )
 

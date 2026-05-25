@@ -138,6 +138,15 @@ def _write_source_records(root: Path, *, sources: set[str], chartsquared_mode: s
     progress.finish(extra=f"outputs={len(outputs)}")
     return outputs
 
+def _existing_extracted_paths(root: Path, *, sources: set[str]) -> list[Path]:
+    paths: list[Path] = []
+    for source_name in sorted(sources):
+        path = root / f"rag_corpus/extracted/{source_name}.jsonl"
+        if path.exists():
+            paths.append(path)
+    return paths
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare ViRAGE rule/guidance RAG corpus with mandatory LLM normalization.")
     parser.add_argument("--provider", choices=["ollama", "openai"], required=True)
@@ -168,8 +177,9 @@ def main() -> None:
         help="Maximum number of ChartSquared files to inspect in sample mode, including prompt files.",
     )
     parser.add_argument("--clean-processed", action="store_true", help="Remove processed outputs before running.")
+    parser.add_argument("--skip-extraction", action="store_true", help="Use existing rag_corpus/extracted/<source>.jsonl files instead of running extractors.")
     parser.add_argument("--skip-quality-filter", action="store_true", help="Skip post-deduplication quality filtering.")
-    parser.add_argument("--min-prompt-chars", type=int, default=5, help="Reject normalized rules with shorter prompt_text.")
+    parser.add_argument("--min-prompt-chars", type=int, default=120, help="Reject normalized rules with shorter prompt_text.")
     parser.add_argument("--min-retrieval-chars", type=int, default=24, help="Reject normalized rules with shorter retrieval_text.")
     parser.add_argument("--max-duplicates-per-key", type=int, default=3, help="Limit near-duplicate normalized rules.")
     parser.add_argument("--max-noise-cluster-records", type=int, default=30, help="Limit repeated generic readability clusters.")
@@ -183,12 +193,18 @@ def main() -> None:
     _write_source_inventory(root)
 
     selected_sources = set(args.sources or DEFAULT_SOURCES)
-    input_paths = _write_source_records(
-        root,
-        sources=selected_sources,
-        chartsquared_mode=args.chartsquared_mode,
-        chartsquared_limit=args.chartsquared_limit,
-    )
+    if args.skip_extraction:
+        input_paths = _existing_extracted_paths(root, sources=selected_sources)
+        missing = sorted(source for source in selected_sources if not (root / f"rag_corpus/extracted/{source}.jsonl").exists())
+        if missing:
+            raise FileNotFoundError(f"Missing extracted source files for --skip-extraction: {', '.join(missing)}")
+    else:
+        input_paths = _write_source_records(
+            root,
+            sources=selected_sources,
+            chartsquared_mode=args.chartsquared_mode,
+            chartsquared_limit=args.chartsquared_limit,
+        )
     normalization_report = run_normalization(
         input_paths=input_paths,
         output_dir=root / "rag_corpus/processed/llm_normalized",

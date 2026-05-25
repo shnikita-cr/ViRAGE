@@ -26,9 +26,11 @@ DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/compassql"
 DEFAULT_OUTPUT = "rag_corpus/extracted/compassql.jsonl"
 
 
-def _extract_rank_constraint_code(input_dir: Path) -> list[SourceRecord]:
+def _extract_rank_constraint_code(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     files = iter_candidate_files(input_dir, suffixes={".ts", ".js"}, max_file_size=500_000)
+    from scripts.rag_corpus.sources.extract_external_rules_common import filter_candidate_paths
+    files = filter_candidate_paths(files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     files = [path for path in files if any(token in str(path).replace("\\", "/").lower() for token in ("rank", "constraint", "recommend", "enumerat", "schema", "encoding", "channel"))]
     for path in files:
         try:
@@ -73,7 +75,7 @@ def _extract_rank_constraint_code(input_dir: Path) -> list[SourceRecord]:
     return records
 
 
-def extract_compassql(input_dir: Path) -> list[SourceRecord]:
+def extract_compassql(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     records.extend(extract_markdown_like(
         input_dir,
@@ -84,9 +86,11 @@ def extract_compassql(input_dir: Path) -> list[SourceRecord]:
         suffixes=TEXT_SUFFIXES,
         include_keywords=["readme", "doc", "guide", "recommend", "constraint", "rank", "query", "encoding"],
         exclude_keywords=["license", "node_modules"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=10,
     ))
-    records.extend(_extract_rank_constraint_code(input_dir))
+    records.extend(_extract_rank_constraint_code(input_dir, include_paths=include_paths, exclude_paths=exclude_paths))
     return records
 
 

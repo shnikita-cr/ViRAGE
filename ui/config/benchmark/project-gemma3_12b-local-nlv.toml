@@ -1,0 +1,23 @@
+mode = "streamlit"
+
+[settings]
+visrag_enabled = false
+artifact_root = "./artifacts-nlv-12b"
+analytics_tail_enabled = false
+semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
+
+[reasoning_model]
+provider = "ollama"
+model = "gemma3:12b"
+
+[spec_model]
+provider = "ollama"
+model = "gemma3:12b"
+
+[vlm_model]
+provider = "ollama"
+model = "gemma3:12b"
+
+[vision_judge_model]
+provider = "ollama"
+model = "gemma3:12b"

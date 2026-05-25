@@ -17,7 +17,7 @@ from src.benchmark.runner import VegaChatBenchmarkRunner
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run ViRAGE with VegaChat-compatible benchmark metrics.")
     parser.add_argument("--cases", required=True, help="Path to benchmark JSON/JSONL file or directory.")
-    parser.add_argument("--config", default="ui/config/project.toml", help="Path to ViRAGE project config TOML.")
+    parser.add_argument("--config", default="ui/config/app/project.toml", help="Path to ViRAGE project config TOML.")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/vegachat_compatible",
                         help="Report output directory.")
     parser.add_argument("--limit", type=int, default=None, help="Optional case limit for smoke runs.")

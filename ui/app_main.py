@@ -91,7 +91,7 @@ def run_app() -> None:
             options=labels,
             index=selected_config_index,
             disabled=controls_disabled,
-            help="Choose a TOML config from ui/config before running the pipeline.",
+            help="Choose an app TOML config from ui/config/app before running the pipeline.",
         )
         selected_config_path = path_from_config_label(selected_config_label, config_files)
         try:

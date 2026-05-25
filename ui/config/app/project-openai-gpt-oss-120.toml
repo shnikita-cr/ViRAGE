@@ -1,0 +1,17 @@
+mode = "streamlit"
+
+[reasoning_model]
+provider = "ollama"
+model = "gpt-oss:120b-cloud"
+
+[spec_model]
+provider = "ollama"
+model = "gpt-oss:120b-cloud"
+
+[vlm_model]
+provider = "ollama"
+model = "gpt-oss:120b-cloud"
+
+[vision_judge_model]
+provider = "ollama"
+model = "gpt-oss:120b-cloud"

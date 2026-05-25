@@ -78,29 +78,51 @@ TaskVis сейчас не используется в основном корп�
 
 ## 5. Извлечь внешние источники до LLM-нормализации
 
-    python scripts\rag_corpus\sources\extract_draco.py
-    python scripts\rag_corpus\sources\extract_from_data_to_viz.py
-    python scripts\rag_corpus\sources\extract_ft_visual_vocabulary.py
-    python scripts\rag_corpus\sources\extract_compassql.py
-    python scripts\rag_corpus\sources\extract_chartsquared_rules.py
+Извлекатели не должны обходить весь репозиторий источника без отбора. Для каждого источника явно задаются допустимые части пути через `--include-path`, а системные, тестовые и программные области дополнительно отсекаются через `--exclude-path`.
+
+Draco:
+
+    python scripts\rag_corpus\sources\extract_draco.py --include-path docs --include-path constraint --include-path constraints --include-path asp --include-path rules --include-path README.md --exclude-path tests --exclude-path examples --exclude-path node_modules --exclude-path .git
+
+From Data to Viz:
+
+    python scripts\rag_corpus\sources\extract_from_data_to_viz.py --include-path .rmd --include-path readme --include-path caveat --include-path mistake --include-path story --include-path input --exclude-path _site --exclude-path assets --exclude-path static --exclude-path node_modules --exclude-path .git
+
+Financial Times Visual Vocabulary:
+
+    python scripts\rag_corpus\sources\extract_ft_visual_vocabulary.py --include-path visual-vocabulary --include-path README.md --exclude-path node_modules --exclude-path .git
+
+CompassQL:
+
+    python scripts\rag_corpus\sources\extract_compassql.py --include-path README.md --include-path docs --include-path src/rank --include-path src/constraint --include-path src/encoding --include-path src/query --exclude-path test --exclude-path examples --exclude-path website --exclude-path node_modules --exclude-path .git
+
+ChartSquared / C²:
+
+    python scripts\rag_corpus\sources\extract_chartsquared_rules.py --include-path prompt --include-path prompts --include-path criteria --include-path feedback --include-path evaluation --include-path chartaf --include-path chartuie --include-path README.md --exclude-path images --exclude-path assets --exclude-path node_modules --exclude-path .git
 
 Проверить количество исходных записей:
 
     python -c "from pathlib import Path; [print(p.name, sum(1 for _ in p.open(encoding='utf-8'))) for p in Path('rag_corpus/extracted').glob('*.jsonl')]"
 
+Если какой-то источник дал 0 записей, сначала проверь реальные пути внутри скачанного репозитория:
+
+    Get-ChildItem rag_corpus\raw_external_rules\<source> -Recurse -File | Select-Object -First 50 FullName
+
+После ручного извлечения дальнейшая подготовка запускается с `--skip-extraction`, чтобы `run_prepare_corpus.py` не обходил исходные репозитории повторно.
+
 ## 6. LLM-нормализация, точная дедупликация, фильтры и валидация
 
 Основной запуск:
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --clean-processed
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --clean-processed --skip-extraction
 
 Продолжить после обрыва:
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --resume
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --resume --skip-extraction
 
 Повторить только упавшие записи:
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --retry-failed
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --retry-failed --skip-extraction
 
 После этого должны появиться:
 
@@ -272,11 +294,11 @@ Evaluate на test:
 
 Если AutoRAG выбрал конфигурацию, создать benchmark runtime-config:
 
-    python scripts\rag_corpus\apply_runtime_retrieval_config.py --base-config ui\config\project-gemma4-bench_rag.toml --output-config ui\config\project-gemma4-bench_rag_autorag.toml
+    python scripts\rag_corpus\apply_runtime_retrieval_config.py --base-config ui\config\benchmark\project-gemma4-bench_rag.toml --output-config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml
 
 Проверить:
 
-    Test-Path ui\config\project-gemma4-bench_rag_autorag.toml
+    Test-Path ui\config\benchmark\project-gemma4-bench_rag_autorag.toml
 
 Для текущего корпуса AutoRAG ранее показывал, что лучший режим — BM25 с `top_k=1`. Поэтому для NLV нужно использовать строгий config, где лишние readability/plot-area/VLM правила не добавляют шум.
 
@@ -302,11 +324,11 @@ Evaluate на test:
 
 NLV без RAG, smoke:
 
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag_smoke --limit 20 --disable-analytics-tail
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\benchmark\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag_smoke --limit 20 --disable-analytics-tail
 
 NLV RAG после AutoRAG, smoke:
 
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag_smoke --limit 20 --disable-analytics-tail
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag_smoke --limit 20 --disable-analytics-tail
 
 Сравнение smoke:
 
@@ -314,11 +336,11 @@ NLV RAG после AutoRAG, smoke:
 
 Полный NLV без RAG:
 
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --disable-analytics-tail
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\benchmark\project-gemma4-bench_norag.toml --output-dir artifacts\benchmarks\nlv_no_rag --disable-analytics-tail
 
 Полный NLV RAG после AutoRAG:
 
-    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag --disable-analytics-tail
+    python scripts\benchmark\run_vegachat_compatible_benchmark.py --cases .\datasets\nlv_corpus\ --config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\nlv_rag_autorag --disable-analytics-tail
 
 Сравнение:
 
@@ -334,11 +356,11 @@ NLV RAG после AutoRAG, smoke:
 
 Smoke:
 
-    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag_20 --limit 20
+    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag_20 --limit 20
 
 Полный запуск:
 
-    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag
+    python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag
 
 Отчёт:
 
@@ -349,7 +371,7 @@ Smoke:
 Перед финальным benchmark должны быть готовы:
 
     Test-Path rag_corpus\runtime\virage_rules.jsonl
-    Test-Path ui\config\project-gemma4-bench_rag_autorag.toml
+    Test-Path ui\config\benchmark\project-gemma4-bench_rag_autorag.toml
     Test-Path .\datasets\nlv_corpus\NLV_Corpus.csv
     Test-Path .\datasets\nlv_corpus\vlSpecs.json
     Test-Path .\datasets\nlv_corpus\datasets

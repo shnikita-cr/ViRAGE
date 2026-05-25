@@ -17,7 +17,7 @@ DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/ft_visual_vocabulary"
 DEFAULT_OUTPUT = "rag_corpus/extracted/ft_visual_vocabulary.jsonl"
 
 
-def extract_ft_visual_vocabulary(input_dir: Path) -> list[SourceRecord]:
+def extract_ft_visual_vocabulary(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     return extract_markdown_like(
         input_dir,
         source_dataset="ft_visual_vocabulary",
@@ -30,6 +30,8 @@ def extract_ft_visual_vocabulary(input_dir: Path) -> list[SourceRecord]:
             "deviation", "magnitude", "part-to-whole", "spatial", "flow", "readme",
         ],
         exclude_keywords=["license", "node_modules"],
+        include_paths=include_paths,
+        exclude_paths=exclude_paths,
         max_records_per_file=16,
     )
 

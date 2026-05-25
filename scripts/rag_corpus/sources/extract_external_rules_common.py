@@ -276,6 +276,31 @@ def keyword_score(path: Path, keywords: Iterable[str]) -> int:
     return sum(1 for keyword in keywords if keyword.lower() in haystack)
 
 
+def path_pattern_score(path: Path, patterns: Iterable[str], *, base_dir: Path | None = None) -> int:
+    if base_dir and path.is_relative_to(base_dir):
+        haystack = path.relative_to(base_dir).as_posix().lower()
+    else:
+        haystack = path.as_posix().lower()
+    return sum(1 for pattern in patterns if pattern.lower().replace("\\", "/") in haystack)
+
+
+def filter_candidate_paths(
+    files: list[Path],
+    *,
+    base_dir: Path,
+    include_paths: Iterable[str] | None = None,
+    exclude_paths: Iterable[str] | None = None,
+) -> list[Path]:
+    include_paths = list(include_paths or [])
+    exclude_paths = list(exclude_paths or [])
+    result = files
+    if include_paths:
+        result = [path for path in result if path_pattern_score(path, include_paths, base_dir=base_dir) > 0]
+    if exclude_paths:
+        result = [path for path in result if path_pattern_score(path, exclude_paths, base_dir=base_dir) == 0]
+    return result
+
+
 def make_source_record(
     *,
     input_dir: Path,
@@ -318,12 +343,15 @@ def extract_markdown_like(
     suffixes: set[str] | None = None,
     include_keywords: list[str] | None = None,
     exclude_keywords: list[str] | None = None,
+    include_paths: list[str] | None = None,
+    exclude_paths: list[str] | None = None,
     max_records_per_file: int = DEFAULT_MAX_RECORDS_PER_FILE,
 ) -> list[SourceRecord]:
     suffixes = suffixes or TEXT_SUFFIXES
     include_keywords = include_keywords or []
     exclude_keywords = exclude_keywords or []
     files = iter_candidate_files(input_dir, suffixes=suffixes)
+    files = filter_candidate_paths(files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     if include_keywords:
         files = [path for path in files if keyword_score(path, include_keywords) > 0 or path.name.lower() in {"readme.md", "index.md"}]
     if exclude_keywords:
@@ -374,10 +402,13 @@ def extract_json_like(
     preferred_record_type: str,
     source_type: str,
     include_keywords: list[str] | None = None,
+    include_paths: list[str] | None = None,
+    exclude_paths: list[str] | None = None,
     max_records_per_file: int = DEFAULT_MAX_RECORDS_PER_FILE,
 ) -> list[SourceRecord]:
     include_keywords = include_keywords or []
     files = iter_candidate_files(input_dir, suffixes={".json", ".jsonl"})
+    files = filter_candidate_paths(files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     if include_keywords:
         files = [path for path in files if keyword_score(path, include_keywords) > 0]
     records: list[SourceRecord] = []
@@ -430,8 +461,13 @@ def write_extractor_cli(
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--input-dir", default=default_input_dir)
     parser.add_argument("--output", default=default_OUTPUT if False else default_output)
+    parser.add_argument("--include-path", action="append", default=[], help="Only inspect files whose relative path contains this fragment. Can be repeated.")
+    parser.add_argument("--exclude-path", action="append", default=[], help="Skip files whose relative path contains this fragment. Can be repeated.")
     args = parser.parse_args()
     root = project_root()
-    records = extractor(root / args.input_dir)
+    try:
+        records = extractor(root / args.input_dir, include_paths=args.include_path, exclude_paths=args.exclude_path)
+    except TypeError:
+        records = extractor(root / args.input_dir)
     write_jsonl(root / args.output, [record.model_dump() for record in records])
     print(f"Wrote {len(records)} source records to {args.output}")
