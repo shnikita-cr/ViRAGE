@@ -27,3 +27,4 @@ langsmith
 langchain-anthropic
 langchain-ollama
 PyYAML
+beautifulsoup4

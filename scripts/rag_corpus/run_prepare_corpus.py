@@ -116,6 +116,7 @@ def _deduplicate_file(root: Path) -> tuple[list[dict], list[dict], Path]:
 
 def _write_source_records(root: Path, *, sources: set[str]) -> list[Path]:
     outputs: list[Path] = []
+    extraction_report: dict[str, dict] = {}
     extractor_specs = [
         ("ft_visual_vocabulary", extract_ft_visual_vocabulary, root / "rag_corpus/raw_external_rules/ft_visual_vocabulary"),
         ("from_data_to_viz", extract_from_data_to_viz, root / "rag_corpus/raw_external_rules/from_data_to_viz"),
@@ -132,14 +133,32 @@ def _write_source_records(root: Path, *, sources: set[str]) -> list[Path]:
     extractors = [item for item in extractor_specs if item[0] in sources]
     progress = StageProgress("extraction", total=len(extractors))
     for name, func, input_dir in extractors:
+        out_path = root / f"rag_corpus/extracted/{name}.jsonl"
         try:
             records = func(input_dir)
-            out_path = root / f"rag_corpus/extracted/{name}.jsonl"
             write_jsonl(out_path, [record.model_dump() for record in records])
             outputs.append(out_path)
+            extraction_report[name] = {
+                "status": "ok",
+                "records": len(records),
+                "output": str(out_path.relative_to(root)),
+                "input_dir": str(input_dir.relative_to(root)) if input_dir.is_relative_to(root) else str(input_dir),
+            }
             progress.update(extra=f"{name}: {len(records)} records")
         except Exception as exc:  # noqa: BLE001
+            # Always create an empty file so missing extracted files do not hide failures.
+            write_jsonl(out_path, [])
+            outputs.append(out_path)
+            extraction_report[name] = {
+                "status": "failed",
+                "records": 0,
+                "output": str(out_path.relative_to(root)),
+                "input_dir": str(input_dir.relative_to(root)) if input_dir.is_relative_to(root) else str(input_dir),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            }
             progress.update(error_increment=1, extra=f"{name}: failed {type(exc).__name__}: {exc}")
+    write_json(root / "rag_corpus/reports/extraction_report.json", extraction_report)
     progress.finish(extra=f"outputs={len(outputs)}")
     return outputs
 

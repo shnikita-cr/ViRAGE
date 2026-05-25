@@ -18,6 +18,8 @@ DEFAULT_OUTPUT = "rag_corpus/extracted/ft_visual_vocabulary.jsonl"
 
 
 def extract_ft_visual_vocabulary(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
+    # The cloned chart-doctor repository contains unrelated examples.
+    # Keep only the Visual Vocabulary source page/README.
     return extract_markdown_like(
         input_dir,
         source_dataset="ft_visual_vocabulary",
@@ -25,14 +27,11 @@ def extract_ft_visual_vocabulary(input_dir: Path, *, include_paths: list[str] | 
         preferred_record_type="chart_pattern",
         source_type="ft_visual_vocabulary_task_taxonomy",
         suffixes=TEXT_SUFFIXES,
-        include_keywords=[
-            "visual-vocabulary", "vocabulary", "ranking", "distribution", "correlation", "change",
-            "deviation", "magnitude", "part-to-whole", "spatial", "flow", "readme",
-        ],
+        include_keywords=["visual-vocabulary", "readme"],
         exclude_keywords=["license", "node_modules"],
-        include_paths=include_paths,
-        exclude_paths=exclude_paths,
-        max_records_per_file=16,
+        include_paths=include_paths or ["visual-vocabulary/README.md"],
+        exclude_paths=exclude_paths or ["priestley-timeline", ".git", "images", "poster"],
+        max_records_per_file=24,
     )
 
 

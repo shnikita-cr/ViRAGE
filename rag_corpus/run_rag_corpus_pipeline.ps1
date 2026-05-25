@@ -40,8 +40,13 @@ function Ensure-GitClone {
         [string]$Path
     )
     if (Test-Path $Path) {
-        Write-Host "exists: $Path"
-        return
+        if (Test-Path (Join-Path $Path ".git")) {
+            Write-Host "exists: $Path"
+            git -C $Path pull --ff-only
+            return
+        }
+        Write-Warning "Existing path is not a git repository, recreating: $Path"
+        Remove-Item -Recurse -Force $Path
     }
     git clone $Url $Path
 }
@@ -49,19 +54,76 @@ function Ensure-GitClone {
 function Save-WebSource {
     param(
         [string]$Url,
-        [string]$Output
+        [string]$Output,
+        [int]$MinBytes = 500,
+        [switch]$ForceRefresh
     )
     Ensure-Directory (Split-Path $Output -Parent)
+    $needsDownload = $true
     if (Test-Path $Output) {
-        Write-Host "exists: $Output"
+        $existing = Get-Item $Output
+        if ($ForceRefresh) {
+            Write-Host "refresh: $Output"
+            Remove-Item -Force $Output -ErrorAction SilentlyContinue
+        }
+        elseif ($existing.Length -ge $MinBytes) {
+            Write-Host "exists: $Output"
+            $needsDownload = $false
+        }
+        else {
+            Write-Warning "Existing file is too small, redownloading: $Output"
+            Remove-Item -Force $Output -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not $needsDownload) {
         return
     }
+    $headers = @{
+        "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36"
+        "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7"
+    }
     try {
-        Invoke-WebRequest $Url -OutFile $Output
+        Invoke-WebRequest -Uri $Url -Headers $headers -OutFile $Output -UseBasicParsing
     }
     catch {
         Write-Warning "Cannot download $Url. Save this page manually to $Output"
     }
+    if (Test-Path $Output) {
+        $downloaded = Get-Item $Output
+        if ($downloaded.Length -lt $MinBytes) {
+            Write-Warning "Downloaded file is suspiciously small: $Output ($($downloaded.Length) bytes)"
+        }
+    }
+}
+
+
+function Expand-ZipIfMissing {
+    param(
+        [string]$ZipPath,
+        [string]$Destination,
+        [string]$ExpectedFile
+    )
+    if (Test-Path $ExpectedFile) {
+        Write-Host "exists: $ExpectedFile"
+        return
+    }
+    if (-not (Test-Path $ZipPath)) {
+        Write-Warning "Cannot unzip missing archive: $ZipPath"
+        return
+    }
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $ZipPath))
+        $archive.Dispose()
+    }
+    catch {
+        Write-Warning "Invalid zip archive: $ZipPath. Remove it and rerun the pipeline."
+        Remove-Item -Force $ExpectedFile -ErrorAction SilentlyContinue
+        return
+    }
+    Ensure-Directory $Destination
+    Expand-Archive -Path $ZipPath -DestinationPath $Destination -Force
+    New-Item -ItemType File -Force $ExpectedFile | Out-Null
 }
 
 function Find-TrialPath {
@@ -76,7 +138,7 @@ function Find-TrialPath {
 if (-not $SkipEnvironmentCheck) {
     Invoke-Step "Environment check" {
         python -Wdefault -m compileall -q src ui scripts tests
-        pytest -q tests
+        pytest -q
         ollama list
         python -c "import requests; print(requests.get('http://localhost:11434/api/tags').json().keys())"
     }
@@ -88,7 +150,17 @@ if (-not $SkipDownload) {
 
         Ensure-GitClone "https://github.com/Financial-Times/chart-doctor.git" "rag_corpus\raw_external_rules\ft_visual_vocabulary"
         Ensure-GitClone "https://github.com/holtzy/data_to_viz.git" "rag_corpus\raw_external_rules\from_data_to_viz"
+        Save-WebSource "https://www.data-to-viz.com/caveats.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\caveats.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://www.data-to-viz.com/graph/barplot.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\barplot.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://www.data-to-viz.com/graph/line.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\line.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://www.data-to-viz.com/graph/scatter.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\scatter.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://www.data-to-viz.com/graph/histogram.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\histogram.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://www.data-to-viz.com/graph/boxplot.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\boxplot.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://www.data-to-viz.com/graph/treemap.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\treemap.html" -MinBytes 2000 -ForceRefresh
         Ensure-GitClone "https://github.com/mitvis/vistext.git" "rag_corpus\raw_external_rules\vistext"
+        Save-WebSource "https://vis.csail.mit.edu/vistext/tabular.zip" "rag_corpus\raw_external_rules\vistext\data\tabular.zip" -MinBytes 100000 -ForceRefresh
+        Remove-Item -Force "rag_corpus\raw_external_rules\vistext\data\.tabular_unzipped" -ErrorAction SilentlyContinue
+        Expand-ZipIfMissing "rag_corpus\raw_external_rules\vistext\data\tabular.zip" "rag_corpus\raw_external_rules\vistext\data" "rag_corpus\raw_external_rules\vistext\data\.tabular_unzipped"
 
         Save-WebSource "https://datavizcatalogue.com/" "rag_corpus\raw_external_rules\data_visualisation_catalogue\index.html"
         Save-WebSource "https://datavizcatalogue.com/methods/bar_chart.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\bar_chart.html"
@@ -97,9 +169,11 @@ if (-not $SkipDownload) {
         Save-WebSource "https://datavizcatalogue.com/methods/histogram.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\histogram.html"
         Save-WebSource "https://datavizcatalogue.com/methods/treemap.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\treemap.html"
 
-        Save-WebSource "https://carbondesignsystem.com/data-visualization/chart-anatomy/" "rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html"
-        Save-WebSource "https://carbondesignsystem.com/data-visualization/legends/" "rag_corpus\raw_external_rules\ibm_carbon_legends\index.html"
-        Save-WebSource "https://designsystem.digital.gov/components/data-visualizations/" "rag_corpus\raw_external_rules\uswds_data_visualizations\index.html"
+        Save-WebSource "https://carbondesignsystem.com/data-visualization/chart-anatomy/" "rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://v10.carbondesignsystem.com/data-visualization/chart-anatomy/" "rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\v10.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://carbondesignsystem.com/data-visualization/legends/" "rag_corpus\raw_external_rules\ibm_carbon_legends\index.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://v10.carbondesignsystem.com/data-visualization/legends/" "rag_corpus\raw_external_rules\ibm_carbon_legends\v10.html" -MinBytes 2000 -ForceRefresh
+        Save-WebSource "https://designsystem.digital.gov/components/data-visualizations/" "rag_corpus\raw_external_rules\uswds_data_visualizations\index.html" -MinBytes 2000 -ForceRefresh
         Save-WebSource "https://urbaninstitute.github.io/graphics-styleguide/" "rag_corpus\raw_external_rules\urban_institute_style_guide\index.html"
         Save-WebSource "https://www.w3.org/WAI/tutorials/images/complex/" "rag_corpus\raw_external_rules\w3c_wai_complex_images\index.html"
     }

@@ -11,6 +11,10 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 import argparse
 import json
 import re
+import unicodedata
+import urllib.error
+import urllib.request
+from bs4 import BeautifulSoup, Tag
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -38,12 +42,15 @@ _BINARY_SUFFIXES = {
 
 
 _VISUALIZATION_TERMS = {
-    "chart", "plot", "visual", "visualization", "visualisation", "graph", "axis", "axes",
-    "legend", "tooltip", "label", "mark", "encoding", "channel", "aggregate", "aggregation",
+    "chart", "charts", "plot", "plots", "visual", "visualization", "visualizations",
+    "visualisation", "visualisations", "graph", "graphs", "axis", "axes",
+    "legend", "legends", "tooltip", "tooltips", "label", "labels", "caption", "captions",
+    "description", "descriptions", "mark", "marks", "encoding", "channel", "channels", "aggregate", "aggregation",
     "bin", "histogram", "scatter", "line", "bar", "map", "choropleth", "heatmap", "boxplot",
     "violin", "distribution", "correlation", "trend", "ranking", "comparison", "compare",
     "category", "categorical", "quantitative", "temporal", "time", "date", "color", "size",
-    "facet", "sort", "filter", "scale", "readability", "overplot", "outlier", "data",
+    "facet", "facets", "sort", "filter", "scale", "readability", "accessibility",
+    "contrast", "text", "summary", "summaries", "overplot", "outlier", "data",
 }
 
 _SOURCE_NOISE_PATTERNS = [
@@ -130,6 +137,56 @@ def read_text_with_fallback(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+
+
+def fetch_url_text(url: str, *, timeout_seconds: float = 30.0) -> str:
+    """Download a text page with a browser-like user agent.
+
+    This is used only as a fallback for web-only guidance sources when the
+    local raw page is missing, empty or was saved as a placeholder page.
+    """
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
+        raw = response.read()
+        content_type = response.headers.get("content-type", "")
+    encoding = "utf-8"
+    match = re.search(r"charset=([^;]+)", content_type, flags=re.IGNORECASE)
+    if match:
+        encoding = match.group(1).strip()
+    try:
+        return raw.decode(encoding, errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def looks_like_failed_download(text: str) -> bool:
+    sample = compact_text(text, max_chars=3000).lower()
+    if len(sample) < 300:
+        return True
+    return any(
+        marker in sample
+        for marker in (
+            "access denied",
+            "forbidden",
+            "temporarily unavailable",
+            "just a moment",
+            "enable javascript",
+            "checking your browser",
+            "cloudflare",
+        )
+    )
+
+
 def is_ignored_path(path: Path) -> bool:
     lower_parts = {part.lower() for part in path.parts}
     if lower_parts & _SKIP_PARTS:
@@ -163,6 +220,151 @@ def clean_markdown(text: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+
+def clean_extracted_text(text: str, *, max_chars: int | None = None) -> str:
+    """Normalize text extracted from HTML/Markdown and remove common page noise."""
+    text = unicodedata.normalize("NFKC", str(text or ""))
+    text = re.sub(r"\xa0", " ", text)
+    text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if max_chars is not None and len(text) > max_chars:
+        return text[: max(0, max_chars - 1)].rstrip() + "…"
+    return text
+
+
+_HTML_NOISE_SELECTOR = ", ".join([
+    "script", "style", "noscript", "template", "svg", "canvas", "iframe", "form",
+    "button", "input", "select", "textarea", "nav", "header", "footer",
+    "[aria-hidden='true']", "[hidden]",
+])
+_HTML_NOISE_ATTR_RE = re.compile(
+    r"(cookie|consent|breadcrumb|site-header|site-footer|sidebar|search|modal|newsletter|"
+    r"banner|skip-link|pagination|social|sharing|advert|analytics|gtag|google-tag|"
+    r"nav-|navigation|masthead)",
+    re.IGNORECASE,
+)
+_HTML_TEXT_TAGS = {"p", "li", "dt", "dd", "figcaption", "caption", "blockquote"}
+_HTML_HEADING_TAGS = {"h1", "h2", "h3", "h4"}
+_HTML_MAIN_SELECTORS = [
+    "main", "article", "[role='main']", "#main-content", ".main-content",
+    ".usa-prose", ".content", "body",
+]
+_HTML_LINE_NOISE = {
+    "copy to clipboard",
+    "skip to content",
+    "skip to main content",
+    "search",
+    "menu",
+    "collapse navigation items",
+    "have questions? email us",
+}
+
+
+def _remove_html_noise(soup: BeautifulSoup) -> None:
+    for element in soup.select(_HTML_NOISE_SELECTOR):
+        element.decompose()
+    for element in list(soup.find_all(True)):
+        attrs = " ".join(
+            str(value)
+            for key in ("id", "class", "role")
+            for value in ([element.get(key)] if isinstance(element.get(key), str) else (element.get(key) or []))
+        )
+        if attrs and _HTML_NOISE_ATTR_RE.search(attrs):
+            element.decompose()
+
+
+def _clean_html_line(value: str) -> str:
+    line = clean_extracted_text(value)
+    if not line:
+        return ""
+    lower = line.lower().strip()
+    if lower in _HTML_LINE_NOISE:
+        return ""
+    if lower.startswith(("window.", "function ", "gtag(", "var ", "const ", "let ")):
+        return ""
+    if re.search(r"\b(dataLayer|cookieconsent|googletagmanager|schema\.org|__NEXT_DATA__)\b", line):
+        return ""
+    if len(line) < 3:
+        return ""
+    return line
+
+
+def _best_html_root(soup: BeautifulSoup) -> Tag:
+    candidates: list[Tag] = []
+    for selector in _HTML_MAIN_SELECTORS:
+        candidates.extend([node for node in soup.select(selector) if isinstance(node, Tag)])
+    if not candidates:
+        body = soup.body if soup.body else soup
+        return body  # type: ignore[return-value]
+    return max(candidates, key=lambda node: len(node.get_text(" ", strip=True)))
+
+
+def extract_html_sections(
+    html_text: str,
+    *,
+    fallback_title: str,
+    min_chars: int = 120,
+    max_chars: int = DEFAULT_MAX_TEXT_CHARS,
+) -> list[tuple[str, str]]:
+    """Extract clean semantic sections from saved HTML pages.
+
+    The function is intentionally conservative: it removes scripts, navigation,
+    cookie banners and other page chrome, then keeps text grouped by headings.
+    """
+    soup = BeautifulSoup(html_text, "html.parser")
+    _remove_html_noise(soup)
+    root = _best_html_root(soup)
+
+    sections: list[tuple[str, list[str]]] = []
+    current_title = fallback_title
+    current_lines: list[str] = []
+    seen_lines: set[str] = set()
+
+    def flush() -> None:
+        nonlocal current_lines
+        if current_lines:
+            sections.append((current_title, current_lines))
+            current_lines = []
+
+    for element in root.find_all([*_HTML_HEADING_TAGS, *_HTML_TEXT_TAGS], recursive=True):
+        if not isinstance(element, Tag):
+            continue
+        line = _clean_html_line(element.get_text(" ", strip=True))
+        if not line:
+            continue
+        if element.name in _HTML_HEADING_TAGS:
+            flush()
+            current_title = clean_extracted_text(line, max_chars=160)
+            seen_lines.clear()
+            continue
+        key = line.lower()
+        if key in seen_lines:
+            continue
+        seen_lines.add(key)
+        current_lines.append(line)
+    flush()
+
+    result: list[tuple[str, str]] = []
+    for title, lines in sections:
+        body = clean_extracted_text(" ".join(lines))
+        if len(body) < min_chars:
+            continue
+        if len(body) <= max_chars:
+            result.append((title, body))
+            continue
+        for index, chunk in enumerate(chunk_text(body, max_chars=max_chars, min_chars=min_chars), start=1):
+            result.append((f"{title} #{index}", chunk))
+
+    if result:
+        return result
+
+    fallback_text = clean_extracted_text(root.get_text(" ", strip=True))
+    return [
+        (fallback_title, chunk)
+        for chunk in chunk_text(fallback_text, max_chars=max_chars, min_chars=min_chars)
+    ]
 
 
 def split_markdown_sections(text: str, *, min_chars: int = 180, max_chars: int = DEFAULT_MAX_TEXT_CHARS) -> list[tuple[str, str]]:
@@ -362,10 +564,13 @@ def extract_markdown_like(
             text = read_text_with_fallback(path)
         except Exception:
             continue
-        sections = split_markdown_sections(text)
-        if not sections:
-            cleaned = clean_markdown(text)
-            sections = [(path.stem.replace("_", " "), chunk) for chunk in chunk_text(cleaned)]
+        if path.suffix.lower() in {".html", ".htm"}:
+            sections = extract_html_sections(text, fallback_title=path.stem.replace("_", " "))
+        else:
+            sections = split_markdown_sections(text)
+            if not sections:
+                cleaned = clean_markdown(text)
+                sections = [(path.stem.replace("_", " "), chunk) for chunk in chunk_text(cleaned)]
         kept_in_file = 0
         for title, body in sections:
             keep, reason = is_relevant_visualization_source(

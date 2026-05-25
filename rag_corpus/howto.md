@@ -56,6 +56,10 @@
     git clone https://github.com/Financial-Times/chart-doctor.git rag_corpus\raw_external_rules\ft_visual_vocabulary
     git clone https://github.com/holtzy/data_to_viz.git rag_corpus\raw_external_rules\from_data_to_viz
     git clone https://github.com/mitvis/vistext.git rag_corpus\raw_external_rules\vistext
+    Invoke-WebRequest -Headers @{"User-Agent"="Mozilla/5.0"} https://vis.csail.mit.edu/vistext/tabular.zip -OutFile rag_corpus\raw_external_rules\vistext\data\tabular.zip
+    Expand-Archive -Path rag_corpus\raw_external_rules\vistext\data\tabular.zip -DestinationPath rag_corpus\raw_external_rules\vistext\data -Force
+
+Для VisText извлекатель ищет `data_train.json`, `data_validation.json`, `data_test.json`, JSON/JSONL/CSV/TSV/Parquet-файлы, а также текстовые пары `.source`/`.target` из `tabular.zip`. README репозитория в корпус не добавляется.
 
 HTML-источники:
 
@@ -68,10 +72,10 @@ HTML-источники:
     Invoke-WebRequest https://datavizcatalogue.com/methods/treemap.html -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\treemap.html
 
     New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy
-    Invoke-WebRequest https://carbondesignsystem.com/data-visualization/chart-anatomy/ -OutFile rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html
+    Invoke-WebRequest -Headers @{"User-Agent"="Mozilla/5.0"} https://carbondesignsystem.com/data-visualization/chart-anatomy/ -OutFile rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html
 
     New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\ibm_carbon_legends
-    Invoke-WebRequest https://carbondesignsystem.com/data-visualization/legends/ -OutFile rag_corpus\raw_external_rules\ibm_carbon_legends\index.html
+    Invoke-WebRequest -Headers @{"User-Agent"="Mozilla/5.0"} https://carbondesignsystem.com/data-visualization/legends/ -OutFile rag_corpus\raw_external_rules\ibm_carbon_legends\index.html
 
     New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\uswds_data_visualizations
     Invoke-WebRequest https://designsystem.digital.gov/components/data-visualizations/ -OutFile rag_corpus\raw_external_rules\uswds_data_visualizations\index.html
@@ -87,6 +91,9 @@ HTML-источники:
     Test-Path rag_corpus\raw_external_rules\ft_visual_vocabulary
     Test-Path rag_corpus\raw_external_rules\from_data_to_viz
     Test-Path rag_corpus\raw_external_rules\vistext
+    Test-Path rag_corpus\raw_external_rules\vistext\data\data_train.json
+    Test-Path rag_corpus\raw_external_rules\vistext\data\data_validation.json
+    Test-Path rag_corpus\raw_external_rules\vistext\data\data_test.json
     Test-Path rag_corpus\raw_external_rules\data_visualisation_catalogue\index.html
     Test-Path rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html
     Test-Path rag_corpus\raw_external_rules\ibm_carbon_legends\index.html
@@ -119,6 +126,8 @@ HTML-источники:
     rag_corpus\processed\all_rules.filtered.jsonl
     rag_corpus\processed\all_rules.validated.jsonl
     rag_corpus\processed\processing_report.md
+    rag_corpus
+eports\extraction_report.json
 
 Проверить количество извлечённых записей:
 
@@ -249,3 +258,8 @@ NLV остаётся только внешним набором для пров�
     NLV отсутствует в all_rules.validated.jsonl
     ручная проверка возвращает правила выбора графика, читаемости, подписей, легенд и текстового описания
     NLV smoke не показывает рост broken_by_rag и visualization_error_rate
+
+## Примечание по извлечению источников качества графиков
+
+Пайплайн дополнительно сохраняет несколько прямых HTML-страниц From Data to Viz, IBM Carbon и USWDS. Это нужно, чтобы извлечение не зависело только от текущей структуры репозиториев. VisText обрабатывается только как структурированный набор подписей и таблиц; файлы метрик, предсказаний и результатов моделей исключаются.
+
