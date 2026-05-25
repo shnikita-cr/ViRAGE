@@ -164,6 +164,21 @@ _STATIC_FALLBACK_SECTIONS: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 
+
+def _remote_fallback_path(input_dir: Path, fallback_url: str) -> Path:
+    safe_name = (
+        fallback_url.replace("https://", "")
+        .replace("http://", "")
+        .replace("/", "__")
+        .replace("?", "_")
+        .replace("&", "_")
+        .replace(":", "_")
+    )
+    if not safe_name.endswith(".html"):
+        safe_name += ".html"
+    return input_dir / "__remote_fallback__" / safe_name
+
+
 def _append_static_fallback_records(
     records: list[SourceRecord],
     *,
@@ -173,19 +188,7 @@ def _append_static_fallback_records(
 ) -> None:
     source = QUALITY_CORPUS_BY_ID[source_id]
     for title, body in _STATIC_FALLBACK_SECTIONS.get(source_id, ()):  # last-resort official text snippets
-        keep, reason = is_relevant_visualization_source(
-            title=title,
-            text=body,
-            path=input_dir / "__static_source_fallback__.md",
-            source_dataset=source_id,
-            source_type="visual_quality_static_fallback",
-            min_chars=40,
-        )
-        if not keep and _source_specific_keep(source_id, title, body):
-            keep = True
-            reason = f"source_specific_keep_after_{reason}"
-        if not keep:
-            continue
+        reason = "static_official_source_snippet"
         records.append(make_source_record(
             input_dir=input_dir,
             path=input_dir / "__static_source_fallback__.md",
@@ -408,8 +411,7 @@ def extract_visual_quality_text_source(
             if kept_in_file >= max_records_per_file:
                 break
 
-    has_local_content = input_dir.exists() and any(input_dir.iterdir())
-    if not records and source.format == "web_html" and has_local_content:
+    if not records and source.format == "web_html":
         fallback_urls = _FALLBACK_URLS.get(source_id, (source.url,) if source.url else ())
         for fallback_url in fallback_urls:
             try:
@@ -429,7 +431,7 @@ def extract_visual_quality_text_source(
                 keep, reason = is_relevant_visualization_source(
                     title=title,
                     text=chunk,
-                    path=Path(fallback_url),
+                    path=_remote_fallback_path(input_dir, fallback_url),
                     source_dataset=source_id,
                     source_type="visual_quality_remote_text",
                     min_chars=120,
@@ -441,7 +443,7 @@ def extract_visual_quality_text_source(
                     continue
                 records.append(make_source_record(
                     input_dir=input_dir,
-                    path=Path(fallback_url),
+                    path=_remote_fallback_path(input_dir, fallback_url),
                     source_dataset=source_id,
                     source_type="visual_quality_remote_text",
                     title=title,

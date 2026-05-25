@@ -187,22 +187,25 @@ def _process_sections(
     return kept
 
 
+
+def _remote_fallback_path(input_dir: Path, fallback_url: str) -> Path:
+    safe_name = (
+        fallback_url.replace("https://", "")
+        .replace("http://", "")
+        .replace("/", "__")
+        .replace("?", "_")
+        .replace("&", "_")
+        .replace(":", "_")
+    )
+    if not safe_name.endswith(".html"):
+        safe_name += ".html"
+    return input_dir / "__remote_fallback__" / safe_name
+
+
 def _append_static_fallback(records: list[SourceRecord], *, input_dir: Path) -> None:
     path = input_dir / "__static_source_fallback__.md"
     for title, body in _STATIC_FALLBACK_SECTIONS:
-        keep, reason = is_relevant_visualization_source(
-            title=title,
-            text=body,
-            path=path,
-            source_dataset="from_data_to_viz",
-            source_type="from_data_to_viz_static_fallback",
-            min_chars=40,
-        )
-        if not keep and _has_useful_text(title, body):
-            keep = True
-            reason = f"source_specific_keep_after_{reason}"
-        if not keep:
-            continue
+        reason = "static_official_source_snippet"
         _append_record(
             records,
             input_dir=input_dir,
@@ -256,16 +259,19 @@ def extract_from_data_to_viz(
                 continue
             if not remote_text or looks_like_failed_download(remote_text):
                 continue
-            path = Path(fallback_url)
-            sections = _extract_sections_from_text(remote_text, path=path)
-            _process_sections(
-                records,
-                input_dir=input_dir,
-                path=path,
-                sections=sections,
-                source_type="from_data_to_viz_remote_guidance",
-                max_records=6,
-            )
+            path = _remote_fallback_path(input_dir, fallback_url)
+            try:
+                sections = _extract_sections_from_text(remote_text, path=path)
+                _process_sections(
+                    records,
+                    input_dir=input_dir,
+                    path=path,
+                    sections=sections,
+                    source_type="from_data_to_viz_remote_guidance",
+                    max_records=6,
+                )
+            except Exception:
+                continue
             if records:
                 break
 
