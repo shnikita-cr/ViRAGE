@@ -11,6 +11,15 @@ class StructuralSpecMetric(BaseModel):
     encoding_score: float = 0.0
     transform_score: float = 0.0
     task_alignment_score: float = 0.0
+    validity_score: float = 0.0
+    empty_chart_penalty: float = 1.0
+    encoding_precision: float = 0.0
+    encoding_recall: float = 0.0
+    transform_precision: float = 0.0
+    transform_recall: float = 0.0
+    mark_precision: float = 0.0
+    mark_recall: float = 0.0
+    weights: dict[str, float] = Field(default_factory=dict)
     details: list[str] = Field(default_factory=list)
 
 
@@ -19,12 +28,27 @@ class VisualQualityMetric(BaseModel):
     prompt_compliance: float = 0.0
     readability: float = 0.0
     insight_supportiveness: float = 0.0
+    visualization_type: float = 0.0
+    data_encoding: float = 0.0
+    data_transformation: float = 0.0
+    aesthetics: float = 0.0
+    is_blank: bool = False
+    weights: dict[str, float] = Field(default_factory=dict)
+    rationales: dict[str, str] = Field(default_factory=dict)
     details: list[str] = Field(default_factory=list)
 
 
 class EvaluationSummaryResult(BaseModel):
     structural_spec_metric: float | None = None
-    visual_quality_metric: float | None = None
     empty_chart_status: str = "unknown"
-    insight_verification_summary: str = ""
+    visualization_error_rate_item: bool | None = None
+    empty_chart_rate_item: bool | None = None
+    technical_status: str = "unknown"
+    semantic_status: str = "unknown"
+    chart_accepted: bool = False
+    semantic_retry_count: int = 0
+    technical_retry_count: int = 0
+    semantic_issues: list[str] = Field(default_factory=list)
+    insight_summary: str = ""
+    benchmark_scores: dict[str, Any] = Field(default_factory=dict)
     benchmark_report: dict[str, Any] = Field(default_factory=dict)

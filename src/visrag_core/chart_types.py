@@ -31,19 +31,12 @@ _CHART_ALIASES = {
     "imshow": "rect",
 }
 
+# Kept for reporting/backward compatibility only. ViRAGE no longer rejects chart types here;
+# Vega-Lite runtime validation is the source of truth.
 SUPPORTED_CHART_TYPES = {
-    "bar",
-    "line",
-    "area",
-    "point",
-    "circle",
-    "square",
-    "tick",
+    "arc", "area", "bar", "boxplot", "circle", "errorband", "errorbar", "geoshape",
+    "image", "line", "point", "rect", "rule", "square", "text", "tick", "trail",
     "histogram",
-    "boxplot",
-    "rect",
-    "rule",
-    "text",
 }
 
 
@@ -57,10 +50,12 @@ def canonicalize_chart_type(value: str | None) -> str:
 
 
 def require_supported_chart_type(value: str | None) -> str:
-    chart_type = canonicalize_chart_type(value)
-    if chart_type not in SUPPORTED_CHART_TYPES:
-        raise ValueError(f"Unsupported chart type: {value!r}")
-    return chart_type
+    """Return a canonical chart type without enforcing a local subset.
+
+    Full Vega-Lite support is delegated to the Vega-Lite runtime/schema validator.
+    This function is preserved for existing callers that need normalization, not rejection.
+    """
+    return canonicalize_chart_type(value) or "unknown"
 
 
 def normalize_aggregate(value: str | None) -> str | None:

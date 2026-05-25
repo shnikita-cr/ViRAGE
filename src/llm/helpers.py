@@ -41,20 +41,19 @@ def _image_to_data_url(image_path: str) -> str:
 
 
 def _normalize_multimodal_prompt_input(prompt_text: str, image_path: str) -> Any:
-    """Build a LangChain-compatible multimodal message with image bytes."""
+    return _normalize_multimodal_prompt_input_many(prompt_text, [image_path])
+
+
+def _normalize_multimodal_prompt_input_many(prompt_text: str, image_paths: list[str]) -> Any:
+    """Build a LangChain-compatible multimodal message with one or more image attachments."""
     if not is_langchain_available():
         raise RuntimeError("Multimodal calls require langchain_core message support.")
     from langchain_core.messages import HumanMessage
 
-    data_url = _image_to_data_url(image_path)
-    return [
-        HumanMessage(
-            content=[
-                {"type": "text", "text": prompt_text},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ]
-        )
-    ]
+    content: list[dict[str, Any]] = [{"type": "text", "text": prompt_text}]
+    for image_path in image_paths:
+        content.append({"type": "image_url", "image_url": {"url": _image_to_data_url(image_path)}})
+    return [HumanMessage(content=content)]
 
 
 def _model_name(llm: Any) -> str:
@@ -124,6 +123,8 @@ def _record(
     if runtime is None or stage is None or role is None:
         return
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+    structured_input = _structured_json_payload(prompt_text)
+    structured_output = _structured_json_payload(raw_text, parsed_preview)
     runtime.add_model_call_log(
         ModelCallLog(
             stage=stage,
@@ -133,6 +134,8 @@ def _record(
             prompt=prompt_text,
             raw_response=raw_text,
             parsed_preview=parsed_preview,
+            input=structured_input,
+            output=structured_output,
             attempts=max(1, attempts),
             attempt_number=max(1, attempt_number),
             parser_errors=list(parser_errors),
@@ -207,9 +210,87 @@ async def ainvoke_text(
     return await asyncio.to_thread(invoke_text, llm, prompt_text, runtime=runtime, stage=stage, role=role)
 
 
+_VEGA_LITE_TOP_LEVEL_KEYS = {
+    "$schema",
+    "mark",
+    "encoding",
+    "transform",
+    "data",
+    "datasets",
+    "layer",
+    "facet",
+    "repeat",
+    "concat",
+    "hconcat",
+    "vconcat",
+}
+
+
+def _is_vega_lite_spec_payload(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
+
+
+def _strip_json_wrapper(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+    if _is_vega_lite_spec_payload(payload):
+        return payload
+    for key in ("json", "spec", "vega_lite_spec", "vegalite_spec", "chart_spec"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            if _is_vega_lite_spec_payload(value):
+                return value
+            return _strip_json_wrapper(value)
+    return payload
+
+
+def _iter_balanced_json_candidates(text: str) -> list[str]:
+    candidates: list[str] = []
+    stack = 0
+    in_string = False
+    escaped = False
+    start_index: int | None = None
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            if stack == 0:
+                start_index = index
+            stack += 1
+        elif char == "}" and stack > 0:
+            stack -= 1
+            if stack == 0 and start_index is not None:
+                candidates.append(text[start_index:index + 1])
+                start_index = None
+    return candidates
+
+
 def extract_json_block(raw_text: str) -> str:
     text = raw_text.strip()
-    if text.startswith("```"):
+    if not text:
+        return text
+
+    tag_match = re.search(r"<json[^>]*>(.*?)</json>", text, flags=re.IGNORECASE | re.DOTALL)
+    if tag_match:
+        candidate = tag_match.group(1).strip()
+        try:
+            payload = _strip_json_wrapper(json.loads(candidate))
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            return candidate
+
+    if "```" in text:
         parts = text.split("```")
         for block in parts:
             cleaned = block.strip()
@@ -217,14 +298,54 @@ def extract_json_block(raw_text: str) -> str:
                 continue
             lowered = cleaned.lower()
             if lowered.startswith("json"):
-                return cleaned[4:].strip()
-            if lowered.startswith("python"):
+                candidate = cleaned[4:].strip()
+            elif lowered.startswith(("python", "xml", "html", "text")):
                 continue
-            return cleaned
+            else:
+                candidate = cleaned
+            try:
+                payload = _strip_json_wrapper(json.loads(candidate))
+                return json.dumps(payload, ensure_ascii=False)
+            except Exception:
+                if candidate.startswith("{"):
+                    return candidate
+
+    for candidate in _iter_balanced_json_candidates(text):
+        try:
+            payload = _strip_json_wrapper(json.loads(candidate))
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            continue
+
     match = _JSON_BLOCK_RE.search(text)
     if match:
         return match.group(0)
     return text
+
+
+def _structured_json_payload(text: str, fallback_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    if fallback_payload is not None:
+        return {
+            "raw": text,
+            "parsed_json": fallback_payload,
+            "parsed_json_available": True,
+            "parse_error": None,
+        }
+    try:
+        parsed = json.loads(extract_json_block(text)) if text else None
+        return {
+            "raw": text,
+            "parsed_json": parsed,
+            "parsed_json_available": parsed is not None,
+            "parse_error": None,
+        }
+    except Exception as exc:
+        return {
+            "raw": text,
+            "parsed_json": None,
+            "parsed_json_available": False,
+            "parse_error": f"{type(exc).__name__}: {exc}",
+        }
 
 
 def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
@@ -390,15 +511,44 @@ def invoke_structured_multimodal(
         examples: list[dict[str, Any]] | None = None,
         max_attempts: int = 2,
 ) -> T:
-    path = Path(image_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Image path does not exist: {image_path}")
-    log_prompt = f"{prompt_text}\n\n[Image attached: {path.name}, {path.stat().st_size} bytes]"
+    return invoke_structured_multimodal_many(
+        llm,
+        prompt_text,
+        [image_path],
+        schema,
+        runtime=runtime,
+        stage=stage,
+        role=role,
+        examples=examples,
+        max_attempts=max_attempts,
+    )
+
+
+def invoke_structured_multimodal_many(
+        llm: Any,
+        prompt_text: str,
+        image_paths: list[str],
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
+) -> T:
+    paths = [Path(image_path) for image_path in image_paths]
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Image path does not exist: {path}")
+    attachments = ", ".join(f"{path.name}={path.stat().st_size} bytes" for path in paths)
+    log_prompt = f"{prompt_text}\n\n[Images attached: {attachments}]"
     return _invoke_structured_with_message_builder(
         llm,
         prompt_text,
         schema,
-        message_builder=lambda current_prompt: _normalize_multimodal_prompt_input(current_prompt, image_path),
+        message_builder=lambda current_prompt: _normalize_multimodal_prompt_input_many(
+            current_prompt, [path.as_posix() for path in paths]
+        ),
         log_prompt_text=log_prompt,
         runtime=runtime,
         stage=stage,
@@ -420,11 +570,36 @@ async def ainvoke_structured_multimodal(
         examples: list[dict[str, Any]] | None = None,
         max_attempts: int = 2,
 ) -> T:
-    return await asyncio.to_thread(
-        invoke_structured_multimodal,
+    return await ainvoke_structured_multimodal_many(
         llm,
         prompt_text,
-        image_path,
+        [image_path],
+        schema,
+        runtime=runtime,
+        stage=stage,
+        role=role,
+        examples=examples,
+        max_attempts=max_attempts,
+    )
+
+
+async def ainvoke_structured_multimodal_many(
+        llm: Any,
+        prompt_text: str,
+        image_paths: list[str],
+        schema: type[T],
+        *,
+        runtime: Any | None = None,
+        stage: str | None = None,
+        role: str | None = None,
+        examples: list[dict[str, Any]] | None = None,
+        max_attempts: int = 2,
+) -> T:
+    return await asyncio.to_thread(
+        invoke_structured_multimodal_many,
+        llm,
+        prompt_text,
+        image_paths,
         schema,
         runtime=runtime,
         stage=stage,

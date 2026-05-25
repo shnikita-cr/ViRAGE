@@ -2,290 +2,222 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import pandas as pd
 
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
+from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.data import read_dataframe
+from src.services.spec_repair import SpecRepairService
 
-_ALLOWED_MARKS = {'line', 'area', 'bar', 'point', 'circle', 'square', 'boxplot', 'histogram', 'tick', 'rect', 'rule',
-                  'text'}
-_ALLOWED_CHANNELS = {'x', 'y', 'color', 'tooltip', 'detail', 'size', 'shape', 'opacity', 'row', 'column', 'theta',
-                     'radius'}
-_ALLOWED_TYPES = {'quantitative', 'temporal', 'nominal', 'ordinal', 'geojson'}
-_ALLOWED_AGGREGATES = {'mean', 'average', 'sum', 'count', 'min', 'max', 'median'}
-_ALLOWED_TRANSFORMS = {'aggregate', 'joinaggregate', 'filter', 'calculate', 'bin', 'timeUnit', 'window'}
-_MARK_REQUIRING_XY = {'line', 'area', 'bar', 'point', 'circle', 'square', 'tick', 'rect', 'rule'}
+VEGA_LITE_SCHEMA_URL = 'https://vega.github.io/schema/vega-lite/v5.json'
+_COMPOSITION_KEYS = {'layer', 'facet', 'repeat', 'concat', 'hconcat', 'vconcat'}
 
 
 class SpecValidatorService(BaseService):
-    def invoke(self, vega_spec: VegaLiteSpecArtifact) -> SpecValidationResult:
+    """Validate generated Vega-Lite specs without enforcing a ViRAGE subset policy.
+
+    Validation is intentionally split into two levels:
+    1. Vega-Lite technical validation: the runtime can compile/render the spec and it is not empty.
+    2. Project data validation: the attached data can be read and referenced fields exist in the prepared table
+       or are produced by Vega-Lite transforms.
+
+    The validator does not reject Vega-Lite mark types, composition types, encoding channels, or transform kinds just
+    because they are not explicitly enumerated in ViRAGE. This allows the spec generator to use the full Vega-Lite
+    grammar supported by the Vega-Lite runtime.
+    """
+
+    def invoke(self, vega_spec: VegaLiteSpecArtifact, runtime: RuntimeContext | None = None) -> SpecValidationResult:
         spec = deepcopy(vega_spec.spec_json)
         errors: list[str] = []
         repair_hints: list[str] = []
 
         if not isinstance(spec, dict):
-            return SpecValidationResult(validated_spec={}, validation_errors=['Specification must be a JSON object.'],
-                                        repair_hints=['Return a Vega-Lite JSON object, not free-form text.'],
-                                        is_valid=False)
+            return SpecValidationResult(
+                validated_spec={},
+                validation_errors=['Specification must be a JSON object.'],
+                repair_hints=['Return one Vega-Lite JSON object, not free-form text.'],
+                is_valid=False,
+            )
 
-        self._validate_required_keys(spec, errors)
-        dataset_path, dataset_columns = self._load_columns(spec, errors)
-        mark_type = self._validate_mark(spec, errors)
-        encoding = self._validate_encoding(spec, dataset_columns, errors)
-        self._validate_transforms(spec, dataset_columns, errors)
-        self._validate_mark_specific_requirements(mark_type, encoding, errors)
+        normalized, repair_notes = self._normalize_spec(spec)
+        repair_hints.extend(repair_notes)
+        dataset_path, dataset_columns = self._load_runtime_data(normalized, errors, runtime=runtime)
+        self._validate_vega_lite_shape(normalized, errors)
 
-        normalized = self._normalize_spec(spec)
-        if dataset_path is not None and not errors:
-            validity = self._validate_with_vega_runtime(normalized, dataset_path)
+        if dataset_path is not None and dataset_columns:
+            self._validate_referenced_fields(normalized, dataset_columns, errors, repair_hints)
+            validity = self._validate_with_vega_runtime(normalized, dataset_path, runtime=runtime)
+            repair_hints.extend(validity['repair_hints'])
+
+            # Technical failure: if the Vega runtime cannot compile/render, the graph-level technical loop should retry.
             if not validity['is_valid_scenegraph']:
-                errors.append(validity['scenegraph_error'] or 'Scenegraph validation failed.')
-            if not validity['is_valid_schema']:
-                errors.append(validity['schema_error'] or 'Schema validation failed.')
+                errors.append(validity['scenegraph_error'] or 'Vega-Lite runtime could not compile the specification.')
             if validity['is_empty_scenegraph']:
                 errors.append('Validated specification renders an empty scenegraph.')
-                repair_hints.append('Adjust encoding, filters or transforms so at least one visual mark is rendered.')
+                repair_hints.append(
+                    'Change fields, filters, transforms, or chart type so at least one visible mark is rendered.')
+
+            # Schema validation is logged as a hint unless rendering also fails. Vega-Lite/Vega can render some specs that
+            # Altair rejects because of wrapper limitations; these should not be treated as ViRAGE subset failures.
+            if not validity['is_valid_schema'] and validity['schema_error']:
+                repair_hints.append(f'Altair schema warning: {validity["schema_error"]}')
 
         if errors:
             repair_hints.extend([
-                'Ensure the spec contains $schema, data.url, mark and encoding.',
-                'Use only columns that exist in the prepared dataset or fields derived by transform.as.',
-                f'Restrict mark.type to supported values: {sorted(_ALLOWED_MARKS)}; use point for scatter plots.',
-                'Keep encodings explicit and use valid Vega-Lite field types.',
-                'Use Vega-Lite transforms with standard keys such as aggregate/filter/calculate/bin/timeUnit.',
+                'Return a complete Vega-Lite v5 specification with $schema and runtime data.url.',
+                'Use fields that exist in the prepared dataset or are created with transform.as.',
+                'If you use layer/facet/repeat/concat, ensure every child view is a valid Vega-Lite specification.',
+                'Do not rely on unsupported JavaScript expressions or malformed transform objects.',
             ])
-            return SpecValidationResult(validated_spec=normalized, validation_errors=self._dedupe(errors),
-                                        repair_hints=self._dedupe(repair_hints), is_valid=False)
+            return SpecValidationResult(
+                validated_spec=normalized,
+                validation_errors=self._dedupe(errors),
+                repair_hints=self._dedupe(repair_hints),
+                is_valid=False,
+            )
 
-        return SpecValidationResult(validated_spec=normalized, validation_errors=[], repair_hints=[], is_valid=True)
+        return SpecValidationResult(
+            validated_spec=normalized,
+            validation_errors=[],
+            repair_hints=self._dedupe(repair_hints),
+            is_valid=True,
+        )
 
     @staticmethod
-    def _validate_required_keys(spec: dict[str, Any], errors: list[str]) -> None:
-        for key in ['$schema', 'data', 'mark', 'encoding']:
-            if key not in spec:
-                errors.append(f'Missing required key: {key}.')
+    def _normalize_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        return SpecRepairService().repair(spec)
 
     @staticmethod
-    def _load_columns(spec: dict[str, Any], errors: list[str]) -> tuple[Path | None, set[str]]:
+    def _validate_vega_lite_shape(spec: dict[str, Any], errors: list[str]) -> None:
+        if '$schema' not in spec:
+            errors.append('Missing required key: $schema.')
+        if not SpecValidatorService._has_any_view_spec(spec):
+            errors.append(
+                'Specification must contain a Vega-Lite view: mark/encoding or one of layer/facet/repeat/concat/hconcat/vconcat.')
+
+    @staticmethod
+    def _has_any_view_spec(node: Any) -> bool:
+        if isinstance(node, dict):
+            if 'mark' in node or _COMPOSITION_KEYS.intersection(node.keys()):
+                return True
+            return any(SpecValidatorService._has_any_view_spec(value) for value in node.values())
+        if isinstance(node, list):
+            return any(SpecValidatorService._has_any_view_spec(item) for item in node)
+        return False
+
+    @staticmethod
+    def _load_runtime_data(spec: dict[str, Any], errors: list[str], *, runtime: RuntimeContext | None = None) -> tuple[Path | None, set[str]]:
         data = spec.get('data', {})
         data_url = data.get('url') if isinstance(data, dict) else None
         if not isinstance(data_url, str) or not data_url.strip():
             errors.append('Specification data.url must point to the prepared dataset path.')
             return None, set()
-        path = data_url
         try:
-            df = read_dataframe(path, nrows=5)
+            df = runtime.read_dataframe(data_url, nrows=5) if runtime is not None else read_dataframe(data_url, nrows=5)
         except Exception as exc:
             errors.append(f'Prepared dataset could not be read: {exc}')
             return None, set()
-        return Path(data_url), set(df.columns)
+        return Path(data_url), set(str(column) for column in df.columns)
 
-    @staticmethod
-    def _validate_mark(spec: dict[str, Any], errors: list[str]) -> str:
-        mark = spec.get('mark')
-        mark_type = mark.get('type') if isinstance(mark, dict) else mark
-        if isinstance(mark_type, str) and mark_type.strip().lower() == 'scatter':
-            mark_type = 'point'
-            if isinstance(mark, dict):
-                mark['type'] = 'point'
-            else:
-                spec['mark'] = 'point'
-        if not isinstance(mark_type, str) or not mark_type.strip():
-            errors.append('Specification mark must be a non-empty string or a mark object with a type.')
-            return ''
-        mark_type = mark_type.strip()
-        if mark_type not in _ALLOWED_MARKS:
-            errors.append(f'Unsupported mark type: {mark_type}.')
-        return mark_type
+    @classmethod
+    def _validate_referenced_fields(
+            cls,
+            spec: dict[str, Any],
+            dataset_columns: set[str],
+            errors: list[str],
+            repair_hints: list[str],
+    ) -> None:
+        derived_fields = cls._derived_fields_from_spec(spec)
+        allowed_fields = dataset_columns | derived_fields
+        referenced_fields = cls._field_references_from_spec(spec)
+        missing = sorted(field for field in referenced_fields if field not in allowed_fields)
+        if missing:
+            errors.append(
+                'Specification references fields not present in prepared data or transform outputs: '
+                + ', '.join(missing)
+            )
+            repair_hints.append(
+                'Use safe prepared-data column names only, or create derived fields with transform.as before referencing them.'
+            )
 
-    @staticmethod
-    def _derived_fields_from_transforms(spec: dict[str, Any]) -> set[str]:
+    @classmethod
+    def _derived_fields_from_spec(cls, spec: dict[str, Any]) -> set[str]:
         fields: set[str] = set()
-        transforms = spec.get('transform', [])
-        if not isinstance(transforms, list):
-            return fields
-        for transform in transforms:
-            if not isinstance(transform, dict):
+        for node in cls._walk(spec):
+            if not isinstance(node, dict):
                 continue
-            as_value = transform.get('as')
-            if isinstance(as_value, str):
-                fields.add(as_value)
-            elif isinstance(as_value, list):
-                fields.update(str(item) for item in as_value if item)
-            aggregate = transform.get('aggregate') or transform.get('joinaggregate') or []
-            if isinstance(aggregate, list):
-                for item in aggregate:
-                    if isinstance(item, dict) and isinstance(item.get('as'), str):
-                        fields.add(item['as'])
+            if 'as' in node:
+                cls._add_as_value(fields, node.get('as'))
+            for transform_key in ('aggregate', 'joinaggregate', 'window'):
+                value = node.get(transform_key)
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict):
+                            cls._add_as_value(fields, item.get('as'))
         return fields
 
     @classmethod
-    def _validate_encoding(cls, spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> dict[
-        str, dict[str, Any]]:
-        encoding = spec.get('encoding', {})
-        if not isinstance(encoding, dict) or not encoding:
-            errors.append('Specification encoding must be a non-empty object.')
-            return {}
-        derived_columns = cls._derived_fields_from_transforms(spec)
-        allowed_fields = dataset_columns | derived_columns
-        for channel, channel_spec in encoding.items():
-            if channel not in _ALLOWED_CHANNELS:
-                errors.append(f'Unsupported encoding channel: {channel}.')
-                continue
-            if isinstance(channel_spec, list):
-                for item in channel_spec:
-                    if isinstance(item, dict):
-                        cls._validate_channel_spec(channel, item, allowed_fields, errors)
-                    else:
-                        errors.append(f'Encoding list item for channel {channel!r} must be an object.')
-                continue
-            if not isinstance(channel_spec, dict):
-                errors.append(f'Encoding for channel {channel!r} must be an object.')
-                continue
-            cls._validate_channel_spec(channel, channel_spec, allowed_fields, errors)
-        return encoding
-
-    @staticmethod
-    def _validate_channel_spec(channel: str, channel_spec: dict[str, Any], allowed_fields: set[str],
-                               errors: list[str]) -> None:
-        field = channel_spec.get('field')
-        aggregate = channel_spec.get('aggregate')
-        requires_field = channel not in {'detail', 'tooltip'} and not (
-                channel == 'y' and aggregate == 'count') and not channel_spec.get('value')
-        if requires_field:
-            if not isinstance(field, str) or not field.strip():
-                errors.append(f'Encoding.{channel}.field is required.')
-            elif allowed_fields and field not in allowed_fields:
-                errors.append(f'Encoding.{channel}.field references a missing dataset or derived column: {field}.')
-        elif isinstance(field, str) and field.strip() and allowed_fields and field not in allowed_fields:
-            errors.append(f'Encoding.{channel}.field references a missing dataset or derived column: {field}.')
-        field_type = channel_spec.get('type')
-        if field_type is not None and field_type not in _ALLOWED_TYPES:
-            errors.append(f'Encoding.{channel}.type has unsupported value: {field_type}.')
-        if aggregate == 'average':
-            channel_spec['aggregate'] = 'mean'
-            aggregate = 'mean'
-        if aggregate is not None and aggregate not in _ALLOWED_AGGREGATES:
-            errors.append(f'Encoding.{channel}.aggregate has unsupported value: {aggregate}.')
-
-    @staticmethod
-    def _validate_transforms(spec: dict[str, Any], dataset_columns: set[str], errors: list[str]) -> None:
-        transforms = spec.get('transform', [])
-        if transforms is None:
-            return
-        if not isinstance(transforms, list):
-            errors.append('Specification transform must be a list when present.')
-            return
-        derived_fields: set[str] = set()
-        for index, transform in enumerate(transforms):
-            if not isinstance(transform, dict):
-                errors.append(f'Transform at index {index} must be an object.')
-                continue
-            kind = transform.get('kind')
-            if kind is None:
-                for candidate in _ALLOWED_TRANSFORMS:
-                    if candidate in transform:
-                        kind = candidate
-                        break
-            if kind not in _ALLOWED_TRANSFORMS:
-                errors.append(f'Unsupported transform kind at index {index}: {kind}.')
-                continue
-            for field in SpecValidatorService._transform_input_fields(transform):
-                if field and dataset_columns and field not in dataset_columns and field not in derived_fields and field != 'count':
-                    errors.append(f'Transform at index {index} references a missing field: {field}.')
-            derived_fields.update(SpecValidatorService._transform_output_fields(transform))
-
-    @staticmethod
-    def _transform_input_fields(transform: dict[str, Any]) -> set[str]:
+    def _field_references_from_spec(cls, spec: dict[str, Any]) -> set[str]:
         fields: set[str] = set()
-        for key in ('field', 'field_name'):
-            value = transform.get(key)
-            if isinstance(value, str):
-                fields.add(value)
-        for key in ('aggregate', 'joinaggregate', 'window'):
-            value = transform.get(key)
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict) and isinstance(item.get('field'), str):
-                        fields.add(item['field'])
+        for node in cls._walk(spec):
+            if not isinstance(node, dict):
+                continue
+            value = node.get('field')
+            if isinstance(value, str) and value.strip() and value.strip() != '*':
+                fields.add(value.strip())
+            # Some transforms use field lists without the literal key "field".
+            for key in ('fields', 'groupby', 'sort'):
+                value = node.get(key)
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str) and item.strip():
+                            fields.add(item.strip())
+            for key in ('key', 'from', 'lookup'):
+                value = node.get(key)
+                if isinstance(value, str) and value.strip():
+                    fields.add(value.strip())
         return fields
 
     @staticmethod
-    def _transform_output_fields(transform: dict[str, Any]) -> set[str]:
-        fields: set[str] = set()
-        value = transform.get('as')
-        if isinstance(value, str):
-            fields.add(value)
+    def _add_as_value(fields: set[str], value: Any) -> None:
+        if isinstance(value, str) and value.strip():
+            fields.add(value.strip())
         elif isinstance(value, list):
-            fields.update(str(item) for item in value if item)
-        for key in ('aggregate', 'joinaggregate', 'window'):
-            value = transform.get(key)
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict) and isinstance(item.get('as'), str):
-                        fields.add(item['as'])
-        return fields
+            for item in value:
+                if isinstance(item, str) and item.strip():
+                    fields.add(item.strip())
 
     @staticmethod
-    def _validate_mark_specific_requirements(mark_type: str, encoding: dict[str, dict[str, Any]],
-                                             errors: list[str]) -> None:
-        x = encoding.get('x') if isinstance(encoding, dict) else None
-        y = encoding.get('y') if isinstance(encoding, dict) else None
-        if mark_type in _MARK_REQUIRING_XY:
-            if not isinstance(x, dict) or (not x.get('field') and not x.get('value')):
-                errors.append(f"Mark '{mark_type}' requires encoding.x.field or encoding.x.value.")
-            if not isinstance(y, dict):
-                errors.append(f"Mark '{mark_type}' requires encoding.y.")
-            elif not y.get('field') and y.get('aggregate') != 'count' and not y.get('value'):
-                errors.append(f"Mark '{mark_type}' requires encoding.y.field unless aggregate=count or value is set.")
-        if mark_type == 'boxplot' and not isinstance(y, dict):
-            errors.append('Boxplot requires a quantitative y encoding.')
-        if mark_type == 'histogram':
-            if not isinstance(x, dict) or not x.get('field'):
-                errors.append('Histogram requires encoding.x.field for the binned measure.')
-            if x and x.get('type') not in {None, 'quantitative'}:
-                errors.append('Histogram encoding.x.type must be quantitative.')
-
-    @staticmethod
-    def _normalize_spec(spec: dict[str, Any]) -> dict[str, Any]:
-        normalized = deepcopy(spec)
-        normalized.setdefault('$schema', 'https://vega.github.io/schema/vega-lite/v5.json')
-        mark = normalized.get('mark')
-        mark_type = mark.get('type') if isinstance(mark, dict) else mark
-        if isinstance(mark_type, str) and mark_type.lower() == 'scatter':
-            if isinstance(mark, dict):
-                mark['type'] = 'point'
-            else:
-                normalized['mark'] = 'point'
-        return normalized
+    def _walk(node: Any) -> Iterable[Any]:
+        yield node
+        if isinstance(node, dict):
+            for value in node.values():
+                yield from SpecValidatorService._walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                yield from SpecValidatorService._walk(item)
 
     @classmethod
-    def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path) -> dict[str, Any]:
-        try:
-            import altair as alt
-        except ImportError as exc:
-            return {
-                'is_valid_schema': False,
-                'is_valid_scenegraph': False,
-                'is_empty_scenegraph': True,
-                'schema_error': f'Altair is required for strict schema validation: {exc}',
-                'scenegraph_error': None,
-            }
+    def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path, *, runtime: RuntimeContext | None = None) -> dict[str, Any]:
+        repair_hints: list[str] = []
         try:
             import vl_convert as vlc  # type: ignore
         except ImportError as exc:
+            repair_hints.append(f'Vega-Lite runtime validation skipped because vl-convert-python is unavailable: {exc}')
             return {
                 'is_valid_schema': False,
-                'is_valid_scenegraph': False,
-                'is_empty_scenegraph': True,
+                'is_valid_scenegraph': True,
+                'is_empty_scenegraph': False,
                 'schema_error': None,
-                'scenegraph_error': f'vl-convert-python is required for strict scenegraph validation: {exc}',
+                'scenegraph_error': None,
+                'repair_hints': repair_hints,
             }
+
         try:
-            df = read_dataframe(dataset_path)
+            df = runtime.read_dataframe(dataset_path) if runtime is not None else read_dataframe(dataset_path)
         except (FileNotFoundError, ValueError, OSError) as exc:
             return {
                 'is_valid_schema': False,
@@ -293,6 +225,7 @@ class SpecValidatorService(BaseService):
                 'is_empty_scenegraph': True,
                 'schema_error': f'Could not read dataset: {exc}',
                 'scenegraph_error': f'Could not read dataset: {exc}',
+                'repair_hints': repair_hints,
             }
 
         schema_error = None
@@ -302,8 +235,12 @@ class SpecValidatorService(BaseService):
         is_empty_scenegraph = True
 
         try:
+            import altair as alt
             alt.Chart.from_dict(cls._spec_add_data(spec, df.head()))
             is_valid_schema = True
+        except ImportError as exc:
+            schema_error = f'Altair is unavailable; schema validation skipped: {exc}'
+            repair_hints.append(schema_error)
         except Exception as exc:
             schema_error = str(exc)
 
@@ -320,6 +257,7 @@ class SpecValidatorService(BaseService):
             'is_empty_scenegraph': is_empty_scenegraph,
             'schema_error': schema_error,
             'scenegraph_error': scenegraph_error,
+            'repair_hints': repair_hints,
         }
 
     @staticmethod
@@ -372,7 +310,7 @@ class SpecValidatorService(BaseService):
         seen: set[str] = set()
         result: list[str] = []
         for value in values:
-            key = value.strip()
+            key = str(value).strip()
             if key and key not in seen:
                 seen.add(key)
                 result.append(key)

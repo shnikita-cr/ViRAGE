@@ -1,0 +1,20 @@
+mode = "streamlit"
+
+[settings]
+analytics_tail_enabled = false
+
+[reasoning_model]
+provider = "ollama"
+model = "gemma3:4b"
+
+[spec_model]
+provider = "ollama"
+model = "gemma3:4b"
+
+[vlm_model]
+provider = "ollama"
+model = "gemma3:4b"
+
+[vision_judge_model]
+provider = "ollama"
+model = "gemma3:4b"

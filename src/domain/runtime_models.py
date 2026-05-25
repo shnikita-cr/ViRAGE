@@ -20,6 +20,8 @@ class ModelCallLog(BaseModel):
     prompt: str = ""
     raw_response: str = ""
     parsed_preview: dict[str, Any] | None = None
+    input: dict[str, Any] = Field(default_factory=dict)
+    output: dict[str, Any] = Field(default_factory=dict)
     attempts: int = 1
     attempt_number: int = 1
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
@@ -37,6 +39,8 @@ class StepLog(BaseModel):
     inputs: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     details: dict[str, Any] = Field(default_factory=dict)
+    duration_ms: float = 0.0
+    duration_seconds: float = 0.0
 
 
 class StageExecutionLog(BaseModel):

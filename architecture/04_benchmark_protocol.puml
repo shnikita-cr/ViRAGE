@@ -1,0 +1,36 @@
+@startuml
+title Benchmark protocol
+
+hide empty description
+skinparam componentStyle rectangle
+
+NLVCorpus --> NLVSingleTurnFilter
+NLVSingleTurnFilter --> NoRAGRun
+NLVSingleTurnFilter --> RAGRunCurrent
+NLVSingleTurnFilter --> RAGRunAutoRAG
+
+NoRAGRun --> PairedComparison
+RAGRunCurrent --> PairedComparison
+RAGRunAutoRAG --> PairedComparison
+PairedComparison --> NLVReport
+
+InfiAgentDataset --> ChartAnswerableFilter
+ChartAnswerableFilter --> InfiAgentRAGRun
+InfiAgentRAGRun --> InfiAgentReport
+
+note right of NLVReport
+Primary metrics:
+- mean_spec_score
+- failure_as_zero
+- visualization_error_rate
+- empty_chart_rate
+- improved/degraded paired cases
+- token and duration overhead
+end note
+
+note right of InfiAgentReport
+Analytics tail is enabled here.
+The system must answer from the chart,
+not directly from the table.
+end note
+@enduml

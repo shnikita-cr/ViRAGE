@@ -80,3 +80,19 @@ examples
 /rag_corpus/cleaned
 /rag_corpus/autorag/vega_lite/trials_title_query
 /rag_corpus/autorag/vega_lite/trials
+datasets
+/research/folder_rag/temp
+/rag_corpus/extracted
+/rag_corpus/manifests
+/rag_corpus/extracted
+/rag_corpus/processed
+/rag_corpus/raw_external_rules/
+/rag_corpus/runtime
+/rag_corpus/autorag/virage_rules
+/rag_corpus/autorag/runs
+
+# Generated RAG and benchmark artifacts
+/rag_corpus/autorag.zip
+/rag_corpus/reports/corpus_summary.json
+/rag_corpus/feedback
+/rag_corpus/reports

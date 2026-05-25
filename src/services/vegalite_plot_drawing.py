@@ -35,8 +35,6 @@ class VegaLitePlotDrawingService(BaseService):
 
         run_dir = runtime.ensure_run_dir(run_id)
         image_path = runtime.next_artifact_path('plot.png', run_id=run_id)
-        runtime.save_json_artifact('artifacts/vega_lite_validated_spec.json', spec, run_id=run_id, numbered=True)
-        runtime.save_json_artifact('artifacts/vega_lite_render_spec.json', spec_with_data, run_id=run_id, numbered=True)
 
         try:
             png_bytes = vlc.vegalite_to_png(vl_spec=spec_with_data, scale=1)
@@ -49,9 +47,6 @@ class VegaLitePlotDrawingService(BaseService):
         scenegraph_summary = self._summarize_scenegraph(scenegraph)
         scenegraph_summary['source'] = 'vl-convert-python'
         scenegraph_summary['notes'].append('Rendered with Vega-Lite runtime via vl-convert-python.')
-        runtime.save_json_artifact('artifacts/rendered_scenegraph.json', scenegraph_summary, run_id=run_id,
-                                   numbered=True)
-        runtime.save_json_artifact('artifacts/rendered_scenegraph_raw.json', scenegraph, run_id=run_id, numbered=True)
 
         return PlotRenderingResult(
             plot_image=PlotImageArtifact(image_path=image_path.as_posix(), width=pixel_width, height=pixel_height),

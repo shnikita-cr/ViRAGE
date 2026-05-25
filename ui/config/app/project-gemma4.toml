@@ -1,0 +1,17 @@
+mode = "streamlit"
+
+[reasoning_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"
+
+[spec_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"
+
+[vlm_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"
+
+[vision_judge_model]
+provider = "ollama"
+model = "gemma4:31b-cloud"

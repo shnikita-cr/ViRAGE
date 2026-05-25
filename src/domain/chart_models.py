@@ -7,7 +7,12 @@ from pydantic import BaseModel, Field
 
 class VegaLiteSpecArtifact(BaseModel):
     spec_json: dict[str, Any] = Field(default_factory=dict)
+    spec_without_runtime_data: dict[str, Any] = Field(default_factory=dict)
     version: str | None = None
+    generation_backend: str | None = None
+    generation_explanation: str | None = None
+    generation_warnings: list[str] = Field(default_factory=list)
+    generation_artifacts: dict[str, str] = Field(default_factory=dict)
 
 
 class SpecValidationResult(BaseModel):

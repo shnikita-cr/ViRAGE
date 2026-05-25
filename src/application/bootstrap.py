@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 
 _LOADED = False
@@ -47,5 +48,11 @@ def bootstrap_observability() -> None:
 
 
 def bootstrap_project_environment() -> None:
+    warnings.filterwarnings(
+        "ignore",
+        message="The default value of `allowed_objects` will change in a future version.*",
+        category=Warning,
+        module="langgraph.cache.base.*",
+    )
     load_environment()
     bootstrap_observability()

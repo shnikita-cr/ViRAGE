@@ -6,30 +6,28 @@ from pydantic import BaseModel, Field
 
 from src.domain.models import (
     AnalysisRubric,
-    CandidateSpecSet,
+    ChartAnswerJudgeResult,
+    ChartFactSummaryResult,
     DataPreparationResult,
     DataProfile,
     EmptyChartCheckResult,
     EvaluationSummaryResult,
-    InsightReasoningResult,
-    InsightVerificationResult,
     InsightsResult,
     ModelCallLog,
     PlotRenderingResult,
-    QueryIntentBundle,
-    QueryUnderstandingResult,
-    RequestAnalysisResult,
+    QueryRequestAnalysisResult,
     ScenegraphCheckResult,
     SpecValidationResult,
     StepLog,
     StageExecutionLog,
+    SemanticFeedbackLoopSummary,
     StructuralSpecMetric,
     TokenUsage,
     VegaLiteSpecArtifact,
-    VisualFactExtractionResult,
-    VisualQualityMetric,
     VisRAGResult,
     VLMAnalysisResult,
+    VLMChartDescriptionResult,
+    VisualFeedbackExample,
 )
 
 
@@ -45,27 +43,25 @@ class PipelineResult(BaseModel):
     query: str
     data_path: str
 
-    query_understanding: QueryUnderstandingResult | None = None
-    query_intent_bundle: QueryIntentBundle | None = None
-    request_analysis: RequestAnalysisResult | None = None
+    query_request_analysis: QueryRequestAnalysisResult | None = None
     analysis_rubric: AnalysisRubric | None = None
     data_profile: DataProfile | None = None
     data_preparation: DataPreparationResult | None = None
     visrag: VisRAGResult | None = None
-    candidate_spec_set: CandidateSpecSet | None = None
     vega_spec: VegaLiteSpecArtifact | None = None
     spec_validation: SpecValidationResult | None = None
     plot_rendering: PlotRenderingResult | None = None
     scenegraph_check: ScenegraphCheckResult | None = None
     empty_chart_check: EmptyChartCheckResult | None = None
     plot_image: dict[str, Any] | None = None
+    vlm_chart_description: VLMChartDescriptionResult | None = None
+    chart_fact_summary: ChartFactSummaryResult | None = None
+    chart_answer_judge: ChartAnswerJudgeResult | None = None
+    visual_feedback_examples: list[VisualFeedbackExample] = Field(default_factory=list)
+    semantic_feedback_loop_summary: SemanticFeedbackLoopSummary | None = None
     vlm_analysis: VLMAnalysisResult | None = None
-    visual_facts: VisualFactExtractionResult | None = None
-    insight_reasoning: InsightReasoningResult | None = None
-    insight_verification: InsightVerificationResult | None = None
     insights: InsightsResult | None = None
     structural_spec_metric: StructuralSpecMetric | None = None
-    visual_quality_metric: VisualQualityMetric | None = None
     evaluation_summary: EvaluationSummaryResult | None = None
 
     step_logs: list[StepLog] = Field(default_factory=list)
