@@ -1,56 +1,61 @@
 # ViRAGE RAG Corpus
 
-This directory stores the offline corpus pipeline for ViRAGE rule/guidance retrieval.
+Корпус хранит не готовые спецификации графиков, а правила качества визуализации: выбор типа графика, читаемость, подписи, легенды, доступность и текстовое описание графика.
 
-The new corpus does **not** store runtime Vega-Lite specifications. Runtime retrieval should return guidance records such as chart patterns, readability rules, scale/plot-area rules, and VLM readability rules. `ChartGeneratorService` remains responsible for producing the final Vega-Lite specification.
+## Структура
 
-## Layout
+- `raw/` — внутренние источники, например обратная связь ViRAGE.
+- `raw_external_rules/` — внешние источники правил.
+- `extracted/` — извлечённые исходные записи JSONL.
+- `processed/` — нормализованные правила после LLM-обработки.
+- `runtime/` — компактный JSONL для приложения.
+- `autorag/virage_rules/` — файлы для AutoRAG.
+- `reports/` — отчёты качества корпуса.
 
-- `raw/` — source datasets and raw inputs. Do not use directly at runtime.
-- `extracted/` — normalized source records extracted from raw files.
-- `processed/` — LLM-normalized rule records.
-- `autorag/virage_rules/` — AutoRAG parquet exports and reports.
-- `runtime/` — compact runtime export for future VisRAG rule retrieval.
-- `reports/` — corpus preparation summaries.
+## Основные источники
 
-## Record types
+- `ft_visual_vocabulary`
+- `from_data_to_viz`
+- `data_visualisation_catalogue`
+- `ibm_carbon_chart_anatomy`
+- `ibm_carbon_legends`
+- `uswds_data_visualizations`
+- `urban_institute_style_guide`
+- `w3c_wai_complex_images`
+- `vistext`
 
-- `chart_pattern` — which visualization family fits a task.
-- `readability_rule` — how to keep the chart readable.
-- `scale_plot_area_rule` — how to use plot area well and handle outlier-compressed charts carefully.
-- `vlm_readability_rule` — what must be visible in a static PNG for VLM judge/analysis.
-- `domain_semantics_rule` — optional domain-term guidance for specialized datasets.
+Старые источники `draco`, `compassql`, `chartsquared`, `taskvis`, `vega_lite_examples` больше не входят в основной корпус.
 
-## Main commands
+## Типы записей
 
-Prepare processed records with Ollama:
+- `chart_pattern` — какой тип графика подходит задаче.
+- `readability_rule` — как сделать график читаемым.
+- `scale_plot_area_rule` — как работать с масштабом и областью построения.
+- `vlm_readability_rule` — что должно быть видно визуальной модели и человеку.
+- `domain_semantics_rule` — дополнительная семантика предметной области.
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
+## Основные команды
 
-Prepare only ChartSquared prompts, which is the recommended cheap mode for ChartAF/VLM-feedback rules:
+Подготовить корпус:
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode prompts_only
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed
 
-Prepare a sampled ChartSquared subset, which is the default when ChartSquared is enabled:
+Проверить качество:
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode sample --chartsquared-limit 300
+    python scripts/rag_corpus/report_corpus_quality.py --input rag_corpus/processed/all_rules.validated.jsonl
 
-Prepare full ChartSquared only for long offline runs:
+Удалить смысловые повторы:
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode full
+    python scripts/rag_corpus/normalize/deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
 
-Prepare processed records with OpenAI:
+Экспортировать для приложения:
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider openai --model gpt-4.1-mini
+    python scripts/rag_corpus/run_export_runtime.py --profile embedding_deduped
 
-Export AutoRAG files:
+Экспортировать для AutoRAG:
 
-    python scripts/rag_corpus/run_export_autorag.py
+    python scripts/rag_corpus/run_export_autorag.py --profile embedding_deduped --train-ratio 0.7 --split-seed 42
 
-Export runtime rules:
+## Политика корпуса
 
-    python scripts/rag_corpus/run_export_runtime.py
-
-## Important policy
-
-Runtime rule documents must not contain Vega-Lite `mark`, `encoding`, `$schema`, or `spec_template` payloads. They should provide concise generation guidance, not templates for copying.
+Runtime-документы не должны содержать Vega-Lite `mark`, `encoding`, `$schema`, `spec_template` или готовые спецификации. Корпус должен давать правила и проверки, а не шаблоны для копирования.

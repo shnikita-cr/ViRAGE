@@ -1,24 +1,35 @@
 # Offline RAG Corpus Pipeline
 
-Документ фиксирует актуальную цепочку подготовки внешнего корпуса правил для ViRAGE.
+Документ фиксирует текущую цепочку подготовки корпуса правил качества графиков для ViRAGE.
 
-Основное ограничение: **NLV не используется как источник корпуса**. NLV применяется только для независимой оценки качества построения графиков.
+## Главный принцип
 
-## Назначение корпуса
+Корпус не хранит готовые Vega-Lite-спецификации. Он хранит правила:
 
-Runtime RAG не должен хранить готовые Vega-Lite спецификации. Он хранит только правила и подсказки:
+    выбор типа графика
+    читаемость
+    подписи и легенды
+    доступность
+    текстовое описание графика
+    проверки для визуальной модели и человека
 
-    задача пользователя
-    структура данных
-    тип графика
-    кодирование полей
-    агрегация / группировка / сортировка
-    ограничения читаемости
-    антипаттерны
+NLV используется только для оценки. Его нельзя добавлять в RAG-корпус.
 
-Конкретную Vega-Lite спецификацию всегда создаёт `ChartGeneratorService`.
+## Основные источники
 
-## Актуальная цепочка
+    ft_visual_vocabulary
+    from_data_to_viz
+    data_visualisation_catalogue
+    ibm_carbon_chart_anatomy
+    ibm_carbon_legends
+    uswds_data_visualizations
+    urban_institute_style_guide
+    w3c_wai_complex_images
+    vistext
+
+Старые источники `draco`, `compassql`, `chartsquared`, `taskvis`, `vega_lite_examples` не входят в основной корпус.
+
+## Цепочка
 
     raw_external_rules
     -> extracted/*.jsonl
@@ -30,152 +41,74 @@ Runtime RAG не должен хранить готовые Vega-Lite специ
     -> all_rules.filtered.jsonl
     -> validation
     -> all_rules.validated.jsonl
+    -> embedding deduplication, optional
     -> runtime export
     -> AutoRAG export
 
-Семантическая дедупликация по эмбеддингам пока запускается вручную:
+## Подготовка корпуса
 
-    python scripts/rag_corpus/normalize/deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed
 
-Её результат нужно проверять по `semantic_duplicate_clusters.jsonl`, чтобы не удалить похожие, но разные правила. После этого runtime/AutoRAG export можно запускать с явным профилем корпуса.
+С внутренними правилами и обратной связью ViRAGE:
 
-Проверка качества корпуса одной командой:
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources ft_visual_vocabulary from_data_to_viz data_visualisation_catalogue ibm_carbon_chart_anatomy ibm_carbon_legends uswds_data_visualizations urban_institute_style_guide w3c_wai_complex_images vistext manual_rules virage_feedback --clean-processed
+
+## Проверка качества
 
     python scripts/rag_corpus/report_corpus_quality.py --input rag_corpus/processed/all_rules.validated.jsonl
 
-Результаты:
+Проверка, что старые источники не попали в корпус:
 
-    rag_corpus/reports/corpus_quality_report.json
-    rag_corpus/reports/corpus_quality_report.md
+    python -c "from pathlib import Path; text=Path('rag_corpus/processed/all_rules.validated.jsonl').read_text(encoding='utf-8').lower(); print({x: x in text for x in ['draco','compassql','chartsquared','taskvis','vega_lite_examples','nlv']})"
 
-## Источники
+## Смысловая дедупликация
 
-Используются внешние источники:
+    python scripts/rag_corpus/normalize/test_embedding_dedup.py --model nomic-embed-text
+    python scripts/rag_corpus/normalize/deduplicate_by_embeddings.py --model nomic-embed-text --threshold 0.95
 
-    Draco
-    From Data to Viz
-    Financial Times Visual Vocabulary
-    CompassQL
-    ChartSquared / C²
-
-TaskVis временно не используется в основном корпусе, потому что в текущей обработке даёт слишком много конкретных примеров.
-
-## Quality filter
-
-Фильтр качества удаляет:
-
-    слишком короткие правила
-    технический мусор из документации
-    инструкции про библиотеки, установку, тесты и скрипты
-    записи с упоминанием NLV
-    чрезмерные повторы вроде clear axis labels / plot area / static PNG
-    избыток записей от одного источника
-
-Ручной запуск:
-
-    python scripts/rag_corpus/normalize/filter_processed_records.py --input rag_corpus/processed/all_rules.deduped.jsonl --output rag_corpus/processed/all_rules.filtered.jsonl
-
-Полный запуск подготовки:
-
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --clean-processed
-
-## Runtime RAG
-
-Runtime corpus экспортируется так:
+## Runtime export
 
     python scripts/rag_corpus/run_export_runtime.py --profile validated
 
-Для ручной проверки альтернативных профилей:
+После смысловой дедупликации:
 
-    python scripts/rag_corpus/run_export_runtime.py --profile filtered
-    python scripts/rag_corpus/run_export_runtime.py --profile semantic_deduped
+    python scripts/rag_corpus/run_export_runtime.py --profile embedding_deduped
 
-После последних AutoRAG-экспериментов для текущего корпуса наиболее безопасный NLV-режим:
+## AutoRAG export
 
-    bm25
-    top_k_chart_patterns = 1
-    top_k_readability_rules = 0
-    top_k_scale_plot_area_rules = 0
-    top_k_vlm_readability_rules = 0
-    top_k_domain_semantics_rules = 0
-
-Готовый конфиг:
-
-    ui/config/project-gemma4-bench_rag_autorag.toml
-
-Причина: AutoRAG на train показал, что `top_k > 1` быстро добавляет шум. Это признак того, что корпус ещё содержит похожие и неравноценные правила.
-
-## Compatibility reranker
-
-После retrieval действует дополнительный runtime-фильтр совместимости. Он удаляет правила, которые противоречат анализу запроса или требуют отсутствующие данные.
-
-Пример:
-
-    запрос: Show average sales over time by region
-    analysis: chart family = line, task = trend
-    retrieved rule: choropleth map
-    action: reject, если нет географических полей
-
-Это нужно, потому что BM25 может цепляться за слово `region` и доставать географические карты, хотя в задаче `region` является обычной категорией.
+    python scripts/rag_corpus/run_export_autorag.py --profile embedding_deduped --train-ratio 0.7 --split-seed 42
 
 ## AutoRAG
 
-Экспорт с train/test split:
-
-    python scripts/rag_corpus/run_export_autorag.py --profile validated --train-ratio 0.7 --split-seed 42
-
-Для проверки ручной эмбеддинг-дедупликации:
-
-    python scripts/rag_corpus/run_export_autorag.py --profile semantic_deduped --train-ratio 0.7 --split-seed 42
-
-Validate на train:
-
     autorag validate --config rag_corpus/autorag/virage_rules/configs/virage_rules_ollama_all.yaml --qa_data_path rag_corpus/autorag/virage_rules/splits/train/qa.parquet --corpus_data_path rag_corpus/autorag/virage_rules/splits/train/corpus.parquet
-
-Evaluate на train:
 
     autorag evaluate --config rag_corpus/autorag/virage_rules/configs/virage_rules_ollama_all.yaml --qa_data_path rag_corpus/autorag/virage_rules/splits/train/qa.parquet --corpus_data_path rag_corpus/autorag/virage_rules/splits/train/corpus.parquet --project_dir rag_corpus/autorag/runs/ollama_all_train
 
-Извлечь лучшую конфигурацию:
-
     autorag extract_best_config --trial_path rag_corpus/autorag/runs/ollama_all_train/0 --output_path rag_corpus/autorag/runs/ollama_all_best_config.yaml
-
-Evaluate на test:
 
     autorag evaluate --config rag_corpus/autorag/runs/ollama_all_best_config.yaml --qa_data_path rag_corpus/autorag/virage_rules/splits/test/qa.parquet --corpus_data_path rag_corpus/autorag/virage_rules/splits/test/corpus.parquet --project_dir rag_corpus/autorag/runs/ollama_all_test
 
-Сводная таблица:
+## Оценка
 
-    python scripts/rag_corpus/collect_autorag_summary.py --runs-root rag_corpus/autorag/runs --output-dir rag_corpus/autorag/runs/summary
+NLV без корпуса:
 
-## Benchmark protocol
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases ./datasets/nlv_corpus/ --config ui/config/benchmark/project-gemma4-bench_norag.toml --output-dir artifacts/benchmarks/nlv_no_rag --disable-analytics-tail
 
-NLV без RAG:
+NLV с корпусом:
 
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases ./datasets/nlv_corpus/ --config ui/config/project-gemma4-bench_norag.toml --output-dir artifacts/benchmarks/nlv_no_rag --disable-analytics-tail
-
-NLV с текущим RAG:
-
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases ./datasets/nlv_corpus/ --config ui/config/project-gemma4-bench_rag.toml --output-dir artifacts/benchmarks/nlv_rag_current --disable-analytics-tail
-
-NLV с AutoRAG/runtime-настройкой:
-
-    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases ./datasets/nlv_corpus/ --config ui/config/project-gemma4-bench_rag_autorag.toml --output-dir artifacts/benchmarks/nlv_rag_autorag --disable-analytics-tail
+    python scripts/benchmark/run_vegachat_compatible_benchmark.py --cases ./datasets/nlv_corpus/ --config ui/config/benchmark/project-gemma4-bench_rag_autorag.toml --output-dir artifacts/benchmarks/nlv_rag_autorag --disable-analytics-tail
 
 Сравнение:
 
     python scripts/benchmark/compare_runs.py --left artifacts/benchmarks/nlv_no_rag --right artifacts/benchmarks/nlv_rag_autorag --output artifacts/benchmarks/nlv_compare_no_rag_vs_rag_autorag
 
-## Критерии готовности корпуса
+## Готовность корпуса
 
-Корпус можно считать пригодным к полной NLV-проверке, если:
+Корпус пригоден для полной оценки, если:
 
-    NLV отсутствует в источниках корпуса
+    старые источники отсутствуют в all_rules.validated.jsonl
+    NLV отсутствует в all_rules.validated.jsonl
     нет коротких лозунгов вместо правил
-    нет технического мусора из документации
     один источник не доминирует выдачу
-    ручной retrieval возвращает правила нужной задачи
-    top_k=1 не является единственным способом избежать шума
+    ручная проверка возвращает правила нужной задачи
     AutoRAG test-результат зафиксирован отдельно от train
-
-Пока корпус нужно считать экспериментальным: AutoRAG выбрал `BM25 + top_k=1`, что указывает на необходимость дальнейшей очистки и семантической дедупликации.

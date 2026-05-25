@@ -19,34 +19,41 @@ from scripts.rag_corpus.normalize.filter_processed_records import filter_file
 from scripts.rag_corpus.normalize.merge_processed_records import merge_processed_records
 from scripts.rag_corpus.normalize.normalize_with_llm import _target_record_types_arg, run_normalization
 from scripts.rag_corpus.normalize.validate_processed_records import validate_processed
-from scripts.rag_corpus.sources.extract_chartsquared import extract_chartsquared
-from scripts.rag_corpus.sources.extract_chartsquared_rules import extract_chartsquared_rules
-from scripts.rag_corpus.sources.extract_compassql import extract_compassql
-from scripts.rag_corpus.sources.extract_draco import extract_draco
+from scripts.rag_corpus.sources.extract_data_visualisation_catalogue import extract_data_visualisation_catalogue
 from scripts.rag_corpus.sources.extract_from_data_to_viz import extract_from_data_to_viz
 from scripts.rag_corpus.sources.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
-from scripts.rag_corpus.sources.extract_taskvis import extract_taskvis
+from scripts.rag_corpus.sources.extract_ibm_carbon_chart_anatomy import extract_ibm_carbon_chart_anatomy
+from scripts.rag_corpus.sources.extract_ibm_carbon_legends import extract_ibm_carbon_legends
 from scripts.rag_corpus.sources.extract_manual_rules import extract_manual_rules
-from scripts.rag_corpus.sources.extract_vega_lite_examples import extract_vega_lite_examples
+from scripts.rag_corpus.sources.extract_urban_institute_style_guide import extract_urban_institute_style_guide
+from scripts.rag_corpus.sources.extract_uswds_data_visualizations import extract_uswds_data_visualizations
 from scripts.rag_corpus.sources.extract_virage_feedback import extract_virage_feedback
+from scripts.rag_corpus.sources.extract_vistext import extract_vistext
+from scripts.rag_corpus.sources.extract_w3c_wai_complex_images import extract_w3c_wai_complex_images
 from scripts.rag_corpus.sources.scan_sources import inventory_markdown, scan_sources
 from scripts.rag_corpus.common.io import read_jsonl, write_jsonl, write_text
 from scripts.rag_corpus.common.progress import StageProgress
 
 
-DEFAULT_SOURCES = [
-    "manual_rules",
-    "virage_feedback",
-    "chartsquared",
-    "vega_lite_examples",
-    "taskvis",
-    "draco",
-    "from_data_to_viz",
+QUALITY_CORPUS_SOURCES = [
     "ft_visual_vocabulary",
-    "compassql",
-    "chartsquared_rules",
+    "from_data_to_viz",
+    "data_visualisation_catalogue",
+    "ibm_carbon_chart_anatomy",
+    "ibm_carbon_legends",
+    "uswds_data_visualizations",
+    "urban_institute_style_guide",
+    "w3c_wai_complex_images",
+    "vistext",
 ]
 
+OPTIONAL_INTERNAL_SOURCES = [
+    "manual_rules",
+    "virage_feedback",
+]
+
+DEFAULT_SOURCES = QUALITY_CORPUS_SOURCES
+ALL_SOURCES = [*QUALITY_CORPUS_SOURCES, *OPTIONAL_INTERNAL_SOURCES]
 PROCESSED_OUTPUTS = [
     "rag_corpus/processed/llm_normalized",
     "rag_corpus/processed/all_rules.jsonl",
@@ -107,28 +114,26 @@ def _deduplicate_file(root: Path) -> tuple[list[dict], list[dict], Path]:
         write_jsonl(root / "rag_corpus/processed/rejected_records.jsonl", rejected)
     return kept, rejected, deduped_path
 
-def _write_source_records(root: Path, *, sources: set[str], chartsquared_mode: str, chartsquared_limit: int | None) -> list[Path]:
+def _write_source_records(root: Path, *, sources: set[str]) -> list[Path]:
     outputs: list[Path] = []
     extractor_specs = [
+        ("ft_visual_vocabulary", extract_ft_visual_vocabulary, root / "rag_corpus/raw_external_rules/ft_visual_vocabulary"),
+        ("from_data_to_viz", extract_from_data_to_viz, root / "rag_corpus/raw_external_rules/from_data_to_viz"),
+        ("data_visualisation_catalogue", extract_data_visualisation_catalogue, root / "rag_corpus/raw_external_rules/data_visualisation_catalogue"),
+        ("ibm_carbon_chart_anatomy", extract_ibm_carbon_chart_anatomy, root / "rag_corpus/raw_external_rules/ibm_carbon_chart_anatomy"),
+        ("ibm_carbon_legends", extract_ibm_carbon_legends, root / "rag_corpus/raw_external_rules/ibm_carbon_legends"),
+        ("uswds_data_visualizations", extract_uswds_data_visualizations, root / "rag_corpus/raw_external_rules/uswds_data_visualizations"),
+        ("urban_institute_style_guide", extract_urban_institute_style_guide, root / "rag_corpus/raw_external_rules/urban_institute_style_guide"),
+        ("w3c_wai_complex_images", extract_w3c_wai_complex_images, root / "rag_corpus/raw_external_rules/w3c_wai_complex_images"),
+        ("vistext", extract_vistext, root / "rag_corpus/raw_external_rules/vistext"),
         ("manual_rules", extract_manual_rules, root / "rag_corpus/raw/manual_rules"),
         ("virage_feedback", extract_virage_feedback, root / "rag_corpus/raw/virage_feedback"),
-        ("chartsquared", extract_chartsquared, root / "rag_corpus/raw/chartsquared"),
-        ("vega_lite_examples", extract_vega_lite_examples, root / "rag_corpus/raw/vega_lite_examples"),
-        ("taskvis", extract_taskvis, root / "rag_corpus/raw_external_rules/taskvis"),
-        ("draco", extract_draco, root / "rag_corpus/raw_external_rules/draco"),
-        ("from_data_to_viz", extract_from_data_to_viz, root / "rag_corpus/raw_external_rules/from_data_to_viz"),
-        ("ft_visual_vocabulary", extract_ft_visual_vocabulary, root / "rag_corpus/raw_external_rules/ft_visual_vocabulary"),
-        ("compassql", extract_compassql, root / "rag_corpus/raw_external_rules/compassql"),
-        ("chartsquared_rules", extract_chartsquared_rules, root / "rag_corpus/raw_external_rules/chartsquared"),
     ]
     extractors = [item for item in extractor_specs if item[0] in sources]
     progress = StageProgress("extraction", total=len(extractors))
     for name, func, input_dir in extractors:
         try:
-            if name == "chartsquared":
-                records = func(input_dir, mode=chartsquared_mode, sample_limit=chartsquared_limit)
-            else:
-                records = func(input_dir)
+            records = func(input_dir)
             out_path = root / f"rag_corpus/extracted/{name}.jsonl"
             write_jsonl(out_path, [record.model_dump() for record in records])
             outputs.append(out_path)
@@ -160,21 +165,9 @@ def main() -> None:
     parser.add_argument(
         "--sources",
         nargs="*",
-        choices=DEFAULT_SOURCES,
+        choices=ALL_SOURCES,
         default=None,
         help="Source extractors to run. Defaults to all sources.",
-    )
-    parser.add_argument(
-        "--chartsquared-mode",
-        choices=["prompts_only", "sample", "full"],
-        default="sample",
-        help="ChartSquared extraction mode: prompts_only, sample, or full.",
-    )
-    parser.add_argument(
-        "--chartsquared-limit",
-        type=int,
-        default=300,
-        help="Maximum number of ChartSquared files to inspect in sample mode, including prompt files.",
     )
     parser.add_argument("--clean-processed", action="store_true", help="Remove processed outputs before running.")
     parser.add_argument("--skip-extraction", action="store_true", help="Use existing rag_corpus/extracted/<source>.jsonl files instead of running extractors.")
@@ -199,12 +192,7 @@ def main() -> None:
         if missing:
             raise FileNotFoundError(f"Missing extracted source files for --skip-extraction: {', '.join(missing)}")
     else:
-        input_paths = _write_source_records(
-            root,
-            sources=selected_sources,
-            chartsquared_mode=args.chartsquared_mode,
-            chartsquared_limit=args.chartsquared_limit,
-        )
+        input_paths = _write_source_records(root, sources=selected_sources)
     normalization_report = run_normalization(
         input_paths=input_paths,
         output_dir=root / "rag_corpus/processed/llm_normalized",

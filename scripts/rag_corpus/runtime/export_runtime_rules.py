@@ -18,7 +18,7 @@ from scripts.rag_corpus.common.schemas import RagRuleRecord, RuntimeRuleDocument
 DEFAULT_INPUT = "rag_corpus/processed/all_rules.validated.jsonl"
 DEFAULT_OUTPUT = "rag_corpus/runtime/virage_rules.jsonl"
 DEFAULT_REPORT = "rag_corpus/runtime/runtime_export_report.json"
-DEFAULT_SOURCE_LIMITS = {"chartsquared": 1500}
+DEFAULT_SOURCE_LIMITS: dict[str, int] = {}
 
 
 def export_runtime_rules(
@@ -39,9 +39,10 @@ def export_runtime_rules(
             skipped_by_source_limit[source_dataset] = skipped_by_source_limit.get(source_dataset, 0) + 1
             continue
         used_by_source[source_dataset] = used_by_source.get(source_dataset, 0) + 1
+        source_metadata = record.metadata.get("source_metadata") if isinstance(record.metadata, dict) else {}
+        if not isinstance(source_metadata, dict):
+            source_metadata = {}
         source_weight = record.metadata.get("source_weight") if isinstance(record.metadata, dict) else None
-        if source_weight is None and source_dataset == "chartsquared":
-            source_weight = 0.75
         docs.append(RuntimeRuleDocument(
             doc_id=record.doc_id,
             record_type=record.record_type,
@@ -57,6 +58,10 @@ def export_runtime_rules(
                 "guidance": record.guidance,
                 "source_dataset": source_dataset,
                 "source_id": record.source.source_id,
+                "source_path": record.source.source_path,
+                "source_url": source_metadata.get("source_url"),
+                "source_format": source_metadata.get("source_format"),
+                "source_title": source_metadata.get("source_title"),
                 "source_weight": source_weight if source_weight is not None else 1.0,
             },
         ).model_dump())
@@ -83,11 +88,9 @@ def main() -> None:
     parser.add_argument("--input", default=DEFAULT_INPUT)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
     parser.add_argument("--report", default=DEFAULT_REPORT)
-    parser.add_argument("--max-chartsquared-docs", type=int, default=1500)
     args = parser.parse_args()
     root = project_root()
-    source_limits = {"chartsquared": max(0, int(args.max_chartsquared_docs))}
-    report = export_runtime_rules(root / args.input, root / args.output, source_limits=source_limits)
+    report = export_runtime_rules(root / args.input, root / args.output)
     write_json(root / args.report, report)
     print(report)
 

@@ -159,7 +159,7 @@ def quality_score(data: dict[str, Any], text: str) -> float:
         score += 1.0
     if data.get("record_type") in {"chart_pattern", "encoding_rule", "transform_rule", "anti_pattern"}:
         score += 0.8
-    if source_dataset(data) in {"draco", "compassql", "ft_visual_vocabulary"}:
+    if source_dataset(data) in {"ft_visual_vocabulary", "from_data_to_viz", "data_visualisation_catalogue"}:
         score += 0.3
     score += min(len(text), 1000) / 1000
     return score

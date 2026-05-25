@@ -35,12 +35,10 @@ def main() -> None:
     parser.add_argument("--input", default=None, help="Explicit processed JSONL path. Overrides --profile.")
     parser.add_argument("--profile", choices=sorted(CORPUS_PROFILES), default="validated", help="Processed corpus profile to export when --input is not provided.")
     parser.add_argument("--output", default="rag_corpus/runtime/virage_rules.jsonl")
-    parser.add_argument("--max-chartsquared-docs", type=int, default=1500)
     args = parser.parse_args()
     root = project_root()
     progress = StageProgress("runtime-export", total=2)
-    source_limits = {"chartsquared": max(0, int(args.max_chartsquared_docs))}
-    export_report = export_runtime_rules(root / resolve_input_path(args.profile, args.input), root / args.output, source_limits=source_limits)
+    export_report = export_runtime_rules(root / resolve_input_path(args.profile, args.input), root / args.output)
     progress.update(extra=f"documents={export_report.get('documents', 0)}")
     runtime_report = build_report(root / args.output)
     progress.update(extra="report written")

@@ -46,6 +46,24 @@ function Ensure-GitClone {
     git clone $Url $Path
 }
 
+function Save-WebSource {
+    param(
+        [string]$Url,
+        [string]$Output
+    )
+    Ensure-Directory (Split-Path $Output -Parent)
+    if (Test-Path $Output) {
+        Write-Host "exists: $Output"
+        return
+    }
+    try {
+        Invoke-WebRequest $Url -OutFile $Output
+    }
+    catch {
+        Write-Warning "Cannot download $Url. Save this page manually to $Output"
+    }
+}
+
 function Find-TrialPath {
     param([string]$RunRoot)
     $trial = Get-ChildItem $RunRoot -Directory | Sort-Object Name | Select-Object -First 1
@@ -58,20 +76,32 @@ function Find-TrialPath {
 if (-not $SkipEnvironmentCheck) {
     Invoke-Step "Environment check" {
         python -Wdefault -m compileall -q src ui scripts tests
-        pytest -q
+        pytest -q tests
         ollama list
         python -c "import requests; print(requests.get('http://localhost:11434/api/tags').json().keys())"
     }
 }
 
 if (-not $SkipDownload) {
-    Invoke-Step "Download external rule sources" {
+    Invoke-Step "Download quality corpus sources" {
         Ensure-Directory "rag_corpus\raw_external_rules"
-        Ensure-GitClone "https://github.com/uwdata/draco.git" "rag_corpus\raw_external_rules\draco"
-        Ensure-GitClone "https://github.com/holtzy/data_to_viz.git" "rag_corpus\raw_external_rules\from_data_to_viz"
+
         Ensure-GitClone "https://github.com/Financial-Times/chart-doctor.git" "rag_corpus\raw_external_rules\ft_visual_vocabulary"
-        Ensure-GitClone "https://github.com/vega/compassql.git" "rag_corpus\raw_external_rules\compassql"
-        Ensure-GitClone "https://github.com/chartsquared/C-2.git" "rag_corpus\raw_external_rules\chartsquared"
+        Ensure-GitClone "https://github.com/holtzy/data_to_viz.git" "rag_corpus\raw_external_rules\from_data_to_viz"
+        Ensure-GitClone "https://github.com/mitvis/vistext.git" "rag_corpus\raw_external_rules\vistext"
+
+        Save-WebSource "https://datavizcatalogue.com/" "rag_corpus\raw_external_rules\data_visualisation_catalogue\index.html"
+        Save-WebSource "https://datavizcatalogue.com/methods/bar_chart.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\bar_chart.html"
+        Save-WebSource "https://datavizcatalogue.com/methods/line_graph.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\line_graph.html"
+        Save-WebSource "https://datavizcatalogue.com/methods/scatterplot.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\scatterplot.html"
+        Save-WebSource "https://datavizcatalogue.com/methods/histogram.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\histogram.html"
+        Save-WebSource "https://datavizcatalogue.com/methods/treemap.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\treemap.html"
+
+        Save-WebSource "https://carbondesignsystem.com/data-visualization/chart-anatomy/" "rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html"
+        Save-WebSource "https://carbondesignsystem.com/data-visualization/legends/" "rag_corpus\raw_external_rules\ibm_carbon_legends\index.html"
+        Save-WebSource "https://designsystem.digital.gov/components/data-visualizations/" "rag_corpus\raw_external_rules\uswds_data_visualizations\index.html"
+        Save-WebSource "https://urbaninstitute.github.io/graphics-styleguide/" "rag_corpus\raw_external_rules\urban_institute_style_guide\index.html"
+        Save-WebSource "https://www.w3.org/WAI/tutorials/images/complex/" "rag_corpus\raw_external_rules\w3c_wai_complex_images\index.html"
     }
 
     Invoke-Step "Download NLV benchmark data" {
@@ -101,17 +131,8 @@ if (-not $SkipClean) {
     }
 }
 
-Invoke-Step "Extract selected source areas" {
-    python scripts\rag_corpus\sources\extract_draco.py --include-path docs --include-path constraint --include-path constraints --include-path asp --include-path rules --include-path README.md --exclude-path tests --exclude-path examples --exclude-path node_modules --exclude-path .git
-    python scripts\rag_corpus\sources\extract_from_data_to_viz.py --include-path .rmd --include-path readme --include-path caveat --include-path mistake --include-path story --include-path input --exclude-path _site --exclude-path assets --exclude-path static --exclude-path node_modules --exclude-path .git
-    python scripts\rag_corpus\sources\extract_ft_visual_vocabulary.py --include-path visual-vocabulary --include-path README.md --exclude-path node_modules --exclude-path .git
-    python scripts\rag_corpus\sources\extract_compassql.py --include-path README.md --include-path docs --include-path src/rank --include-path src/constraint --include-path src/encoding --include-path src/query --exclude-path test --exclude-path examples --exclude-path website --exclude-path node_modules --exclude-path .git
-    python scripts\rag_corpus\sources\extract_chartsquared_rules.py --include-path prompt --include-path prompts --include-path criteria --include-path feedback --include-path evaluation --include-path chartaf --include-path chartuie --include-path README.md --exclude-path images --exclude-path assets --exclude-path node_modules --exclude-path .git
-    python -c "from pathlib import Path; [print(p.name, sum(1 for _ in p.open(encoding='utf-8'))) for p in Path('rag_corpus/extracted').glob('*.jsonl')]"
-}
-
-Invoke-Step "LLM normalization, exact deduplication, filters and validation" {
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model $LlmModel --sources draco from_data_to_viz ft_visual_vocabulary compassql chartsquared_rules --clean-processed --skip-extraction
+Invoke-Step "Prepare quality corpus" {
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model $LlmModel --clean-processed
 }
 
 Invoke-Step "Corpus quality report" {
@@ -163,7 +184,7 @@ if (-not $SkipAutorag) {
 }
 
 if (-not $SkipRuntimeConfigApply) {
-    Invoke-Step "Apply AutoRAG runtime retrieval config" {
+    Invoke-Step "Apply runtime retrieval config" {
         python scripts\rag_corpus\apply_runtime_retrieval_config.py --base-config ui\config\benchmark\project-gemma4-bench_rag.toml --output-config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml
     }
 }

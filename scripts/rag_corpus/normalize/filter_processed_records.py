@@ -28,8 +28,15 @@ DEFAULT_MIN_RETRIEVAL_CHARS = 24
 DEFAULT_MAX_DUPLICATES_PER_KEY = 3
 DEFAULT_MAX_NOISE_CLUSTER_RECORDS = 30
 DEFAULT_SOURCE_LIMITS: dict[str, int] = {
+    "ft_visual_vocabulary": 250,
     "from_data_to_viz": 500,
-    "chartsquared_rules": 150,
+    "data_visualisation_catalogue": 350,
+    "ibm_carbon_chart_anatomy": 250,
+    "ibm_carbon_legends": 200,
+    "uswds_data_visualizations": 250,
+    "urban_institute_style_guide": 350,
+    "w3c_wai_complex_images": 200,
+    "vistext": 500,
 }
 
 BAD_TEXT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -57,7 +64,6 @@ LOW_VALUE_PHRASES = {
     "clarify domain terms",
     "name functions clearly",
     "describe tests clearly",
-    "organize draco scripts logically",
 }
 
 NOISE_CLUSTERS: list[tuple[str, re.Pattern[str]]] = [

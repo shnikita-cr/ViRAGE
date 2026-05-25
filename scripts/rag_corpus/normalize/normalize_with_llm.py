@@ -164,6 +164,7 @@ def normalize_one(client: LLMClient, source: SourceRecord, target_record_types: 
             "metadata": {
                 "llm_output_index": idx,
                 "source_type": source.source_type,
+                "source_metadata": source.metadata,
                 "normalizer": PROCESSING_VERSION,
             },
         }

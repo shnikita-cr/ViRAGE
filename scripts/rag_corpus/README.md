@@ -1,51 +1,42 @@
-# ViRAGE RAG corpus scripts
+# Скрипты корпуса ViRAGE
 
-These scripts prepare offline RAG corpora for ViRAGE. The pipeline is LLM-normalization based and produces rule/guidance documents, not Vega-Lite spec templates.
+## Назначение
 
-## Basic flow
+Скрипты готовят корпус правил качества графиков. Основной корпус строится из 9 читаемых источников:
 
-    python scripts/rag_corpus/sources/scan_sources.py
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
-    python scripts/rag_corpus/run_export_autorag.py
-    python scripts/rag_corpus/run_export_runtime.py
+    ft_visual_vocabulary
+    from_data_to_viz
+    data_visualisation_catalogue
+    ibm_carbon_chart_anatomy
+    ibm_carbon_legends
+    uswds_data_visualizations
+    urban_institute_style_guide
+    w3c_wai_complex_images
+    vistext
 
-## ChartSquared modes
+## Папки
 
-ChartSquared / C-2 can be large, so it has three extraction modes:
+- `sources/` — извлечение исходных записей из локально скачанных источников.
+- `normalize/` — LLM-нормализация, фильтрация, дедупликация, валидация.
+- `runtime/` — экспорт компактного корпуса для приложения.
+- `autorag/` — экспорт корпуса и вопросов для AutoRAG.
 
-- `prompts_only` — extracts only ChartAF/prompt files. This is the cheapest and most useful mode for VLM judge and feedback rules.
-- `sample` — extracts all prompt files plus a deterministic sample of ChartUIE/task files. This is the default.
-- `full` — extracts every supported ChartSquared file. Use only for long offline runs.
+## Основной запуск
 
-Examples:
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode prompts_only
+## Запуск отдельных источников
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode sample --chartsquared-limit 300
+    python scripts/rag_corpus/sources/extract_ft_visual_vocabulary.py
+    python scripts/rag_corpus/sources/extract_from_data_to_viz.py
+    python scripts/rag_corpus/sources/extract_data_visualisation_catalogue.py
+    python scripts/rag_corpus/sources/extract_ibm_carbon_chart_anatomy.py
+    python scripts/rag_corpus/sources/extract_ibm_carbon_legends.py
+    python scripts/rag_corpus/sources/extract_uswds_data_visualizations.py
+    python scripts/rag_corpus/sources/extract_urban_institute_style_guide.py
+    python scripts/rag_corpus/sources/extract_w3c_wai_complex_images.py
+    python scripts/rag_corpus/sources/extract_vistext.py
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources chartsquared --chartsquared-mode full
+## Старые извлекатели
 
-## With OpenAI
-
-    python scripts/rag_corpus/run_prepare_corpus.py --provider openai --model gpt-4.1-mini
-
-## Resume / retry
-
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --resume
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --retry-failed
-
-## Folder roles
-
-- `common/` — shared schemas, IO, LLM client, validation.
-- `sources/` — extraction from raw datasets.
-- `normalize/` — LLM normalization, merge, dedupe, validation.
-- `autorag/` — export to AutoRAG parquet files.
-- `runtime/` — export compact runtime rule documents.
-
-## Rule types
-
-- `chart_pattern`
-- `readability_rule`
-- `scale_plot_area_rule`
-- `vlm_readability_rule`
-- `domain_semantics_rule`
+Файлы для `draco`, `compassql`, `chartsquared`, `taskvis`, `vega_lite_examples` оставлены только для истории и обратной совместимости. Они не вызываются основным пайплайном. Список кандидатов на ручное удаление лежит в `rag_corpus/manual_delete_candidates.md`.
