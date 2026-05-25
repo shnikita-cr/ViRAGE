@@ -166,11 +166,11 @@ def render_table_preview(title: str, data: pd.DataFrame) -> None:
         st.metric("Columns", len(data.columns))
     with right:
         st.metric("Missing values", int(data.isna().sum().sum()))
-    st.dataframe(data, use_container_width=True, hide_index=True)
+    st.dataframe(data, width="stretch", hide_index=True)
     with st.expander("Column types", expanded=False):
         st.dataframe(
             [{"column": name, "dtype": str(dtype)} for name, dtype in data.dtypes.items()],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -453,7 +453,7 @@ def render_model_calls(calls: list[ModelCallLog]) -> None:
             }
         )
 
-    st.dataframe(summary_rows, use_container_width=True, hide_index=True)
+    st.dataframe(summary_rows, width="stretch", hide_index=True)
 
     with st.expander("Detailed model calls", expanded=False):
         for index, call in enumerate(calls, start=1):
@@ -558,9 +558,9 @@ def render_interactive_vegalite_chart(result: Any) -> bool:
         spec_for_streamlit.pop("data", None)
 
         if data is None:
-            st.vega_lite_chart(spec_for_streamlit, use_container_width=True)
+            st.vega_lite_chart(spec_for_streamlit, width="stretch")
         else:
-            st.vega_lite_chart(data, spec_for_streamlit, use_container_width=True)
+            st.vega_lite_chart(data, spec_for_streamlit, width="stretch")
 
         with st.expander("Vega-Lite spec", expanded=False):
             st.json(spec)
@@ -580,7 +580,7 @@ def render_png_chart(result: Any) -> bool:
         st.warning("No plot image was produced.")
         return False
 
-    st.image(image_path, use_container_width=True)
+    st.image(image_path, width="stretch")
     return True
 
 
@@ -639,7 +639,7 @@ def render_live_chart_previews(chart_slot: Any, previews: list[dict[str, Any]]) 
         )
 
         if image_path is not None:
-            st.image(image_path.as_posix(), use_container_width=True)
+            st.image(image_path.as_posix(), width="stretch")
         else:
             st.warning(f"Preview image was produced, but the file was not found: {latest.get('image_path')}")
 
@@ -663,7 +663,7 @@ def render_live_chart_previews(chart_slot: Any, previews: list[dict[str, Any]]) 
                         "image_path": item.get("image_path"),
                         "artifact": item.get("artifact"),
                     })
-                st.dataframe(rows, use_container_width=True, hide_index=True)
+                st.dataframe(rows, width="stretch", hide_index=True)
 
         spec = latest.get("validated_spec")
         if isinstance(spec, dict) and spec:
