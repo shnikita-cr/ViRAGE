@@ -86,13 +86,14 @@ function Save-WebSource {
         Invoke-WebRequest -Uri $Url -Headers $headers -OutFile $Output -UseBasicParsing
     }
     catch {
-        Write-Warning "Cannot download $Url. Save this page manually to $Output"
+        throw "Cannot download $Url to $Output: $($_.Exception.Message)"
     }
-    if (Test-Path $Output) {
-        $downloaded = Get-Item $Output
-        if ($downloaded.Length -lt $MinBytes) {
-            Write-Warning "Downloaded file is suspiciously small: $Output ($($downloaded.Length) bytes)"
-        }
+    if (-not (Test-Path $Output)) {
+        throw "Download did not create expected file: $Output"
+    }
+    $downloaded = Get-Item $Output
+    if ($downloaded.Length -lt $MinBytes) {
+        throw "Downloaded file is suspiciously small: $Output ($($downloaded.Length) bytes), expected at least $MinBytes"
     }
 }
 
@@ -145,43 +146,8 @@ if (-not $SkipEnvironmentCheck) {
 }
 
 if (-not $SkipDownload) {
-    Invoke-Step "Download quality corpus sources" {
-        Ensure-Directory "rag_corpus\raw_external_rules"
-
-        Ensure-GitClone "https://github.com/Financial-Times/chart-doctor.git" "rag_corpus\raw_external_rules\ft_visual_vocabulary"
-        Ensure-GitClone "https://github.com/holtzy/data_to_viz.git" "rag_corpus\raw_external_rules\from_data_to_viz"
-        Save-WebSource "https://www.data-to-viz.com/caveats.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\caveats.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://www.data-to-viz.com/graph/barplot.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\barplot.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://www.data-to-viz.com/graph/line.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\line.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://www.data-to-viz.com/graph/scatter.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\scatter.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://www.data-to-viz.com/graph/histogram.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\histogram.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://www.data-to-viz.com/graph/boxplot.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\boxplot.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://www.data-to-viz.com/graph/treemap.html" "rag_corpus\raw_external_rules\from_data_to_viz\site_pages\treemap.html" -MinBytes 2000 -ForceRefresh
-        Ensure-GitClone "https://github.com/mitvis/vistext.git" "rag_corpus\raw_external_rules\vistext"
-        Save-WebSource "https://vis.csail.mit.edu/vistext/tabular.zip" "rag_corpus\raw_external_rules\vistext\data\tabular.zip" -MinBytes 100000 -ForceRefresh
-        Remove-Item -Force "rag_corpus\raw_external_rules\vistext\data\.tabular_unzipped" -ErrorAction SilentlyContinue
-        Expand-ZipIfMissing "rag_corpus\raw_external_rules\vistext\data\tabular.zip" "rag_corpus\raw_external_rules\vistext\data" "rag_corpus\raw_external_rules\vistext\data\.tabular_unzipped"
-
-        Save-WebSource "https://datavizcatalogue.com/" "rag_corpus\raw_external_rules\data_visualisation_catalogue\index.html"
-        Save-WebSource "https://datavizcatalogue.com/methods/bar_chart.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\bar_chart.html"
-        Save-WebSource "https://datavizcatalogue.com/methods/line_graph.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\line_graph.html"
-        Save-WebSource "https://datavizcatalogue.com/methods/scatterplot.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\scatterplot.html"
-        Save-WebSource "https://datavizcatalogue.com/methods/histogram.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\histogram.html"
-        Save-WebSource "https://datavizcatalogue.com/methods/treemap.html" "rag_corpus\raw_external_rules\data_visualisation_catalogue\treemap.html"
-
-        Save-WebSource "https://carbondesignsystem.com/data-visualization/chart-anatomy/" "rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://v10.carbondesignsystem.com/data-visualization/chart-anatomy/" "rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\v10.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://carbondesignsystem.com/data-visualization/legends/" "rag_corpus\raw_external_rules\ibm_carbon_legends\index.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://v10.carbondesignsystem.com/data-visualization/legends/" "rag_corpus\raw_external_rules\ibm_carbon_legends\v10.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://designsystem.digital.gov/components/data-visualizations/" "rag_corpus\raw_external_rules\uswds_data_visualizations\index.html" -MinBytes 2000 -ForceRefresh
-        Save-WebSource "https://urbaninstitute.github.io/graphics-styleguide/" "rag_corpus\raw_external_rules\urban_institute_style_guide\index.html"
-        Save-WebSource "https://www.w3.org/WAI/tutorials/images/complex/" "rag_corpus\raw_external_rules\w3c_wai_complex_images\index.html"
-    }
-
-    Invoke-Step "Download NLV benchmark data" {
-        Ensure-Directory "datasets"
-        Ensure-GitClone "https://github.com/giahy2507/nlvcorpus.github.io.git" ".\datasets\nlv_corpus"
-        Invoke-WebRequest "https://docs.google.com/spreadsheets/d/1GMWktNGJCwC8U1dvT0gMggVRRYqN3uL28zjVDbxYJOg/export?format=csv&gid=0" -OutFile ".\datasets\nlv_corpus\NLV_Corpus.csv"
+    Invoke-Step "Download practical visrag corpus sources" {
+        python scripts\rag_corpus\sources\download_quality_sources.py --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability
     }
 }
 
@@ -206,7 +172,7 @@ if (-not $SkipClean) {
 }
 
 Invoke-Step "Prepare quality corpus" {
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model $LlmModel --clean-processed
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model $LlmModel --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability --clean-processed --skip-source-download
 }
 
 Invoke-Step "Corpus quality report" {

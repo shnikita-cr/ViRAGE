@@ -38,7 +38,7 @@ TEXT_ENCODINGS = ("utf-8-sig", "utf-8", "cp1251", "cp1252", "latin-1")
 ChartSquaredMode = Literal["prompts_only", "sample", "full"]
 
 
-def _read_text_with_fallback(path: Path) -> str:
+def _read_text_strict(path: Path) -> str:
     last_error: Exception | None = None
     for encoding in TEXT_ENCODINGS:
         try:
@@ -80,7 +80,7 @@ def _flatten_text(value: Any) -> str:
 
 
 def _load_json_records(path: Path) -> list[dict[str, Any]]:
-    payload = json.loads(_read_text_with_fallback(path))
+    payload = json.loads(_read_text_strict(path))
     if isinstance(payload, list):
         return [_sanitize_value(item) for item in payload if isinstance(item, dict)]
     if isinstance(payload, dict):
@@ -94,7 +94,7 @@ def _load_json_records(path: Path) -> list[dict[str, Any]]:
 
 def _load_jsonl_records(path: Path) -> list[dict[str, Any]]:
     records = []
-    text = _read_text_with_fallback(path)
+    text = _read_text_strict(path)
     for line in text.splitlines():
         if line.strip():
             try:
@@ -109,7 +109,7 @@ def _load_jsonl_records(path: Path) -> list[dict[str, Any]]:
 
 
 def _load_csv_records(path: Path) -> list[dict[str, Any]]:
-    text = _read_text_with_fallback(path)
+    text = _read_text_strict(path)
     sample = text[:4096]
     try:
         dialect = csv.Sniffer().sniff(sample)
@@ -124,8 +124,8 @@ def _load_csv_records(path: Path) -> list[dict[str, Any]]:
 
 def _load_yaml_records(path: Path) -> list[dict[str, Any]]:
     if yaml is None:
-        return [{"text": _read_text_with_fallback(path), "parser_warning": "PyYAML is not installed; YAML loaded as raw text."}]
-    payload = yaml.safe_load(_read_text_with_fallback(path))
+        raise RuntimeError(f"Cannot parse YAML source {path}: PyYAML is not installed")
+    payload = yaml.safe_load(_read_text_strict(path))
     if isinstance(payload, list):
         return [_sanitize_value(item) for item in payload if isinstance(item, dict)]
     if isinstance(payload, dict):
@@ -140,7 +140,7 @@ def _load_yaml_records(path: Path) -> list[dict[str, Any]]:
 
 
 def _load_text_record(path: Path) -> list[dict[str, Any]]:
-    return [{"title": path.stem.replace("_", " "), "text": _read_text_with_fallback(path)}]
+    return [{"title": path.stem.replace("_", " "), "text": _read_text_strict(path)}]
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:

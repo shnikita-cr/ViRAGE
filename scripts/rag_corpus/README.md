@@ -2,50 +2,71 @@
 
 ## Назначение
 
-Скрипты готовят корпус правил качества графиков. Основной корпус строится из 9 читаемых источников:
+Скрипты готовят практический корпус правил для этапа `visrag`: выбор графика по задаче, типовые ошибки, цвет, подписи, читаемость и доступность. Корпус не содержит Vega-Lite-спецификаций и не использует NLV как источник знаний.
 
-    ft_visual_vocabulary
+Основной корпус строится из источников:
+
+    wilke_fundamentals
     from_data_to_viz
-    data_visualisation_catalogue
-    ibm_carbon_chart_anatomy
-    ibm_carbon_legends
-    uswds_data_visualizations
+    ft_visual_vocabulary
+    uk_analysis_colours
+    uk_charts_checklist
     urban_institute_style_guide
-    w3c_wai_complex_images
-    vistext
+    chartability
 
 ## Папки
 
-- `sources/` — извлечение исходных записей из локально скачанных источников.
+- `sources/` — загрузка и извлечение исходных записей из внешних источников.
 - `normalize/` — LLM-нормализация, фильтрация, дедупликация, валидация.
 - `runtime/` — экспорт компактного корпуса для приложения.
 - `autorag/` — экспорт корпуса и вопросов для AutoRAG.
 
+## Загрузка источников
+
+    python scripts/rag_corpus/sources/download_quality_sources.py
+
+Обновить сохранённые страницы и git-клоны:
+
+    python scripts/rag_corpus/sources/download_quality_sources.py --refresh
+
 ## Основной запуск
+
+С загрузкой источников:
 
     python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed
 
-## Запуск отдельных источников
+Без повторной загрузки источников, только если `rag_corpus/raw_external_rules/*` уже реально загружены:
 
-    python scripts/rag_corpus/sources/extract_ft_visual_vocabulary.py
+    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed --skip-source-download
+
+## Запуск отдельных извлекателей
+
+    python scripts/rag_corpus/sources/extract_wilke_fundamentals.py
     python scripts/rag_corpus/sources/extract_from_data_to_viz.py
-    python scripts/rag_corpus/sources/extract_data_visualisation_catalogue.py
-    python scripts/rag_corpus/sources/extract_ibm_carbon_chart_anatomy.py
-    python scripts/rag_corpus/sources/extract_ibm_carbon_legends.py
-    python scripts/rag_corpus/sources/extract_uswds_data_visualizations.py
+    python scripts/rag_corpus/sources/extract_ft_visual_vocabulary.py
+    python scripts/rag_corpus/sources/extract_uk_analysis_colours.py
+    python scripts/rag_corpus/sources/extract_uk_charts_checklist.py
     python scripts/rag_corpus/sources/extract_urban_institute_style_guide.py
-    python scripts/rag_corpus/sources/extract_w3c_wai_complex_images.py
-    python scripts/rag_corpus/sources/extract_vistext.py
+    python scripts/rag_corpus/sources/extract_chartability.py
 
-## Старые извлекатели
+## Поведение при ошибках
 
-Файлы для `draco`, `compassql`, `chartsquared`, `taskvis`, `vega_lite_examples` оставлены только для истории и обратной совместимости. Они не вызываются основным пайплайном. Список кандидатов на ручное удаление лежит в `rag_corpus/manual_delete_candidates.md`.
+Загрузка и извлечение работают строго: если источник не скачался, файл подозрительно маленький, raw-папка отсутствует или из реальных данных не извлечено ни одной записи, pipeline падает с ошибкой. Подстановочные тексты не создаются.
 
-Проверить ошибки извлечения:
+## Проверка
+
+Проверить загрузку:
+
+    notepad rag_corpus\reports\source_download_report.json
+
+Проверить извлечение:
 
     notepad rag_corpus\reports\extraction_report.json
 
-## Примечание по извлечению источников качества графиков
+Проверить количество извлечённых записей:
 
-Пайплайн дополнительно сохраняет несколько прямых HTML-страниц From Data to Viz, IBM Carbon и USWDS. Это нужно, чтобы извлечение не зависело только от текущей структуры репозиториев. VisText обрабатывается только как структурированный набор подписей и таблиц; файлы метрик, предсказаний и результатов моделей исключаются.
+    python -c "from pathlib import Path; [print(p.name, sum(1 for _ in p.open(encoding='utf-8'))) for p in Path('rag_corpus/extracted').glob('*.jsonl')]"
 
+## Старые извлекатели
+
+Извлекатели для IBM Carbon, W3C WAI, VisText, Data Visualisation Catalogue и других прежних источников оставлены для обратной совместимости и тестов, но не входят в основной practical `visrag`-корпус.

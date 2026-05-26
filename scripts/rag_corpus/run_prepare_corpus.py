@@ -19,32 +19,29 @@ from scripts.rag_corpus.normalize.filter_processed_records import filter_file
 from scripts.rag_corpus.normalize.merge_processed_records import merge_processed_records
 from scripts.rag_corpus.normalize.normalize_with_llm import _target_record_types_arg, run_normalization
 from scripts.rag_corpus.normalize.validate_processed_records import validate_processed
-from scripts.rag_corpus.sources.extract_data_visualisation_catalogue import extract_data_visualisation_catalogue
+from scripts.rag_corpus.sources.extract_chartability import extract_chartability
 from scripts.rag_corpus.sources.extract_from_data_to_viz import extract_from_data_to_viz
 from scripts.rag_corpus.sources.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
-from scripts.rag_corpus.sources.extract_ibm_carbon_chart_anatomy import extract_ibm_carbon_chart_anatomy
-from scripts.rag_corpus.sources.extract_ibm_carbon_legends import extract_ibm_carbon_legends
 from scripts.rag_corpus.sources.extract_manual_rules import extract_manual_rules
 from scripts.rag_corpus.sources.extract_urban_institute_style_guide import extract_urban_institute_style_guide
-from scripts.rag_corpus.sources.extract_uswds_data_visualizations import extract_uswds_data_visualizations
+from scripts.rag_corpus.sources.extract_uk_analysis_colours import extract_uk_analysis_colours
+from scripts.rag_corpus.sources.extract_uk_charts_checklist import extract_uk_charts_checklist
+from scripts.rag_corpus.sources.extract_wilke_fundamentals import extract_wilke_fundamentals
+from scripts.rag_corpus.sources.download_quality_sources import download_quality_sources
 from scripts.rag_corpus.sources.extract_virage_feedback import extract_virage_feedback
-from scripts.rag_corpus.sources.extract_vistext import extract_vistext
-from scripts.rag_corpus.sources.extract_w3c_wai_complex_images import extract_w3c_wai_complex_images
 from scripts.rag_corpus.sources.scan_sources import inventory_markdown, scan_sources
 from scripts.rag_corpus.common.io import read_jsonl, write_jsonl, write_text
 from scripts.rag_corpus.common.progress import StageProgress
 
 
 QUALITY_CORPUS_SOURCES = [
-    "ft_visual_vocabulary",
+    "wilke_fundamentals",
     "from_data_to_viz",
-    "data_visualisation_catalogue",
-    "ibm_carbon_chart_anatomy",
-    "ibm_carbon_legends",
-    "uswds_data_visualizations",
+    "ft_visual_vocabulary",
+    "uk_analysis_colours",
+    "uk_charts_checklist",
     "urban_institute_style_guide",
-    "w3c_wai_complex_images",
-    "vistext",
+    "chartability",
 ]
 
 OPTIONAL_INTERNAL_SOURCES = [
@@ -118,15 +115,13 @@ def _write_source_records(root: Path, *, sources: set[str]) -> list[Path]:
     outputs: list[Path] = []
     extraction_report: dict[str, dict] = {}
     extractor_specs = [
-        ("ft_visual_vocabulary", extract_ft_visual_vocabulary, root / "rag_corpus/raw_external_rules/ft_visual_vocabulary"),
+        ("wilke_fundamentals", extract_wilke_fundamentals, root / "rag_corpus/raw_external_rules/wilke_fundamentals"),
         ("from_data_to_viz", extract_from_data_to_viz, root / "rag_corpus/raw_external_rules/from_data_to_viz"),
-        ("data_visualisation_catalogue", extract_data_visualisation_catalogue, root / "rag_corpus/raw_external_rules/data_visualisation_catalogue"),
-        ("ibm_carbon_chart_anatomy", extract_ibm_carbon_chart_anatomy, root / "rag_corpus/raw_external_rules/ibm_carbon_chart_anatomy"),
-        ("ibm_carbon_legends", extract_ibm_carbon_legends, root / "rag_corpus/raw_external_rules/ibm_carbon_legends"),
-        ("uswds_data_visualizations", extract_uswds_data_visualizations, root / "rag_corpus/raw_external_rules/uswds_data_visualizations"),
+        ("ft_visual_vocabulary", extract_ft_visual_vocabulary, root / "rag_corpus/raw_external_rules/ft_visual_vocabulary"),
+        ("uk_analysis_colours", extract_uk_analysis_colours, root / "rag_corpus/raw_external_rules/uk_analysis_colours"),
+        ("uk_charts_checklist", extract_uk_charts_checklist, root / "rag_corpus/raw_external_rules/uk_charts_checklist"),
         ("urban_institute_style_guide", extract_urban_institute_style_guide, root / "rag_corpus/raw_external_rules/urban_institute_style_guide"),
-        ("w3c_wai_complex_images", extract_w3c_wai_complex_images, root / "rag_corpus/raw_external_rules/w3c_wai_complex_images"),
-        ("vistext", extract_vistext, root / "rag_corpus/raw_external_rules/vistext"),
+        ("chartability", extract_chartability, root / "rag_corpus/raw_external_rules/chartability"),
         ("manual_rules", extract_manual_rules, root / "rag_corpus/raw/manual_rules"),
         ("virage_feedback", extract_virage_feedback, root / "rag_corpus/raw/virage_feedback"),
     ]
@@ -136,19 +131,7 @@ def _write_source_records(root: Path, *, sources: set[str]) -> list[Path]:
         out_path = root / f"rag_corpus/extracted/{name}.jsonl"
         try:
             records = func(input_dir)
-            write_jsonl(out_path, [record.model_dump() for record in records])
-            outputs.append(out_path)
-            extraction_report[name] = {
-                "status": "ok",
-                "records": len(records),
-                "output": str(out_path.relative_to(root)),
-                "input_dir": str(input_dir.relative_to(root)) if input_dir.is_relative_to(root) else str(input_dir),
-            }
-            progress.update(extra=f"{name}: {len(records)} records")
         except Exception as exc:  # noqa: BLE001
-            # Always create an empty file so missing extracted files do not hide failures.
-            write_jsonl(out_path, [])
-            outputs.append(out_path)
             extraction_report[name] = {
                 "status": "failed",
                 "records": 0,
@@ -157,7 +140,30 @@ def _write_source_records(root: Path, *, sources: set[str]) -> list[Path]:
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             }
-            progress.update(error_increment=1, extra=f"{name}: failed {type(exc).__name__}: {exc}")
+            write_json(root / "rag_corpus/reports/extraction_report.json", extraction_report)
+            progress.fail(extra=f"{name}: failed {type(exc).__name__}: {exc}")
+            raise RuntimeError(f"Extraction failed for source '{name}' from {input_dir}: {exc}") from exc
+        if not records:
+            extraction_report[name] = {
+                "status": "failed",
+                "records": 0,
+                "output": str(out_path.relative_to(root)),
+                "input_dir": str(input_dir.relative_to(root)) if input_dir.is_relative_to(root) else str(input_dir),
+                "error_type": "EmptyExtractionError",
+                "error": "Extractor returned zero records from real source data.",
+            }
+            write_json(root / "rag_corpus/reports/extraction_report.json", extraction_report)
+            progress.fail(extra=f"{name}: 0 records")
+            raise RuntimeError(f"Extraction produced zero records for source '{name}' from {input_dir}.")
+        write_jsonl(out_path, [record.model_dump() for record in records])
+        outputs.append(out_path)
+        extraction_report[name] = {
+            "status": "ok",
+            "records": len(records),
+            "output": str(out_path.relative_to(root)),
+            "input_dir": str(input_dir.relative_to(root)) if input_dir.is_relative_to(root) else str(input_dir),
+        }
+        progress.update(extra=f"{name}: {len(records)} records")
     write_json(root / "rag_corpus/reports/extraction_report.json", extraction_report)
     progress.finish(extra=f"outputs={len(outputs)}")
     return outputs
@@ -189,6 +195,9 @@ def main() -> None:
         help="Source extractors to run. Defaults to all sources.",
     )
     parser.add_argument("--clean-processed", action="store_true", help="Remove processed outputs before running.")
+    parser.add_argument("--skip-source-download", action="store_true", help="Do not download/update external source files before extraction.")
+    parser.add_argument("--refresh-sources", action="store_true", help="Redownload pages and recreate git clones before extraction.")
+    parser.add_argument("--source-download-timeout-seconds", type=float, default=60.0, help="Network timeout for source downloading.")
     parser.add_argument("--skip-extraction", action="store_true", help="Use existing rag_corpus/extracted/<source>.jsonl files instead of running extractors.")
     parser.add_argument("--skip-quality-filter", action="store_true", help="Skip post-deduplication quality filtering.")
     parser.add_argument("--min-prompt-chars", type=int, default=120, help="Reject normalized rules with shorter prompt_text.")
@@ -202,9 +211,18 @@ def main() -> None:
     if args.clean_processed:
         _clean_processed_outputs(root)
 
+    selected_sources = set(args.sources or DEFAULT_SOURCES)
+    external_sources = sorted(source for source in selected_sources if source in QUALITY_CORPUS_SOURCES)
+    if external_sources and not args.skip_source_download and not args.skip_extraction:
+        download_quality_sources(
+            root,
+            sources=external_sources,
+            refresh=args.refresh_sources,
+            timeout_seconds=args.source_download_timeout_seconds,
+        )
+
     _write_source_inventory(root)
 
-    selected_sources = set(args.sources or DEFAULT_SOURCES)
     if args.skip_extraction:
         input_paths = _existing_extracted_paths(root, sources=selected_sources)
         missing = sorted(source for source in selected_sources if not (root / f"rag_corpus/extracted/{source}.jsonl").exists())

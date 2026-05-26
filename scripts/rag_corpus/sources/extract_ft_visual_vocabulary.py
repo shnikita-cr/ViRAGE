@@ -7,20 +7,29 @@ PROJECT_ROOT_FOR_IMPORTS = next((parent for parent in _CURRENT_FILE_FOR_IMPORTS.
 if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_FOR_IMPORTS))
 
-
 from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
-from scripts.rag_corpus.sources.extract_external_rules_common import TEXT_SUFFIXES, extract_markdown_like, write_extractor_cli
+from scripts.rag_corpus.sources.extract_external_rules_common import (
+    TEXT_SUFFIXES,
+    extract_markdown_like,
+    make_source_record,
+    write_extractor_cli,
+)
 
 DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/ft_visual_vocabulary"
 DEFAULT_OUTPUT = "rag_corpus/extracted/ft_visual_vocabulary.jsonl"
 
 
-def extract_ft_visual_vocabulary(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
+def extract_ft_visual_vocabulary(
+    input_dir: Path,
+    *,
+    include_paths: list[str] | None = None,
+    exclude_paths: list[str] | None = None,
+) -> list[SourceRecord]:
     # The cloned chart-doctor repository contains unrelated examples.
     # Keep only the Visual Vocabulary source page/README.
-    return extract_markdown_like(
+    records = extract_markdown_like(
         input_dir,
         source_dataset="ft_visual_vocabulary",
         record_prefix="ft_visual_vocabulary",
@@ -29,10 +38,16 @@ def extract_ft_visual_vocabulary(input_dir: Path, *, include_paths: list[str] | 
         suffixes=TEXT_SUFFIXES,
         include_keywords=["visual-vocabulary", "readme"],
         exclude_keywords=["license", "node_modules"],
-        include_paths=include_paths or ["visual-vocabulary/README.md"],
+        include_paths=include_paths or ["visual-vocabulary/README.md", "visual-vocabulary\\README.md"],
         exclude_paths=exclude_paths or ["priestley-timeline", ".git", "images", "poster"],
         max_records_per_file=24,
     )
+    if not records:
+        raise RuntimeError(
+            f"No usable records extracted from real source data for 'ft_visual_vocabulary' in {input_dir}. "
+            "Check that the Visual Vocabulary README was downloaded/cloned successfully."
+        )
+    return records
 
 
 def main() -> None:

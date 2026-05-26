@@ -20,7 +20,7 @@ from scripts.rag_corpus.sources.extract_external_rules_common import (
     flatten_json,
     is_relevant_visualization_source,
     make_source_record,
-    read_text_with_fallback,
+    read_text_strict,
     write_extractor_cli,
 )
 from scripts.rag_corpus.sources.source_registry import QUALITY_CORPUS_BY_ID
@@ -151,7 +151,7 @@ def _find_vistext_files(input_dir: Path, include_paths: list[str] | None = None,
     return sorted(set(result), key=lambda item: item.as_posix())
 
 def _load_text_lines(path: Path) -> list[str]:
-    text = read_text_with_fallback(path)
+    text = read_text_strict(path)
     return [compact_text(line) for line in text.splitlines() if compact_text(line)]
 
 
@@ -209,7 +209,7 @@ def _flatten_nested_json_records(payload: Any, *, parent_id: str = "") -> list[d
 
 
 def _load_json_records(path: Path) -> list[dict[str, Any]]:
-    text = read_text_with_fallback(path)
+    text = read_text_strict(path)
     if path.suffix.lower() == ".jsonl":
         records: list[dict[str, Any]] = []
         for line_number, line in enumerate(text.splitlines(), start=1):
@@ -226,7 +226,7 @@ def _load_json_records(path: Path) -> list[dict[str, Any]]:
 
 
 def _load_tabular_records(path: Path) -> list[dict[str, Any]]:
-    text = read_text_with_fallback(path)
+    text = read_text_strict(path)
     delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
     reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
     return [dict(row) for row in reader]

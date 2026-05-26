@@ -125,7 +125,7 @@ def is_relevant_visualization_source(
     return True, "kept"
 
 
-def read_text_with_fallback(path: Path) -> str:
+def read_text_strict(path: Path) -> str:
     last_error: Exception | None = None
     for encoding in TEXT_ENCODINGS:
         try:
@@ -140,11 +140,7 @@ def read_text_with_fallback(path: Path) -> str:
 
 
 def fetch_url_text(url: str, *, timeout_seconds: float = 30.0) -> str:
-    """Download a text page with a browser-like user agent.
-
-    This is used only as a fallback for web-only guidance sources when the
-    local raw page is missing, empty or was saved as a placeholder page.
-    """
+    """Download a text page with a browser-like user agent."""
     request = urllib.request.Request(
         url,
         headers={
@@ -304,7 +300,7 @@ def _best_html_root(soup: BeautifulSoup) -> Tag:
 def extract_html_sections(
     html_text: str,
     *,
-    fallback_title: str,
+    default_title: str,
     min_chars: int = 120,
     max_chars: int = DEFAULT_MAX_TEXT_CHARS,
 ) -> list[tuple[str, str]]:
@@ -318,7 +314,7 @@ def extract_html_sections(
     root = _best_html_root(soup)
 
     sections: list[tuple[str, list[str]]] = []
-    current_title = fallback_title
+    current_title = default_title
     current_lines: list[str] = []
     seen_lines: set[str] = set()
 
@@ -360,10 +356,10 @@ def extract_html_sections(
     if result:
         return result
 
-    fallback_text = clean_extracted_text(root.get_text(" ", strip=True))
+    page_text = clean_extracted_text(root.get_text(" ", strip=True))
     return [
-        (fallback_title, chunk)
-        for chunk in chunk_text(fallback_text, max_chars=max_chars, min_chars=min_chars)
+        (default_title, chunk)
+        for chunk in chunk_text(page_text, max_chars=max_chars, min_chars=min_chars)
     ]
 
 
@@ -444,7 +440,7 @@ def flatten_json(value: Any, *, max_chars: int = DEFAULT_MAX_TEXT_CHARS) -> str:
 
 def load_json_like_records(path: Path) -> list[dict[str, Any]]:
     suffix = path.suffix.lower()
-    text = read_text_with_fallback(path)
+    text = read_text_strict(path)
     if suffix == ".jsonl":
         records: list[dict[str, Any]] = []
         for line in text.splitlines():
@@ -452,25 +448,28 @@ def load_json_like_records(path: Path) -> list[dict[str, Any]]:
                 continue
             try:
                 payload = json.loads(line)
-            except json.JSONDecodeError:
-                records.append({"text": line.strip()})
-                continue
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSONL line in {path}: {exc}") from exc
             if isinstance(payload, dict):
                 records.append(payload)
             else:
-                records.append({"text": flatten_json(payload)})
+                raise ValueError(f"JSONL record in {path} must be an object, got {type(payload).__name__}")
         return records
     if suffix == ".json":
         payload = json.loads(text)
         if isinstance(payload, list):
-            return [item if isinstance(item, dict) else {"text": flatten_json(item)} for item in payload]
+            if not all(isinstance(item, dict) for item in payload):
+                raise ValueError(f"JSON list in {path} must contain only objects")
+            return payload
         if isinstance(payload, dict):
             for key in ("records", "data", "items", "examples", "tasks", "rules", "constraints"):
                 value = payload.get(key)
                 if isinstance(value, list):
-                    return [item if isinstance(item, dict) else {"text": flatten_json(item)} for item in value]
+                    if not all(isinstance(item, dict) for item in value):
+                        raise ValueError(f"JSON field '{key}' in {path} must contain only objects")
+                    return value
             return [payload]
-    return []
+    raise ValueError(f"Unsupported JSON source shape in {path}: {type(payload).__name__}")
 
 
 def keyword_score(path: Path, keywords: Iterable[str]) -> int:
@@ -561,11 +560,11 @@ def extract_markdown_like(
     records: list[SourceRecord] = []
     for path in files:
         try:
-            text = read_text_with_fallback(path)
-        except Exception:
-            continue
+            text = read_text_strict(path)
+        except Exception as exc:
+            raise RuntimeError(f"Cannot read source file {path}: {exc}") from exc
         if path.suffix.lower() in {".html", ".htm"}:
-            sections = extract_html_sections(text, fallback_title=path.stem.replace("_", " "))
+            sections = extract_html_sections(text, default_title=path.stem.replace("_", " "))
         else:
             sections = split_markdown_sections(text)
             if not sections:
@@ -620,8 +619,8 @@ def extract_json_like(
     for path in files:
         try:
             loaded = load_json_like_records(path)
-        except Exception:
-            continue
+        except Exception as exc:
+            raise RuntimeError(f"Cannot parse structured source file {path}: {exc}") from exc
         kept_in_file = 0
         for idx, payload in enumerate(loaded):
             text = flatten_json(payload)

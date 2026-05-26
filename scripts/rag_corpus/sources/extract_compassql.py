@@ -18,7 +18,7 @@ from scripts.rag_corpus.sources.extract_external_rules_common import (
     iter_candidate_files,
     is_relevant_visualization_source,
     make_source_record,
-    read_text_with_fallback,
+    read_text_strict,
     write_extractor_cli,
 )
 
@@ -34,7 +34,7 @@ def _extract_rank_constraint_code(input_dir: Path, *, include_paths: list[str] |
     files = [path for path in files if any(token in str(path).replace("\\", "/").lower() for token in ("rank", "constraint", "recommend", "enumerat", "schema", "encoding", "channel"))]
     for path in files:
         try:
-            text = read_text_with_fallback(path)
+            text = read_text_strict(path)
         except Exception:
             continue
         useful_lines: list[str] = []

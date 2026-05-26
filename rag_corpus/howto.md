@@ -4,21 +4,19 @@
 
 ## 1. Назначение корпуса
 
-Корпус теперь строится только из читаемых источников с правилами качества графиков. В основной корпус не входят `Draco`, `CompassQL`, `ChartSquared`, `TaskVis`, `Vega-Lite examples`, `NLV` и другие наборы вида “запрос -> готовый график”.
+Корпус строится для этапа `visrag`: практические правила выбора графика, ошибок, цвета, подписей, читаемости и доступности. В основной корпус не входят `Draco`, `CompassQL`, `ChartSquared`, `TaskVis`, `Vega-Lite examples`, `NLV` и наборы вида “запрос -> готовый график”.
 
-В корпус добавлены 9 источников:
+Основные источники:
 
-| id | Источник | Формат |
+| id | Источник | Что даёт |
 |---|---|---|
-| `ft_visual_vocabulary` | Financial Times Visual Vocabulary | репозиторий с разметкой и текстом |
-| `from_data_to_viz` | From Data to Viz | репозиторий с текстовыми страницами |
-| `data_visualisation_catalogue` | Data Visualisation Catalogue | сохранённые HTML-страницы |
-| `ibm_carbon_chart_anatomy` | IBM Carbon Chart Anatomy | сохранённая HTML-страница |
-| `ibm_carbon_legends` | IBM Carbon Legends | сохранённая HTML-страница |
-| `uswds_data_visualizations` | USWDS Data Visualizations | сохранённая HTML-страница |
-| `urban_institute_style_guide` | Urban Institute Style Guide | сохранённая HTML-страница |
-| `w3c_wai_complex_images` | W3C WAI Complex Images | сохранённая HTML-страница |
-| `vistext` | VisText | структурированные файлы, текстовые описания, таблицы; изображения не используются |
+| `wilke_fundamentals` | Claus Wilke, Fundamentals of Data Visualization | сравнение, распределения, overplotting, цвет, оси, подписи |
+| `from_data_to_viz` | From Data to Viz / Caveats | типовые ошибки и выбор графика по форме данных |
+| `ft_visual_vocabulary` | Financial Times Visual Vocabulary | выбор графика по аналитической задаче |
+| `uk_analysis_colours` | UK Analysis Function: colours | доступный цвет и тип цветовой шкалы |
+| `uk_charts_checklist` | UK Analysis Function: charts checklist | проверки графика перед публикацией |
+| `urban_institute_style_guide` | Urban Institute Style Guide | подписи, цвета, layout, аннотации |
+| `chartability` | Chartability / POUR-CAF | accessibility-аудит визуализаций |
 
 ## 2. Проверка окружения
 
@@ -45,67 +43,37 @@
 
     .\rag_corpus\run_rag_corpus_pipeline.ps1 -SkipDownload -SkipAutorag -SkipRuntimeConfigApply -SkipNlvSmoke -SkipInfiAgentSmoke
 
-## 4. Скачать источники корпуса вручную
+## 4. Скачать источники корпуса
 
-Создать папки:
+Основная команда:
 
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules
+    python scripts\rag_corpus\sources\download_quality_sources.py
 
-Репозитории:
+Принудительно обновить страницы и git-клоны:
 
-    git clone https://github.com/Financial-Times/chart-doctor.git rag_corpus\raw_external_rules\ft_visual_vocabulary
-    git clone https://github.com/holtzy/data_to_viz.git rag_corpus\raw_external_rules\from_data_to_viz
-    git clone https://github.com/mitvis/vistext.git rag_corpus\raw_external_rules\vistext
-    Invoke-WebRequest -Headers @{"User-Agent"="Mozilla/5.0"} https://vis.csail.mit.edu/vistext/tabular.zip -OutFile rag_corpus\raw_external_rules\vistext\data\tabular.zip
-    Expand-Archive -Path rag_corpus\raw_external_rules\vistext\data\tabular.zip -DestinationPath rag_corpus\raw_external_rules\vistext\data -Force
+    python scripts\rag_corpus\sources\download_quality_sources.py --refresh
 
-Для VisText извлекатель ищет `data_train.json`, `data_validation.json`, `data_test.json`, JSON/JSONL/CSV/TSV/Parquet-файлы, а также текстовые пары `.source`/`.target` из `tabular.zip`. README репозитория в корпус не добавляется.
+Скачать только выбранные источники:
 
-HTML-источники:
-
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\data_visualisation_catalogue
-    Invoke-WebRequest https://datavizcatalogue.com/ -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\index.html
-    Invoke-WebRequest https://datavizcatalogue.com/methods/bar_chart.html -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\bar_chart.html
-    Invoke-WebRequest https://datavizcatalogue.com/methods/line_graph.html -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\line_graph.html
-    Invoke-WebRequest https://datavizcatalogue.com/methods/scatterplot.html -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\scatterplot.html
-    Invoke-WebRequest https://datavizcatalogue.com/methods/histogram.html -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\histogram.html
-    Invoke-WebRequest https://datavizcatalogue.com/methods/treemap.html -OutFile rag_corpus\raw_external_rules\data_visualisation_catalogue\treemap.html
-
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy
-    Invoke-WebRequest -Headers @{"User-Agent"="Mozilla/5.0"} https://carbondesignsystem.com/data-visualization/chart-anatomy/ -OutFile rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html
-
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\ibm_carbon_legends
-    Invoke-WebRequest -Headers @{"User-Agent"="Mozilla/5.0"} https://carbondesignsystem.com/data-visualization/legends/ -OutFile rag_corpus\raw_external_rules\ibm_carbon_legends\index.html
-
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\uswds_data_visualizations
-    Invoke-WebRequest https://designsystem.digital.gov/components/data-visualizations/ -OutFile rag_corpus\raw_external_rules\uswds_data_visualizations\index.html
-
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\urban_institute_style_guide
-    Invoke-WebRequest https://urbaninstitute.github.io/graphics-styleguide/ -OutFile rag_corpus\raw_external_rules\urban_institute_style_guide\index.html
-
-    New-Item -ItemType Directory -Force rag_corpus\raw_external_rules\w3c_wai_complex_images
-    Invoke-WebRequest https://www.w3.org/WAI/tutorials/images/complex/ -OutFile rag_corpus\raw_external_rules\w3c_wai_complex_images\index.html
+    python scripts\rag_corpus\sources\download_quality_sources.py --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability
 
 Проверка:
 
-    Test-Path rag_corpus\raw_external_rules\ft_visual_vocabulary
-    Test-Path rag_corpus\raw_external_rules\from_data_to_viz
-    Test-Path rag_corpus\raw_external_rules\vistext
-    Test-Path rag_corpus\raw_external_rules\vistext\data\data_train.json
-    Test-Path rag_corpus\raw_external_rules\vistext\data\data_validation.json
-    Test-Path rag_corpus\raw_external_rules\vistext\data\data_test.json
-    Test-Path rag_corpus\raw_external_rules\data_visualisation_catalogue\index.html
-    Test-Path rag_corpus\raw_external_rules\ibm_carbon_chart_anatomy\index.html
-    Test-Path rag_corpus\raw_external_rules\ibm_carbon_legends\index.html
-    Test-Path rag_corpus\raw_external_rules\uswds_data_visualizations\index.html
-    Test-Path rag_corpus\raw_external_rules\urban_institute_style_guide\index.html
-    Test-Path rag_corpus\raw_external_rules\w3c_wai_complex_images\index.html
+    notepad rag_corpus\reports\source_download_report.json
+    Get-ChildItem rag_corpus\raw_external_rules -Directory
 
 ## 5. Подготовить корпус
 
-Основной запуск по 9 источникам:
+Загрузка и извлечение работают строго: ошибка скачивания, подозрительно маленький файл, отсутствующая raw-папка или нулевое извлечение записей останавливают pipeline. Подстановочные тексты не используются.
+
+
+Основной запуск:
 
     python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed
+
+Без повторной загрузки источников, только если `rag_corpus\raw_external_rules\*` уже реально загружены:
+
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --clean-processed --skip-source-download
 
 Продолжить после обрыва:
 
@@ -117,17 +85,17 @@ HTML-источники:
 
 Подключить внутренние правила и обратную связь ViRAGE дополнительно:
 
-    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources ft_visual_vocabulary from_data_to_viz data_visualisation_catalogue ibm_carbon_chart_anatomy ibm_carbon_legends uswds_data_visualizations urban_institute_style_guide w3c_wai_complex_images vistext manual_rules virage_feedback --clean-processed
+    python scripts\rag_corpus\run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability manual_rules virage_feedback --clean-processed
 
 После запуска должны появиться:
 
+    rag_corpus\extracted\*.jsonl
     rag_corpus\processed\all_rules.jsonl
     rag_corpus\processed\all_rules.deduped.jsonl
     rag_corpus\processed\all_rules.filtered.jsonl
     rag_corpus\processed\all_rules.validated.jsonl
     rag_corpus\processed\processing_report.md
-    rag_corpus
-eports\extraction_report.json
+    rag_corpus\reports\extraction_report.json
 
 Проверить количество извлечённых записей:
 

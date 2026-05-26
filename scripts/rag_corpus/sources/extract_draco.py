@@ -21,7 +21,7 @@ from scripts.rag_corpus.sources.extract_external_rules_common import (
     iter_candidate_files,
     is_relevant_visualization_source,
     make_source_record,
-    read_text_with_fallback,
+    read_text_strict,
     write_extractor_cli,
 )
 
@@ -40,7 +40,7 @@ def _extract_constraint_records(input_dir: Path, *, include_paths: list[str] | N
     files = [path for path in files if any(token in str(path).replace("\\", "/").lower() for token in ("constraint", "rule", "soft", "hard", "asp", "draco", "recommend", "rank"))]
     for path in files:
         try:
-            text = read_text_with_fallback(path)
+            text = read_text_strict(path)
         except Exception:
             continue
         comments = [compact_text(item) for item in _COMMENT_RE.findall(text) if len(compact_text(item)) > 30]
