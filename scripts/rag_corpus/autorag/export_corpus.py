@@ -39,6 +39,8 @@ def _contents(record: RagRuleRecord) -> str:
 
 def export_autorag_corpus(input_path: Path, out_path: Path) -> dict[str, Any]:
     records = [RagRuleRecord.model_validate(raw) for raw in read_jsonl(input_path)]
+    if not records:
+        raise RuntimeError(f"Cannot export AutoRAG corpus from empty input: {input_path}")
     rows = []
     for record in records:
         rows.append({

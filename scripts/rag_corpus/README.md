@@ -16,7 +16,8 @@
 
 ## Папки
 
-- `sources/` — загрузка и извлечение исходных записей из внешних источников.
+- `loading/` — отдельные строгие загрузчики реальных страниц для каждого источника.
+- `sources/` — агрегатор загрузки и извлечение исходных записей из внешних источников.
 - `normalize/` — LLM-нормализация, фильтрация, дедупликация, валидация.
 - `runtime/` — экспорт компактного корпуса для приложения.
 - `autorag/` — экспорт корпуса и вопросов для AutoRAG.
@@ -25,9 +26,21 @@
 
     python scripts/rag_corpus/sources/download_quality_sources.py
 
-Обновить сохранённые страницы и git-клоны:
+Обновить сохранённые страницы:
 
     python scripts/rag_corpus/sources/download_quality_sources.py --refresh
+
+Отдельные загрузчики по источникам:
+
+    python scripts/rag_corpus/loading/load_wilke_fundamentals.py --refresh
+    python scripts/rag_corpus/loading/load_from_data_to_viz.py --refresh
+    python scripts/rag_corpus/loading/load_ft_visual_vocabulary.py --refresh
+    python scripts/rag_corpus/loading/load_uk_analysis_colours.py --refresh
+    python scripts/rag_corpus/loading/load_uk_charts_checklist.py --refresh
+    python scripts/rag_corpus/loading/load_urban_institute_style_guide.py --refresh
+    python scripts/rag_corpus/loading/load_chartability.py --refresh
+
+Загрузчики HTML используют BeautifulSoup для проверки, что скачанная страница содержит читаемый текст. Для многостраничных источников включён поиск полезных внутренних страниц по ссылкам, а не сохранение только стартовой страницы.
 
 ## Основной запуск
 

@@ -51,6 +51,8 @@ def _question_for(record: RagRuleRecord) -> AutoRAGQuestion:
 
 def export_autorag_qa(input_path: Path, out_path: Path) -> dict[str, Any]:
     records = [RagRuleRecord.model_validate(raw) for raw in read_jsonl(input_path)]
+    if not records:
+        raise RuntimeError(f"Cannot export AutoRAG QA from empty input: {input_path}")
     questions = [_question_for(record) for record in records]
     rows = []
     for item in questions:

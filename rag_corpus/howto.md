@@ -27,9 +27,7 @@
     pip install -r requirements-dev.txt
     pip install pandas pyarrow requests pydantic pyyaml AutoRAG
 
-    ollama list
-    ollama pull qwen2.5-coder:7b
-    ollama pull nomic-embed-text
+    python -c "import requests; data=requests.get('http://localhost:11434/api/tags', timeout=10).json(); print([m['name'] for m in data.get('models', [])])"
 
 ## 3. Полный запуск одной командой
 
@@ -49,9 +47,22 @@
 
     python scripts\rag_corpus\sources\download_quality_sources.py
 
-Принудительно обновить страницы и git-клоны:
+Загрузчик берёт выбранные практические источники как HTML/RAW-страницы. `git clone` для Data-to-Viz, FT Visual Vocabulary и Chartability не используется. HTML-страницы проверяются через BeautifulSoup. Для Wilke, Data-to-Viz, Urban Institute и Chartability загрузка проходит по полезным внутренним ссылкам, а не сохраняет только стартовую страницу.
+
+Принудительно обновить скачанные страницы:
 
     python scripts\rag_corpus\sources\download_quality_sources.py --refresh
+
+
+Отдельные загрузчики по источникам:
+
+    python scripts\rag_corpus\loading\load_wilke_fundamentals.py --refresh
+    python scripts\rag_corpus\loading\load_from_data_to_viz.py --refresh
+    python scripts\rag_corpus\loading\load_ft_visual_vocabulary.py --refresh
+    python scripts\rag_corpus\loading\load_uk_analysis_colours.py --refresh
+    python scripts\rag_corpus\loading\load_uk_charts_checklist.py --refresh
+    python scripts\rag_corpus\loading\load_urban_institute_style_guide.py --refresh
+    python scripts\rag_corpus\loading\load_chartability.py --refresh
 
 Скачать только выбранные источники:
 
@@ -172,7 +183,7 @@
 
 Извлечь лучшую конфигурацию:
 
-    autorag extract_best_config --trial_path rag_corpus\autorag\runs\ollama_all_train\0 --output_path rag_corpus\autorag\runs\ollama_all_best_config.yaml
+    autorag extract_best_config --trial_path rag_corpus\autorag\runs\ollama_all_train\0 --output rag_corpus\autorag\runs\ollama_all_best_config.yaml
 
 Проверить на test:
 
