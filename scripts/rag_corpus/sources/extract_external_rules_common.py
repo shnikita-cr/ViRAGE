@@ -258,27 +258,20 @@ _HTML_LINE_NOISE = {
 }
 
 
-def _normalise_attr_values(value: object) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, (list, tuple, set)):
-        return [str(item) for item in value if item is not None]
-    return [str(value)]
-
-
 def _remove_html_noise(soup: BeautifulSoup) -> None:
     for element in list(soup.select(_HTML_NOISE_SELECTOR)):
-        if isinstance(element, Tag) and element.parent is not None:
-            element.decompose()
+        element.decompose()
     for element in list(soup.find_all(True)):
-        if not isinstance(element, Tag) or element.parent is None or element.attrs is None:
+        if getattr(element, "attrs", None) is None:
             continue
-        attr_values: list[str] = []
+        values: list[str] = []
         for key in ("id", "class", "role"):
-            attr_values.extend(_normalise_attr_values(element.attrs.get(key)))
-        attrs = " ".join(attr_values)
+            raw_value = element.attrs.get(key)
+            if isinstance(raw_value, str):
+                values.append(raw_value)
+            elif raw_value:
+                values.extend(str(item) for item in raw_value)
+        attrs = " ".join(values)
         if attrs and _HTML_NOISE_ATTR_RE.search(attrs):
             element.decompose()
 
@@ -676,7 +669,7 @@ def write_extractor_cli(
 ) -> None:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--input-dir", default=default_input_dir)
-    parser.add_argument("--output", default=default_output)
+    parser.add_argument("--output", default=default_OUTPUT if False else default_output)
     parser.add_argument("--include-path", action="append", default=[], help="Only inspect files whose relative path contains this fragment. Can be repeated.")
     parser.add_argument("--exclude-path", action="append", default=[], help="Skip files whose relative path contains this fragment. Can be repeated.")
     args = parser.parse_args()

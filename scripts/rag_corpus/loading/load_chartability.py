@@ -1,50 +1,41 @@
 from __future__ import annotations
 
-from pathlib import Path
 from pathlib import Path as _PathForImports
 import sys
 _CURRENT_FILE_FOR_IMPORTS = _PathForImports(__file__).resolve()
 PROJECT_ROOT_FOR_IMPORTS = next(
-    (
-        parent
-        for parent in _CURRENT_FILE_FOR_IMPORTS.parents
-        if (parent / "src").exists() and (parent / "scripts").exists()
-    ),
+    (parent for parent in _CURRENT_FILE_FOR_IMPORTS.parents if (parent / "src").exists() and (parent / "scripts").exists()),
     _PathForImports.cwd(),
 )
 if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_FOR_IMPORTS))
 
+from pathlib import Path
 
-from scripts.rag_corpus.loading.common import HtmlPageSeed, download_html_pages, html_path_mapper, run_loader_cli
-
-SOURCE_ID = "chartability"
-SEEDS = (
-    HtmlPageSeed("https://chartability.github.io/POUR-CAF/", "site_pages/index.html", 2_000),
-)
-INCLUDE_TERMS = (
-    "pour", "caf", "perceivable", "operable", "understandable", "robust", "compromising",
-    "assistive", "failures", "accessibility", "accessible", "chart", "visualization", "visualisation",
-    "color", "contrast", "label", "description", "screen reader", "keyboard", "cognitive",
-)
-EXCLUDE_TERMS = ("github", "license", "contributing", "package", "install", "css", "javascript", "logo")
+from scripts.rag_corpus.loading.common import LoaderConfig, download_html_pages, run_loader_cli
 
 
-def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 120.0) -> dict[str, object]:
+def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 60.0) -> dict[str, object]:
     return download_html_pages(
-        root=root,
-        source_id=SOURCE_ID,
-        seeds=SEEDS,
+        root,
+        LoaderConfig(
+            source_id="chartability",
+            seed_urls=("https://chartability.github.io/POUR-CAF/",),
+            allowed_hosts=("chartability.github.io",),
+            allowed_path_prefixes=("/POUR-CAF/", "/pour-caf/"),
+            exclude_path_keywords=("/assets/", "/img/", "/images/", ".xml", "feed", "sitemap"),
+            link_scope_selectors=("nav", "main", "body"),
+            max_pages=90,
+            min_bytes=1000,
+        ),
         refresh=refresh,
         timeout_seconds=timeout_seconds,
-        discover=True,
-        include_terms=INCLUDE_TERMS,
-        exclude_terms=EXCLUDE_TERMS,
-        max_pages=35,
-        min_saved_pages=3,
-        path_mapper=html_path_mapper(),
     )
 
 
+def main() -> None:
+    run_loader_cli(load, "Download Chartability POUR-CAF guidance pages into rag_corpus/raw_external_rules.")
+
+
 if __name__ == "__main__":
-    run_loader_cli("Download Chartability POUR-CAF pages for ViRAGE visrag corpus.", load)
+    main()

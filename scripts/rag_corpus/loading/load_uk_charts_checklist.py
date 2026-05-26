@@ -1,53 +1,39 @@
 from __future__ import annotations
 
-from pathlib import Path
 from pathlib import Path as _PathForImports
 import sys
 _CURRENT_FILE_FOR_IMPORTS = _PathForImports(__file__).resolve()
 PROJECT_ROOT_FOR_IMPORTS = next(
-    (
-        parent
-        for parent in _CURRENT_FILE_FOR_IMPORTS.parents
-        if (parent / "src").exists() and (parent / "scripts").exists()
-    ),
+    (parent for parent in _CURRENT_FILE_FOR_IMPORTS.parents if (parent / "src").exists() and (parent / "scripts").exists()),
     _PathForImports.cwd(),
 )
 if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_FOR_IMPORTS))
 
+from pathlib import Path
 
-from scripts.rag_corpus.loading.common import HtmlPageSeed, download_html_pages, html_path_mapper, run_loader_cli
-
-SOURCE_ID = "uk_charts_checklist"
-SEEDS = (
-    HtmlPageSeed(
-        "https://analysisfunction.civilservice.gov.uk/policy-store/charts-a-checklist/",
-        "site_pages/charts_a_checklist.html",
-        2_000,
-    ),
-)
-INCLUDE_TERMS = (
-    "chart", "checklist", "title", "label", "legend", "axis", "colour", "color", "accessibility",
-    "data visualisation", "visualisation", "readability",
-)
-EXCLUDE_TERMS = ("news", "event", "vacancy", "blog", "privacy", "cookie", "accessibility-statement")
+from scripts.rag_corpus.loading.common import LoaderConfig, download_html_pages, run_loader_cli
 
 
-def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 120.0) -> dict[str, object]:
+def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 60.0) -> dict[str, object]:
     return download_html_pages(
-        root=root,
-        source_id=SOURCE_ID,
-        seeds=SEEDS,
+        root,
+        LoaderConfig(
+            source_id="uk_charts_checklist",
+            seed_urls=("https://analysisfunction.civilservice.gov.uk/policy-store/charts-a-checklist/",),
+            allowed_hosts=("analysisfunction.civilservice.gov.uk",),
+            allowed_path_prefixes=("/policy-store/charts-a-checklist/",),
+            max_pages=1,
+            min_bytes=1800,
+        ),
         refresh=refresh,
         timeout_seconds=timeout_seconds,
-        discover=False,
-        include_terms=INCLUDE_TERMS,
-        exclude_terms=EXCLUDE_TERMS,
-        max_pages=1,
-        min_saved_pages=1,
-        path_mapper=html_path_mapper(),
     )
 
 
+def main() -> None:
+    run_loader_cli(load, "Download UK Analysis Function charts checklist into rag_corpus/raw_external_rules.")
+
+
 if __name__ == "__main__":
-    run_loader_cli("Download UK Analysis Function charts checklist for ViRAGE visrag corpus.", load)
+    main()

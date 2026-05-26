@@ -1,339 +1,296 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import shutil
 import sys
+import time
 import urllib.error
-import urllib.parse
 import urllib.request
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Iterable
+from urllib.parse import quote, unquote, urljoin, urlsplit, urlunsplit
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
-_CURRENT_FILE_FOR_IMPORTS = Path(__file__).resolve()
+from pathlib import Path as _PathForImports
+_CURRENT_FILE_FOR_IMPORTS = _PathForImports(__file__).resolve()
 PROJECT_ROOT_FOR_IMPORTS = next(
-    (
-        parent
-        for parent in _CURRENT_FILE_FOR_IMPORTS.parents
-        if (parent / "src").exists() and (parent / "scripts").exists()
-    ),
-    Path.cwd(),
+    (parent for parent in _CURRENT_FILE_FOR_IMPORTS.parents if (parent / "src").exists() and (parent / "scripts").exists()),
+    _PathForImports.cwd(),
 )
 if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_FOR_IMPORTS))
 
-from scripts.rag_corpus.common.io import ensure_dir, project_root, write_json
+from scripts.rag_corpus.common.io import project_root, write_json
 from scripts.rag_corpus.sources.source_registry import QUALITY_CORPUS_BY_ID
 
 
-@dataclass(frozen=True)
-class HtmlPageSeed:
-    url: str
-    relative_path: str | None = None
-    min_bytes: int = 1_000
+class SourceDownloadError(RuntimeError):
+    pass
 
 
 @dataclass(frozen=True)
-class TextFileSeed:
-    url: str
-    relative_path: str
+class LoaderConfig:
+    source_id: str
+    seed_urls: tuple[str, ...]
+    allowed_hosts: tuple[str, ...]
+    allowed_path_prefixes: tuple[str, ...]
+    max_pages: int
     min_bytes: int = 500
+    include_path_keywords: tuple[str, ...] = ()
+    exclude_path_keywords: tuple[str, ...] = ()
+    link_scope_selectors: tuple[str, ...] = ()
+    delay_seconds: float = 0.1
 
 
-class SourceLoadingError(RuntimeError):
-    """Raised when a real source cannot be downloaded or validated."""
+_ASSET_EXTENSIONS = {
+    ".7z", ".avi", ".bmp", ".css", ".csv", ".doc", ".docx", ".eot", ".gif", ".gz",
+    ".ico", ".jpeg", ".jpg", ".js", ".json", ".map", ".mp3", ".mp4", ".otf", ".pdf",
+    ".png", ".ppt", ".pptx", ".rar", ".rss", ".svg", ".tar", ".tgz", ".ttf", ".txt",
+    ".webm", ".webp", ".woff", ".woff2", ".xls", ".xlsx", ".xml", ".zip",
+}
+_HTML_EXTENSIONS = {"", ".html", ".htm"}
+_SKIP_SCHEMES = {"mailto", "tel", "javascript", "data"}
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
 
-def source_raw_dir(root: Path, source_id: str) -> Path:
-    if source_id not in QUALITY_CORPUS_BY_ID:
-        raise ValueError(f"Unknown source_id: {source_id}")
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,text/markdown,text/plain;q=0.9,*/*;q=0.8",
+}
+
+
+def raw_dir_for(root: Path, source_id: str) -> Path:
     return root / QUALITY_CORPUS_BY_ID[source_id].raw_dir
 
 
-def browser_headers(accept: str = "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8") -> dict[str, str]:
-    return {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/125.0 Safari/537.36"
-        ),
-        "Accept": accept,
-    }
+def _strip_fragment(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
 
 
-def fetch_bytes(url: str, *, timeout_seconds: float, accept: str | None = None) -> tuple[bytes, str]:
-    request = urllib.request.Request(
-        url,
-        headers=browser_headers(accept or "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8"),
-    )
+def _normalise_candidate_url(base_url: str, href: str) -> str | None:
+    href = href.strip()
+    if not href or _CONTROL_RE.search(href):
+        return None
+    joined = urljoin(base_url, href)
+    parts = urlsplit(joined)
+    if parts.scheme.lower() in _SKIP_SCHEMES or parts.scheme.lower() not in {"http", "https"}:
+        return None
+    decoded_path = unquote(parts.path)
+    # Links such as "Urban Institute.xml" are generated feed/metadata links, not pages.
+    # They are intentionally ignored instead of URL-quoted and downloaded.
+    if any(ch.isspace() for ch in decoded_path):
+        return None
+    safe_path = quote(decoded_path, safe="/%:@-._~!$&'()*+,;=")
+    safe_query = quote(parts.query, safe="=&?/%:@-._~!$'()*+,;[]")
+    return _strip_fragment(urlunsplit((parts.scheme.lower(), parts.netloc.lower(), safe_path, safe_query, "")))
+
+
+def _path_ext(url: str) -> str:
+    return Path(urlsplit(url).path).suffix.lower()
+
+
+def _is_html_like_url(url: str) -> bool:
+    ext = _path_ext(url)
+    if ext in _ASSET_EXTENSIONS:
+        return False
+    return ext in _HTML_EXTENSIONS
+
+
+def _matches_allowed_scope(url: str, config: LoaderConfig) -> bool:
+    parts = urlsplit(url)
+    host = parts.netloc.lower()
+    if host not in {item.lower() for item in config.allowed_hosts}:
+        return False
+    path = unquote(parts.path).lower()
+    if config.allowed_path_prefixes and not any(path.startswith(prefix.lower()) for prefix in config.allowed_path_prefixes):
+        return False
+    if config.exclude_path_keywords and any(token.lower() in path for token in config.exclude_path_keywords):
+        return False
+    if config.include_path_keywords and not any(token.lower() in path for token in config.include_path_keywords):
+        return False
+    return _is_html_like_url(url)
+
+
+def _relative_path_for_url(url: str) -> Path:
+    parts = urlsplit(url)
+    decoded_path = unquote(parts.path).strip("/")
+    if not decoded_path:
+        decoded_path = "index.html"
+    elif decoded_path.endswith("/"):
+        decoded_path = f"{decoded_path}index.html"
+    elif Path(decoded_path).suffix.lower() not in {".html", ".htm"}:
+        decoded_path = f"{decoded_path}.html"
+
+    clean_parts = []
+    for part in decoded_path.split("/"):
+        clean = _SAFE_FILENAME_RE.sub("_", part).strip("._")
+        clean_parts.append(clean or hashlib.sha1(part.encode("utf-8")).hexdigest()[:12])
+    rel = Path(*clean_parts)
+    if parts.query:
+        digest = hashlib.sha1(parts.query.encode("utf-8")).hexdigest()[:8]
+        rel = rel.with_name(f"{rel.stem}_{digest}{rel.suffix}")
+    return rel
+
+
+def _fetch_bytes(url: str, *, timeout_seconds: float) -> tuple[bytes, str]:
+    request = urllib.request.Request(url, headers=HEADERS)
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
             payload = response.read()
-            content_type = response.headers.get("content-type", "")
+            content_type = response.headers.get("Content-Type", "")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise SourceLoadingError(f"Cannot download {url}: {exc}") from exc
+        raise SourceDownloadError(f"Cannot download {url}: {exc}") from exc
     return payload, content_type
 
 
-def decode_payload(payload: bytes, content_type: str) -> str:
-    encoding = "utf-8"
-    match = re.search(r"charset=([^;]+)", content_type, flags=re.IGNORECASE)
-    if match:
-        encoding = match.group(1).strip()
-    try:
-        return payload.decode(encoding, errors="replace")
-    except LookupError:
-        return payload.decode("utf-8", errors="replace")
-
-
-def assert_real_payload(payload: bytes, *, url: str, min_bytes: int) -> None:
-    if len(payload) < min_bytes:
-        raise SourceLoadingError(
-            f"Downloaded source is too small: {url}: {len(payload)} bytes, expected at least {min_bytes}"
-        )
-    sample = payload[: min(len(payload), 8000)].decode("utf-8", errors="ignore").lower()
-    failed_markers = (
-        "access denied",
-        "forbidden",
-        "temporarily unavailable",
-        "just a moment",
-        "checking your browser",
-        "enable javascript",
-        "cloudflare",
-        "captcha",
-        "__static_source_fallback__",
-        "__remote_fallback__",
-    )
-    if any(marker in sample for marker in failed_markers):
-        raise SourceLoadingError(f"Downloaded source looks like an error/interstitial page: {url}")
-
-
-def safe_relative_path(url: str, *, default_name: str = "index.html") -> str:
-    parsed = urllib.parse.urlparse(url)
-    path = parsed.path.strip("/")
-    if not path:
-        return default_name
-    if path.endswith("/"):
-        path = f"{path}index.html"
-    name = re.sub(r"[^A-Za-z0-9._/-]+", "_", path)
-    if not Path(name).suffix:
-        name = f"{name}.html"
-    return name
-
-
-def normalise_url(url: str) -> str:
-    parsed = urllib.parse.urlparse(url)
-    parsed = parsed._replace(fragment="")
-    return urllib.parse.urlunparse(parsed)
-
-
-def same_host(url: str, allowed_hosts: set[str]) -> bool:
-    host = urllib.parse.urlparse(url).netloc.lower()
-    return host in allowed_hosts
-
-
-def path_or_text_has_terms(url: str, text: str, include_terms: tuple[str, ...], exclude_terms: tuple[str, ...]) -> bool:
-    haystack = f"{urllib.parse.urlparse(url).path} {text}".lower()
-    if exclude_terms and any(term.lower() in haystack for term in exclude_terms):
-        return False
-    return bool(include_terms and any(term.lower() in haystack for term in include_terms))
-
-
-def soup_from_html(html: str) -> BeautifulSoup:
-    return BeautifulSoup(html, "html.parser")
-
-
-def discover_links(
+def _read_cached_or_fetch(
+    url: str,
+    output_path: Path,
     *,
-    html: str,
-    base_url: str,
-    allowed_hosts: set[str],
-    include_terms: tuple[str, ...],
-    exclude_terms: tuple[str, ...] = (),
-) -> list[str]:
-    soup = soup_from_html(html)
-    urls: list[str] = []
+    refresh: bool,
+    timeout_seconds: float,
+    min_bytes: int,
+) -> tuple[bytes, dict[str, object]]:
+    if output_path.exists() and not refresh:
+        size = output_path.stat().st_size
+        if size < min_bytes:
+            raise SourceDownloadError(
+                f"Cached source is too small: {output_path}: {size} bytes, expected at least {min_bytes}. "
+                "Run with --refresh after fixing the source URL."
+            )
+        return output_path.read_bytes(), {"status": "exists", "url": url, "path": str(output_path), "bytes": size}
+
+    payload, content_type = _fetch_bytes(url, timeout_seconds=timeout_seconds)
+    if len(payload) < min_bytes:
+        raise SourceDownloadError(
+            f"Downloaded source is too small: {url} -> {output_path}: {len(payload)} bytes, expected at least {min_bytes}"
+        )
+    if "html" not in content_type.lower() and output_path.suffix.lower() in {".html", ".htm"}:
+        raise SourceDownloadError(f"Downloaded non-HTML response for {url}: Content-Type={content_type!r}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(payload)
+    return payload, {"status": "downloaded", "url": url, "path": str(output_path), "bytes": len(payload)}
+
+
+def _link_roots(soup: BeautifulSoup, selectors: Iterable[str]) -> list[BeautifulSoup]:
+    roots = []
+    for selector in selectors:
+        roots.extend(soup.select(selector))
+    return roots or [soup]
+
+
+def _extract_links(base_url: str, soup: BeautifulSoup, config: LoaderConfig) -> list[str]:
+    links: list[str] = []
     seen: set[str] = set()
-    for node in soup.find_all("a", href=True):
-        if not isinstance(node, Tag):
-            continue
-        absolute = normalise_url(urllib.parse.urljoin(base_url, str(node.get("href", ""))))
-        parsed = urllib.parse.urlparse(absolute)
-        if parsed.scheme not in {"http", "https"}:
-            continue
-        if not same_host(absolute, allowed_hosts):
-            continue
-        link_text = node.get_text(" ", strip=True)
-        if not path_or_text_has_terms(absolute, link_text, include_terms, exclude_terms):
-            continue
-        if absolute in seen:
-            continue
-        seen.add(absolute)
-        urls.append(absolute)
-    return urls
+    for root in _link_roots(soup, config.link_scope_selectors):
+        for anchor in root.find_all("a", href=True):
+            candidate = _normalise_candidate_url(base_url, anchor["href"])
+            if not candidate or candidate in seen:
+                continue
+            if not _matches_allowed_scope(candidate, config):
+                continue
+            seen.add(candidate)
+            links.append(candidate)
+    return links
 
 
-def write_manifest(output_dir: Path, source_id: str, report: dict[str, object]) -> Path:
-    manifest = output_dir / "_download_manifest.json"
-    ensure_dir(manifest.parent)
-    write_json(manifest, {"source_id": source_id, **report})
+def download_html_pages(root: Path, config: LoaderConfig, *, refresh: bool, timeout_seconds: float) -> dict[str, object]:
+    target_dir = raw_dir_for(root, config.source_id)
+    if target_dir.exists() and refresh:
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    queue: deque[str] = deque()
+    queued: set[str] = set()
+    for seed_url in config.seed_urls:
+        normalised = _normalise_candidate_url(seed_url, "") or _normalise_candidate_url(seed_url, seed_url)
+        if not normalised:
+            raise SourceDownloadError(f"Invalid seed URL for {config.source_id}: {seed_url}")
+        if not _matches_allowed_scope(normalised, config):
+            raise SourceDownloadError(f"Seed URL is outside allowed scope for {config.source_id}: {normalised}")
+        queue.append(normalised)
+        queued.add(normalised)
+
+    items: list[dict[str, object]] = []
+    downloaded_urls: set[str] = set()
+    while queue and len(downloaded_urls) < config.max_pages:
+        url = queue.popleft()
+        if url in downloaded_urls:
+            continue
+        rel_path = _relative_path_for_url(url)
+        output_path = target_dir / rel_path
+        payload, item = _read_cached_or_fetch(
+            url,
+            output_path,
+            refresh=refresh,
+            timeout_seconds=timeout_seconds,
+            min_bytes=config.min_bytes,
+        )
+        items.append(item)
+        downloaded_urls.add(url)
+
+        soup = BeautifulSoup(payload, "html.parser")
+        for linked_url in _extract_links(url, soup, config):
+            if linked_url not in queued and linked_url not in downloaded_urls:
+                queue.append(linked_url)
+                queued.add(linked_url)
+        if config.delay_seconds > 0:
+            time.sleep(config.delay_seconds)
+
+    if not items:
+        raise SourceDownloadError(f"No pages downloaded for source {config.source_id}.")
+
+    manifest = {
+        "source_id": config.source_id,
+        "status": "ok",
+        "items": items,
+        "downloaded_pages": len(items),
+        "target_dir": str(target_dir),
+    }
+    write_json(target_dir / "download_manifest.json", manifest)
     return manifest
 
 
-def download_text_files(
-    *,
+def download_text_file(
     root: Path,
+    *,
     source_id: str,
-    files: Iterable[TextFileSeed],
+    url: str,
+    relative_path: str,
     refresh: bool,
     timeout_seconds: float,
+    min_bytes: int = 500,
 ) -> dict[str, object]:
-    output_dir = source_raw_dir(root, source_id)
-    ensure_dir(output_dir)
-    items: list[dict[str, object]] = []
-    for seed in files:
-        output_path = output_dir / seed.relative_path
-        if output_path.exists() and not refresh and output_path.stat().st_size >= seed.min_bytes:
-            payload = output_path.read_bytes()
-            assert_real_payload(payload, url=seed.url, min_bytes=seed.min_bytes)
-            items.append({"url": seed.url, "path": str(output_path), "bytes": output_path.stat().st_size, "status": "exists"})
-            continue
-        payload, content_type = fetch_bytes(seed.url, timeout_seconds=timeout_seconds, accept="text/plain,*/*;q=0.8")
-        assert_real_payload(payload, url=seed.url, min_bytes=seed.min_bytes)
-        ensure_dir(output_path.parent)
-        output_path.write_bytes(payload)
-        items.append({
-            "url": seed.url,
-            "path": str(output_path),
-            "bytes": len(payload),
-            "content_type": content_type,
-            "status": "downloaded",
-        })
-    if not items:
-        raise SourceLoadingError(f"No text files configured for source {source_id}")
-    report: dict[str, object] = {"status": "ok", "kind": "text_files", "items": items, "saved_pages": len(items)}
-    manifest = write_manifest(output_dir, source_id, report)
-    report["manifest"] = str(manifest)
-    return report
+    target_dir = raw_dir_for(root, source_id)
+    if target_dir.exists() and refresh:
+        shutil.rmtree(target_dir)
+    output_path = target_dir / relative_path
+    payload, item = _read_cached_or_fetch(
+        url,
+        output_path,
+        refresh=refresh,
+        timeout_seconds=timeout_seconds,
+        min_bytes=min_bytes,
+    )
+    if not payload.strip():
+        raise SourceDownloadError(f"Downloaded empty text source: {url}")
+    manifest = {"source_id": source_id, "status": "ok", "items": [item], "target_dir": str(target_dir)}
+    write_json(target_dir / "download_manifest.json", manifest)
+    return manifest
 
 
-def download_html_pages(
-    *,
-    root: Path,
-    source_id: str,
-    seeds: Iterable[HtmlPageSeed],
-    refresh: bool,
-    timeout_seconds: float,
-    discover: bool,
-    include_terms: tuple[str, ...],
-    exclude_terms: tuple[str, ...] = (),
-    max_pages: int = 40,
-    min_saved_pages: int = 1,
-    path_mapper: Callable[[str], str] | None = None,
-) -> dict[str, object]:
-    output_dir = source_raw_dir(root, source_id)
-    ensure_dir(output_dir)
-    seed_list = list(seeds)
-    if not seed_list:
-        raise SourceLoadingError(f"No seed pages configured for source {source_id}")
-
-    allowed_hosts = {urllib.parse.urlparse(seed.url).netloc.lower() for seed in seed_list}
-    queue: list[HtmlPageSeed] = list(seed_list)
-    visited: set[str] = set()
-    items: list[dict[str, object]] = []
-
-    while queue and len(items) < max_pages:
-        seed = queue.pop(0)
-        url = normalise_url(seed.url)
-        if url in visited:
-            continue
-        visited.add(url)
-        relative_path = seed.relative_path or (path_mapper(url) if path_mapper else safe_relative_path(url))
-        output_path = output_dir / relative_path
-
-        if output_path.exists() and not refresh and output_path.stat().st_size >= seed.min_bytes:
-            payload = output_path.read_bytes()
-            assert_real_payload(payload, url=url, min_bytes=seed.min_bytes)
-            html = output_path.read_text(encoding="utf-8", errors="replace")
-            soup = soup_from_html(html)
-            if not soup.get_text(" ", strip=True):
-                raise SourceLoadingError(f"Existing HTML has no readable text: {output_path}")
-            items.append({"url": url, "path": str(output_path), "bytes": output_path.stat().st_size, "status": "exists"})
-        else:
-            payload, content_type = fetch_bytes(url, timeout_seconds=timeout_seconds)
-            assert_real_payload(payload, url=url, min_bytes=seed.min_bytes)
-            html = decode_payload(payload, content_type)
-            # BeautifulSoup is intentionally used during loading to validate that the page
-            # is a parsable web document before extraction starts.
-            soup = soup_from_html(html)
-            if not soup.get_text(" ", strip=True):
-                raise SourceLoadingError(f"Downloaded HTML has no readable text: {url}")
-            ensure_dir(output_path.parent)
-            output_path.write_text(html, encoding="utf-8")
-            items.append({
-                "url": url,
-                "path": str(output_path),
-                "bytes": len(html.encode("utf-8")),
-                "content_type": content_type,
-                "status": "downloaded",
-            })
-
-        if discover and len(items) < max_pages:
-            for discovered_url in discover_links(
-                html=html,
-                base_url=url,
-                allowed_hosts=allowed_hosts,
-                include_terms=include_terms,
-                exclude_terms=exclude_terms,
-            ):
-                if discovered_url in visited:
-                    continue
-                if any(seed_item.url == discovered_url for seed_item in queue):
-                    continue
-                queue.append(HtmlPageSeed(discovered_url, None, seed.min_bytes))
-
-    if len(items) < min_saved_pages:
-        raise SourceLoadingError(
-            f"Source {source_id} saved only {len(items)} pages, expected at least {min_saved_pages}. "
-            "Check useful-page discovery rules or network access."
-        )
-
-    report = {
-        "status": "ok",
-        "kind": "html_pages",
-        "items": items,
-        "saved_pages": len(items),
-        "visited_urls": sorted(visited),
-        "discover": discover,
-        "max_pages": max_pages,
-        "min_saved_pages": min_saved_pages,
-    }
-    manifest = write_manifest(output_dir, source_id, report)
-    report["manifest"] = str(manifest)
-    return report
-
-
-
-def html_path_mapper(prefix: str = "site_pages") -> Callable[[str], str]:
-    def mapper(url: str) -> str:
-        relative = safe_relative_path(url)
-        if relative == "index.html":
-            return f"{prefix}/index.html"
-        return f"{prefix}/{relative}"
-    return mapper
-
-
-def add_loader_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--refresh", action="store_true")
-    parser.add_argument("--timeout-seconds", type=float, default=120.0)
-
-
-def run_loader_cli(description: str, loader: Callable[..., dict[str, object]]) -> None:
+def run_loader_cli(load_func, description: str) -> None:
     parser = argparse.ArgumentParser(description=description)
-    add_loader_args(parser)
+    parser.add_argument("--refresh", action="store_true")
+    parser.add_argument("--timeout-seconds", type=float, default=60.0)
     args = parser.parse_args()
-    report = loader(project_root(), refresh=args.refresh, timeout_seconds=args.timeout_seconds)
+    report = load_func(project_root(), refresh=args.refresh, timeout_seconds=args.timeout_seconds)
     print(json.dumps(report, ensure_ascii=False, indent=2))

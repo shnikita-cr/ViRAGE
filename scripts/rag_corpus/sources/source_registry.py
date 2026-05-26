@@ -44,7 +44,7 @@ PRACTICAL_VISRAG_SOURCES: tuple[QualityCorpusSource, ...] = (
         source_id="ft_visual_vocabulary",
         title="Financial Times Visual Vocabulary",
         raw_dir="rag_corpus/raw_external_rules/ft_visual_vocabulary",
-        url="https://github.com/Financial-Times/chart-doctor/blob/main/visual-vocabulary/README.md",
+        url="https://github.com/Financial-Times/chart-doctor/tree/main/visual-vocabulary",
         format="web_html",
         purpose="Выбор графика по аналитической задаче: ranking, distribution, correlation, change over time.",
     ),
@@ -77,7 +77,7 @@ PRACTICAL_VISRAG_SOURCES: tuple[QualityCorpusSource, ...] = (
         title="Chartability / POUR-CAF",
         raw_dir="rag_corpus/raw_external_rules/chartability",
         url="https://chartability.github.io/POUR-CAF/",
-        format="web_html",
+        format="git_repository",
         purpose="Практические эвристики доступности и аудита визуализаций.",
     ),
 )

@@ -1,55 +1,41 @@
 from __future__ import annotations
 
-from pathlib import Path
 from pathlib import Path as _PathForImports
 import sys
 _CURRENT_FILE_FOR_IMPORTS = _PathForImports(__file__).resolve()
 PROJECT_ROOT_FOR_IMPORTS = next(
-    (
-        parent
-        for parent in _CURRENT_FILE_FOR_IMPORTS.parents
-        if (parent / "src").exists() and (parent / "scripts").exists()
-    ),
+    (parent for parent in _CURRENT_FILE_FOR_IMPORTS.parents if (parent / "src").exists() and (parent / "scripts").exists()),
     _PathForImports.cwd(),
 )
 if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_FOR_IMPORTS))
 
+from pathlib import Path
 
-from scripts.rag_corpus.loading.common import HtmlPageSeed, download_html_pages, html_path_mapper, run_loader_cli
-
-SOURCE_ID = "wilke_fundamentals"
-SEEDS = (
-    HtmlPageSeed("https://clauswilke.com/dataviz/", "site_pages/index.html", 2_000),
-)
-INCLUDE_TERMS = (
-    "visualizing", "amount", "proportion", "distribution", "histogram", "density", "empirical",
-    "boxplot", "violin", "qq-plot", "scatter", "overlap", "overplot", "trend", "time series",
-    "color", "colour", "palette", "color-pitfalls", "redundant", "proportional", "ink", "axis",
-    "coordinate", "legend", "title", "caption", "table", "annotation", "label", "balance", "context",
-    "directory-of-visualizations", "common-pitfalls", "visualizing-amounts", "histograms-density-plots",
-)
-EXCLUDE_TERMS = (
-    "preface", "introduction", "references", "bibliography", "software", "installation", "appendix",
-    "about-the-author", "acknowledgments", "ebook", "print", "github", "license",
-)
+from scripts.rag_corpus.loading.common import LoaderConfig, download_html_pages, run_loader_cli
 
 
-def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 120.0) -> dict[str, object]:
+def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 60.0) -> dict[str, object]:
     return download_html_pages(
-        root=root,
-        source_id=SOURCE_ID,
-        seeds=SEEDS,
+        root,
+        LoaderConfig(
+            source_id="wilke_fundamentals",
+            seed_urls=("https://clauswilke.com/dataviz/",),
+            allowed_hosts=("clauswilke.com",),
+            allowed_path_prefixes=("/dataviz/",),
+            link_scope_selectors=("ul.summary", "nav", "main", "body"),
+            exclude_path_keywords=("/libs/", "/site_libs/", "/figure/", "/image/", "/references"),
+            max_pages=60,
+            min_bytes=1800,
+        ),
         refresh=refresh,
         timeout_seconds=timeout_seconds,
-        discover=True,
-        include_terms=INCLUDE_TERMS,
-        exclude_terms=EXCLUDE_TERMS,
-        max_pages=45,
-        min_saved_pages=8,
-        path_mapper=html_path_mapper(),
     )
 
 
+def main() -> None:
+    run_loader_cli(load, "Download Wilke Fundamentals of Data Visualization chapters into rag_corpus/raw_external_rules.")
+
+
 if __name__ == "__main__":
-    run_loader_cli("Download useful Wilke Fundamentals pages for ViRAGE visrag corpus.", load)
+    main()

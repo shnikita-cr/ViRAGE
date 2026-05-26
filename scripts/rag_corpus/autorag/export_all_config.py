@@ -9,8 +9,10 @@ DEFAULT_OUTPUT = "rag_corpus/autorag/virage_rules/configs/virage_rules_ollama_al
 CONFIG_TEXT = """# ViRAGE AutoRAG config: all supported Ollama retrieval variants in one config.
 # This config follows the newer AutoRAG retrieval node split:
 # lexical_retrieval, semantic_retrieval, hybrid_retrieval.
-# Embeddings are requested through the Ollama HTTP API at base_url.
-# Check API availability before running semantic or hybrid retrieval.
+# Pull the embedding models before running semantic or hybrid retrieval:
+#   ollama pull nomic-embed-text
+#   ollama pull mxbai-embed-large
+#   ollama pull bge-m3
 
 vectordb:
   - name: chroma_ollama_nomic_embed_text
