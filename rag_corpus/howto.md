@@ -27,35 +27,33 @@
     pip install -r requirements-dev.txt
     pip install pandas pyarrow requests pydantic pyyaml AutoRAG
 
-    python -c "import requests; print(requests.get('http://localhost:11434/api/tags').json().keys())"
-
-    # Модели должны быть доступны в Ollama API. CLI-команды pull/list не вызываются pipeline.
+    # Модели должны быть доступны через Ollama API. Pipeline не вызывает ollama CLI.
 
 ## 3. Полный запуск одной командой
 
-    .\rag_corpus\run_rag_corpus_pipeline.ps1 -LlmModel qwen2.5-coder:7b -EmbeddingModel nomic-embed-text -EmbeddingThreshold 0.95 -ExportProfile embedding_deduped
+    python rag_corpus\run_rag_corpus_pipeline.py --llm-model qwen2.5-coder:7b --embedding-model nomic-embed-text --embedding-threshold 0.95 --export-profile embedding_deduped
 
 Если источники уже скачаны:
 
-    .\rag_corpus\run_rag_corpus_pipeline.ps1 -SkipDownload
+    python rag_corpus\run_rag_corpus_pipeline.py --skip-download
 
 Если нужно только подготовить корпус и экспортировать файлы без оценки:
 
-    .\rag_corpus\run_rag_corpus_pipeline.ps1 -SkipDownload -SkipAutorag -SkipRuntimeConfigApply -SkipNlvSmoke -SkipInfiAgentSmoke
+    python rag_corpus\run_rag_corpus_pipeline.py --skip-download --skip-autorag --skip-runtime-config-apply --skip-nlv-smoke --skip-infiagent-smoke
 
 ## 4. Скачать источники корпуса
 
 Основная команда:
 
-    python scripts\rag_corpus\sources\download_quality_sources.py
+    python scripts\rag_corpus\loading\download_sources.py
 
 Принудительно обновить сохранённые страницы:
 
-    python scripts\rag_corpus\sources\download_quality_sources.py --refresh
+    python scripts\rag_corpus\loading\download_sources.py --refresh
 
 Скачать только выбранные источники:
 
-    python scripts\rag_corpus\sources\download_quality_sources.py --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability
+    python scripts\rag_corpus\loading\download_sources.py --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability
 
 Проверка:
 

@@ -11,29 +11,29 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
-from scripts.rag_corpus.sources.extract_visual_quality_text import extract_visual_quality_text_source
-from scripts.rag_corpus.sources.extract_external_rules_common import write_extractor_cli
+from scripts.rag_corpus.exporters.extract_visual_quality_text import extract_visual_quality_text_source
+from scripts.rag_corpus.exporters.extract_external_rules_common import write_extractor_cli
 
-DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/urban_institute_style_guide"
-DEFAULT_OUTPUT = "rag_corpus/extracted/urban_institute_style_guide.jsonl"
+DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/uswds_data_visualizations"
+DEFAULT_OUTPUT = "rag_corpus/extracted/uswds_data_visualizations.jsonl"
 
 
-def extract_urban_institute_style_guide(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
+def extract_uswds_data_visualizations(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     return extract_visual_quality_text_source(
         input_dir,
-        source_id="urban_institute_style_guide",
+        source_id="uswds_data_visualizations",
         include_paths=include_paths,
         exclude_paths=exclude_paths,
-        max_records_per_file=30,
+        max_records_per_file=20,
     )
 
 
 def main() -> None:
     write_extractor_cli(
-        description="Extract Urban Institute visualization style guidance for ViRAGE RAG normalization.",
+        description="Extract USWDS data visualization readability and accessibility guidance for ViRAGE RAG normalization.",
         default_input_dir=DEFAULT_INPUT_DIR,
         default_output=DEFAULT_OUTPUT,
-        extractor=extract_urban_institute_style_guide,
+        extractor=extract_uswds_data_visualizations,
     )
 
 

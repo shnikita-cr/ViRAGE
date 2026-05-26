@@ -11,7 +11,7 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
-from scripts.rag_corpus.sources.extract_external_rules_common import (
+from scripts.rag_corpus.exporters.extract_external_rules_common import (
     DATA_SUFFIXES,
     TEXT_SUFFIXES,
     extract_json_like,

@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.rag_corpus.sources.extract_chartability import extract_chartability
-from scripts.rag_corpus.sources.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
-from scripts.rag_corpus.sources.extract_uk_analysis_colours import extract_uk_analysis_colours
-from scripts.rag_corpus.sources.extract_uk_charts_checklist import extract_uk_charts_checklist
-from scripts.rag_corpus.sources.extract_wilke_fundamentals import extract_wilke_fundamentals
+from scripts.rag_corpus.exporters.extract_chartability import extract_chartability
+from scripts.rag_corpus.exporters.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
+from scripts.rag_corpus.exporters.extract_uk_analysis_colours import extract_uk_analysis_colours
+from scripts.rag_corpus.exporters.extract_uk_charts_checklist import extract_uk_charts_checklist
+from scripts.rag_corpus.exporters.extract_wilke_fundamentals import extract_wilke_fundamentals
 
 
 @pytest.mark.parametrize(

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
 from scripts.rag_corpus.common.text import compact_text
-from scripts.rag_corpus.sources.extract_external_rules_common import (
+from scripts.rag_corpus.exporters.extract_external_rules_common import (
     CODE_SUFFIXES,
     TEXT_SUFFIXES,
     chunk_text,
@@ -35,7 +35,7 @@ _COMMENT_RE = re.compile(r"^\s*[%#]+\s?(.*)$", re.MULTILINE)
 def _extract_constraint_records(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     files = iter_candidate_files(input_dir, suffixes={".lp", ".asp", ".pl"} | CODE_SUFFIXES, max_file_size=700_000)
-    from scripts.rag_corpus.sources.extract_external_rules_common import filter_candidate_paths
+    from scripts.rag_corpus.exporters.extract_external_rules_common import filter_candidate_paths
     files = filter_candidate_paths(files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     files = [path for path in files if any(token in str(path).replace("\\", "/").lower() for token in ("constraint", "rule", "soft", "hard", "asp", "draco", "recommend", "rank"))]
     for path in files:

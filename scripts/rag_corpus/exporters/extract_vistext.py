@@ -16,14 +16,14 @@ from typing import Any
 
 from scripts.rag_corpus.common.schemas import SourceRecord
 from scripts.rag_corpus.common.text import compact_text
-from scripts.rag_corpus.sources.extract_external_rules_common import (
+from scripts.rag_corpus.exporters.extract_external_rules_common import (
     flatten_json,
     is_relevant_visualization_source,
     make_source_record,
     read_text_strict,
     write_extractor_cli,
 )
-from scripts.rag_corpus.sources.source_registry import QUALITY_CORPUS_BY_ID
+from scripts.rag_corpus.exporters.source_registry import QUALITY_CORPUS_BY_ID
 
 DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/vistext"
 DEFAULT_OUTPUT = "rag_corpus/extracted/vistext.jsonl"

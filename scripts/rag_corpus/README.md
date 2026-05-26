@@ -16,18 +16,19 @@
 
 ## Папки
 
-- `sources/` — загрузка и извлечение исходных записей из внешних источников.
+- `loading/` — загрузка исходных HTML/текстовых страниц.
+- `exporters/` — извлечение исходных записей из загруженных источников.
 - `normalize/` — LLM-нормализация, фильтрация, дедупликация, валидация.
 - `runtime/` — экспорт компактного корпуса для приложения.
 - `autorag/` — экспорт корпуса и вопросов для AutoRAG.
 
 ## Загрузка источников
 
-    python scripts/rag_corpus/sources/download_quality_sources.py
+    python scripts/rag_corpus/loading/download_sources.py
 
 Обновить сохранённые страницы:
 
-    python scripts/rag_corpus/sources/download_quality_sources.py --refresh
+    python scripts/rag_corpus/loading/download_sources.py --refresh
 
 
 ## Мини-загрузчики источников
@@ -44,7 +45,11 @@
 
 Загрузчики используют BeautifulSoup для HTML-страниц, обходят только полезные внутренние HTML-ссылки и не используют fallback-тексты.
 
-## Основной запуск
+## Полный pipeline
+
+    python rag_corpus/run_rag_corpus_pipeline.py
+
+## Подготовка корпуса
 
 С загрузкой источников:
 
@@ -56,13 +61,13 @@
 
 ## Запуск отдельных извлекателей
 
-    python scripts/rag_corpus/sources/extract_wilke_fundamentals.py
-    python scripts/rag_corpus/sources/extract_from_data_to_viz.py
-    python scripts/rag_corpus/sources/extract_ft_visual_vocabulary.py
-    python scripts/rag_corpus/sources/extract_uk_analysis_colours.py
-    python scripts/rag_corpus/sources/extract_uk_charts_checklist.py
-    python scripts/rag_corpus/sources/extract_urban_institute_style_guide.py
-    python scripts/rag_corpus/sources/extract_chartability.py
+    python scripts/rag_corpus/exporters/extract_wilke_fundamentals.py
+    python scripts/rag_corpus/exporters/extract_from_data_to_viz.py
+    python scripts/rag_corpus/exporters/extract_ft_visual_vocabulary.py
+    python scripts/rag_corpus/exporters/extract_uk_analysis_colours.py
+    python scripts/rag_corpus/exporters/extract_uk_charts_checklist.py
+    python scripts/rag_corpus/exporters/extract_urban_institute_style_guide.py
+    python scripts/rag_corpus/exporters/extract_chartability.py
 
 ## Поведение при ошибках
 

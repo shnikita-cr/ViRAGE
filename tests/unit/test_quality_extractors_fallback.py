@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from scripts.rag_corpus.sources.extract_from_data_to_viz import extract_from_data_to_viz
-from scripts.rag_corpus.sources.extract_ibm_carbon_legends import extract_ibm_carbon_legends
-from scripts.rag_corpus.sources.extract_uswds_data_visualizations import extract_uswds_data_visualizations
+from scripts.rag_corpus.exporters.extract_from_data_to_viz import extract_from_data_to_viz
+from scripts.rag_corpus.exporters.extract_ibm_carbon_legends import extract_ibm_carbon_legends
+from scripts.rag_corpus.exporters.extract_uswds_data_visualizations import extract_uswds_data_visualizations
 
 
 @pytest.mark.parametrize(

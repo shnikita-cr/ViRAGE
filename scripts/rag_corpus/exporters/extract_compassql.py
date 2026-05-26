@@ -11,7 +11,7 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
-from scripts.rag_corpus.sources.extract_external_rules_common import (
+from scripts.rag_corpus.exporters.extract_external_rules_common import (
     TEXT_SUFFIXES,
     chunk_text,
     extract_markdown_like,
@@ -29,7 +29,7 @@ DEFAULT_OUTPUT = "rag_corpus/extracted/compassql.jsonl"
 def _extract_rank_constraint_code(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     files = iter_candidate_files(input_dir, suffixes={".ts", ".js"}, max_file_size=500_000)
-    from scripts.rag_corpus.sources.extract_external_rules_common import filter_candidate_paths
+    from scripts.rag_corpus.exporters.extract_external_rules_common import filter_candidate_paths
     files = filter_candidate_paths(files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     files = [path for path in files if any(token in str(path).replace("\\", "/").lower() for token in ("rank", "constraint", "recommend", "enumerat", "schema", "encoding", "channel"))]
     for path in files:

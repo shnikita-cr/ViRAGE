@@ -21,7 +21,7 @@ except Exception:  # pragma: no cover
 
 from scripts.rag_corpus.common.schemas import SourceRecord
 from scripts.rag_corpus.common.text import compact_text
-from scripts.rag_corpus.sources.extract_external_rules_common import (
+from scripts.rag_corpus.exporters.extract_external_rules_common import (
     DATA_SUFFIXES,
     TEXT_SUFFIXES,
     chunk_text,
@@ -35,7 +35,7 @@ from scripts.rag_corpus.sources.extract_external_rules_common import (
     make_source_record,
     read_text_strict,
 )
-from scripts.rag_corpus.sources.source_registry import QUALITY_CORPUS_BY_ID
+from scripts.rag_corpus.exporters.source_registry import QUALITY_CORPUS_BY_ID
 
 VISUAL_QUALITY_TEXT_SUFFIXES = TEXT_SUFFIXES | {".mdx"}
 VISUAL_QUALITY_DATA_SUFFIXES = DATA_SUFFIXES | {".csv", ".tsv"}

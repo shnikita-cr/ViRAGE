@@ -11,17 +11,17 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
-from scripts.rag_corpus.sources.extract_visual_quality_text import extract_visual_quality_text_source
-from scripts.rag_corpus.sources.extract_external_rules_common import write_extractor_cli
+from scripts.rag_corpus.exporters.extract_visual_quality_text import extract_visual_quality_text_source
+from scripts.rag_corpus.exporters.extract_external_rules_common import write_extractor_cli
 
-DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/ibm_carbon_chart_anatomy"
-DEFAULT_OUTPUT = "rag_corpus/extracted/ibm_carbon_chart_anatomy.jsonl"
+DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/w3c_wai_complex_images"
+DEFAULT_OUTPUT = "rag_corpus/extracted/w3c_wai_complex_images.jsonl"
 
 
-def extract_ibm_carbon_chart_anatomy(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
+def extract_w3c_wai_complex_images(input_dir: Path, *, include_paths: list[str] | None = None, exclude_paths: list[str] | None = None) -> list[SourceRecord]:
     return extract_visual_quality_text_source(
         input_dir,
-        source_id="ibm_carbon_chart_anatomy",
+        source_id="w3c_wai_complex_images",
         include_paths=include_paths,
         exclude_paths=exclude_paths,
         max_records_per_file=20,
@@ -30,10 +30,10 @@ def extract_ibm_carbon_chart_anatomy(input_dir: Path, *, include_paths: list[str
 
 def main() -> None:
     write_extractor_cli(
-        description="Extract IBM Carbon chart anatomy guidance for ViRAGE RAG normalization.",
+        description="Extract W3C WAI complex-image text alternative guidance for ViRAGE RAG normalization.",
         default_input_dir=DEFAULT_INPUT_DIR,
         default_output=DEFAULT_OUTPUT,
-        extractor=extract_ibm_carbon_chart_anatomy,
+        extractor=extract_w3c_wai_complex_images,
     )
 
 

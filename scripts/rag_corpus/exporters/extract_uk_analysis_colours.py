@@ -10,14 +10,14 @@ if str(PROJECT_ROOT_FOR_IMPORTS) not in sys.path:
 from pathlib import Path
 
 from scripts.rag_corpus.common.schemas import SourceRecord
-from scripts.rag_corpus.sources.extract_external_rules_common import write_extractor_cli
-from scripts.rag_corpus.sources.extract_visual_quality_text import extract_visual_quality_text_source
+from scripts.rag_corpus.exporters.extract_external_rules_common import write_extractor_cli
+from scripts.rag_corpus.exporters.extract_visual_quality_text import extract_visual_quality_text_source
 
-DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/wilke_fundamentals"
-DEFAULT_OUTPUT = "rag_corpus/extracted/wilke_fundamentals.jsonl"
+DEFAULT_INPUT_DIR = "rag_corpus/raw_external_rules/uk_analysis_colours"
+DEFAULT_OUTPUT = "rag_corpus/extracted/uk_analysis_colours.jsonl"
 
 
-def extract_wilke_fundamentals(
+def extract_uk_analysis_colours(
     input_dir: Path,
     *,
     include_paths: list[str] | None = None,
@@ -25,19 +25,19 @@ def extract_wilke_fundamentals(
 ) -> list[SourceRecord]:
     return extract_visual_quality_text_source(
         input_dir,
-        source_id="wilke_fundamentals",
+        source_id="uk_analysis_colours",
         include_paths=include_paths,
         exclude_paths=exclude_paths,
-        max_records_per_file=18,
+        max_records_per_file=22,
     )
 
 
 def main() -> None:
     write_extractor_cli(
-        description="Extract practical guidance from Wilke's Fundamentals of Data Visualization for ViRAGE RAG normalization.",
+        description="Extract UK Analysis Function colour guidance for ViRAGE RAG normalization.",
         default_input_dir=DEFAULT_INPUT_DIR,
         default_output=DEFAULT_OUTPUT,
-        extractor=extract_wilke_fundamentals,
+        extractor=extract_uk_analysis_colours,
     )
 
 

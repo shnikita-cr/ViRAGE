@@ -19,17 +19,17 @@ from scripts.rag_corpus.normalize.filter_processed_records import filter_file
 from scripts.rag_corpus.normalize.merge_processed_records import merge_processed_records
 from scripts.rag_corpus.normalize.normalize_with_llm import _target_record_types_arg, run_normalization
 from scripts.rag_corpus.normalize.validate_processed_records import validate_processed
-from scripts.rag_corpus.sources.extract_chartability import extract_chartability
-from scripts.rag_corpus.sources.extract_from_data_to_viz import extract_from_data_to_viz
-from scripts.rag_corpus.sources.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
-from scripts.rag_corpus.sources.extract_manual_rules import extract_manual_rules
-from scripts.rag_corpus.sources.extract_urban_institute_style_guide import extract_urban_institute_style_guide
-from scripts.rag_corpus.sources.extract_uk_analysis_colours import extract_uk_analysis_colours
-from scripts.rag_corpus.sources.extract_uk_charts_checklist import extract_uk_charts_checklist
-from scripts.rag_corpus.sources.extract_wilke_fundamentals import extract_wilke_fundamentals
-from scripts.rag_corpus.sources.download_quality_sources import download_quality_sources
-from scripts.rag_corpus.sources.extract_virage_feedback import extract_virage_feedback
-from scripts.rag_corpus.sources.scan_sources import inventory_markdown, scan_sources
+from scripts.rag_corpus.exporters.extract_chartability import extract_chartability
+from scripts.rag_corpus.exporters.extract_from_data_to_viz import extract_from_data_to_viz
+from scripts.rag_corpus.exporters.extract_ft_visual_vocabulary import extract_ft_visual_vocabulary
+from scripts.rag_corpus.exporters.extract_manual_rules import extract_manual_rules
+from scripts.rag_corpus.exporters.extract_urban_institute_style_guide import extract_urban_institute_style_guide
+from scripts.rag_corpus.exporters.extract_uk_analysis_colours import extract_uk_analysis_colours
+from scripts.rag_corpus.exporters.extract_uk_charts_checklist import extract_uk_charts_checklist
+from scripts.rag_corpus.exporters.extract_wilke_fundamentals import extract_wilke_fundamentals
+from scripts.rag_corpus.loading.download_sources import download_sources
+from scripts.rag_corpus.exporters.extract_virage_feedback import extract_virage_feedback
+from scripts.rag_corpus.exporters.scan_sources import inventory_markdown, scan_sources
 from scripts.rag_corpus.common.io import read_jsonl, write_jsonl, write_text
 from scripts.rag_corpus.common.progress import StageProgress
 
@@ -214,7 +214,7 @@ def main() -> None:
     selected_sources = set(args.sources or DEFAULT_SOURCES)
     external_sources = sorted(source for source in selected_sources if source in QUALITY_CORPUS_SOURCES)
     if external_sources and not args.skip_source_download and not args.skip_extraction:
-        download_quality_sources(
+        download_sources(
             root,
             sources=external_sources,
             refresh=args.refresh_sources,

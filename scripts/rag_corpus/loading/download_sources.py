@@ -36,7 +36,7 @@ LOADER_BY_SOURCE = {
 }
 
 
-def download_quality_sources(
+def download_sources(
     root: Path,
     *,
     sources: list[str] | None = None,
@@ -70,7 +70,7 @@ def main() -> None:
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
     args = parser.parse_args()
-    report = download_quality_sources(
+    report = download_sources(
         project_root(),
         sources=args.sources,
         refresh=args.refresh,
@@ -81,3 +81,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# Backward-compatible Python API alias. Do not use in new scripts.
+download_quality_sources = download_sources
