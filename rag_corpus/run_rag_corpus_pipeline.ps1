@@ -86,7 +86,7 @@ function Save-WebSource {
         Invoke-WebRequest -Uri $Url -Headers $headers -OutFile $Output -UseBasicParsing
     }
     catch {
-        throw "Cannot download $Url to $Output: $($_.Exception.Message)"
+        throw "Cannot download $Url to ${Output}: $($_.Exception.Message)"
     }
     if (-not (Test-Path $Output)) {
         throw "Download did not create expected file: $Output"
@@ -139,7 +139,7 @@ function Find-TrialPath {
 if (-not $SkipEnvironmentCheck) {
     Invoke-Step "Environment check" {
         python -Wdefault -m compileall -q src ui scripts tests
-        pytest -q
+        pytest -q tests
         ollama list
         python -c "import requests; print(requests.get('http://localhost:11434/api/tags').json().keys())"
     }
