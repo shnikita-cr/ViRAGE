@@ -83,23 +83,24 @@
 
 ## 6. AutoRAG validate/evaluate
 
+Основной запуск AutoRAG выполняется через проектный wrapper, а не через `autorag` CLI. Wrapper импортирует только `autorag.validator.Validator` и `autorag.evaluator.Evaluator`, поэтому не тянет `autorag.deploy`, `gradio` и `fastapi`.
+
 Validate train:
 
-    autorag validate `
+    python scripts\rag_corpus\run_autorag_chunks.py validate `
       --config rag_corpus\autorag\visrag_chunks\configs\visrag_chunks_ollama_all.yaml `
-      --qa_data_path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
-      --corpus_data_path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet
+      --qa-data-path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
+      --corpus-data-path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet
 
 Evaluate train:
 
-    Remove-Item -Recurse -Force rag_corpus\autorag\runs\visrag_chunks_train -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force rag_corpus\autorag\runs\visrag_chunks_train
-
-    autorag evaluate `
+    python scripts\rag_corpus\run_autorag_chunks.py evaluate `
+      --skip-validation `
+      --clean-project-dir `
       --config rag_corpus\autorag\visrag_chunks\configs\visrag_chunks_ollama_all.yaml `
-      --qa_data_path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
-      --corpus_data_path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet `
-      --project_dir rag_corpus\autorag\runs\visrag_chunks_train
+      --qa-data-path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
+      --corpus-data-path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet `
+      --project-dir rag_corpus\autorag\runs\visrag_chunks_train
 
 ## 7. Полный запуск
 
@@ -107,7 +108,7 @@ Evaluate train:
 
     python rag_corpus\run_rag_corpus_pipeline.py --skip-download --skip-autorag
 
-Полный запуск с AutoRAG:
+Полный запуск с AutoRAG через Python API wrapper:
 
     python rag_corpus\run_rag_corpus_pipeline.py --skip-download
 

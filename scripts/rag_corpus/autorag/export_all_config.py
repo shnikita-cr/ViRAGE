@@ -4,9 +4,9 @@ from pathlib import Path
 
 from scripts.rag_corpus.common.io import ensure_dir, project_root, write_text
 
-DEFAULT_OUTPUT = "rag_corpus/autorag/virage_rules/configs/virage_rules_ollama_all.yaml"
+DEFAULT_OUTPUT = "rag_corpus/autorag/visrag_chunks/configs/visrag_chunks_ollama_all.yaml"
 
-CONFIG_TEXT = """# ViRAGE AutoRAG config: all supported Ollama retrieval variants in one config.
+CONFIG_TEXT = """# ViRAGE AutoRAG config: conservative Ollama retrieval variants in one config.
 # This config follows the newer AutoRAG retrieval node split:
 # lexical_retrieval, semantic_retrieval, hybrid_retrieval.
 # Pull the embedding models before running semantic or hybrid retrieval:
@@ -18,34 +18,34 @@ vectordb:
   - name: chroma_ollama_nomic_embed_text
     db_type: chroma
     client_type: persistent
-    embedding_batch: 8
+    embedding_batch: 1
     embedding_model:
       - type: ollama
         model_name: nomic-embed-text
         base_url: http://localhost:11434
-    collection_name: virage_rules_nomic_embed_text
+    collection_name: visrag_chunks_nomic_embed_text
     path: ${PROJECT_DIR}/resources/chroma/nomic_embed_text
 
   - name: chroma_ollama_mxbai_embed_large
     db_type: chroma
     client_type: persistent
-    embedding_batch: 8
+    embedding_batch: 1
     embedding_model:
       - type: ollama
         model_name: mxbai-embed-large
         base_url: http://localhost:11434
-    collection_name: virage_rules_mxbai_embed_large
+    collection_name: visrag_chunks_mxbai_embed_large
     path: ${PROJECT_DIR}/resources/chroma/mxbai_embed_large
 
   - name: chroma_ollama_bge_m3
     db_type: chroma
     client_type: persistent
-    embedding_batch: 4
+    embedding_batch: 1
     embedding_model:
       - type: ollama
         model_name: bge-m3
         base_url: http://localhost:11434
-    collection_name: virage_rules_bge_m3
+    collection_name: visrag_chunks_bge_m3
     path: ${PROJECT_DIR}/resources/chroma/bge_m3
 
 node_lines:

@@ -1,4 +1,6 @@
 pytest
 jupyter
+vllm>=0.11.0
 AutoRAG
 grandalf
+

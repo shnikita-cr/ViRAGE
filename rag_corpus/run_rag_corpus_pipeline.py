@@ -44,13 +44,6 @@ def clean_outputs(root: Path) -> None:
     (root / "rag_corpus/autorag").mkdir(parents=True, exist_ok=True)
 
 
-def first_trial_path(run_root: Path) -> Path:
-    trials = sorted(path for path in run_root.iterdir() if path.is_dir()) if run_root.exists() else []
-    if not trials:
-        raise RuntimeError(f"No AutoRAG trial directory found in {run_root}")
-    return trials[0]
-
-
 def python_cmd(*args: str) -> list[str]:
     return [sys.executable, *args]
 
@@ -70,6 +63,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-embeddings", action="store_true")
     parser.add_argument("--skip-autorag-export", action="store_true")
     parser.add_argument("--skip-autorag", action="store_true")
+    parser.add_argument("--run-autorag-validate", action="store_true")
+    parser.add_argument("--run-autorag-internal-validation", action="store_true")
     return parser.parse_args()
 
 
@@ -119,20 +114,35 @@ def main() -> None:
         config = "rag_corpus/autorag/visrag_chunks/configs/visrag_chunks_ollama_all.yaml"
         train_qa = "rag_corpus/autorag/visrag_chunks/splits/train/qa.parquet"
         train_corpus = "rag_corpus/autorag/visrag_chunks/splits/train/corpus.parquet"
-        test_qa = "rag_corpus/autorag/visrag_chunks/splits/test/qa.parquet"
-        test_corpus = "rag_corpus/autorag/visrag_chunks/splits/test/corpus.parquet"
-        run_step("AutoRAG validate on train", ["autorag", "validate", "--config", config, "--qa_data_path", train_qa, "--corpus_data_path", train_corpus], cwd=root)
-        train_run = root / "rag_corpus/autorag/runs/visrag_chunks_train"
-        shutil.rmtree(train_run, ignore_errors=True)
-        train_run.mkdir(parents=True, exist_ok=True)
-        run_step("AutoRAG evaluate on train", ["autorag", "evaluate", "--config", config, "--qa_data_path", train_qa, "--corpus_data_path", train_corpus, "--project_dir", "rag_corpus/autorag/runs/visrag_chunks_train"], cwd=root)
-        trial_path = first_trial_path(train_run)
-        run_step("Extract best AutoRAG config", ["autorag", "extract_best_config", "--trial_path", str(trial_path), "--output_path", "rag_corpus/autorag/runs/visrag_chunks_best_config.yaml"], cwd=root)
-        test_run = root / "rag_corpus/autorag/runs/visrag_chunks_test"
-        shutil.rmtree(test_run, ignore_errors=True)
-        test_run.mkdir(parents=True, exist_ok=True)
-        run_step("AutoRAG evaluate on test", ["autorag", "evaluate", "--config", "rag_corpus/autorag/runs/visrag_chunks_best_config.yaml", "--qa_data_path", test_qa, "--corpus_data_path", test_corpus, "--project_dir", "rag_corpus/autorag/runs/visrag_chunks_test"], cwd=root)
-        run_step("Collect AutoRAG summary", python_cmd("scripts/rag_corpus/collect_autorag_summary.py", "--runs-root", "rag_corpus/autorag/runs", "--output-dir", "rag_corpus/autorag/runs/summary"), cwd=root)
+        if args.run_autorag_validate:
+            run_step(
+                "AutoRAG validate on train via Python API",
+                python_cmd(
+                    "scripts/rag_corpus/run_autorag_chunks.py",
+                    "validate",
+                    "--config", config,
+                    "--qa-data-path", train_qa,
+                    "--corpus-data-path", train_corpus,
+                ),
+                cwd=root,
+            )
+        evaluate_command = python_cmd(
+            "scripts/rag_corpus/run_autorag_chunks.py",
+            "evaluate",
+            "--config", config,
+            "--qa-data-path", train_qa,
+            "--corpus-data-path", train_corpus,
+            "--project-dir", "rag_corpus/autorag/runs/visrag_chunks_train",
+            "--clean-project-dir",
+        )
+        if not args.run_autorag_internal_validation:
+            evaluate_command.append("--skip-validation")
+        run_step("AutoRAG evaluate on train via Python API", evaluate_command, cwd=root)
+        run_step(
+            "Collect AutoRAG summary",
+            python_cmd("scripts/rag_corpus/collect_autorag_summary.py", "--runs-root", "rag_corpus/autorag/runs", "--output-dir", "rag_corpus/autorag/runs/summary"),
+            cwd=root,
+        )
 
     print("\nVisRAG chunk corpus pipeline completed.")
 
