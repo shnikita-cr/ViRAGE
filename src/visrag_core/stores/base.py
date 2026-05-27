@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from src.domain.models import VisRAGRuleDocument
+from src.domain.models import VisRAGGuidanceChunk
 
 
-class RuleCorpusRepository:
-    """Storage boundary for runtime VisRAG rule/guidance documents."""
-
+class VisRAGStore:
     backend_name = "unknown"
     corpus_uri: str | None = None
 
-    def load_documents(self) -> list[VisRAGRuleDocument]:
+    def load_chunks(self) -> list[VisRAGGuidanceChunk]:
+        raise NotImplementedError
+
+    def load_embeddings(self) -> dict[str, list[float]]:
         raise NotImplementedError
 
     def corpus_signature(self) -> dict[str, object]:
@@ -22,14 +23,18 @@ class RuleCorpusRepository:
         }
 
 
-class UnsupportedRuleCorpusRepository(RuleCorpusRepository):
+class UnsupportedVisRAGStore(VisRAGStore):
     def __init__(self, *, backend_name: str, corpus_uri: str):
         self.backend_name = backend_name
         self.corpus_uri = corpus_uri
 
-    def load_documents(self) -> list[VisRAGRuleDocument]:
+    def load_chunks(self) -> list[VisRAGGuidanceChunk]:
         raise RuntimeError(
-            f"Unsupported VisRAG runtime store backend {self.backend_name!r}. "
-            "Current runtime implementation supports local JSONL exports. "
-            "Add a new RuleCorpusRepository implementation for vector or graph storage."
+            f"Unsupported VisRAG store backend {self.backend_name!r}. "
+            "Select an implemented backend or add a VisRAGStore adapter. "
+            "Backend choice is intentionally storage-agnostic for future FAISS/Chroma/DB tests."
         )
+
+    def load_embeddings(self) -> dict[str, list[float]]:
+        self.load_chunks()
+        return {}

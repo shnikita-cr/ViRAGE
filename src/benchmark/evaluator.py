@@ -125,18 +125,18 @@ class VegaChatBenchmarkEvaluator:
             "corpus_backend": diagnostics.corpus_backend,
             "corpus_uri": diagnostics.corpus_uri,
             "retrieved_count_by_type": dict(diagnostics.retrieved_count_by_type or {}),
-            "queries": dict(debug.retrieval_queries or {}),
+            "query": debug.retrieval_query,
             "retrieved": [
                 {
-                    "doc_id": document.doc_id,
-                    "record_type": document.record_type,
+                    "chunk_id": document.chunk_id,
+                    "source_kind": document.source_kind,
                     "score": document.score,
-                    "source": (document.metadata or {}).get("source"),
+                    "source": document.source_id,
                     "title": document.title,
                 }
-                for document in debug.retrieved_documents
+                for document in debug.retrieved_chunks
             ],
-            "scores_by_type": dict(debug.scores_by_type or {}),
+            "scores": list(debug.scores or []),
         }
 
     def evaluate_spec_and_image(

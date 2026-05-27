@@ -1,0 +1,33 @@
+{
+  "export": {
+    "by_record_type": {
+      "chart_pattern": 64,
+      "domain_semantics_rule": 53,
+      "readability_rule": 74,
+      "scale_plot_area_rule": 51,
+      "vlm_readability_rule": 32
+    },
+    "by_source_dataset": {
+      "vega_lite_examples": 274
+    },
+    "documents": 274,
+    "output": "C:\\Users\\Nikita\\projects\\ViRAGE\\rag_corpus\\runtime\\virage_rules.jsonl",
+    "skipped_by_source_limit": {},
+    "source_limits": {
+      "chartsquared": 1500
+    }
+  },
+  "runtime": {
+    "avg_prompt_text_chars": 47.81,
+    "avg_retrieval_text_chars": 29.88,
+    "by_record_type": {
+      "chart_pattern": 64,
+      "domain_semantics_rule": 53,
+      "readability_rule": 74,
+      "scale_plot_area_rule": 51,
+      "vlm_readability_rule": 32
+    },
+    "documents": 274,
+    "input": "C:\\Users\\Nikita\\projects\\ViRAGE\\rag_corpus\\runtime\\virage_rules.jsonl"
+  }
+}

@@ -2,80 +2,64 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.domain.models import DataProfile, QueryRequestAnalysisResult, VisRAGResult, VisRAGRuleDocument
+from src.domain.models import DataProfile, QueryRequestAnalysisResult, VisRAGGuidanceChunk
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
-from src.visrag_core import VisRAGCoreOptions, VisRAGEngine, create_rule_corpus_repository
-from src.visrag_core.rule_retrieval import RuleRetriever, build_rule_retriever
-from src.visrag_core.stores import RuleCorpusRepository
+from src.visrag_core import VisRAGCoreOptions, VisRAGEngine, create_visrag_store
+from src.visrag_core.stores import VisRAGStore
 
 
 @dataclass
-class _CachedCorpus:
+class _CachedChunkCorpus:
     signature: dict[str, object]
-    documents: list[VisRAGRuleDocument]
+    chunks: list[VisRAGGuidanceChunk]
+    embeddings: dict[str, list[float]]
 
 
 class VisRAGService(BaseService):
-    """Application service wrapper around runtime rule-guidance VisRAG."""
+    """Runtime VisRAG over pre-embedded guidance chunks."""
 
-    _corpus_cache: dict[str, _CachedCorpus] = {}
-    _retriever_cache: dict[str, RuleRetriever] = {}
+    _cache: dict[str, _CachedChunkCorpus] = {}
 
     def invoke(
             self,
             query_analysis: QueryRequestAnalysisResult,
             data_profile: DataProfile,
             runtime: RuntimeContext,
-    ) -> VisRAGResult:
-        visrag_options = runtime.settings.visrag_runtime_options()
-        repository = create_rule_corpus_repository(
-            backend=str(visrag_options["store_backend"] or "jsonl"),
-            uri=visrag_options["corpus_root"],
+    ):
+        opts = runtime.settings.visrag_runtime_options()
+        store = create_visrag_store(
+            backend=str(opts["store_backend"]),
+            uri=opts["corpus_root"],
         )
         options = VisRAGCoreOptions(
-            enabled=bool(visrag_options["enabled"]),
-            retriever_name=str(visrag_options["retriever_backend"] or "bm25"),
-            embedding_provider=visrag_options["embedding_provider"],
-            embedding_model=visrag_options["embedding_model"],
-            embedding_base_url=visrag_options["embedding_base_url"],
-            top_k_by_type=dict(visrag_options["top_k_by_type"]),
+            enabled=bool(opts["enabled"]),
+            store_backend=str(opts["store_backend"]),
+            top_k_chunks=int(opts["top_k_chunks"]),
+            embedding_provider=opts["embedding_provider"],
+            embedding_model=opts["embedding_model"],
+            embedding_base_url=opts["embedding_base_url"],
         )
-        signature = repository.corpus_signature()
-        documents = [] if not options.enabled else self._load_documents(repository, signature)
-        retriever = self._retriever(options, signature)
+        signature = store.corpus_signature()
+        cached = self._load(store, signature)
         return VisRAGEngine(
-            repository=repository,
+            store=store,
             options=options,
-            documents=documents,
-            retriever=retriever,
-            corpus_signature=signature | {"document_count": len(documents)},
+            chunks=cached.chunks,
+            embeddings=cached.embeddings,
+            corpus_signature=signature,
+            reasoning_llm=runtime.reasoning_llm,
         ).invoke(query_analysis, data_profile)
 
     @classmethod
-    def _load_documents(
-            cls,
-            repository: RuleCorpusRepository,
-            signature: dict[str, object],
-    ) -> list[VisRAGRuleDocument]:
-        cache_key = str(signature.get("cache_key") or signature.get("hash") or repository.corpus_uri or "unknown")
-        cached = cls._corpus_cache.get(cache_key)
-        if cached is not None:
-            return cached.documents
-        documents = repository.load_documents()
-        cls._corpus_cache.clear()
-        cls._corpus_cache[cache_key] = _CachedCorpus(signature=signature, documents=documents)
-        return documents
-
-    @classmethod
-    def _retriever(cls, options: VisRAGCoreOptions, signature: dict[str, object]) -> RuleRetriever:
-        retriever_options = options.retriever_options()
-        cache_key = f"{retriever_options.cache_key()}|{signature.get('hash') or signature.get('cache_key') or ''}"
-        cached = cls._retriever_cache.get(cache_key)
+    def _load(cls, store: VisRAGStore, signature: dict[str, object]) -> _CachedChunkCorpus:
+        key = str(signature.get("cache_key") or signature.get("hash") or store.corpus_uri or "unknown")
+        cached = cls._cache.get(key)
         if cached is not None:
             return cached
-        retriever = build_rule_retriever(retriever_options)
-        cls._retriever_cache.clear()
-        cls._retriever_cache[cache_key] = retriever
-        return retriever
-
+        chunks = store.load_chunks()
+        embeddings = store.load_embeddings()
+        result = _CachedChunkCorpus(signature=signature, chunks=chunks, embeddings=embeddings)
+        cls._cache.clear()
+        cls._cache[key] = result
+        return result

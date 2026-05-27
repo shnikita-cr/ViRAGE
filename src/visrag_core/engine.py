@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from src.domain.models import (
     DataProfile,
@@ -9,174 +12,217 @@ from src.domain.models import (
     VisRAGDebugRetrieval,
     VisRAGDiagnostics,
     VisRAGGenerationGuidance,
+    VisRAGGuidanceChunk,
     VisRAGResult,
-    VisRAGRuleDocument,
+    VisRAGRetrievedChunk,
 )
-from src.visrag_core.composer import compose_generation_guidance
-from src.visrag_core.constants import DEFAULT_TOP_K, RULE_TYPES
-from src.visrag_core.filters import domain_semantics_gate, rerank_by_compatibility
-from src.visrag_core.query_builder import build_typed_queries
-from src.visrag_core.rule_retrieval import RuleRetriever, RuleRetrieverOptions, build_rule_retriever
-from src.visrag_core.stores import RuleCorpusRepository
+from src.llm.helpers import invoke_structured
+from src.visrag_core.embeddings import build_embedding_model, cosine
+from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.stores import VisRAGStore
 
 
 @dataclass(frozen=True)
 class VisRAGCoreOptions:
     enabled: bool = True
-    retriever_name: str = "bm25"
+    store_backend: str = "jsonl"
+    top_k_chunks: int = 8
     embedding_provider: str | None = None
     embedding_model: str | None = None
     embedding_base_url: str | None = None
-    top_k_by_type: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_TOP_K))
-    disabled_message: str = ""
 
-    def top_k(self, record_type: str) -> int:
-        return max(0, int(self.top_k_by_type.get(record_type, DEFAULT_TOP_K.get(record_type, 1))))
 
-    def retriever_options(self) -> RuleRetrieverOptions:
-        return RuleRetrieverOptions(
-            backend=self.retriever_name,
-            embedding_provider=self.embedding_provider,
-            embedding_model=self.embedding_model,
-            embedding_base_url=self.embedding_base_url,
-        )
+class _VisRAGResponseSchema(BaseModel):
+    applicable_rules: list[str] = Field(default_factory=list)
+    avoid: list[str] = Field(default_factory=list)
+    quality_checks: list[str] = Field(default_factory=list)
+    feedback_warnings: list[str] = Field(default_factory=list)
 
 
 class VisRAGEngine:
-    """Core runtime VisRAG retrieval and guidance composition.
-
-    The engine retrieves rule/guidance documents only. It does not materialize or
-    rank Vega-Lite specification templates. Concrete storage, corpus caching and
-    retriever instance reuse are injected by the application service.
-    """
-
     def __init__(
             self,
-            repository: RuleCorpusRepository,
-            options: VisRAGCoreOptions | None = None,
             *,
-            documents: list[VisRAGRuleDocument] | None = None,
-            retriever: RuleRetriever | None = None,
+            store: VisRAGStore,
+            options: VisRAGCoreOptions,
             corpus_signature: dict[str, Any] | None = None,
+            chunks: list[VisRAGGuidanceChunk] | None = None,
+            embeddings: dict[str, list[float]] | None = None,
+            reasoning_llm: Any | None = None,
     ) -> None:
-        self.repository = repository
-        self.options = options or VisRAGCoreOptions()
-        self._documents = documents
-        self._retriever = retriever or build_rule_retriever(self.options.retriever_options())
-        self._corpus_signature = corpus_signature or {}
+        self.store = store
+        self.options = options
+        self._signature = corpus_signature or {}
+        self._chunks = chunks
+        self._embeddings = embeddings
+        self.reasoning_llm = reasoning_llm
 
-    def invoke(
-            self,
-            query_analysis: QueryRequestAnalysisResult,
-            data_profile: DataProfile,
-    ) -> VisRAGResult:
+    def invoke(self, query_analysis: QueryRequestAnalysisResult, data_profile: DataProfile) -> VisRAGResult:
         if not self.options.enabled:
-            guidance = VisRAGGenerationGuidance(prompt_text="")
-            diagnostics = VisRAGDiagnostics(
-                warnings=["VisRAG disabled by project settings."],
-                corpus_backend="disabled",
+            raise RuntimeError("VisRAG is disabled. Enable visrag_enabled=true or remove the visrag pipeline node.")
+        chunks = self._chunks if self._chunks is not None else self.store.load_chunks()
+        embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
+        missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
+        if missing:
+            raise RuntimeError(
+                "VisRAG embeddings are incomplete. Run:\n"
+                "python scripts\\rag_corpus\\build_visrag_embeddings.py\n"
+                f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
             )
-            return VisRAGResult(
-                caveats=["VisRAG disabled by project settings."],
-                corpus_status={"enabled": False, "documents": 0},
-                retrieval_strategy="disabled",
-                generation_guidance=guidance,
-                diagnostics=diagnostics,
-            )
-
-        raw_documents = self._documents if self._documents is not None else self.repository.load_documents()
-        if not raw_documents:
-            diagnostics = VisRAGDiagnostics(
-                warnings=["No runtime rule documents were found."],
-                corpus_backend=self.repository.backend_name,
-                corpus_uri=self.repository.corpus_uri,
-                corpus_hash=str(self._corpus_signature.get("hash") or ""),
-            )
-            return VisRAGResult(
-                caveats=["No runtime rule documents were found."],
-                corpus_status={
-                    "enabled": True,
-                    "documents": 0,
-                    "backend": self.repository.backend_name,
-                    "signature": self._corpus_signature,
-                },
-                retrieval_strategy=f"rule_guidance:{self.repository.backend_name}",
-                generation_guidance=VisRAGGenerationGuidance(prompt_text=""),
-                diagnostics=diagnostics,
-            )
-
-        queries = build_typed_queries(query_analysis, data_profile)
-        selected_by_type: dict[str, list[VisRAGRuleDocument]] = {}
-        all_selected: list[VisRAGRuleDocument] = []
-        filtered: list[dict[str, Any]] = []
-        scores_by_type: dict[str, list[dict[str, Any]]] = {}
-        corpus_key = str(self._corpus_signature.get("hash") or self._corpus_signature.get("cache_key") or "")
-
-        for record_type in RULE_TYPES:
-            top_k = self.options.top_k(record_type)
-            if top_k <= 0:
-                selected_by_type[record_type] = []
-                scores_by_type[record_type] = []
-                continue
-            if record_type == "domain_semantics_rule" and not domain_semantics_gate(query_analysis, data_profile):
-                selected_by_type[record_type] = []
-                scores_by_type[record_type] = []
-                continue
-            docs = [doc for doc in raw_documents if doc.record_type == record_type]
-            ranked = self._retriever.rank(
-                docs,
-                query=queries.get(record_type) or query_analysis.normalized_query,
-                query_analysis=query_analysis,
-                corpus_key=f"{corpus_key}:{record_type}",
-            )
-            reranked, compatibility_filtered = rerank_by_compatibility(ranked, query_analysis, data_profile)
-            filtered.extend(compatibility_filtered)
-            picked = reranked[:top_k]
-            selected_by_type[record_type] = picked
-            all_selected.extend(picked)
-            scores_by_type[record_type] = [
-                {
-                    "doc_id": doc.doc_id,
-                    "score": doc.score,
-                    "source": (doc.metadata or {}).get("source_dataset") or (doc.metadata or {}).get("source"),
-                }
-                for doc in reranked[:max(top_k, 5)]
-            ]
-            if len(reranked) > top_k:
-                filtered.extend([
-                    {"doc_id": doc.doc_id, "record_type": doc.record_type, "reason": "below_top_k", "score": doc.score}
-                    for doc in reranked[top_k:top_k + 5]
-                ])
-
-        guidance = compose_generation_guidance(selected_by_type, query_analysis)
-        compatibility_filter_count = sum(
-            1 for item in filtered if str(item.get("reason", "")).startswith(("incompatible_chart_family", "missing_required_data"))
-        )
+        query = build_visrag_query(query_analysis, data_profile)
+        retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
+        guidance = self._generate_response(query_analysis, data_profile, retrieved)
         diagnostics = VisRAGDiagnostics(
-            retrieved_count_by_type={key: len(value) for key, value in selected_by_type.items()},
-            corpus_backend=self.repository.backend_name,
-            corpus_uri=self.repository.corpus_uri,
-            corpus_hash=str(self._corpus_signature.get("hash") or ""),
-            warnings=[
-                f"Compatibility reranker removed {compatibility_filter_count} incompatible retrieved rules."
-            ] if compatibility_filter_count else [],
+            retrieved_count=len(retrieved),
+            retrieved_count_by_type=self._count_by_kind(retrieved),
+            corpus_backend=self.store.backend_name,
+            corpus_uri=self.store.corpus_uri,
+            corpus_hash=str(self._signature.get("hash") or ""),
         )
         debug = VisRAGDebugRetrieval(
-            retrieval_queries=queries,
-            retrieved_documents=all_selected,
-            filtered_documents=filtered,
-            scores_by_type=scores_by_type,
+            retrieval_query=query,
+            retrieved_chunks=retrieved,
+            retrieved_documents=retrieved,
+            scores=[{"chunk_id": chunk.chunk_id, "score": chunk.score, "source_id": chunk.source_id} for chunk in retrieved],
         )
         return VisRAGResult(
-            caveats=[],
             corpus_status={
                 "enabled": True,
-                "documents": len(raw_documents),
-                "backend": self.repository.backend_name,
-                "signature": self._corpus_signature,
+                "chunks": len(chunks),
+                "backend": self.store.backend_name,
+                "signature": self._signature,
             },
-            retrieval_strategy=f"rule_guidance:{self.repository.backend_name}:{self.options.retriever_name}",
+            retrieval_strategy=f"chunk_guidance:{self.store.backend_name}:precomputed_embeddings",
             generation_guidance=guidance,
             debug_retrieval=debug,
             diagnostics=diagnostics,
         )
+
+    def _retrieve(
+            self,
+            query: str,
+            query_analysis: QueryRequestAnalysisResult,
+            chunks: list[VisRAGGuidanceChunk],
+            embeddings: dict[str, list[float]],
+    ) -> list[VisRAGRetrievedChunk]:
+        if not query.strip():
+            return []
+        embedder = build_embedding_model(
+            provider=self.options.embedding_provider,
+            model=self.options.embedding_model,
+            base_url=self.options.embedding_base_url,
+        )
+        query_vector = list(embedder.embed_query(query))
+        ranked: list[VisRAGRetrievedChunk] = []
+        for chunk in chunks:
+            score = cosine(query_vector, embeddings[chunk.chunk_id])
+            score *= self._metadata_weight(chunk, query_analysis)
+            if score > 0:
+                ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score"}), score=round(score, 6)))
+        return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:max(1, self.options.top_k_chunks)]
+
+    @staticmethod
+    def _metadata_weight(chunk: VisRAGGuidanceChunk, query_analysis: QueryRequestAnalysisResult) -> float:
+        metadata = chunk.metadata or {}
+        weight = float(metadata.get("priority", 1.0) or 1.0)
+        if chunk.source_kind in {"manual_feedback", "vlm_feedback"}:
+            weight *= 1.5
+        family = str(metadata.get("chart_family") or "").strip().lower()
+        if family and family == str(query_analysis.recommended_chart_family).strip().lower():
+            weight *= 1.15
+        return max(0.1, min(weight, 4.0))
+
+    def _generate_response(
+            self,
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+            chunks: list[VisRAGRetrievedChunk],
+    ) -> VisRAGGenerationGuidance:
+        if self.reasoning_llm is None:
+            raise RuntimeError("VisRAG guidance generation requires runtime.reasoning_llm.")
+        source_refs = [
+            {
+                "chunk_id": chunk.chunk_id,
+                "source_id": chunk.source_id,
+                "source_name": chunk.source_name,
+                "title": chunk.title,
+                "score": chunk.score,
+                "source_path": chunk.source_path,
+                "url": chunk.url,
+            }
+            for chunk in chunks
+        ]
+        payload = {
+            "query_analysis": {
+                "normalized_query": query_analysis.normalized_query,
+                "analysis_task": query_analysis.analysis_task,
+                "recommended_chart_family": query_analysis.recommended_chart_family,
+                "selected_fields": query_analysis.selected_fields,
+            },
+            "data_profile": {
+                "columns": [column.model_dump() for column in data_profile.columns[:30]],
+                "row_count": getattr(data_profile, "row_count", None),
+            },
+            "retrieved_chunks": [
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "source_id": chunk.source_id,
+                    "source_kind": chunk.source_kind,
+                    "title": chunk.title,
+                    "text": chunk.text[:2400],
+                }
+                for chunk in chunks
+            ],
+        }
+        prompt = (
+            "Generate final VisRAG guidance for Vega-Lite spec generation. "
+            "Use only the retrieved chunks and the given data/query context. "
+            "Do not output Vega-Lite code or examples. Return concrete practical guidance.\n\n"
+            f"Context JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
+        )
+        parsed = invoke_structured(
+            self.reasoning_llm,
+            prompt,
+            _VisRAGResponseSchema,
+            stage="visrag_guidance_generation",
+            role="reasoning",
+            max_attempts=2,
+        )
+        guidance = VisRAGGenerationGuidance(
+            applicable_rules=parsed.applicable_rules,
+            avoid=parsed.avoid,
+            quality_checks=parsed.quality_checks,
+            feedback_warnings=parsed.feedback_warnings,
+            source_refs=source_refs,
+        )
+        guidance.prompt_text = self._to_prompt_text(guidance)
+        return guidance
+
+    @staticmethod
+    def _to_prompt_text(guidance: VisRAGGenerationGuidance) -> str:
+        sections = [
+            ("Applicable rules", guidance.applicable_rules),
+            ("Avoid", guidance.avoid),
+            ("Quality checks", guidance.quality_checks),
+            ("Feedback warnings", guidance.feedback_warnings),
+        ]
+        lines: list[str] = ["VisRAG guidance:"]
+        for title, items in sections:
+            if not items:
+                continue
+            lines.append(f"{title}:")
+            lines.extend(f"- {item}" for item in items[:8])
+        if guidance.source_refs:
+            lines.append("Source refs:")
+            lines.extend(
+                f"- {item.get('chunk_id')} ({item.get('source_id')}: {item.get('title')})"
+                for item in guidance.source_refs[:8]
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _count_by_kind(chunks: list[VisRAGRetrievedChunk]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for chunk in chunks:
+            counts[chunk.source_kind] = counts.get(chunk.source_kind, 0) + 1
+        return counts

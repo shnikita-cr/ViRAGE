@@ -4,17 +4,12 @@ from src.domain.visrag_models import (
     VisRAGDebugRetrieval,
     VisRAGDiagnostics,
     VisRAGGenerationGuidance,
-    VisRAGRecordType,
+    VisRAGGuidanceChunk,
     VisRAGResult,
-    VisRAGRuleDocument,
+    VisRAGRetrievedChunk,
 )
 from src.visrag_core.engine import VisRAGCoreOptions, VisRAGEngine
-from src.visrag_core.stores import (
-    JsonlRuleCorpusRepository,
-    RuleCorpusRepository,
-    UnsupportedRuleCorpusRepository,
-    create_rule_corpus_repository,
-)
+from src.visrag_core.stores import JsonlVisRAGStore, UnsupportedVisRAGStore, VisRAGStore, create_visrag_store
 
 __all__ = [
     "VisRAGCoreOptions",
@@ -22,11 +17,11 @@ __all__ = [
     "VisRAGDebugRetrieval",
     "VisRAGDiagnostics",
     "VisRAGGenerationGuidance",
-    "VisRAGRecordType",
+    "VisRAGGuidanceChunk",
     "VisRAGResult",
-    "VisRAGRuleDocument",
-    "RuleCorpusRepository",
-    "JsonlRuleCorpusRepository",
-    "UnsupportedRuleCorpusRepository",
-    "create_rule_corpus_repository",
+    "VisRAGRetrievedChunk",
+    "VisRAGStore",
+    "JsonlVisRAGStore",
+    "UnsupportedVisRAGStore",
+    "create_visrag_store",
 ]

@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from src.visrag_core.constants import DEFAULT_TOP_K, RULE_TYPES
 
 
 class ViRAGESettings(BaseModel):
@@ -17,12 +16,7 @@ class ViRAGESettings(BaseModel):
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/runtime"))
     visrag_runtime_store_backend: str = Field(default="jsonl")
-    visrag_top_k_chart_patterns: int = Field(default=DEFAULT_TOP_K["chart_pattern"], ge=0)
-    visrag_top_k_readability_rules: int = Field(default=DEFAULT_TOP_K["readability_rule"], ge=0)
-    visrag_top_k_scale_plot_area_rules: int = Field(default=DEFAULT_TOP_K["scale_plot_area_rule"], ge=0)
-    visrag_top_k_vlm_readability_rules: int = Field(default=DEFAULT_TOP_K["vlm_readability_rule"], ge=0)
-    visrag_top_k_domain_semantics_rules: int = Field(default=DEFAULT_TOP_K["domain_semantics_rule"], ge=0)
-    visrag_retriever_backend: str = Field(default="bm25")
+    visrag_top_k_chunks: int = Field(default=8, ge=1)
     visrag_embedding_provider: str | None = Field(default="ollama")
     visrag_embedding_model: str | None = Field(default="nomic-embed-text")
     visrag_embedding_base_url: str | None = Field(default="http://localhost:11434")
@@ -72,25 +66,14 @@ class ViRAGESettings(BaseModel):
         default_factory=lambda: ["reasoning", "vlm", "vision_judge"])
     vlm_fail_soft: bool = Field(default=True)
 
-    def visrag_top_k_by_type(self) -> dict[str, int]:
-        """Return one normalized top-k map used by runtime, reports and benchmarks."""
-        values: dict[str, int] = {}
-        for record_type in RULE_TYPES:
-            default_value = DEFAULT_TOP_K.get(record_type, 1)
-            setting_name = f"visrag_top_k_{record_type}s"
-            raw_value = getattr(self, setting_name, default_value)
-            values[record_type] = max(0, int(raw_value))
-        return values
-
     def visrag_runtime_options(self) -> dict[str, object]:
         """Single source of truth for runtime VisRAG options."""
         return {
             "enabled": self.visrag_enabled,
             "corpus_root": self.visrag_corpus_root,
             "store_backend": self.visrag_runtime_store_backend,
-            "retriever_backend": self.visrag_retriever_backend,
+            "top_k_chunks": self.visrag_top_k_chunks,
             "embedding_provider": self.visrag_embedding_provider,
             "embedding_model": self.visrag_embedding_model,
             "embedding_base_url": self.visrag_embedding_base_url,
-            "top_k_by_type": self.visrag_top_k_by_type(),
         }

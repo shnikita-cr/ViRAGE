@@ -3,15 +3,21 @@ mode = "streamlit"
 [reasoning_model]
 provider = "ollama"
 model = "gemma4:31b-cloud"
+base_url = "http://localhost:11434"
+
 
 [spec_model]
 provider = "ollama"
 model = "gemma4:31b-cloud"
+base_url = "http://localhost:11434"
+
 
 [vlm_model]
 provider = "ollama"
 model = "gemma4:31b-cloud"
+base_url = "http://localhost:11434"
 
 [vision_judge_model]
 provider = "ollama"
 model = "gemma4:31b-cloud"
+base_url = "http://localhost:11434"

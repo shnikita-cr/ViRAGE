@@ -54,13 +54,15 @@ from src.domain.spec_generation_models import (
 )
 
 from src.domain.visrag_models import (
-    VisRAGRecordType,
-    VisRAGRuleDocument,
-    VisRAGGuidanceGroup,
+    VisRAGChunkKind,
+    VisRAGGuidanceChunk,
+    VisRAGRetrievedChunk,
     VisRAGGenerationGuidance,
     VisRAGDebugRetrieval,
     VisRAGDiagnostics,
     VisRAGResult,
+    VisRAGRecordType,
+    VisRAGRuleDocument,
 )
 
 from src.domain.visual_feedback_models import (
@@ -108,9 +110,11 @@ __all__ = [
     "SpecGenerationRequest",
     "SpecGenerationAttempt",
     "SpecGenerationResult",
+    "VisRAGChunkKind",
+    "VisRAGGuidanceChunk",
+    "VisRAGRetrievedChunk",
     "VisRAGRecordType",
     "VisRAGRuleDocument",
-    "VisRAGGuidanceGroup",
     "VisRAGGenerationGuidance",
     "VisRAGDebugRetrieval",
     "VisRAGDiagnostics",
