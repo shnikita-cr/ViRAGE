@@ -111,8 +111,12 @@ def main() -> None:
     parser.add_argument("--output", default="rag_corpus/runtime/guidance_chunks.jsonl")
     parser.add_argument("--sources", nargs="*", default=None)
     args = parser.parse_args()
-    report = export_chunks(ROOT / args.raw_root, ROOT / args.output, set(args.sources or []) or None)
-    print(json.dumps({"output": args.output, "by_source": report}, ensure_ascii=False, indent=2))
+    by_source = export_chunks(ROOT / args.raw_root, ROOT / args.output, set(args.sources or []) or None)
+    report = {"output": args.output, "by_source": by_source, "total_chunks": sum(by_source.values())}
+    report_path = ROOT / "rag_corpus" / "runtime" / "runtime_export_report.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

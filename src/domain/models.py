@@ -61,8 +61,6 @@ from src.domain.visrag_models import (
     VisRAGDebugRetrieval,
     VisRAGDiagnostics,
     VisRAGResult,
-    VisRAGRecordType,
-    VisRAGRuleDocument,
 )
 
 from src.domain.visual_feedback_models import (
@@ -113,8 +111,6 @@ __all__ = [
     "VisRAGChunkKind",
     "VisRAGGuidanceChunk",
     "VisRAGRetrievedChunk",
-    "VisRAGRecordType",
-    "VisRAGRuleDocument",
     "VisRAGGenerationGuidance",
     "VisRAGDebugRetrieval",
     "VisRAGDiagnostics",

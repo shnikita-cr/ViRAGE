@@ -13,10 +13,10 @@ VisRAGChunkKind = Literal[
 
 
 class VisRAGGuidanceChunk(BaseModel):
-    """Runtime VisRAG source chunk.
+    """Primary runtime VisRAG corpus unit.
 
-    This is the primary runtime corpus unit. It stores source text or feedback-derived
-    text, not a pre-generated Vega-Lite rule and not a specification template.
+    Stores cleaned source text or feedback-derived guidance text. It is not a
+    pre-generated rule and never stores Vega-Lite specifications.
     """
 
     chunk_id: str
@@ -32,11 +32,11 @@ class VisRAGGuidanceChunk(BaseModel):
 
 
 class VisRAGRetrievedChunk(VisRAGGuidanceChunk):
-    pass
+    """Guidance chunk retrieved at runtime with a similarity score."""
 
 
 class VisRAGGenerationGuidance(BaseModel):
-    """Final VisRAG response inserted into spec generation."""
+    """Final VisRAG answer inserted into the specification-generation prompt."""
 
     applicable_rules: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
@@ -79,8 +79,3 @@ class VisRAGResult(BaseModel):
     generation_guidance: VisRAGGenerationGuidance = Field(default_factory=VisRAGGenerationGuidance)
     debug_retrieval: VisRAGDebugRetrieval = Field(default_factory=VisRAGDebugRetrieval)
     diagnostics: VisRAGDiagnostics = Field(default_factory=VisRAGDiagnostics)
-
-
-# Kept only so older imports fail less aggressively while old files are removed manually.
-VisRAGRuleDocument = VisRAGGuidanceChunk
-VisRAGRecordType = str

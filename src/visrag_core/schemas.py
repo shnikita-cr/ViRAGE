@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 from src.domain.visrag_models import (
+    VisRAGChunkKind,
     VisRAGDebugRetrieval,
     VisRAGDiagnostics,
     VisRAGGenerationGuidance,
-    VisRAGRecordType,
+    VisRAGGuidanceChunk,
     VisRAGResult,
-    VisRAGRuleDocument,
+    VisRAGRetrievedChunk,
 )
 
 __all__ = [
+    "VisRAGChunkKind",
     "VisRAGDebugRetrieval",
     "VisRAGDiagnostics",
     "VisRAGGenerationGuidance",
-    "VisRAGRecordType",
+    "VisRAGGuidanceChunk",
     "VisRAGResult",
-    "VisRAGRuleDocument",
+    "VisRAGRetrievedChunk",
 ]

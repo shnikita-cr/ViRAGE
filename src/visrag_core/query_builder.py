@@ -8,7 +8,7 @@ def build_visrag_query(query_analysis: QueryRequestAnalysisResult, data_profile:
     bindings = " ".join(
         f"{slot} {binding.field} {binding.role}" for slot, binding in query_analysis.field_bindings.items()
     )
-    variants = " ".join(variant.text for variant in query_analysis.query_variants[:6])
+    variants = " ".join(str(getattr(variant, "text", variant)) for variant in query_analysis.query_variants[:6])
     columns = " ".join(column.name for column in data_profile.columns[:30])
     return " ".join([
         query_analysis.normalized_query,

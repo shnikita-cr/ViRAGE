@@ -1,51 +1,120 @@
-# VisRAG chunk corpus pipeline
+# ViRAGE VisRAG chunk corpus pipeline
 
-Новый основной режим VisRAG не использует заранее сгенерированные `RagRuleRecord`.
+Команды выполнять из корня проекта.
 
-Порядок:
+## 1. Основная схема
 
-    raw_external_rules/*.txt
+    HTML / txt sources
+    → clean txt
     → guidance_chunks.jsonl
     → guidance_chunk_embeddings.jsonl
-    → runtime retrieve
-    → VisRAGResponse
-    → spec generation prompt
+    → runtime VisRAG retrieval
+    → VisRAGGenerationGuidance
 
-## 1. Загрузка источников
+Старый путь `processed/all_rules.* → RagRuleRecord` больше не является основным режимом.
 
-    python scripts\rag_corpus\loading\download_sources.py --refresh
-
-## 2. Экспорт chunks
+## 2. Скачать источники
 
 Все источники:
 
-    python scripts\rag_corpus\export_guidance_chunks.py
+    python scripts\rag_corpus\loading\download_sources.py --refresh
 
 Один источник:
 
-    python scripts\rag_corpus\export_guidance_chunks.py --sources wilke_fundamentals
+    python scripts\rag_corpus\loading\load_wilke_fundamentals.py --refresh
+    python scripts\rag_corpus\loading\load_from_data_to_viz.py --refresh --timeout-seconds 90
+    python scripts\rag_corpus\loading\load_ft_visual_vocabulary.py --refresh
+    python scripts\rag_corpus\loading\load_uk_analysis_colours.py --refresh
+    python scripts\rag_corpus\loading\load_uk_charts_checklist.py --refresh
+    python scripts\rag_corpus\loading\load_urban_institute_style_guide.py --refresh
+    python scripts\rag_corpus\loading\load_chartability.py --refresh
 
-Результат:
+## 3. Экспорт guidance chunks
 
-    rag_corpus\runtime\guidance_chunks.jsonl
+    python scripts\rag_corpus\export_guidance_chunks.py
 
-## 3. Подготовка embeddings
+Проверка:
 
-Ollama:
+    Get-ChildItem rag_corpus\runtime -File | Select-Object Name, Length
 
-    python scripts\rag_corpus\build_visrag_embeddings.py --provider ollama --model nomic-embed-text --base-url http://localhost:11434
-
-Ollama Cloud/OpenAI/HuggingFace backend выбирается через аргументы provider/model/base-url. Конкретный backend индекса не фиксируется; после AutoRAG можно добавить FAISS/Chroma/DB adapter через `VisRAGStore`.
-
-Результат:
-
-    rag_corpus\runtime\guidance_chunk_embeddings.jsonl
-
-## 4. Runtime
-
-В runtime VisRAG проверяет наличие:
+Должен появиться:
 
     rag_corpus\runtime\guidance_chunks.jsonl
-    rag_corpus\runtime\guidance_chunk_embeddings.jsonl
 
-Если файла нет или embedding отсутствует для chunk, pipeline падает с командой подготовки данных.
+## 4. Подготовка embeddings
+
+Локальная embedding-модель Ollama:
+
+    python scripts\rag_corpus\build_visrag_embeddings.py `
+      --provider ollama `
+      --model bge-m3:latest `
+      --base-url http://localhost:11434
+
+или:
+
+    python scripts\rag_corpus\build_visrag_embeddings.py `
+      --provider ollama `
+      --model mxbai-embed-large:latest `
+      --base-url http://localhost:11434
+
+Проверка:
+
+    Get-ChildItem rag_corpus\runtime -File | Select-Object Name, Length
+
+Должны быть:
+
+    guidance_chunks.jsonl
+    guidance_chunk_embeddings.jsonl
+
+Если embeddings отсутствуют, runtime VisRAG падает с ошибкой и командой подготовки.
+
+## 5. Экспорт AutoRAG данных
+
+    python scripts\rag_corpus\run_export_autorag.py --train-ratio 0.7 --split-seed 42
+
+Проверка:
+
+    Test-Path rag_corpus\autorag\visrag_chunks\corpus.parquet
+    Test-Path rag_corpus\autorag\visrag_chunks\qa.parquet
+    Test-Path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet
+    Test-Path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet
+    Test-Path rag_corpus\autorag\visrag_chunks\splits\test\corpus.parquet
+    Test-Path rag_corpus\autorag\visrag_chunks\splits\test\qa.parquet
+
+## 6. AutoRAG validate/evaluate
+
+Validate train:
+
+    autorag validate `
+      --config rag_corpus\autorag\visrag_chunks\configs\visrag_chunks_ollama_all.yaml `
+      --qa_data_path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
+      --corpus_data_path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet
+
+Evaluate train:
+
+    Remove-Item -Recurse -Force rag_corpus\autorag\runs\visrag_chunks_train -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force rag_corpus\autorag\runs\visrag_chunks_train
+
+    autorag evaluate `
+      --config rag_corpus\autorag\visrag_chunks\configs\visrag_chunks_ollama_all.yaml `
+      --qa_data_path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
+      --corpus_data_path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet `
+      --project_dir rag_corpus\autorag\runs\visrag_chunks_train
+
+## 7. Полный запуск
+
+Без AutoRAG evaluate, только подготовка данных:
+
+    python rag_corpus\run_rag_corpus_pipeline.py --skip-download --skip-autorag
+
+Полный запуск с AutoRAG:
+
+    python rag_corpus\run_rag_corpus_pipeline.py --skip-download
+
+## 8. Store backend
+
+Runtime использует абстракцию `VisRAGStore`. Сейчас реализован переносимый backend:
+
+    visrag_runtime_store_backend = "jsonl"
+
+FAISS, Chroma или другой backend добавляются как новый adapter без изменения `VisRAGService`.

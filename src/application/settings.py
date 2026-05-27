@@ -6,7 +6,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-
 class ViRAGESettings(BaseModel):
     artifact_root: Path = Field(default=Path("./artifacts"))
     project_name: str = Field(default="ViRAGE")

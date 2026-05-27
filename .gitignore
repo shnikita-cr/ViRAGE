@@ -96,3 +96,4 @@ datasets
 /rag_corpus/reports/corpus_summary.json
 /rag_corpus/feedback
 /rag_corpus/reports
+/rag_corpus/autorag/visrag_chunks
