@@ -56,15 +56,45 @@ def _target_record_types_arg(values: list[str] | None) -> set[str]:
     return requested
 
 
+def _is_wilke_source(record: SourceRecord) -> bool:
+    return record.source_dataset == "wilke_fundamentals"
+
+
+def _normalization_cardinality_instruction(record: SourceRecord) -> str:
+    if _is_wilke_source(record):
+        return (
+            "Return a JSON array with 0 to 5 rule records. "
+            "Return [] if the section is bibliographic, technical, too generic, or not useful for visrag guidance. "
+            "If the section contains several independent practical recommendations, split them into separate atomic records. "
+            "Do not merge unrelated guidance into one broad record."
+        )
+    return "Return a JSON array with 1 to 4 rule records."
+
+
+def _source_specific_instructions(record: SourceRecord) -> str:
+    if not _is_wilke_source(record):
+        return ""
+    return (
+        "Wilke-specific hybrid normalization rules:\n"
+        "- Treat the input as a pre-LLM source section, not as one final RAG rule.\n"
+        "- Produce one record per practical visrag rule: chart choice, color, scale/axis, labels, overplotting, distribution, or readability.\n"
+        "- Prefer concrete operational guidance: when it applies, what to do, what to avoid, and what to check.\n"
+        "- Avoid broad restatements such as 'make charts clear' unless they include a specific actionable check.\n"
+        "- Do not mention Wilke in prompt_text; keep citation/source only in metadata/source fields added by the script."
+    )
+
+
 def build_prompt(record: SourceRecord, target_record_types: set[str]) -> str:
     preferred = record.metadata.get("preferred_record_type")
     type_hint = preferred if preferred in target_record_types else ", ".join(sorted(target_record_types))
     raw_excerpt = compact_text(record.raw, max_chars=2500)
+    source_specific = _source_specific_instructions(record)
     return f"""
 {SYSTEM_INSTRUCTIONS}
 
 Target record types for this normalization run: {', '.join(sorted(target_record_types))}.
 Preferred record type from source, if useful: {type_hint}.
+{source_specific}
 
 Raw source record:
 - record_id: {record.record_id}
@@ -76,7 +106,7 @@ Raw source record:
 - text: {record.text}
 - raw_excerpt: {raw_excerpt}
 
-Return a JSON array with 1 to 4 rule records. Use only the allowed record_type values.
+{_normalization_cardinality_instruction(record)} Use only the allowed record_type values.
 Do not include doc_id or source; the script will add them.
 Each record should be self-contained, short, and retrieval-friendly.
 """.strip()
@@ -163,9 +193,11 @@ def normalize_one(client: LLMClient, source: SourceRecord, target_record_types: 
             "source": source_info.model_dump(),
             "metadata": {
                 "llm_output_index": idx,
+                "parent_source_record_id": source.record_id,
                 "source_type": source.source_type,
                 "source_metadata": source.metadata,
                 "normalizer": PROCESSING_VERSION,
+                "normalization_cardinality": "0..5" if _is_wilke_source(source) else "1..4",
             },
         }
         try:

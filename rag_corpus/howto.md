@@ -160,7 +160,46 @@
     Test-Path rag_corpus\runtime\virage_rules.jsonl
     notepad rag_corpus\runtime\runtime_export_report.json
 
-## 9. Экспорт для AutoRAG
+
+## 9. Ручные запросы для проверки VisRAG
+
+Файл с 5 базовыми ручными запросами:
+
+    rag_corpus\manual_queries\visrag_manual_queries.md
+
+Использовать после экспорта runtime-корпуса:
+
+    python scripts\rag_corpus\run_export_runtime.py --profile validated
+
+Минимальная проверка: запустить запросы вручную в UI или в notebook и убедиться, что `visrag` возвращает правила по выбору графика, цвету, подписям, читаемости и доступности.
+
+## 10. Jupyter notebook для проверки начала pipeline
+
+Notebook:
+
+    research\notebooks\virage_iris_pipeline_demo.ipynb
+
+Он использует только код проекта и реальные данные:
+
+    demo_data\Iris.csv
+
+Перед запуском notebook должен существовать runtime-корпус:
+
+    python scripts\rag_corpus\run_export_runtime.py --profile validated
+
+Notebook проходит шаги:
+
+    DataProfilerService.invoke
+    QueryRequestAnalyzerService.invoke
+    DataPreparationService.invoke
+    VisRAGService.invoke
+    ChartGeneratorService.invoke
+    SpecValidatorService.invoke
+    VegaLitePlotDrawingService.invoke
+
+Каждая рабочая ячейка печатает результат шага через `rich.print`. Последний шаг дополнительно отрисовывает PNG-график прямо в notebook.
+
+## 11. Экспорт для AutoRAG
 
     python scripts\rag_corpus\run_export_autorag.py --profile embedding_deduped --train-ratio 0.7 --split-seed 42
 
@@ -171,7 +210,7 @@
     Test-Path rag_corpus\autorag\virage_rules\splits\train\corpus.parquet
     Test-Path rag_corpus\autorag\virage_rules\splits\test\qa.parquet
 
-## 10. AutoRAG
+## 12. AutoRAG
 
 Проверка train:
 
@@ -197,11 +236,11 @@
 
     python scripts\rag_corpus\collect_autorag_summary.py --runs-root rag_corpus\autorag\runs --output-dir rag_corpus\autorag\runs\summary
 
-## 11. Применить настройку поиска правил
+## 13. Применить настройку поиска правил
 
     python scripts\rag_corpus\apply_runtime_retrieval_config.py --base-config ui\config\benchmark\project-gemma4-bench_rag.toml --output-config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml
 
-## 12. Проверка на NLV
+## 14. Проверка на NLV
 
 NLV остаётся только внешним набором для проверки. Его нельзя добавлять в корпус.
 
@@ -223,13 +262,13 @@ NLV остаётся только внешним набором для пров�
 
     python scripts\benchmark\compare_runs.py --left artifacts\benchmarks\nlv_no_rag_smoke --right artifacts\benchmarks\nlv_rag_autorag_smoke --output artifacts\benchmarks\nlv_compare_autorag_smoke
 
-## 13. Проверка на InfiAgent
+## 15. Проверка на InfiAgent
 
     python scripts\benchmark\infiagent_scan.py --source-root Datasets\InfiAgent
     python scripts\benchmark\run_infiagent_chart_grounded.py --source-root Datasets\InfiAgent --config ui\config\benchmark\project-gemma4-bench_rag_autorag.toml --output-dir artifacts\benchmarks\infiagent_rag_autorag_20 --limit 20
     python scripts\benchmark\evaluate_infiagent_results.py --output-dir artifacts\benchmarks\infiagent_rag_autorag_20
 
-## 14. Критерии готовности
+## 16. Критерии готовности
 
 Готово, если:
 
@@ -240,7 +279,7 @@ NLV остаётся только внешним набором для пров�
     ручная проверка возвращает правила выбора графика, читаемости, подписей, легенд и текстового описания
     NLV smoke не показывает рост broken_by_rag и visualization_error_rate
 
-## Примечание по извлечению источников качества графиков
+## Примечание по источникам
 
-Пайплайн дополнительно сохраняет несколько прямых HTML-страниц From Data to Viz, IBM Carbon и USWDS. Это нужно, чтобы извлечение не зависело только от текущей структуры репозиториев. VisText обрабатывается только как структурированный набор подписей и таблиц; файлы метрик, предсказаний и результатов моделей исключаются.
+Текущая practical-итерация корпуса использует только источники из раздела 1: Wilke, From Data to Viz, FT Visual Vocabulary, UK Analysis Function, Urban Institute и Chartability. Старые источники вроде IBM Carbon, USWDS, VisText, NLV, Draco, CompassQL и готовые Vega-Lite examples не должны попадать в основной `visrag` corpus.
 
