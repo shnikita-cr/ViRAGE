@@ -29,10 +29,16 @@
 
     python rag_corpus/run_rag_corpus_pipeline.py --skip-download
 
-Запустить AutoRAG без `autorag` CLI:
+Запустить AutoRAG через project wrapper над `autorag` CLI:
 
     python scripts/rag_corpus/run_autorag_chunks.py evaluate --skip-validation --clean-project-dir --config rag_corpus/autorag/visrag_chunks/configs/visrag_chunks_ollama_all.yaml --qa-data-path rag_corpus/autorag/visrag_chunks/splits/train/qa.parquet --corpus-data-path rag_corpus/autorag/visrag_chunks/splits/train/corpus.parquet --project-dir rag_corpus/autorag/runs/visrag_chunks_train
 
 ## Важное правило
 
 LLM-нормализация всего корпуса заранее больше не является основным путём. Runtime VisRAG ищет chunks и генерирует финальный `VisRAGGenerationGuidance` под конкретный `data_profile + query_request_analysis`.
+
+## AutoRAG dependencies
+
+Для текущей схемы нужны обычный `AutoRAG`, YAML config и Ollama API на `localhost:11434`. Не устанавливать `AutoRAG[gpu]` ради этого сценария: он тянет `vllm`, который не нужен для Windows CPU + Ollama API.
+
+    pip install --upgrade AutoRAG fastapi gradio chromadb pyarrow pandas scikit-learn llama-index-embeddings-ollama

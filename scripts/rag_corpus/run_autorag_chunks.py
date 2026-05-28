@@ -4,14 +4,15 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 _CURRENT = Path(__file__).resolve()
 ROOT = next((parent for parent in _CURRENT.parents if (parent / "src").exists() and (parent / "scripts").exists()), Path.cwd())
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 DEFAULT_CONFIG = "rag_corpus/autorag/visrag_chunks/configs/visrag_chunks_ollama_all.yaml"
 DEFAULT_TRAIN_QA = "rag_corpus/autorag/visrag_chunks/splits/train/qa.parquet"
@@ -33,87 +34,144 @@ def _require_file(path: Path, label: str) -> None:
         raise AutoRAGRunnerError(f"{label} not found: {path}")
 
 
-def _prepare_autorag_env() -> None:
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    os.environ.setdefault("PYTHONFAULTHANDLER", "1")
+def _prepare_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("TOKENIZERS_PARALLELISM", "false")
+    env.setdefault("PYTHONFAULTHANDLER", "1")
+    return env
 
 
-def _import_validator():
-    try:
-        from autorag.validator import Validator
-    except Exception as exc:  # pragma: no cover - depends on external AutoRAG installation
-        raise AutoRAGRunnerError(
-            "Cannot import autorag.validator.Validator. "
-            "Check AutoRAG installation and avoid using the 'autorag' CLI when it imports deploy/gradio/fastapi."
-        ) from exc
-    return Validator
-
-
-def _import_evaluator():
-    try:
-        from autorag.evaluator import Evaluator
-    except Exception as exc:  # pragma: no cover - depends on external AutoRAG installation
-        raise AutoRAGRunnerError(
-            "Cannot import autorag.evaluator.Evaluator. "
-            "Check AutoRAG installation and avoid using the 'autorag' CLI when it imports deploy/gradio/fastapi."
-        ) from exc
-    return Evaluator
-
-
-def run_validate(*, config: Path, qa_path: Path, corpus_path: Path) -> dict[str, Any]:
-    _require_file(config, "AutoRAG config")
-    _require_file(qa_path, "AutoRAG QA parquet")
-    _require_file(corpus_path, "AutoRAG corpus parquet")
-    _prepare_autorag_env()
-    Validator = _import_validator()
-    validator = Validator(qa_data_path=str(qa_path), corpus_data_path=str(corpus_path))
-    validator.validate(str(config))
+def _validate_parquet(path: Path, *, required_columns: set[str], label: str) -> dict[str, Any]:
+    _require_file(path, label)
+    frame = pd.read_parquet(path)
+    missing = sorted(required_columns.difference(frame.columns))
+    if missing:
+        raise AutoRAGRunnerError(f"{label} misses required columns {missing}: {path}")
+    if frame.empty:
+        raise AutoRAGRunnerError(f"{label} is empty: {path}")
+    null_counts = {column: int(count) for column, count in frame.isna().sum().items() if int(count) > 0}
     return {
-        "stage": "validate",
-        "config": str(config),
-        "qa_data_path": str(qa_path),
-        "corpus_data_path": str(corpus_path),
-        "status": "ok",
+        "path": str(path),
+        "rows": int(len(frame)),
+        "columns": list(frame.columns),
+        "null_counts": null_counts,
     }
 
 
-def run_evaluate(*, config: Path, qa_path: Path, corpus_path: Path, project_dir: Path, skip_validation: bool, clean_project_dir: bool) -> dict[str, Any]:
-    _require_file(config, "AutoRAG config")
-    _require_file(qa_path, "AutoRAG QA parquet")
-    _require_file(corpus_path, "AutoRAG corpus parquet")
+def _preflight_autorag_cli(autorag_command: str, *, cwd: Path, env: dict[str, str]) -> None:
+    try:
+        result = subprocess.run(
+            [autorag_command, "--help"],
+            cwd=cwd,
+            env=env,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except FileNotFoundError as exc:
+        raise AutoRAGRunnerError(
+            "AutoRAG CLI command was not found. Install API AutoRAG without GPU extras:\n"
+            "pip install AutoRAG fastapi gradio chromadb pyarrow pandas scikit-learn llama-index-embeddings-ollama"
+        ) from exc
+    output = result.stdout or ""
+    if result.returncode != 0:
+        raise AutoRAGRunnerError(
+            "AutoRAG CLI is installed but cannot start. This project uses the API AutoRAG package, "
+            "not AutoRAG[gpu] and not vLLM.\n"
+            "Install/repair the API dependencies, for example:\n"
+            "pip install --upgrade AutoRAG fastapi gradio chromadb pyarrow pandas scikit-learn llama-index-embeddings-ollama\n\n"
+            f"AutoRAG output:\n{output}"
+        )
+
+
+def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
+    print(" ".join(command), flush=True)
+    subprocess.run(command, cwd=cwd, env=env, check=True)
+
+
+def run_validate(*, autorag_command: str, config: Path, qa_path: Path, corpus_path: Path) -> dict[str, Any]:
+    _require_file(config, "AutoRAG YAML config")
+    qa_report = _validate_parquet(qa_path, required_columns={"qid", "query", "retrieval_gt"}, label="AutoRAG QA parquet")
+    corpus_report = _validate_parquet(corpus_path, required_columns={"doc_id", "contents"}, label="AutoRAG corpus parquet")
+    env = _prepare_env()
+    _preflight_autorag_cli(autorag_command, cwd=ROOT, env=env)
+    _run(
+        [
+            autorag_command,
+            "validate",
+            "--config",
+            str(config),
+            "--qa_data_path",
+            str(qa_path),
+            "--corpus_data_path",
+            str(corpus_path),
+        ],
+        cwd=ROOT,
+        env=env,
+    )
+    return {
+        "stage": "validate",
+        "status": "ok",
+        "config": str(config),
+        "qa": qa_report,
+        "corpus": corpus_report,
+    }
+
+
+def run_evaluate(
+    *,
+    autorag_command: str,
+    config: Path,
+    qa_path: Path,
+    corpus_path: Path,
+    project_dir: Path,
+    skip_validation: bool,
+    clean_project_dir: bool,
+) -> dict[str, Any]:
+    _require_file(config, "AutoRAG YAML config")
+    qa_report = _validate_parquet(qa_path, required_columns={"qid", "query", "retrieval_gt"}, label="AutoRAG QA parquet")
+    corpus_report = _validate_parquet(corpus_path, required_columns={"doc_id", "contents"}, label="AutoRAG corpus parquet")
     if clean_project_dir and project_dir.exists():
         shutil.rmtree(project_dir)
     project_dir.mkdir(parents=True, exist_ok=True)
-    _prepare_autorag_env()
-    Evaluator = _import_evaluator()
-    evaluator = Evaluator(
-        qa_data_path=str(qa_path),
-        corpus_data_path=str(corpus_path),
-        project_dir=str(project_dir),
-    )
-    evaluator.start_trial(str(config), skip_validation=skip_validation)
+    env = _prepare_env()
+    _preflight_autorag_cli(autorag_command, cwd=ROOT, env=env)
+    command = [
+        autorag_command,
+        "evaluate",
+        "--config",
+        str(config),
+        "--qa_data_path",
+        str(qa_path),
+        "--corpus_data_path",
+        str(corpus_path),
+        "--project_dir",
+        str(project_dir),
+    ]
+    if skip_validation:
+        command.append("--skip_validation")
+    _run(command, cwd=ROOT, env=env)
     return {
         "stage": "evaluate",
+        "status": "ok",
         "config": str(config),
-        "qa_data_path": str(qa_path),
-        "corpus_data_path": str(corpus_path),
         "project_dir": str(project_dir),
         "skip_validation": skip_validation,
-        "status": "ok",
+        "qa": qa_report,
+        "corpus": corpus_report,
     }
-
-
-def _print_report(report: dict[str, Any]) -> None:
-    print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run AutoRAG for VisRAG chunks through the Python API, without importing autorag.cli/deploy/gradio."
+            "Run AutoRAG for VisRAG chunks through the AutoRAG API CLI and YAML config. "
+            "This runner does not require AutoRAG[gpu], vLLM, or local model extras."
         )
     )
     parser.add_argument("mode", choices=["validate", "evaluate", "both"])
+    parser.add_argument("--autorag-command", default="autorag")
     parser.add_argument("--config", default=DEFAULT_CONFIG)
     parser.add_argument("--qa-data-path", default=DEFAULT_TRAIN_QA)
     parser.add_argument("--corpus-data-path", default=DEFAULT_TRAIN_CORPUS)
@@ -131,10 +189,18 @@ def main() -> None:
     project_dir = _resolve(args.project_dir)
     reports: list[dict[str, Any]] = []
     if args.mode in {"validate", "both"}:
-        reports.append(run_validate(config=config, qa_path=qa_path, corpus_path=corpus_path))
+        reports.append(
+            run_validate(
+                autorag_command=args.autorag_command,
+                config=config,
+                qa_path=qa_path,
+                corpus_path=corpus_path,
+            )
+        )
     if args.mode in {"evaluate", "both"}:
         reports.append(
             run_evaluate(
+                autorag_command=args.autorag_command,
                 config=config,
                 qa_path=qa_path,
                 corpus_path=corpus_path,
@@ -143,7 +209,7 @@ def main() -> None:
                 clean_project_dir=args.clean_project_dir,
             )
         )
-    _print_report({"reports": reports})
+    print(json.dumps({"reports": reports}, ensure_ascii=False, indent=2), flush=True)
 
 
 if __name__ == "__main__":

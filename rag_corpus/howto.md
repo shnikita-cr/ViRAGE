@@ -83,7 +83,7 @@
 
 ## 6. AutoRAG validate/evaluate
 
-Основной запуск AutoRAG выполняется через проектный wrapper, а не через `autorag` CLI. Wrapper импортирует только `autorag.validator.Validator` и `autorag.evaluator.Evaluator`, поэтому не тянет `autorag.deploy`, `gradio` и `fastapi`.
+Основной запуск AutoRAG выполняется через проектный wrapper над `autorag` CLI. Wrapper сохраняет использование AutoRAG YAML, но не требует `AutoRAG[gpu]`, `vllm` и локальных LLM-backend. Конфигурация использует локальный Ollama API `http://localhost:11434` для embeddings.
 
 Validate train:
 
@@ -108,7 +108,7 @@ Evaluate train:
 
     python rag_corpus\run_rag_corpus_pipeline.py --skip-download --skip-autorag
 
-Полный запуск с AutoRAG через Python API wrapper:
+Полный запуск с AutoRAG через project wrapper:
 
     python rag_corpus\run_rag_corpus_pipeline.py --skip-download
 
@@ -119,3 +119,11 @@ Runtime использует абстракцию `VisRAGStore`. Сейчас р
     visrag_runtime_store_backend = "jsonl"
 
 FAISS, Chroma или другой backend добавляются как новый adapter без изменения `VisRAGService`.
+
+## 9. Установка AutoRAG без GPU/vLLM
+
+Для этого контура не нужен `AutoRAG[gpu]` и не нужен `vllm`. Используется обычный AutoRAG + YAML-конфигурация + Ollama localhost.
+
+    pip install --upgrade AutoRAG fastapi gradio chromadb pyarrow pandas scikit-learn llama-index-embeddings-ollama
+
+Если `autorag --help` падает на импорте `fastapi`/`gradio`, нужно починить эти зависимости, а не устанавливать `vllm`.

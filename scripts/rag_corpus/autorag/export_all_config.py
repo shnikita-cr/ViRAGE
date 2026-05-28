@@ -6,9 +6,8 @@ from scripts.rag_corpus.common.io import ensure_dir, project_root, write_text
 
 DEFAULT_OUTPUT = "rag_corpus/autorag/visrag_chunks/configs/visrag_chunks_ollama_all.yaml"
 
-CONFIG_TEXT = """# ViRAGE AutoRAG config: conservative Ollama retrieval variants in one config.
-# This config follows the newer AutoRAG retrieval node split:
-# lexical_retrieval, semantic_retrieval, hybrid_retrieval.
+CONFIG_TEXT = """# ViRAGE AutoRAG config: API AutoRAG + Ollama localhost retrieval variants.
+# This config intentionally avoids vLLM and AutoRAG[gpu] local LLM backends.
 # Pull the embedding models before running semantic or hybrid retrieval:
 #   ollama pull nomic-embed-text
 #   ollama pull mxbai-embed-large
