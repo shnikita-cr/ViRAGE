@@ -13,12 +13,14 @@ from src.domain.models import (
     VisRAGDiagnostics,
     VisRAGGenerationGuidance,
     VisRAGGuidanceChunk,
+    VisRAGRuleDocument,
     VisRAGResult,
     VisRAGRetrievedChunk,
 )
 from src.llm.helpers import invoke_structured
 from src.visrag_core.embeddings import build_embedding_model, cosine
 from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.text import tokens
 from src.visrag_core.stores import VisRAGStore
 
 
@@ -62,15 +64,18 @@ class VisRAGEngine:
             raise RuntimeError("VisRAG is disabled. Enable visrag_enabled=true or remove the visrag pipeline node.")
         chunks = self._chunks if self._chunks is not None else self.store.load_chunks()
         embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
-        missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
-        if missing:
-            raise RuntimeError(
-                "VisRAG embeddings are incomplete. Run:\n"
-                "python scripts\\rag_corpus\\build_visrag_embeddings.py\n"
-                f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
-            )
         query = build_visrag_query(query_analysis, data_profile)
-        retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
+        if embeddings:
+            missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
+            if missing:
+                raise RuntimeError(
+                    "VisRAG embeddings are incomplete. Run:\n"
+                    "python scripts\\rag_corpus\\build_visrag_embeddings.py\n"
+                    f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
+                )
+            retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
+        else:
+            retrieved = self._retrieve_lexical(query, query_analysis, chunks)
         guidance = self._generate_response(query_analysis, data_profile, retrieved)
         diagnostics = VisRAGDiagnostics(
             retrieved_count=len(retrieved),
@@ -121,6 +126,27 @@ class VisRAGEngine:
                 ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score"}), score=round(score, 6)))
         return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:max(1, self.options.top_k_chunks)]
 
+
+    def _retrieve_lexical(
+            self,
+            query: str,
+            query_analysis: QueryRequestAnalysisResult,
+            chunks: list[VisRAGGuidanceChunk],
+    ) -> list[VisRAGRetrievedChunk]:
+        query_tokens = set(tokens(query))
+        ranked: list[VisRAGRetrievedChunk] = []
+        for chunk in chunks:
+            doc_tokens = set(tokens(" ".join([chunk.title, chunk.text, str(chunk.metadata)])))
+            overlap = len(query_tokens & doc_tokens)
+            if overlap <= 0 and str(chunk.source_kind) != "domain_semantics_rule":
+                overlap = 1
+            score = float(overlap) * self._metadata_weight(chunk, query_analysis)
+            if str(chunk.source_kind) == "domain_semantics_rule" and not self._domain_semantics_matches(chunk, query_analysis, None):
+                score = 0.0
+            if score > 0:
+                ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score"}), score=round(score, 6)))
+        return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:max(1, self.options.top_k_chunks)]
+
     @staticmethod
     def _metadata_weight(chunk: VisRAGGuidanceChunk, query_analysis: QueryRequestAnalysisResult) -> float:
         metadata = chunk.metadata or {}
@@ -138,8 +164,6 @@ class VisRAGEngine:
             data_profile: DataProfile,
             chunks: list[VisRAGRetrievedChunk],
     ) -> VisRAGGenerationGuidance:
-        if self.reasoning_llm is None:
-            raise RuntimeError("VisRAG guidance generation requires runtime.reasoning_llm.")
         source_refs = [
             {
                 "chunk_id": chunk.chunk_id,
@@ -152,6 +176,21 @@ class VisRAGEngine:
             }
             for chunk in chunks
         ]
+        categorized = self._categorized_rule_documents(chunks)
+        if self.reasoning_llm is None:
+            guidance = VisRAGGenerationGuidance(
+                chart_patterns=categorized["chart_pattern"],
+                readability_rules=categorized["readability_rule"],
+                scale_plot_area_rules=categorized["scale_plot_area_rule"],
+                vlm_readability_rules=categorized["vlm_readability_rule"],
+                domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
+                applicable_rules=[chunk.text for chunk in chunks if str(chunk.source_kind) not in {"domain_semantics_rule"}],
+                quality_checks=[chunk.text for chunk in chunks if str(chunk.source_kind) in {"readability_rule", "vlm_readability_rule"}],
+                source_refs=source_refs,
+            )
+            guidance.prompt_text = self._to_prompt_text(guidance)
+            return guidance
+
         payload = {
             "query_analysis": {
                 "normalized_query": query_analysis.normalized_query,
@@ -189,6 +228,11 @@ class VisRAGEngine:
             max_attempts=2,
         )
         guidance = VisRAGGenerationGuidance(
+            chart_patterns=categorized["chart_pattern"],
+            readability_rules=categorized["readability_rule"],
+            scale_plot_area_rules=categorized["scale_plot_area_rule"],
+            vlm_readability_rules=categorized["vlm_readability_rule"],
+            domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
             applicable_rules=parsed.applicable_rules,
             avoid=parsed.avoid,
             quality_checks=parsed.quality_checks,
@@ -226,3 +270,74 @@ class VisRAGEngine:
         for chunk in chunks:
             counts[chunk.source_kind] = counts.get(chunk.source_kind, 0) + 1
         return counts
+
+    @staticmethod
+    def _rule_document_from_chunk(chunk: VisRAGRetrievedChunk | VisRAGGuidanceChunk) -> VisRAGRuleDocument:
+        return VisRAGRuleDocument(
+            doc_id=chunk.chunk_id,
+            record_type=str(chunk.source_kind),
+            title=chunk.title,
+            retrieval_text=str(chunk.metadata.get("retrieval_text") or chunk.text),
+            prompt_text=chunk.text,
+            metadata=chunk.metadata,
+            score=chunk.score,
+        )
+
+    @classmethod
+    def _categorized_rule_documents(
+            cls,
+            chunks: list[VisRAGRetrievedChunk] | list[VisRAGGuidanceChunk],
+    ) -> dict[str, list[VisRAGRuleDocument]]:
+        result = {
+            "chart_pattern": [],
+            "readability_rule": [],
+            "scale_plot_area_rule": [],
+            "vlm_readability_rule": [],
+            "domain_semantics_rule": [],
+        }
+        for chunk in chunks:
+            record_type = str(chunk.source_kind)
+            if record_type in result:
+                result[record_type].append(cls._rule_document_from_chunk(chunk))
+        return result
+
+    @staticmethod
+    def _domain_semantics_matches(
+            chunk: VisRAGGuidanceChunk,
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile | None,
+    ) -> bool:
+        query_text = " ".join([
+            query_analysis.normalized_query,
+            " ".join(query_analysis.selected_fields),
+        ]).lower()
+        if data_profile is not None:
+            query_text += " " + " ".join(column.name for column in data_profile.columns).lower()
+        metadata = chunk.metadata or {}
+        domain = str(metadata.get("domain") or "").lower()
+        if domain in {"medicine", "medical", "biomedical", "biology"}:
+            return any(token in query_text for token in ["hba1c", "biomarker", "clinical", "treatment", "cell", "gene", "patient"])
+        return True
+
+    @classmethod
+    def _gate_domain_semantics(
+            cls,
+            documents: list[VisRAGRuleDocument],
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+    ) -> list[VisRAGRuleDocument]:
+        kept: list[VisRAGRuleDocument] = []
+        for document in documents:
+            chunk = VisRAGGuidanceChunk(
+                chunk_id=document.doc_id,
+                source_id=document.doc_id,
+                source_kind="domain_semantics_rule",
+                title=document.title,
+                text=document.prompt_text or document.retrieval_text,
+                metadata=document.metadata,
+                score=document.score,
+            )
+            if cls._domain_semantics_matches(chunk, query_analysis, data_profile):
+                kept.append(document)
+        return kept
+

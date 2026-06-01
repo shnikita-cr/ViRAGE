@@ -9,7 +9,29 @@ VisRAGChunkKind = Literal[
     "dataset_pattern",
     "manual_feedback",
     "vlm_feedback",
+    "chart_pattern",
+    "readability_rule",
+    "scale_plot_area_rule",
+    "vlm_readability_rule",
+    "domain_semantics_rule",
 ]
+
+
+class VisRAGRuleDocument(BaseModel):
+    """Backward-compatible runtime rule document used by RAG evaluation scripts.
+
+    The current runtime uses guidance chunks, but older evaluation utilities and
+    tests still work with typed rule documents. Keeping this small schema makes
+    corpus evaluation possible while preserving the chunk-based runtime path.
+    """
+
+    doc_id: str
+    record_type: str
+    title: str = ""
+    retrieval_text: str = ""
+    prompt_text: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    score: float = 0.0
 
 
 class VisRAGGuidanceChunk(BaseModel):
@@ -38,6 +60,11 @@ class VisRAGRetrievedChunk(VisRAGGuidanceChunk):
 class VisRAGGenerationGuidance(BaseModel):
     """Final VisRAG answer inserted into the specification-generation prompt."""
 
+    chart_patterns: list[VisRAGRuleDocument] = Field(default_factory=list)
+    readability_rules: list[VisRAGRuleDocument] = Field(default_factory=list)
+    scale_plot_area_rules: list[VisRAGRuleDocument] = Field(default_factory=list)
+    vlm_readability_rules: list[VisRAGRuleDocument] = Field(default_factory=list)
+    domain_semantics_rules: list[VisRAGRuleDocument] = Field(default_factory=list)
     applicable_rules: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
     quality_checks: list[str] = Field(default_factory=list)
@@ -48,6 +75,11 @@ class VisRAGGenerationGuidance(BaseModel):
     @property
     def has_guidance(self) -> bool:
         return any([
+            self.chart_patterns,
+            self.readability_rules,
+            self.scale_plot_area_rules,
+            self.vlm_readability_rules,
+            self.domain_semantics_rules,
             self.applicable_rules,
             self.avoid,
             self.quality_checks,

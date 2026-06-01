@@ -6,6 +6,7 @@ from typing import Callable
 from src.application.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest, PipelineResult
 from src.application.project_config import ProjectConfig
+from src.application.run_report import save_error_report, save_run_report, save_task_request
 from src.application.pipeline_result_factory import PipelineResultFactory
 from src.application.settings import ViRAGESettings
 from src.application.state import PipelineState
@@ -120,7 +121,9 @@ class ViRAGEPipeline:
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
+        task_request_path = save_task_request(self.runtime, request)
         input_artifact_paths = self._save_input_artifacts(request)
+        input_artifact_paths["task_request"] = task_request_path
         self.runtime.save_run_status(
             run_id=request.run_id,
             status="running",
@@ -150,13 +153,29 @@ class ViRAGEPipeline:
             tb = traceback.format_exc()
             error_type = _classify_error(exc)
             self.runtime.save_text_artifact('errors/fatal_error.txt', tb, run_id=request.run_id, numbered=True)
+            error_text = f"{type(exc).__name__}: {exc}"
             self.runtime.save_run_status(
                 run_id=request.run_id,
                 status="failed",
                 final_stage="exception",
                 semantic_status=None,
                 error_type=error_type,
-                error=f"{type(exc).__name__}: {exc}",
+                error=error_text,
+            )
+            save_error_report(
+                self.runtime,
+                request=request,
+                error_type=error_type,
+                error=error_text,
+                traceback_text=tb,
+            )
+            save_run_report(
+                self.runtime,
+                request=request,
+                result=None,
+                status="failed",
+                error_type=error_type,
+                error=error_text,
             )
             self.runtime.save_model_log_artifacts(run_id=request.run_id)
             raise
@@ -180,4 +199,11 @@ class ViRAGEPipeline:
                 "has_token_summary": True,
             },
         )
-        return PipelineResultFactory.from_state(final_state, self.runtime)
+        result = PipelineResultFactory.from_state(final_state, self.runtime)
+        save_run_report(
+            self.runtime,
+            request=request,
+            result=result,
+            status="completed",
+        )
+        return result

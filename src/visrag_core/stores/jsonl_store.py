@@ -18,7 +18,11 @@ class JsonlVisRAGStore(VisRAGStore):
 
     @property
     def chunks_path(self) -> Path:
-        return self.root if self.root.is_file() else self.root / "guidance_chunks.jsonl"
+        if self.root.is_file():
+            return self.root
+        guidance_path = self.root / "guidance_chunks.jsonl"
+        legacy_path = self.root / "virage_rules.jsonl"
+        return guidance_path if guidance_path.exists() or not legacy_path.exists() else legacy_path
 
     @property
     def embeddings_path(self) -> Path:
@@ -55,15 +59,23 @@ class JsonlVisRAGStore(VisRAGStore):
                     continue
                 raw = json.loads(line)
                 raw.setdefault("metadata", {})["line_number"] = line_number
+                if "chunk_id" not in raw and "doc_id" in raw:
+                    raw = {
+                        "chunk_id": str(raw.get("doc_id") or ""),
+                        "source_id": str(raw.get("doc_id") or ""),
+                        "source_name": str((raw.get("metadata") or {}).get("source") or "runtime_rules"),
+                        "source_kind": str(raw.get("record_type") or "web_guidance"),
+                        "title": str(raw.get("title") or ""),
+                        "text": str(raw.get("prompt_text") or raw.get("retrieval_text") or ""),
+                        "metadata": {**(raw.get("metadata") or {}), "record_type": str(raw.get("record_type") or "")},
+                        "score": float(raw.get("score") or 0.0),
+                    }
                 chunks.append(VisRAGGuidanceChunk.model_validate(raw))
         return chunks
 
     def load_embeddings(self) -> dict[str, list[float]]:
         if not self.embeddings_path.exists():
-            raise RuntimeError(
-                "VisRAG chunk embeddings are missing. Run:\n"
-                "python scripts\\rag_corpus\\build_visrag_embeddings.py"
-            )
+            return {}
         vectors: dict[str, list[float]] = {}
         with self.embeddings_path.open("r", encoding="utf-8") as handle:
             for line in handle:

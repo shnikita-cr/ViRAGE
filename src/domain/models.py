@@ -55,6 +55,7 @@ from src.domain.spec_generation_models import (
 
 from src.domain.visrag_models import (
     VisRAGChunkKind,
+    VisRAGRuleDocument,
     VisRAGGuidanceChunk,
     VisRAGRetrievedChunk,
     VisRAGGenerationGuidance,
@@ -109,6 +110,7 @@ __all__ = [
     "SpecGenerationAttempt",
     "SpecGenerationResult",
     "VisRAGChunkKind",
+    "VisRAGRuleDocument",
     "VisRAGGuidanceChunk",
     "VisRAGRetrievedChunk",
     "VisRAGGenerationGuidance",
