@@ -1,129 +1,250 @@
-# ViRAGE VisRAG chunk corpus pipeline
+# ViRAGE RAG corpus and AutoRAG workflow
 
 Команды выполнять из корня проекта.
 
-## 1. Основная схема
+## 1. Актуальная схема
 
-    HTML / txt sources
-    → clean txt
-    → guidance_chunks.jsonl
-    → guidance_chunk_embeddings.jsonl
+    raw visualization sources
+    → rag_corpus/runtime/guidance_chunks.jsonl
+    → rag_corpus/runtime/guidance_chunk_embeddings.jsonl
     → runtime VisRAG retrieval
-    → VisRAGGenerationGuidance
+    → rag_corpus/autorag dataset/config/trials/report
+    → AutoRAG retrieval evaluation
 
-Старый путь `processed/all_rules.* → RagRuleRecord` больше не является основным режимом.
+Актуальный runtime-корпус:
 
-## 2. Скачать источники
+    rag_corpus/runtime/guidance_chunks.jsonl
 
-Все источники:
+Исторический корпус ниже не использовать для текущих оценок и pipeline:
 
-    python scripts\rag_corpus\loading\download_sources.py --refresh
+    rag_corpus/runtime_pre/virage_rules.jsonl
 
-Один источник:
+Все данные AutoRAG должны лежать только здесь:
 
-    python scripts\rag_corpus\loading\load_wilke_fundamentals.py --refresh
-    python scripts\rag_corpus\loading\load_from_data_to_viz.py --refresh --timeout-seconds 90
-    python scripts\rag_corpus\loading\load_ft_visual_vocabulary.py --refresh
-    python scripts\rag_corpus\loading\load_uk_analysis_colours.py --refresh
-    python scripts\rag_corpus\loading\load_uk_charts_checklist.py --refresh
-    python scripts\rag_corpus\loading\load_urban_institute_style_guide.py --refresh
-    python scripts\rag_corpus\loading\load_chartability.py --refresh
+    rag_corpus/autorag
 
-## 3. Экспорт guidance chunks
+Не использовать старые пути:
 
-    python scripts\rag_corpus\export_guidance_chunks.py
+    configs/autorag
+    data/autorag_eval
+    artifacts/autorag_eval
 
-Проверка:
+## 2. Проверка окружения
 
-    Get-ChildItem rag_corpus\runtime -File | Select-Object Name, Length
+Проверить Python-код:
 
-Должен появиться:
+    python -m compileall -q src scripts tests
 
-    rag_corpus\runtime\guidance_chunks.jsonl
+Проверить unit-тесты:
 
-## 4. Подготовка embeddings
+    pytest -q tests/unit
 
-Локальная embedding-модель Ollama:
+Проверить AutoRAG CLI:
 
-    python scripts\rag_corpus\build_visrag_embeddings.py `
-      --provider ollama `
-      --model bge-m3:latest `
-      --base-url http://localhost:11434
+    autorag --help
 
-или:
+Проверить Ollama:
 
-    python scripts\rag_corpus\build_visrag_embeddings.py `
-      --provider ollama `
-      --model mxbai-embed-large:latest `
-      --base-url http://localhost:11434
+    ollama list
 
-Проверка:
-
-    Get-ChildItem rag_corpus\runtime -File | Select-Object Name, Length
-
-Должны быть:
-
-    guidance_chunks.jsonl
-    guidance_chunk_embeddings.jsonl
-
-Если embeddings отсутствуют, runtime VisRAG падает с ошибкой и командой подготовки.
-
-## 5. Экспорт AutoRAG данных
-
-    python scripts\rag_corpus\run_export_autorag.py --train-ratio 0.7 --split-seed 42
-
-Проверка:
-
-    Test-Path rag_corpus\autorag\visrag_chunks\corpus.parquet
-    Test-Path rag_corpus\autorag\visrag_chunks\qa.parquet
-    Test-Path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet
-    Test-Path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet
-    Test-Path rag_corpus\autorag\visrag_chunks\splits\test\corpus.parquet
-    Test-Path rag_corpus\autorag\visrag_chunks\splits\test\qa.parquet
-
-## 6. AutoRAG validate/evaluate
-
-Основной запуск AutoRAG выполняется через проектный wrapper над `autorag` CLI. Wrapper сохраняет использование AutoRAG YAML, но не требует `AutoRAG[gpu]`, `vllm` и локальных LLM-backend. Конфигурация использует локальный Ollama API `http://localhost:11434` для embeddings.
-
-Validate train:
-
-    python scripts\rag_corpus\run_autorag_chunks.py validate `
-      --config rag_corpus\autorag\visrag_chunks\configs\visrag_chunks_ollama_all.yaml `
-      --qa-data-path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
-      --corpus-data-path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet
-
-Evaluate train:
-
-    python scripts\rag_corpus\run_autorag_chunks.py evaluate `
-      --skip-validation `
-      --clean-project-dir `
-      --config rag_corpus\autorag\visrag_chunks\configs\visrag_chunks_ollama_all.yaml `
-      --qa-data-path rag_corpus\autorag\visrag_chunks\splits\train\qa.parquet `
-      --corpus-data-path rag_corpus\autorag\visrag_chunks\splits\train\corpus.parquet `
-      --project-dir rag_corpus\autorag\runs\visrag_chunks_train
-
-## 7. Полный запуск
-
-Без AutoRAG evaluate, только подготовка данных:
-
-    python rag_corpus\run_rag_corpus_pipeline.py --skip-download --skip-autorag
-
-Полный запуск с AutoRAG через project wrapper:
-
-    python rag_corpus\run_rag_corpus_pipeline.py --skip-download
-
-## 8. Store backend
-
-Runtime использует абстракцию `VisRAGStore`. Сейчас реализован переносимый backend:
-
-    visrag_runtime_store_backend = "jsonl"
-
-FAISS, Chroma или другой backend добавляются как новый adapter без изменения `VisRAGService`.
-
-## 9. Установка AutoRAG без GPU/vLLM
-
-Для этого контура не нужен `AutoRAG[gpu]` и не нужен `vllm`. Используется обычный AutoRAG + YAML-конфигурация + Ollama localhost.
+Для AutoRAG и parquet-экспорта нужны зависимости:
 
     pip install --upgrade AutoRAG fastapi gradio chromadb pyarrow pandas scikit-learn llama-index-embeddings-ollama
 
-Если `autorag --help` падает на импорте `fastapi`/`gradio`, нужно починить эти зависимости, а не устанавливать `vllm`.
+Для runtime embeddings нужен локальный Ollama server:
+
+    ollama serve
+
+## 3. Подготовка runtime guidance chunks
+
+Если runtime-файл уже есть, этот шаг можно пропустить.
+
+Скачать или обновить исходники:
+
+    python scripts/rag_corpus/loading/download_sources.py --refresh
+
+Экспортировать актуальный chunk-корпус:
+
+    python scripts/rag_corpus/export_guidance_chunks.py
+
+Проверить наличие runtime-корпуса:
+
+    python -c "from pathlib import Path; p=Path('rag_corpus/runtime/guidance_chunks.jsonl'); print(p.exists(), p.stat().st_size if p.exists() else 0)"
+
+Ожидаемый файл:
+
+    rag_corpus/runtime/guidance_chunks.jsonl
+
+## 4. Подготовка runtime embeddings для ViRAGE
+
+Этот файл используется runtime-поиском ViRAGE, но не передаётся напрямую в AutoRAG:
+
+    rag_corpus/runtime/guidance_chunk_embeddings.jsonl
+
+Основная команда с `bge-m3`:
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+
+Альтернативные embedding-модели из локального списка:
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model mxbai-embed-large:latest --base-url http://localhost:11434
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model qwen3-embedding:latest --base-url http://localhost:11434
+
+Проверить наличие embeddings:
+
+    python -c "from pathlib import Path; p=Path('rag_corpus/runtime/guidance_chunk_embeddings.jsonl'); print(p.exists(), p.stat().st_size if p.exists() else 0)"
+
+## 5. Подготовка AutoRAG QA и dataset
+
+Размеченные retrieval-запросы должны лежать здесь:
+
+    rag_corpus/autorag/qa/retrieval_queries.jsonl
+
+Экспортировать актуальный runtime-корпус в AutoRAG parquet:
+
+    python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
+
+Проверить результат:
+
+    python -c "from pathlib import Path; print(Path('rag_corpus/autorag/datasets/runtime/corpus.parquet').exists()); print(Path('rag_corpus/autorag/datasets/runtime/qa.parquet').exists()); print(Path('rag_corpus/autorag/datasets/runtime/dataset_manifest.json').exists())"
+
+Ожидаемые файлы:
+
+    rag_corpus/autorag/datasets/runtime/corpus.parquet
+    rag_corpus/autorag/datasets/runtime/qa.parquet
+    rag_corpus/autorag/datasets/runtime/dataset_manifest.json
+
+## 6. Сборка AutoRAG config
+
+Основной config включает BM25, semantic retrieval через Ollama embeddings и hybrid retrieval:
+
+    python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval.yaml
+
+Config с ограниченным набором embedding-моделей:
+
+    python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval.yaml --embedding-models bge-m3:latest,nomic-embed-text:latest
+
+Lexical-only fallback, если semantic/hybrid временно не запускается:
+
+    python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval_lexical.yaml --lexical-only
+
+Проверить результат:
+
+    python -c "from pathlib import Path; print(Path('rag_corpus/autorag/configs/virage_retrieval_eval.yaml').exists()); print(Path('rag_corpus/autorag/configs/virage_retrieval_eval.manifest.json').exists())"
+
+## 7. AutoRAG evaluate
+
+Основной запуск:
+
+    autorag evaluate --config rag_corpus/autorag/configs/virage_retrieval_eval.yaml --qa_data_path rag_corpus/autorag/datasets/runtime/qa.parquet --corpus_data_path rag_corpus/autorag/datasets/runtime/corpus.parquet --project_dir rag_corpus/autorag/trials
+
+Lexical-only fallback:
+
+    autorag evaluate --config rag_corpus/autorag/configs/virage_retrieval_eval_lexical.yaml --qa_data_path rag_corpus/autorag/datasets/runtime/qa.parquet --corpus_data_path rag_corpus/autorag/datasets/runtime/corpus.parquet --project_dir rag_corpus/autorag/trials_lexical
+
+AutoRAG должен сам считать retrieval-метрики. В проекте ViRAGE не должно быть самописного расчёта Recall, MRR или nDCG.
+
+## 8. Сбор результатов AutoRAG
+
+Собрать результаты основного запуска:
+
+    python scripts/autorag_eval/collect_autorag_results.py --project-dir rag_corpus/autorag/trials --output-dir rag_corpus/autorag/report
+
+Собрать результаты lexical-only запуска:
+
+    python scripts/autorag_eval/collect_autorag_results.py --project-dir rag_corpus/autorag/trials_lexical --output-dir rag_corpus/autorag/report_lexical
+
+Ожидаемые файлы:
+
+    rag_corpus/autorag/report/autorag_summary.csv
+    rag_corpus/autorag/report/autorag_summary.json
+    rag_corpus/autorag/report/autorag_report.md
+
+## 9. AutoRAG dashboard
+
+Открыть dashboard для основного запуска:
+
+    autorag dashboard --trial_dir rag_corpus/autorag/trials/0
+
+Если AutoRAG создал другую папку trial, заменить `0` на фактическое имя папки.
+
+## 10. Runtime запуск ViRAGE с RAG
+
+Single-run без RAG:
+
+    python scripts/run_pipeline.py --config ui/config/benchmark/project-gemma4-bench_norag.toml --query "Build a scatter plot of sepal length and petal length" --data-path demo_data/Iris.csv --run-id smoke_no_rag
+
+Single-run с RAG:
+
+    python scripts/run_pipeline.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Build a scatter plot of sepal length and petal length" --data-path demo_data/Iris.csv --run-id smoke_rag
+
+Проверить отчёты:
+
+    python -c "from pathlib import Path; print(Path('artifacts/smoke_no_rag/run_report.json').exists()); print(Path('artifacts/smoke_rag/run_report.json').exists())"
+
+## 11. Полная последовательность для текущего runtime-корпуса
+
+Если `rag_corpus/runtime/guidance_chunks.jsonl` уже есть:
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+
+    python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
+
+    python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval.yaml
+
+    autorag evaluate --config rag_corpus/autorag/configs/virage_retrieval_eval.yaml --qa_data_path rag_corpus/autorag/datasets/runtime/qa.parquet --corpus_data_path rag_corpus/autorag/datasets/runtime/corpus.parquet --project_dir rag_corpus/autorag/trials
+
+    python scripts/autorag_eval/collect_autorag_results.py --project-dir rag_corpus/autorag/trials --output-dir rag_corpus/autorag/report
+
+Если `rag_corpus/runtime/guidance_chunks.jsonl` нужно пересобрать:
+
+    python scripts/rag_corpus/loading/download_sources.py --refresh
+
+    python scripts/rag_corpus/export_guidance_chunks.py
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+
+    python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
+
+    python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval.yaml
+
+    autorag evaluate --config rag_corpus/autorag/configs/virage_retrieval_eval.yaml --qa_data_path rag_corpus/autorag/datasets/runtime/qa.parquet --corpus_data_path rag_corpus/autorag/datasets/runtime/corpus.parquet --project_dir rag_corpus/autorag/trials
+
+    python scripts/autorag_eval/collect_autorag_results.py --project-dir rag_corpus/autorag/trials --output-dir rag_corpus/autorag/report
+
+## 12. Что не использовать
+
+Не использовать исторический runtime_pre для текущей оценки:
+
+    rag_corpus/runtime_pre/virage_rules.jsonl
+
+Не использовать старые AutoRAG layouts:
+
+    configs/autorag
+    data/autorag_eval
+    artifacts/autorag_eval
+
+Не использовать старые самописные RAG-eval скрипты:
+
+    scripts/rag_eval/run_retrieval_eval.py
+    scripts/rag_eval/run_corpus_ablation.py
+    src/evaluation/rag_metrics.py
+
+Не использовать `AutoRAG[gpu]` и `vllm` для текущего CPU/API-only контура.
+
+
+## AutoRAG embedding policy
+
+AutoRAG semantic and hybrid retrieval must use embedding batch size 1. The generated config writes this value automatically:
+
+    embedding_batch: 1
+
+Do not include `embeddinggemma:latest` in AutoRAG experiments. Use only:
+
+    bge-m3:latest
+    mxbai-embed-large:latest
+    nomic-embed-text:latest
+    qwen3-embedding:latest

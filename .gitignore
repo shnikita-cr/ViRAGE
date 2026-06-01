@@ -97,3 +97,4 @@ datasets
 /rag_corpus/feedback
 /rag_corpus/reports
 /rag_corpus/autorag/visrag_chunks
+/rag_corpus/autorag/trials

@@ -1,24 +1,52 @@
+--index-url https://download.pytorch.org/whl/cpu
+
+# Базовое ядро машинного обучения (CPU)
+torch==2.5.1
+torchvision==0.20.1
+
+# Дополнительный индекс для остальных пакетов из PyPI
+--extra-index-url https://pypi.org
+
+# Стек LangChain и LangGraph
 langchain>=0.3.0
-langchain-community>=0.0.10
-langchain-core>=0.3.0
+langchain-community>=0.3.0
 langchain-openai
-langgraph>=0.2.38
-faiss-cpu>=1.7.4
-sentence-transformers>=2.2.0
-ollama
-tqdm>=4.65.0
-pandas
-matplotlib>=3.8
-rich
-streamlit
-python-dotenv
-scikit-learn
-altair
-vl-convert-python
-openpyxl
-rank-bm25
-torchvision
-langsmith
 langchain-anthropic
 langchain-ollama
+langgraph>=0.2.38
+langsmith
+
+# Стек AutoRAG и LlamaIndex
+AutoRAG
+llama-index-embeddings-ollama
+
+# Векторные базы данных и поиск
+chromadb
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.0
+rank-bm25
+
+# Веб-интерфейсы, API и интерактивная среда
+fastapi
+gradio
+streamlit
+jupyter
+
+# Анализ данных и вычисления
+pandas
+pyarrow
+scikit-learn
+openpyxl
 beautifulsoup4
+
+# Визуализация данных и графов
+matplotlib>=3.8
+altair
+vl-convert-python
+grandalf
+
+# Логирование, утилиты и тесты
+tqdm>=4.65.0
+rich
+python-dotenv
+pytest
