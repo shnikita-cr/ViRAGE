@@ -24,3 +24,4 @@ class LoaderConfig:
     retries: int = 3
     skip_discovered_errors: bool = False
     min_pages: int = 1
+    required_text_markers: tuple[str, ...] = ()

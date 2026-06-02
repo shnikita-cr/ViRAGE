@@ -1,0 +1,1433 @@
+
+
+
+
+
+<!DOCTYPE html>
+
+<html lang="en" class="no-js">
+
+<head>
+    <!-- charset must appear in the first 1024 bytes of the document -->
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+
+
+
+        <script src="https://cookie-cdn.cookiepro.com/scripttemplates/otSDKStub.js" type="text/javascript" charset="UTF-8" data-domain-script="39c5a2de-fbb1-4ee4-82f8-a55723d5193e" class="cookiepro-otsdkstub"></script>
+    <script type="text/javascript">
+        function OptanonWrapper() {
+            // Get initial OnetrustActiveGroups ids
+            if (typeof OptanonWrapperCount == "undefined") {
+                otGetInitialGrps();
+            }
+
+            //Delete cookies
+            otDeleteCookie(otIniGrps);
+
+            // Assign OnetrustActiveGroups to custom variable
+            function otGetInitialGrps() {
+                OptanonWrapperCount = '';
+                otIniGrps = OnetrustActiveGroups;
+            }
+
+            function otDeleteCookie(iniOptGrpId) {
+                var otDomainGrps = JSON.parse(JSON.stringify(Optanon.GetDomainData().Groups));
+                var otDeletedGrpIds = otGetInactiveId(iniOptGrpId, OnetrustActiveGroups);
+                if (otDeletedGrpIds.length != 0 && otDomainGrps.length != 0) {
+                    for (var i = 0; i < otDomainGrps.length; i++) {
+                        //Check if CustomGroupId matches
+                        if (otDomainGrps[i]['CustomGroupId'] != '' && otDeletedGrpIds.includes(otDomainGrps[i]['CustomGroupId'])) {
+                            for (var j = 0; j < otDomainGrps[i]['Cookies'].length; j++) {
+                                // console.log("otDeleteCookie",otDomainGrps[i]['Cookies'][j]['Name'])
+                                //Delete cookie
+                                eraseCookie(otDomainGrps[i]['Cookies'][j]['Name']);
+                            }
+                        }
+
+                        //Check if Hostid matches
+                        if (otDomainGrps[i]['Hosts'].length != 0) {
+                            for (var j = 0; j < otDomainGrps[i]['Hosts'].length; j++) {
+                                //Check if HostId presents in the deleted list and cookie array is not blank
+                                if (otDeletedGrpIds.includes(otDomainGrps[i]['Hosts'][j]['HostId']) && otDomainGrps[i]['Hosts'][j]['Cookies'].length != 0) {
+                                    for (var k = 0; k < otDomainGrps[i]['Hosts'][j]['Cookies'].length; k++) {
+                                        //Delete cookie
+                                        eraseCookie(otDomainGrps[i]['Hosts'][j]['Cookies'][k]['Name']);
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+                otGetInitialGrps(); //Reassign new group ids
+            }
+
+            //Get inactive ids
+            function otGetInactiveId(customIniId, otActiveGrp) {
+                //Initial OnetrustActiveGroups
+                // console.log("otGetInactiveId",customIniId)
+                customIniId = customIniId.split(",");
+                customIniId = customIniId.filter(Boolean);
+
+                //After action OnetrustActiveGroups
+                otActiveGrp = otActiveGrp.split(",");
+                otActiveGrp = otActiveGrp.filter(Boolean);
+
+                var result = [];
+                for (var i = 0; i < customIniId.length; i++) {
+                    if (otActiveGrp.indexOf(customIniId[i]) <= -1) {
+                        result.push(customIniId[i]);
+                    }
+                }
+                return result;
+            }
+
+            //Delete cookie
+            function eraseCookie(name) {
+                //Delete root path cookies
+                domainName = window.location.hostname;
+                document.cookie = name + '=; Max-Age=-99999999; Path=/;Domain=' + domainName;
+                document.cookie = name + '=; Max-Age=-99999999; Path=/;';
+
+                //Delete LSO incase LSO being used, cna be commented out.
+                localStorage.removeItem(name);
+
+                //Check for the current path of the page
+                pathArray = window.location.pathname.split('/');
+                //Loop through path hierarchy and delete potential cookies at each path.
+                for (var i = 0; i < pathArray.length; i++) {
+                    if (pathArray[i]) {
+                        //Build the path string from the Path Array e.g /site/login
+                        var currentPath = pathArray.slice(0, i + 1).join('/');
+                        document.cookie = name + '=; Max-Age=-99999999; Path=' + currentPath + ';Domain=' + domainName;
+                        document.cookie = name + '=; Max-Age=-99999999; Path=' + currentPath + ';';
+                        //Maybe path has a trailing slash!
+                        document.cookie = name + '=; Max-Age=-99999999; Path=' + currentPath + '/;Domain=' + domainName;
+                        document.cookie = name + '=; Max-Age=-99999999; Path=' + currentPath + '/;';
+
+
+                    }
+                }
+
+            }
+        }
+    </script>
+
+
+
+<script type="text/javascript" src="https://play.cadmore.media/js/EMBED.js"></script>
+
+
+
+        <script type='text/plain' defer src='//js.trendmd.com/trendmd.min.js' data-trendmdconfig='{"journal_id":"38445","element":"#trendmd-suggestions"}' class='optanon-category-C0002'></script>
+
+
+
+
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js" type="text/javascript"></script>
+<script>window.jQuery || document.write('<script src="//cdn.rupress.org/Themes/Silver/app/js/jquery.3.4.1.min.js" type="text/javascript">\x3C/script>')</script>
+<script src="//cdn.rupress.org/Themes/Silver/app/vendor/v-639144798298508098/jquery-migrate-3.1.0.min.js" type="text/javascript"></script>
+
+    <script type='text/plain' src='https://platform-api.sharethis.com/js/sharethis.js#property=643701de45aa460012e1032e&amp;product=sop' async='async' class='optanon-category-C0004'></script>
+
+
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10" />
+
+
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <!-- Turn off telephone number detection. -->
+    <meta name="format-detection" content="telephone=no" />
+
+<!-- Bookmark Icons -->
+  <link rel="apple-touch-icon" sizes="180x180" href="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/apple-touch-icon-1482487891.png">
+  <link rel="icon" type="image/png" href="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/favicon-32x32-278929319.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/favicon-16x16-1792717296.png" sizes="16x16">
+  <link rel="mask-icon" href="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/safari-pinned-tab-908768452.svg" color="#5bbad5">
+  <link rel="icon" href="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/favicon1060085026.ico">
+  <meta name="theme-color" content="#002f65">
+
+
+
+
+
+  <link rel="stylesheet" type="text/css" href="//cdn.rupress.org/Themes/Client/app/css/v-639158735318960696/site.min.css" />
+  <link rel="stylesheet" type="text/css" href="//cdn.rupress.org/Themes/Silver/app/icons/v-639144798273391119/style.css" />
+  <link rel="stylesheet" type="text/css" href="//cdn.rupress.org/Themes/Client/app/css/v-639144796918295302/bg_img.css" />
+
+<link href="//fonts.googleapis.com/css?family=Roboto:400,400i,500,500i,700,700i|Nunito+Sans:400,700&display=swap" rel="stylesheet" />
+
+
+
+            <link href="//cdn.rupress.org/data/SiteBuilderAssets/Live/CSS/JCB/v-639131724436363181/site.css" rel="stylesheet" type="text/css" />
+
+            <script>
+                (function (w, d, s, l, i) {
+                    w[l] = w[l] || []; w[l].push({
+                        'gtm.start':
+                            new Date().getTime(), event: 'gtm.js'
+                    }); var f = d.getElementsByTagName(s)[0],
+                        j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
+                        j.async = true; j.src =
+                        'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);
+                })(window, document, 'script', 'dataLayer', 'GTM-N6TD2M7');
+            </script>
+            <script>
+                (function (w, d, s, l, i) {
+                    w[l] = w[l] || []; w[l].push({
+                        'gtm.start':
+                            new Date().getTime(), event: 'gtm.js'
+                    }); var f = d.getElementsByTagName(s)[0],
+                        j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
+                        j.async = true; j.src =
+                        'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);
+                })(window, document, 'script', 'dataLayer', 'GTM-TFWH2V9');
+            </script>
+
+
+
+        <script type="text/javascript">
+            var App = App || {};
+            App.LoginUserInfo = {
+                isInstLoggedIn: 0,
+                isIndividualLoggedIn: 0
+            };
+
+            App.CurrentSubdomain = 'jcb';
+            App.SiteURL = 'rupress.org/jcb';
+            App.EnableAdobeAnalytics = false;
+        </script>
+
+
+
+    <title>Figure and Video Guidelines | Journal of Cell Biology | Rockefeller University Press</title>
+    <link rel="canonical" href="https://rupress.org/jcb/pages/fig-vid-guidelines" />
+        <meta name="description" content="Figure and Video Guidelines | Journal of Cell Biology | Rockefeller University Press
+
+Figure and Video Guidelines
+Figures
+File formats
+Acceptable file formats are TIFF, EPS, AI, PSD, and PPT. We advise authors to make figures in a graphics program such as Photoshop or Illustrator. Although we will accept PPT files, we highly discourage the use of presentation programs such as PowerPoint or...">
+
+
+
+
+
+
+
+
+    <script type="text/plain" async="async" src="https://securepubads.g.doubleclick.net/tag/js/gpt.js" class='optanon-category-C0004'></script>
+
+    <script>
+        var SCM = SCM || {};
+        SCM.pubGradeAdsEnabled = false;
+    </script>
+
+
+<script>
+    var googletag = googletag || {};
+    googletag.cmd = googletag.cmd || [];
+
+    googletag.cmd.push(function () {
+    googletag.setConfig({ disableInitialLoad: true });
+
+
+
+
+        var keys = ["hum_rup_ad_personalization"];
+        keys.forEach(x =>
+        {
+            var item = localStorage[x];
+            if (item)
+            {
+                var allTargets = JSON.parse(item);
+                Object.keys(allTargets).forEach(k => {
+                    googletag.pubads().setTargeting(k, allTargets[k]);
+                })
+            }
+        })
+
+    });
+</script>
+
+
+
+
+
+
+
+
+</head>
+
+<body data-sitename="journalofcellbiology" class="off-canvas pg_SelfServePage pg_selfservepage   " theme-jcb data-sitestyletemplate="Journal" >
+            <noscript>
+                <iframe  src="https://www.googletagmanager.com/ns.html?id=GTM-N6TD2M7"
+                        height="0" width="0" style="display:none;visibility:hidden"></iframe>
+            </noscript>
+            <noscript>
+                <iframe  src="https://www.googletagmanager.com/ns.html?id=GTM-TFWH2V9"
+                        height="0" width="0" style="display:none;visibility:hidden"></iframe>
+            </noscript>
+            <a href="#skipNav" class="skipnav">Skip to Main Content</a>
+<input id="hdnSiteID" name="hdnSiteID" type="hidden" value="1000001" /><input id="hdnAdDelaySeconds" name="hdnAdDelaySeconds" type="hidden" value="3000" /><input id="hdnAdConfigurationTop" name="hdnAdConfigurationTop" type="hidden" value="basic" /><input id="hdnAdConfigurationRightRail" name="hdnAdConfigurationRightRail" type="hidden" value="basic" />
+    <div class="ad-banner js-ad-revealer ad-banner-revealer" role="region" aria-label="Advertisement" aria-hidden="true">
+    <div class="widget-AdBlock widget-instance-HeaderRevealerAd"
+         data-widget-name="AdBlock"
+         data-widget-instance="HeaderRevealerAd">
+
+
+    </div>
+
+    </div>
+
+
+
+
+
+<section class="master-header row vt-site-header" role="banner">
+
+    <div class="ad-banner js-ad-banner">
+    <div class="widget-AdBlock widget-instance-HeaderAd"
+         data-widget-name="AdBlock"
+         data-widget-instance="HeaderAd">
+            <input type="hidden"
+           class="hfAdBlockInfo"
+           data-divid="div-gpt-ad-1559757976604-0"
+           data-slotname="/206143272/JCB_leaderboards_site-wide"
+           data-targetname=""
+           data-sizes="[[728, 90]]"
+           data-enabled-on-mobile="False"
+           data-adprovider-typeid="1"
+           data-accountid=""
+           data-outofpagead="False"
+           data-sticky-time="5"
+           data-lazyloaded="False"
+           data-position-keyword=""
+           data-position-targeting-key="position"
+           data-skip-size-mapping="False"
+           data-native-placement-id=""
+           data-wps-adsize-number="0"
+           data-wps-network-id="0"
+           data-wps-site-id="0"
+           data-wps-zone-ids=""
+           data-wps-brandlock-keyword=""
+           data-tapnative-aid=""
+           data-tapnative-div-id=""
+           data-suppress-display="false"
+           data-fallback-divid=""/>
+    <div class="adblock-wrap js-adblock-wrap " style="width:728px;">
+                <p class="adblock-advertisement-text js-adblock-advertisement-text hide">Advertisement</p>
+
+<div id="div-gpt-ad-1559757976604-0" adslot="/206143272/JCB_leaderboards_site-wide" class="adblock-slot-placeholder js-adblock" style="width:728px; height:90px;"></div>
+
+
+    </div>
+
+
+    </div>
+
+    </div>
+
+    <div class="widget-SitePageHeader widget-instance-SitePageHeader"
+         data-widget-name="SitePageHeader"
+         data-widget-instance="SitePageHeader">
+            <div class="site-theme-header">
+        <div class="site-theme-header_contents global-nav-base">
+
+
+<div class="global-nav">
+            <a class="js-dropdown-trigger global-nav-trigger" href="javascript:;">
+            <picture>
+                <source media="(min-width: 601px)" srcset="//cdn.rupress.org/UI/app/svg/umbrella/logo.svg">
+                <img class="logo-JournalofCellBiology site-theme-header-image" src="//cdn.rupress.org/UI/app/svg/umbrella/logo.svg" alt="Rockefeller University Press Logo" />
+            </picture>
+                <i class="icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i>
+        </a>
+        <nav class="navbar-menu global-nav-dropdown js-dropdown" aria-label="Primary navigation">
+            <div class="site-theme-header-logo">
+                <a href="/" class="site-theme-header-image-wrap">
+                        <picture>
+                            <source media="(min-width: 601px)" srcset="//cdn.rupress.org/UI/app/svg/umbrella/logo-alternate.svg">
+                            <img class="logo-JournalofCellBiology site-theme-header-image" src="//cdn.rupress.org/UI/app/svg/umbrella/logo-alternate.svg" alt="Rockefeller University Press Logo" />
+                        </picture>
+                </a>
+                <a href="javascript:;" class="icon-general-close menu-close js-menu-close"><span class="screenreader-text">Close</span></a>
+            </div>
+                    <ul class="site-menu site-menu-lvl-0 js-theme-dropdown">
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-About-the-Press " id="site-menu-item-38003">
+                        <a href="javascript:;" class="nav-link js-theme-dropdown-trigger" aria-expanded="false">About the Press <i class="icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></a>
+
+                            <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Our-Philosophy " id="site-menu-item-38005">
+                        <a href="/pages/our-philosophy" class="nav-link" >Our Philosophy                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Our-Staff " id="site-menu-item-38006">
+                        <a href="/pages/our-staff" class="nav-link" >Our Staff                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Our-History " id="site-menu-item-38007">
+                        <a href="/pages/our-history" class="nav-link" >Our History                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-About-the-University " id="site-menu-item-38008">
+                        <a href="https://www.rockefeller.edu/about/" class="nav-link" target=&quot;_blank&quot;>About the University <span class="screenreader-text">Open External Link</span>                     </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Contact-Us " id="site-menu-item-38009">
+                        <a href="/pages/contact-us" class="nav-link" >Contact Us                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Advertise " id="site-menu-item-38010">
+                        <a href="/pages/advertise" class="nav-link" >Advertise                      </a>
+
+
+                </li>
+        </ul>
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-For-Librarians " id="site-menu-item-38011">
+                        <a href="/journals" class="nav-link" >For Librarians                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-Rights-&amp;-Permissions " id="site-menu-item-38004">
+                        <a href="javascript:;" class="nav-link js-theme-dropdown-trigger" aria-expanded="false">Rights &amp; Permissions <i class="icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></a>
+
+                            <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Permissions-&amp;-Licensing " id="site-menu-item-38012">
+                        <a href="/pages/permissions-and-licensing" class="nav-link" >Permissions &amp; Licensing                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Copyright-Agent " id="site-menu-item-38013">
+                        <a href="https://www.rockefeller.edu/about/dmca/" class="nav-link" target=&quot;_blank&quot;>Copyright Agent <span class="screenreader-text">Open External Link</span>                     </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Publication-Fees " id="site-menu-item-38014">
+                        <a href="/pages/publication-fees-and-choices" class="nav-link" >Publication Fees                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-License-to-Publish:-Gold-OA " id="site-menu-item-38015">
+                        <a href="/pages/license-to-publish-open-access" class="nav-link" >License to Publish: Gold OA                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-License-to-Publish:-Green-OA " id="site-menu-item-38016">
+                        <a href="/pages/license-to-publish-green" class="nav-link" >License to Publish: Green OA                      </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-1 site-menu-item-Privacy-Policy " id="site-menu-item-38017">
+                        <a href="/pages/privacy-policy" class="nav-link" >Privacy Policy                      </a>
+
+
+                </li>
+        </ul>
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-Books " id="site-menu-item-38018">
+                        <a href="https://books.rupress.org" class="nav-link" target=&quot;_blank&quot;>Books <span class="screenreader-text">Open External Link</span>                     </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-Job-Board " id="site-menu-item-38019">
+                        <a href="https://rupress.careerwebsite.com/" class="nav-link" target=&quot;_blank&quot;>Job Board <span class="screenreader-text">Open External Link</span>                     </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-JCB site-menu-item-umbrellasisterjournal" id="site-menu-item-38020">
+                        <a href="/jcb" class="nav-link" >JCB  <span class="site-menu-item-description">Journal of Cell Biology</span>                    </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-JEM site-menu-item-umbrellasisterjournal" id="site-menu-item-38021">
+                        <a href="/jem" class="nav-link" >JEM  <span class="site-menu-item-description">Journal of Experimental Medicine</span>                    </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-JGP site-menu-item-umbrellasisterjournal" id="site-menu-item-38022">
+                        <a href="/jgp" class="nav-link" >JGP  <span class="site-menu-item-description">Journal of General Physiology</span>                    </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-JHI site-menu-item-umbrellasisterjournal" id="site-menu-item-38023">
+                        <a href="/jhi" class="nav-link" >JHI  <span class="site-menu-item-description">Journal of Human Immunity</span>                    </a>
+
+
+                </li>
+                <li class="site-menu-item site-menu-lvl-0 site-menu-item-LSA site-menu-item-umbrellasisterjournal" id="site-menu-item-38024">
+                        <a href="http://www.life-science-alliance.org/" class="nav-link" target=&quot;_blank&quot;>LSA <span class="screenreader-text">Open External Link</span> <span class="site-menu-item-description">Life Science Alliance</span>                    </a>
+
+
+                </li>
+        </ul>
+
+        </nav>
+        <div class="sister-sites">
+            <div class="sister-site ">
+                <a href="/JCB" target="" class="">JCB</a>
+            </div>
+            <div class="sister-site ">
+                <a href="/JEM" target="" class="">JEM</a>
+            </div>
+            <div class="sister-site ">
+                <a href="/JGP" target="" class="">JGP</a>
+            </div>
+            <div class="sister-site ">
+                <a href="/JHI" target="" class="">JHI</a>
+            </div>
+            <div class="sister-site ">
+                <a href="http://www.life-science-alliance.org/" target="_blank" class="external-link">LSA</a>
+            </div>
+    </div>
+
+</div>
+
+
+
+    <input type="hidden" class="hfEnableEnhancedAutoSuggest" value="false" name="searchScope" aria-hidden="true" />
+        <div class="mobile-menu-trigger_wrap mobile-search_wrap">
+            <button type="button"
+                    class="mobile-search_toggle at-search-toggle"
+                    aria-expanded="false"
+                    data-theme-dropdown-trigger="search-dropdown"><i class="icon-menu_search" aria-hidden="true"></i><span class="screenreader-text">Search Dropdown Menu</span></button>
+        </div>
+    <div class="navbar-search-container mobile-dropdown search-dropdown" data-theme-dropdown="search-dropdown">
+        <div class="navbar-search">
+            <form class="microsite-search js-MicrositeSearch" aria-label="header search" role="search">
+                <fieldset class="searchbar-fieldset">
+                    <legend><span class="screenreader-text">header search</span></legend>
+                    <div class="navbar-search-input_wrap">
+
+                        <input class="navbar-search-input microsite-search-term at-microsite-search-term search-term-autosuggest"
+                               data-autosuggest-hint="micrositeSearchTermInputHint-SitePageHeader"
+                               data-autosuggest-results="micrositeAutoCompleteResults-SitePageHeader"
+                               data-autosuggest-id="MicrositeSearchTerm-SitePageHeader"
+                               data-searchfilter="search-filter-SitePageHeader"
+                               placeholder="Search..."
+                               aria-label="Search..."
+                               type="text" maxlength="255"
+                                 autocomplete="off"                                 id="MicrositeSearchTerm-SitePageHeader">
+
+                        <input type="hidden" name="hfAutoCompleteMaxResults" class="hfAutoCompleteMaxResults" value="6" aria-hidden="true" />
+                        <input type="hidden" name="hfSolrAutoSuggestMinimumCharactersLength" class="hfSolrAutoSuggestMinimumCharactersLength" value="2" aria-hidden="true" />
+                        <input type="hidden" name="hfSolrJournalName" class="hfSolrJournalName" value="" aria-hidden="true" />
+                        <input type="hidden" name="hfSolrJournalID" class="hfSolrJournalID" value="" aria-hidden="true" />
+                        <label for="micrositeSearchTermInputHint-SitePageHeader" aria-hidden="true">
+                            <span class="screenreader-text">Search input auto suggest</span>
+                        </label>
+                        <input type="text"
+                               id="micrositeSearchTermInputHint-SitePageHeader"
+                               data-autosuggest-id="micrositeSearchTermInputHint-SitePageHeader"
+                               class="microsite-search-term-input-hint"
+                               autocomplete="off"
+                               tabindex="-1"
+                               aria-hidden="true"
+                               disabled />
+                        <ul data-autosuggest-id="micrositeAutoCompleteResults-SitePageHeader" class="term-list hidden"></ul>
+                    </div>
+                        <div class="navbar-search-filter_wrap">
+                            <label for="navbar-search-filter-site-SitePageHeader">
+                                <span class="screenreader-text">filter your search</span>
+                            </label>
+                            <select class="navbar-search-filter navbar-search-filter-site at-navbar-search-filter" id="navbar-search-filter-site-SitePageHeader" data-autosuggest-id="search-filter-SitePageHeader">
+<option class="header-search-bar-filters-item" value="/search-results?page=1&q={searchQuery}" data-siteid="0" >All Content</option><option class="header-search-bar-filters-item" value="/journals/search-results?page=1&q={searchQuery}&fl_SiteID=3&allJournals=1" data-siteid="3" >All Journals</option><option class="header-search-bar-filters-item selected" value="/jcb/search-results?page=1&q={searchQuery}&fl_SiteID=1000001" data-siteid="1000001" selected>Journal of Cell Biology</option>                            </select>
+                        </div>
+                    <div class="navbar-search-submit_wrap">
+
+                        <button type="button" class="microsite-search-icon navbar-search-submit icon-menu_search"><span class="screenreader-text">Search</span></button>
+                    </div>
+                </fieldset>
+            </form><!-- /#MicrositeSearch -->
+        </div><!-- /.navbar-search -->
+<div class="navbar-search-advanced">
+    <a href="/advanced-search" class="advanced-search">Advanced Search</a>
+</div>    </div><!-- /.navbar-search-container -->
+
+<input type="hidden" name="parentSiteName" class="hfParentSiteName" value="Journals Gateway" aria-hidden="true" />
+<input type="hidden" class="hfSolrMaxAllowSearchChar" value="100" aria-hidden="true" />
+<input type="hidden" class="hfJournalShortName" value="" aria-hidden="true" />
+<input type="hidden" class="hfSearchPlaceholder" value="" aria-hidden="true" />
+<input type="hidden" name="hfGlobalSearchSiteURL" class="hfGlobalSearchSiteURL" value="" aria-hidden="true" />
+<input type="hidden" name="hfSearchSiteURL" id="hfSiteURL" value="rupress.org/jcb" aria-hidden="true" />
+<input type="hidden" class="hfQuickSearchUrl" value="/jcb/search-results?page=1&amp;q={searchQuery}&amp;fl_SiteID=1000001" aria-hidden="true" />
+<script type="text/javascript">
+    (function () {
+        var hfSiteUrl = document.getElementById('hfSiteURL');
+        var siteUrl = hfSiteUrl.value;
+        var subdomainIndex = siteUrl.indexOf('/');
+
+        hfSiteUrl.value = location.host + (subdomainIndex >= 0 ? siteUrl.substring(subdomainIndex) : '');
+    })();
+</script>
+
+                <div class="tablet-menu-trigger_wrap">
+        <!-- MOBILE SHOPPING CART ICON -->
+        <button type="button"
+           class="btn-reset tablet-sign-in"
+           data-theme-dropdown-trigger="tablet-user-dropdown"
+           aria-controls="tablet-user-dropdown"
+           aria-expanded="false"><i class="icon-menu_account"><span class="screenreader-text">User Tools Dropdown</span></i></button>
+    </div>
+<div class="site-theme-header-menu-item_wrap tablet-menu" id="tablet-user-dropdown" data-theme-dropdown="tablet-user-dropdown">
+    <!-- DESKTOP SHOPPING CART ICON -->
+
+    <!-- DESKTOP REGISTRATION -->
+        <div class="site-theme-header-menu-item"><a href="/my-account/register?siteId=1000001&amp;returnUrl=%2fjcb%2fpages%2ffig-vid-guidelines" class="register at-register js-register-user-modals">Register</a></div>
+
+    <!-- ACCESS THROUGH INSTITUTION -->
+
+    <!-- DESKTOP INSTITUTIONS -->
+
+        <!-- DESKTOP SIGN IN -->
+        <div class="site-theme-header-menu-item not-authenicated">
+                <button type="button"
+                    class="btn-reset dropdown-toggle signin at-signin-dropdown at-signin-username"
+                    id="header-account-info-user-fullname"
+                    data-login-location="/SignIn/LoginForm/LoginFormPopup?returnUrl="
+                    data-theme-dropdown-trigger="sign-in-dropdown"
+                    aria-controls="sign-in-dropdown"
+                    aria-expanded="false"
+                    rel=nofollow>
+
+Sign In                    <i class="icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i>
+                </button>
+                <div class="dropdown-panel dropdown-panel-signin dropdown-panel-form at-signin-dropdown-panel" id="sign-in-dropdown" data-theme-dropdown="sign-in-dropdown">
+                    <div class="spinner"></div>
+                </div><!-- /.dropdown-panel -->
+        </div>
+
+</div>
+        </div><!-- /.site-theme-header_content -->
+    </div><!-- /.site-theme-header- -->
+
+
+    <div class="journal-header journal-bg">
+        <div class="journal-header_content ">
+
+    <div class="journal-logo_wrap">
+        <a href="//rupress.org/jcb" class="journal-logo-link">
+            <picture>
+                <source media="(min-width: 601px)" srcset="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/JCB-title-1366404049.svg">
+                <img class="logo-JournalofCellBiology journal-logo" src="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/JCB-title-1366404049.svg" alt="Journal of Cell Biology" />
+            </picture>
+        </a>
+    </div>
+
+
+
+
+<div class="navbar-menu_wrap">
+            <a class="mobile-site-menu-toggle" data-theme-dropdown-trigger="microsite-nav-menu" aria-controls="microsite-nav-menu" aria-expanded="false" href="javascript:;"><i class="icon-menu_hamburger"><span class="screenreader-text">Toggle Menu</span></i><span class="tablet-menu-label">Menu</span></a>
+            <nav class="navbar-menu" id="microsite-nav-menu" data-theme-dropdown="microsite-nav-menu" aria-label="Primary navigation">
+                    <ul class="site-menu site-menu-lvl-0 js-theme-dropdown">
+<li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40089">
+        <button type="button" class="btn-reset nav-link js-theme-dropdown-trigger" aria-expanded="false">Articles<i class="nav-arrow icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></button>
+        <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+<li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40094">
+        <a href="/jcb/search-results?page=1&amp;q=&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;f_ContentType=Journal+Articles" class="nav-link" >Newest Articles</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40095">
+        <a href="/jcb/issue" class="nav-link" >Current Issue</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40096">
+        <a href="/jcb/issue-covers" class="nav-link" >Browse Archive</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40097">
+        <a href="/jcb/pages/browse-by-topic" class="nav-link" >Browse by Topic</a>
+    </li>     </ul>
+ </li> <li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40090">
+        <button type="button" class="btn-reset nav-link js-theme-dropdown-trigger" aria-expanded="false">Reviews &amp; Opinion<i class="nav-arrow icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></button>
+        <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+<li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40098">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:&quot;editorial&quot;" class="nav-link" >Editorials</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40099">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:%22people+%26+ideas%22;;" class="nav-link" >People &amp; Ideas</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40100">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:&quot;spotlight&quot;;" class="nav-link" >Spotlights</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40101">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:&quot;viewpoint&quot;" class="nav-link" >Viewpoints</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40102">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:&quot;inside+look&quot;" class="nav-link" >Inside Look</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40103">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:&quot;review&quot;&amp;" class="nav-link" >Reviews</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40104">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;exPrm_fq=TocCategories:&quot;perspective&quot;" class="nav-link" >Perspectives</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40105">
+        <a href="/jcb/search-results?page=1&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;f_Subjects=Methods+and+Reproducibility" class="nav-link" >Reproducibility</a>
+    </li>     </ul>
+ </li> <li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40091">
+        <button type="button" class="btn-reset nav-link js-theme-dropdown-trigger" aria-expanded="false">Collections<i class="nav-arrow icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></button>
+        <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+<li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40106">
+        <a href="/jcb/collections" class="nav-link" >Special Collections</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40107">
+        <a href="/jcb/pages/special-issues" class="nav-link" >Special Issues</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40108">
+        <a href="/jcb/pages/jcb-author-videos" class="nav-link" >Author Video Summaries</a>
+    </li>     </ul>
+ </li> <li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40109">
+        <a href="/my-account/alerts" class="nav-link" >Email Alerts</a>
+    </li> <li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40092">
+        <button type="button" class="btn-reset nav-link js-theme-dropdown-trigger" aria-expanded="false">About<i class="nav-arrow icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></button>
+        <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+<li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40110">
+        <a href="/jcb/pages/history" class="nav-link" >History</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40111">
+        <a href="/jcb/pages/editors-and-staff" class="nav-link" >Editors &amp; Staff</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40112">
+        <a href="/jcb/pages/editorial-board" class="nav-link" >Editorial Board</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40113">
+        <a href="/jcb/pages/reviewer-guidelines" class="nav-link" >Reviewer Guidelines</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40114">
+        <a href="/jcb/pages/journal-metrics" class="nav-link" >Journal Metrics</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40115">
+        <a href="/pages/permissions-and-licensing" class="nav-link" >Permissions &amp; Licensing</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40116">
+        <a href="/pages/advertise" class="nav-link" >Advertise</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40117">
+        <a href="/jcb/pages/contact" class="nav-link" >Contact Us</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40118">
+        <a href="/pages/privacy-policy" class="nav-link" >Privacy Policy</a>
+    </li>     </ul>
+ </li> <li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40093">
+        <button type="button" class="btn-reset nav-link js-theme-dropdown-trigger" aria-expanded="false">Submit<i class="nav-arrow icon-general_arrow-down arrow-icon"><span class="screenreader-text">Open Menu</span></i></button>
+        <ul class="site-menu site-menu-lvl-1 js-theme-dropdown">
+<li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40119">
+        <a href="https://jcb.msubmit.net" class="nav-link" target=&quot;_blank&quot;>Submit a Manuscript<span class="screenreader-text">Open External Link</span></a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40120">
+        <a href="/jcb/pages/ifora" class="nav-link" >Instructions for Authors</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40121">
+        <a href="/jcb/pages/publication-fees-and-access-options" class="nav-link" >Publication Fees</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40122">
+        <a href="/journals/pages/rup-read-and-publish-guide" class="nav-link" >Read &amp; Publish Author Guide</a>
+    </li> <li class="site-menu-item site-menu-lvl-1 " id="site-menu-item-40123">
+        <a href="https://www.editage.rupress.org/" class="nav-link" target=&quot;_blank&quot;>Author Services<span class="screenreader-text">Open External Link</span></a>
+    </li>     </ul>
+ </li> <li class="site-menu-item site-menu-lvl-0 " id="site-menu-item-40124">
+        <a href="https://rupress.careerwebsite.com/" class="nav-link" target=&quot;_blank&quot;>Job Board<span class="screenreader-text">Open External Link</span></a>
+    </li>     </ul>
+
+            </nav>
+</div><!-- /.navbar -->
+
+        </div><!-- /.center-inner-row -->
+
+    </div><!-- /.journal-header -->
+
+
+<input id="routename" name="RouteName" type="hidden" value="jcb" />
+
+
+    </div>
+
+</section>
+
+<div id="main" class="content-main js-main ui-base" role="main">
+    <section class="master-main row">
+        <div class="content-main_content">
+            <span id="skipNav" tabindex="-1"></span>
+
+
+<div id="mainContent" class="ss-content">
+    <div class="widget-SelfServeContent widget-instance-SelfServeContent"
+         data-widget-name="SelfServeContent"
+         data-widget-instance="SelfServeContent">
+
+
+
+
+    <input type="hidden" class="SelfServeContentId" value="fig-vid-guidelines" />
+    <input type="hidden" class="SelfServeVersionId" value="0" />
+
+<div style="float: left; width: 90%; grid-column: 1 / auto;">
+<h1 id="fig-vid-guidelines">Figure and Video Guidelines</h1>
+<h2 id="figures">Figures</h2>
+<h3>File formats</h3>
+<p>Acceptable file formats are TIFF, EPS, AI, PSD, and PPT. We advise authors to make figures in a graphics program such as Photoshop or Illustrator. Although we will accept PPT files, we highly discourage the use of presentation programs such as PowerPoint or Keynote. Use of these programs generally results in problems with image quality and accounts for the highest percentage of production delays. If you do submit these files, use portrait, letter size. Do not convert or export slides to other formats, as this is often the cause of additional quality loss.</p>
+<h3>File names</h3>
+<p>Provide one file for each figure. File names for figures and digital images should be alphanumeric without any spaces or special characters.</p>
+<h3>Size/resolution</h3>
+<ul class="after-list">
+    <li>Minimum resolution for all figures is 300 dpi.</li>
+    <li>For figures that contain both photographs and line art or text, 600 dpi is highly recommended.</li>
+    <li>Figures containing only black and white elements (line art, no color, and no gray) should be 1,000 dpi.</li>
+    <li>Maximum figure size is 7 in wide x 9 in high (17.5 x 22.8 cm) at the correct resolution.</li>
+</ul>
+<p><strong>Note:</strong> Resolution settings in many software programs (including vector programs such as Illustrator) default to low resolution (72 dpi) when placing images. Be certain to set resolution prior to beginning your figure layout.</p>
+<h3>Image resolution</h3>
+<p><strong>Note: Compiled figure resolution is not the same as "image resolution."</strong> Placing low resolution images within figures is not adequate. For instance, if you take a 1-in, 72-dpi image and place it into a 600-dpi figure, it will appear very small. Enlarging at this juncture reduces resolution and image quality.</p>
+<p>Images (gels, micrograph photographs, etc.) should be scanned or captured at the highest resolution possible and saved in TIFF format. Always check default settings on imagers, scanners, and cameras; 300 dpi at print size is the lowest acceptable resolution for original images. Screenshots should never be used to capture images. If image file size is a concern, use only lossless image compression such as LZW; do not save images as JPEGs.</p>
+<h3>Sizing of elements within figures</h3>
+<ul class="after-list">
+    <li>Font size: 8 pt for most text; 5 pt for sub- and superscript.</li>
+    <li>Font: Arial, Times New Roman, Courier New, or Symbol. Do not convert text to outlines.</li>
+    <li>Lines and strokes: between 0.5 and 1.0 pt.</li>
+</ul>
+<h3>Color profile</h3>
+<p>For black and white or grayscale images, use <strong>Dot gain 20%</strong>.</p>
+<p>Color figures should be in RGB format. When available, use <strong>Adobe RGB (1998)</strong>.</p>
+<h3>Figure basics</h3>
+<ul class="after-list">
+    <li>Avoid drop shadows and unnecessary gradients. Avoid placing labels over color photographic panels when possible.</li>
+    <li>Avoid pairing red and green for graphs and fluorescence images to ensure legibility for color-blind readers.</li>
+</ul>
+<h3>Elements to include in your figure</h3>
+<p><strong>Scale bars:</strong> Micrographs must include a bar, rather than magnification factors, to indicate scale. The scale should be defined in the figure legend or in the figure itself.</p>
+<p><strong>Molecular weights and fragment sizes:</strong>&nbsp; Protein molecular weights or DNA marker sizes must be indicated in all figure panels showing gel electrophoresis.</p>
+<p><strong>Abbreviations:</strong> Use the journal’s <a href="/jcb/pages/standard-abbreviations">standard abbreviations</a> when labeling figures.</p>
+<h3>Flow cytometry plots</h3>
+<p>Label both axes and provide some measure of quantitation (e.g., log10 fluorescence) to indicate the ratio of fluorescence intensity between peaks. Decade tick marks must be displayed on all flow cytometry plots; numerical values are not required.</p>
+<h3>Numerical data</h3>
+<p>Error bars must be included for all graphical representations of numerical data from more than two independent experiments.</p>
+<h2 id="videos">Videos</h2>
+<h3>File formats</h3>
+<p>We accept MP4, MOV, MPG, and AVI files for review purposes, but require MP4 files for publication. Therefore, it would be best to provide MP4 files at initial submission. For optimal compatibility across operating systems and devices, please select H.264 compression when saving. Videos may be no larger than 20 MB.</p>
+<h3>File names</h3>
+<p>Provide one file for each video. Videos should be named by order of citation appearance (e.g., Video1.mp4).</p>
+</div>
+<div class="iforart rup-mobile-hidden">
+<div class="iforanav">
+<h4><a href="/jcb/pages/about">About JCB</a></h4>
+<h6><a href="/jcb/pages/about#aims">Aims and scope</a><br />
+<a href="/jcb/pages/about#criteria">Criteria</a><br />
+<a href="/jcb/pages/about#articles">Manuscript types</a><br />
+<a href="/jcb/pages/about#reviews">Front matter formats</a><br />
+<a href="/jcb/pages/about#process">Editorial process</a><br />
+<a href="/jcb/pages/about#board">Editorial board</a></h6>
+<h4><a href="/jcb/pages/editorial-policies">Editorial Policies</a></h4>
+<h6><a href="/jcb/pages/editorial-policies#authorship">Authorship</a><br />
+<a href="/jcb/pages/editorial-policies#group-authorship">Group authorship</a><br />
+<a href="/jcb/pages/editorial-policies#name-change">Author name changes</a><br />
+<a href="/jcb/pages/editorial-policies#prior">Duplicate publication</a><br />
+<a href="/jcb/pages/editorial-policies#preprint">Preprint policy</a><br />
+<a href="/jcb/pages/editorial-policies#ethics">Ethics and informed consent</a><br />
+<a href="/jcb/pages/editorial-policies#animals">Animal and human studies</a><br />
+<a href="/jcb/pages/editorial-policies#clinical-trials">Clinical trial registration</a><br />
+<a href="/jcb/pages/editorial-policies#data-integrity">Data integrity and plagiarism</a><br />
+<a href="/jcb/pages/editorial-policies#ai">Artificial intelligence</a><br />
+<a href="/jcb/pages/editorial-policies#conflict">Conflict of interest</a><br />
+<a href="/jcb/pages/editorial-policies#data-sharing">Materials and data sharing</a><br />
+<a href="/jcb/pages/editorial-policies#data-availability-statement">Data availability statement</a><br />
+<a href="/jcb/pages/editorial-policies#confidentiality">Confidentiality</a><br />
+<a href="/jcb/pages/editorial-policies#dei">Voluntary demographic disclosure</a><br />
+<a href="/jcb/pages/data-deposition">Data deposition</a><br />
+<a href="/jcb/pages/editorial-policies#transfer">Transfer policy</a><br />
+<a href="/jcb/pages/editorial-policies#revcomments">Peer review correspondence</a><br />
+<a href="/jcb/pages/editorial-policies#open-access">Open access</a><br />
+<a href="/jcb/pages/editorial-policies#media">Media policy</a><br />
+<a href="/jcb/pages/editorial-policies#promo">Promotion and discoverability</a></h6>
+<h4><a href="/jcb/pages/submission-guidelines">Submission Guidelines</a></h4>
+<h6><a href="/jcb/pages/submission-guidelines#presubmission">Presubmissions</a><br />
+<a href="/jcb/pages/submission-guidelines#prepare">Preparing for submission</a><br />
+<a href="/jcb/pages/submission-guidelines#revised">Revised submissions</a><br />
+<a href="/jcb/pages/submission-guidelines#source-data-files">Source data</a><br />
+<a href="/jcb/pages/submission-guidelines#data-presentation">Data presentation and statistical analysis </a><br />
+<a href="/jcb/pages/submission-guidelines#manuscript-prep">Manuscript organization and formatting</a><br />
+<a href="/jcb/pages/reference-guidelines">Reference guidelines</a><br />
+<a href="/jcb/pages/fig-vid-guidelines">Figure and video guidelines</a><br />
+<a href="/jcb/pages/submission-guidelines#acceptance">Accepted manuscripts</a><br />
+<a href="/jcb/pages/submission-guidelines#videoSummaries">Short video summaries</a><br />
+<a href="/jcb/pages/submission-guidelines#production">Production and proofs</a><br />
+<a href="/jcb/pages/submission-guidelines#appeals">Appeals</a><br />
+<a href="/jcb/pages/submission-guidelines#corrections">Corrections and refutations</a><br />
+<a href="/jcb/pages/submission-guidelines#annotations">Annotation and comments</a></h6>
+</div>
+</div>
+<style id="text" type="text/css">
+    .after-list {padding-top: 1.125rem;}
+    h1 {font-size: 1.75rem;}
+    h2 {font-size: 1.5rem; padding-top: 1.125rem}
+    h3 {font-size: 1.125rem;}
+    .widget-SelfServeContent {display: grid}
+    .sidebar-widget_wrap {display: none;}
+    .iforart {
+    position: sticky;
+    position: -webkit-sticky; /* for safari */
+    top: 35px;
+    margin-left: -50px;
+    grid-column: 2;}
+</style>
+
+
+
+
+    </div>
+
+
+</div>
+<div id="Sidebar" class="page-column page-column--right">
+    <div class="sidebar-widget_wrap">
+    <div class="widget-DynamicWidgetLayout widget-instance-SecondaryTemplate_RightRail"
+         data-widget-name="DynamicWidgetLayout"
+         data-widget-instance="SecondaryTemplate_RightRail">
+        <div class="widget widget-dynamic " data-count="1">
+
+
+    <div class="widget-dynamic-inner-wrap">
+
+    <div class="widget-DynamicWidgetLayout widget-instance-SecondaryTemplate_RightRailB0"
+         data-widget-name="DynamicWidgetLayout"
+         data-widget-instance="SecondaryTemplate_RightRailB0">
+        <div class="widget widget-dynamic right-rail" data-count="3">
+
+
+    <div class="widget-dynamic-inner-wrap">
+
+    <div class="widget-IssueInfo widget-instance-SecondaryTemplate_RightRailB0home-issue-info"
+         data-widget-name="IssueInfo"
+         data-widget-instance="SecondaryTemplate_RightRailB0home-issue-info">
+
+
+<div id="issueInfo-SecondaryTemplate_RightRailB0home-issue-info" class="vt-issue-info widget-info-wrap clearfix">
+    <div class="article-issue-img">
+            <a href="/jcb/issue/225/6">
+                <img id="issueImage"
+                     class="fb-featured-image"
+                     src="https://cdn.rupress.org/rup/content_public/journal/jcb/issue/225/6/1/m_jcb_225_6.cover.png?Expires=1783452849&amp;Signature=WcjKLlpkNNgcJXPiFMZRCLW8XvA8p0PO3OxnJMcOcJGI0hTsHHxr4oUxQ-z3x6fIVwXQlpZfR120QAh-58HOt7GeyZT15qaVGBzdu0SBNHx4KM0QRb~eW4NULjg5-vPFFPK-v411Mc1B5PBGlSVYirbT7DlSDTaRtObfYPfgYO9ueWllg5-nmUcBOqYMhJXSQuwdvu-BxQBbEbFAKpLHDshWL3jubm-frb8DoU51FNUJ6u7XfrkAxI1O-kol-btF31h78G4OUaqqdidtctfQnq75pTyEutP6Ply-wIMJv0QEGu9oziMJdJXlBawaxzTvCLmROrWGUdLzbwAQXLsX-w__&amp;Key-Pair-Id=APKAIE5G5CRDK6RD3PGA"
+                     alt="Journal of Cell Biology Cover Image for Volume 225, Issue 6" />
+            </a>
+    </div>
+    <div class="current-issue-title">
+Current Issue    </div>
+    <div class="article-issue-info">
+                    <div class="volume">
+
+                        Volume 225<span class="volume-comma">,</span>                    </div>
+                    <div class="issue">
+                        Issue 6<span class="issue-comma">,</span>
+                    </div>
+<div class="ii-pub-date">
+1 June 2026</div>
+        <div class="view-current-issue">
+            <a href="/jcb/issue/225/6" class="button">View This Issue</a>
+        </div>
+
+    </div>
+</div>
+    </div>
+    <div class="widget-AdBlock widget-instance-SecondaryTemplate_RightRailB0Pillow_Ad"
+         data-widget-name="AdBlock"
+         data-widget-instance="SecondaryTemplate_RightRailB0Pillow_Ad">
+            <input type="hidden"
+           class="hfAdBlockInfo"
+           data-divid="div-gpt-ad-1560367841190-0"
+           data-slotname="/206143272/JCB_med_rectangle_site-wide"
+           data-targetname=""
+           data-sizes="[[300, 250]]"
+           data-enabled-on-mobile="False"
+           data-adprovider-typeid="1"
+           data-accountid=""
+           data-outofpagead="False"
+           data-sticky-time="5"
+           data-lazyloaded="False"
+           data-position-keyword=""
+           data-position-targeting-key="position"
+           data-skip-size-mapping="False"
+           data-native-placement-id=""
+           data-wps-adsize-number="0"
+           data-wps-network-id="0"
+           data-wps-site-id="0"
+           data-wps-zone-ids=""
+           data-wps-brandlock-keyword=""
+           data-tapnative-aid=""
+           data-tapnative-div-id=""
+           data-suppress-display="false"
+           data-fallback-divid=""/>
+    <div class="adblock-wrap js-adblock-wrap " style="width:300px;">
+                <p class="adblock-advertisement-text js-adblock-advertisement-text hide">Advertisement</p>
+
+<div id="div-gpt-ad-1560367841190-0" adslot="/206143272/JCB_med_rectangle_site-wide" class="adblock-slot-placeholder js-adblock" style="width:300px; height:250px;"></div>
+
+
+    </div>
+
+
+    </div>
+    <div class="widget-ArticleListNewAndPopular widget-instance-SecondaryTemplate_RightRailB0home-article-list-new-and-popular-most-read"
+         data-widget-name="ArticleListNewAndPopular"
+         data-widget-instance="SecondaryTemplate_RightRailB0home-article-list-new-and-popular-most-read">
+
+
+
+
+    <div id="newPopularList-SecondaryTemplate_RightRailB0home-article-list-new-and-popular-most-read" class="fb new-and-popular vt-new-and-popular-SecondaryTemplate_RightRailB0home-article-list-new-and-popular-most-read">
+
+            <h3 class="widget-dynamic-title">
+                Most Popular
+            </h3>
+
+        <div class="widget-dynamic-entry-wrap">
+<div class="widget-dynamic-entry">
+    <div class="fb-item-title">
+                <a href="/jcb/article/doi/10.1083/jcb.202307142/276921/Nuclear-poly-glutamine-aggregates-rupture-the">Nuclear poly-glutamine aggregates rupture the nuclear envelope and hinder its repair</a>
+
+
+    </div>
+</div>
+<div class="widget-dynamic-entry">
+    <div class="fb-item-title">
+                <a href="/jcb/article/doi/10.1083/jcb.202509040/282592/Arl8b-inactivates-the-Rab11a-recycling-pathway-to">Arl8b inactivates the Rab11a recycling pathway to promote LAMP1 sorting and lysosome biogenesis</a>
+
+
+    </div>
+</div>
+<div class="widget-dynamic-entry">
+    <div class="fb-item-title">
+                <a href="/jcb/article/doi/10.1083/jcb.202109010/277212/TanGIBLE-A-selective-probe-for-evaluating">TanGIBLE: A selective probe for evaluating hydrophobicity-exposed defective proteins in live cells</a>
+
+
+    </div>
+</div>
+<div class="widget-dynamic-entry">
+    <div class="fb-item-title">
+                        <div class="al-article-series-title">
+                    Reproducibility
+                </div>
+        <a href="/jcb/article/doi/10.1083/jcb.202001064/151717/SuperPlots-Communicating-reproducibility-and">SuperPlots: Communicating reproducibility and variability in cell biology</a>
+
+
+    </div>
+</div>
+<div class="widget-dynamic-entry">
+    <div class="fb-item-title">
+                <a href="/jcb/article/doi/10.1083/jcb.202505110/281411/Potassium-ion-homeostasis-modulates-mitochondrial">Potassium ion homeostasis modulates mitochondrial function</a>
+
+
+    </div>
+</div>
+        </div>
+    </div>
+
+    </div>
+
+    </div>
+
+</div>
+    </div>
+
+    </div>
+
+</div>
+    </div>
+
+    </div>
+</div>
+        </div><!-- /.content-main_content -->
+    </section>
+</div>
+<div class="mobile-mask">
+</div>
+<section class="footer_wrap vt-site-footer" role="contentinfo">
+
+
+
+<div class="ad-banner js-ad-banner ad-banner-footer">
+    <div class="widget-AdBlock widget-instance-FooterAd"
+         data-widget-name="AdBlock"
+         data-widget-instance="FooterAd">
+
+
+    </div>
+
+</div>
+
+<div class="sticky-footer-ad js-sticky-footer-ad">
+    <div class="widget-AdBlock widget-instance-StickyAd"
+         data-widget-name="AdBlock"
+         data-widget-instance="StickyAd">
+
+
+    </div>
+
+</div>
+
+
+    <div class="widget-SitePageFooter widget-instance-SitePageFooter"
+         data-widget-name="SitePageFooter"
+         data-widget-instance="SitePageFooter">
+            <div class="journal-footer journal-bg">
+        <div class="journal-footer_content clearfix foot-left">
+    <div class="journal-footer-affiliations aff-left">
+        <!-- <h3>Affiliations</h3> -->
+            <a href="" target="">
+                <img id="footer-logo-JournalofCellBiology" class="journal-footer-affiliations-logo" src="//cdn.rupress.org/data/SiteBuilderAssets/Live/Images/JCB/JCB-f1-961718007.svg" alt="Journal of Cell Biology" />
+            </a>
+    </div>
+    <div class="journal-footer-menu">
+
+            <ul>
+                <li class="link-0">
+                    <a href="/jcb/search-results?page=1&amp;q=&amp;fl_SiteID=1000001&amp;sort=Date+-+Newest+First&amp;f_ContentType=Journal+Articles">Newest Articles</a>
+                </li>
+                <li class="link-1">
+                    <a href="/jcb/issue">Current Issue</a>
+                </li>
+                <li class="link-2">
+                    <a href="/jcb/issue-covers">Archive</a>
+                </li>
+                <li class="link-3">
+                    <a href="/my-account/alerts">Email Alerts</a>
+                </li>
+            </ul>
+            <ul>
+                <li class="link-0">
+                    <a href="https://jcb.msubmit.net/">Submit a Manuscript</a>
+                </li>
+                <li class="link-1">
+                    <a href="/jcb/pages/ifora">Instructions for Authors</a>
+                </li>
+                <li class="link-2">
+                    <a href="/journals">For Librarians</a>
+                </li>
+                <li class="link-3">
+                    <a href="/jcb/pages/About">About JCB</a>
+                </li>
+            </ul>
+            <ul>
+                <li class="link-0">
+                    <a href="/jcb/pages/editors-and-staff">Editors &amp; Staff</a>
+                </li>
+                <li class="link-1">
+                    <a href="/pages/permissions-and-licensing">Policies &amp; Permissions</a>
+                </li>
+                <li class="link-2">
+                    <a href="/pages/accessibility-statement">Accessibility Statement</a>
+                </li>
+                <li class="link-3">
+                    <a href="/pages/cookie-policy">Cookie Policy</a>
+                </li>
+            </ul>
+            <ul>
+                <li class="link-0">
+                    <a href="/pages/terms">Terms &amp; Conditions</a>
+                </li>
+                <li class="link-1">
+                    <a href="/pages/advertise">Advertise</a>
+                </li>
+                <li class="link-2">
+                    <a href="/pages/contact-us">Contact</a>
+                </li>
+                <li class="link-3">
+                    <a href="/pages/newsroom">Newsroom</a>
+                </li>
+            </ul>
+            <ul>
+                <li class="link-0">
+                    <a href="/pages/privacy-policy">Privacy Policy</a>
+                </li>
+                <li class="link-1">
+                    <a href="/jcb/pages/rss">RSS Feeds</a>
+                </li>
+            </ul>
+
+    <div class="widget-SelfServeContent widget-instance-JournalFooterSS"
+         data-widget-name="SelfServeContent"
+         data-widget-instance="JournalFooterSS">
+
+
+
+
+    <input type="hidden" class="SelfServeContentId" value="JournalFooterSS" />
+    <input type="hidden" class="SelfServeVersionId" value="0" />
+
+<ul class="social-icons-list">
+    <li>
+    <a class="social-link facebook" href="http://www.facebook.com/JCellBiol"><span class="icon-social-facebook"></span><span class="screen-reader-only">Facebook</span></a>
+    </li>
+    <li><a class="social-link twitter" href="https://twitter.com/JCellBiol?lang=en"><span class="icon-social-twitter"></span><span class="screen-reader-only">X/Twitter</span></a>
+    </li>
+    <li>
+    <a class="social-link instagram" href="https://www.instagram.com/rockefeller_university_press/"><span class="icon-social-instagram"></span><span class="screen-reader-only">Instagram</span></a>
+    </li>
+    <li>
+    <a class="social-link youtube" href="https://www.youtube.com/channel/UCJCt0HlkFmQKG99OmW8kLBA"><span class="icon-social-youtube"></span><span class="screen-reader-only">YouTube</span></a>
+    </li>
+    <li>
+    <a class="social-link linkedin" href="https://www.linkedin.com/company/rockefeller-university-press/" target="_blank"><span class="icon-social-linkedin"></span><span class="screen-reader-only">LinkedIn</span></a>
+    </li>
+    <li>
+    <a class="social-link linkedin" href="https://bsky.app/profile/jcb.org" target="_blank"><img alt="null" class="custom logo-rup-footer" src="https://cdn.rupress.org/ImageLibrary/bluesky-footer-logo.svg?versionId=10255" style="width: 40px; height: 40px;" /><span class="screen-reader-only">Bluesky</span></a>
+    </li>
+</ul>
+<div class="legal-links">
+<span style="white-space: nowrap;">
+</span>
+<a href="https://www.rockefeller.edu/support-our-science/discover125/"><img class="custom logo-rup-footer" alt="The Rockefeller University Logo" src="https://cdn.rupress.org/ImageLibrary/RU-125-ko325.png?versionId=10255" /></a>
+<div class="copyright">© 2026 Rockefeller University Press</div>
+<div class="cookie"><a href="#" class="ot-sdk-show-settings">Cookie Settings</a></div>
+</div>
+
+
+
+
+    </div>
+
+    </div>
+        </div>
+    <div class="journal-footer-colophon">
+        <ul>
+                <li><span>Online ISSN</span> 1540-8140</li>
+                            <li><span>Print ISSN</span> 0021-9525</li>
+                    </ul>
+    </div>
+    </div>
+
+    </div>
+
+
+
+<div class="site-theme-footer">
+</div><!-- /.site-theme-footer -->
+<div class="ss-ui-only">
+
+    <div class="widget-SelfServeContent widget-instance-SSuiOnlySelfServe"
+         data-widget-name="SelfServeContent"
+         data-widget-instance="SSuiOnlySelfServe">
+
+
+
+
+    <input type="hidden" class="SelfServeContentId" value="SSuiOnly" />
+    <input type="hidden" class="SelfServeVersionId" value="0" />
+
+<style type="text/css">
+    .pg_issue .info-inner-wrap {z-index: initial;}
+    li.toolbar-item.item-with-dropdown.item-pdf {
+    display: block !important;
+    }
+    /* Flyout temp fix */
+    .site-theme-header .global-nav .global-nav-dropdown {
+    background-color:#FFF;
+    }
+    .site-theme-header .global-nav .global-nav-dropdown .site-theme-header-logo .menu-close {
+    color:#535353;
+    }
+    /*SCMP-26926*/
+    body.leftRailModalOpen .page-column--center.can-stick {
+    z-index: 1;
+    }
+    /*RUP-988*/
+    .navbar-search-container.expanded {
+    display: block;
+    }
+</style>
+
+
+
+
+    </div>
+
+</div>
+
+<div class="ad-banner js-ad-interstitial">
+    <div class="widget-AdBlock widget-instance-Interstitial"
+         data-widget-name="AdBlock"
+         data-widget-instance="Interstitial">
+
+
+    </div>
+
+</div>
+</section>
+
+
+
+
+
+
+
+
+
+    <div class="widget-SiteWideModals widget-instance-SiteWideModals"
+         data-widget-name="SiteWideModals"
+         data-widget-instance="SiteWideModals">
+        <div id="revealModal" class="reveal-modal" data-reveal aria-hidden="true" aria-live="assertive" tabindex="-1">
+    <div id="revealContent"></div>
+    <a class="close-reveal-modal" href="javascript:;" aria-label="Close modal"><i class="icon-general-close"><span class="screenreader-text">Close Modal</span></i></a>
+</div>
+
+<div id="globalModalContainer" class="modal-global-container"
+     role="dialog"
+     aria-hidden="true"
+     aria-live="assertive"
+     tabindex="-1">
+    <div id="globalModalContent">
+        <div class="js-globalModalPlaceholder"></div>
+    </div>
+    <a href="javascript:;" class="close-modal js-close-modal" role="button" aria-label="Close modal">
+        <i class="icon-general-close" aria-hidden="true"></i>
+        <span class="screenreader-text">Close Modal</span>
+    </a>
+</div>
+<div id="globalModalOverlay" class="modal-overlay js-modal-overlay"></div>
+
+    <div id="NeedSubscription" class="reveal-modal small" data-reveal>
+            <div class="subscription-needed">
+                <div class="modal-heading">This Feature Is Available To Subscribers Only</div>
+                <p><a class="btn modal-sign_in-btn" href="/sign-in?returnUrl=%2fjcb%2fpages%2ffig-vid-guidelines">Sign In</a> or <a class="modal-register-link" href="/my-account/register?siteId=1000001&amp;returnUrl=%2fjcb%2fpages%2ffig-vid-guidelines">Create an Account</a></p>
+            </div>
+
+
+        <a class="close-reveal-modal" href="javascript:;"><i class="icon-general-close"><span class="screenreader-text">Close Modal</span></i></a>
+    </div>
+
+
+<div id="noAccessReveal" class="reveal-modal tiny" data-reveal>
+    <a class="close-reveal-modal" href="javascript:;" aria-label="Close modal"><i class="icon-general-close"><span class="screenreader-text">Close Modal</span></i></a>
+    <div id="noAccessForm">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<div id="giftAccessModalA" class="gift-access-modal-content">
+    <h4 id="giftAccessModalATitle" class="gift-access-modal-title js-modal-label">Gift article access</h4>
+    <p class="gift-access-modal-text">As a benefit of your subscription, you can share temporary access to restricted articles.</p>
+    <p class="gift-access-modal-text">Each link will stop working after 30 days or 10 uses. You may create up to 10 links in a 30 day period.</p>
+    <p class="gift-access-modal-text">Please sign in to your personal account to gift article access.</p>
+    <div class="gift-access-modal-actions">
+        <button type="button" class="btn btn-primary js-gift-access-signin">Sign in <i class="icon-general_arrow-right"></i></button>
+        <a href="/my-account/register?siteId=1000001&amp;returnUrl=%2fjcb%2fpages%2ffig-vid-guidelines" class="gift-access-register-link">Register</a>
+    </div>
+</div>
+
+<div id="giftAccessModalB" class="gift-access-modal-content" swap-content-for-modal="true">
+    <!-- CAPTCHA verification step -->
+    <div class="gift-access-step js-gift-access-captcha-step">
+        <h4 id="giftAccessModalBTitle" class="gift-access-modal-title js-modal-label">Gift article access</h4>
+        <p class="gift-access-modal-text">As a benefit of your subscription, you can share temporary access to restricted articles.</p>
+        <p class="gift-access-modal-text">Each link will stop working after 30 days or 10 uses. You may create up to 10 links in a 30 day period.</p>
+        <p class="gift-access-modal-text gift-articles-remaining">Gift articles remaining: <span class="js-gift-articles-count">--</span></p>
+
+        <div class="gift-access-form js-gift-access-form">
+            <div class="gift-access-recaptcha-container js-gift-recaptcha-container" role="group" aria-label="CAPTCHA verification">
+            </div>
+            <p class="error js-error-message hide"></p>
+
+            <div class="gift-access-modal-actions">
+                <button type="button" class="btn btn-primary js-create-gift-link">Create gift link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Link Generated Success -->
+    <div class="gift-access-step js-gift-access-success-step hide">
+        <h4 class="gift-access-modal-title">Gift article access</h4>
+        <p class="gift-access-modal-text">Each link will stop working after 30 days or 10 uses. You may create up to 10 links in a 30 day period.</p>
+        <p class="gift-access-modal-text gift-articles-remaining">Gift articles remaining: <span class="js-gift-articles-count">--</span></p>
+
+        <div class="gift-access-link-container">
+            <p class="js-gift-link-text gift-access-link-text"></p>
+            <button type="button" class="btn btn-primary js-copy-gift-link" aria-live="polite">
+                <span class="js-copy-text">Copy link</span>
+                <span class="js-copied-text hide">Copied!</span>
+            </button>
+        </div>
+
+        <!-- Screenreader announcement for copy action -->
+        <div class="screenreader-text js-copy-announcement" aria-live="assertive" aria-atomic="true"></div>
+    </div>
+</div>
+
+<div id="giftAccessModalC" class="gift-access-modal-content" swap-content-for-modal="true">
+    <h4 id="giftAccessModalCTitle" class="gift-access-modal-title js-modal-label">Gift article access</h4>
+    <p class="gift-access-modal-text">As a benefit of your subscription, you can share temporary access to restricted articles.</p>
+    <p class="gift-access-modal-text">Each link will stop working after 30 days or 10 uses.</p>
+    <p class="gift-access-modal-text">You have reached the limit of 10 links within a 30 day period.</p>
+</div>
+
+<div id="cookieShareModal" class="cookie-share-modal-content">
+    <h2 id="cookieShareModalTitle" class="js-modal-label">Sharing Unavailable</h2>
+    <p>Sharing content requires targeting cookies to be enabled. Please update your cookie preferences to use this feature.</p>
+    <div class="cookie-share-modal__actions">
+        <button type="button" class="btn btn-primary js-share-cookie-prefs-btn">Update Cookie Preferences</button>
+        <button type="button" class="btn js-close-modal">Cancel</button>
+    </div>
+</div>
+    </div>
+
+
+
+
+
+<script type="text/javascript">
+    MathJax = {
+        tex: {
+            processEscapes: true
+        }
+    };
+</script>
+<script id="MathJax-script" async src="//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+
+    <!-- CookiePro Default Categories -->
+    <!-- When the Cookie Compliance code loads, if cookies for the associated group have consent...
+         it will dynamically change the tag to: script type=text/JavaScript...
+         the code inside the tags will then be recognized and run as normal. -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <script type="text/javascript" src="//cdn.rupress.org/Themes/Client/app/jsdist/v-639158735713110413/site.min.js"></script>
+
+
+
+
+
+
+
+
+        <script type="text/javascript">
+        $(document).ready(function () {
+            App.SearchAutoComplete.init(["Keywords"]);
+        });
+        </script>
+
+
+
+
+
+
+    <div class="ad-banner js-ad-riser ad-banner-riser" role="region" aria-label="Advertisement">
+    <div class="widget-AdBlock widget-instance-RiserAd"
+         data-widget-name="AdBlock"
+         data-widget-instance="RiserAd">
+
+
+    </div>
+
+    </div>
+
+
+
+
+    <div class="end-of-page-js"></div>
+</body>
+</html>
+
