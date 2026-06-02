@@ -64,6 +64,13 @@ from src.domain.visrag_models import (
     VisRAGResult,
 )
 
+
+from src.domain.vlm_image_benchmark_models import (
+    ImageOnlyChartJudgeResult,
+    VLMImageBenchmarkImageResult,
+    VLMImageBenchmarkSummary,
+)
+
 from src.domain.visual_feedback_models import (
     VLMChartDescriptionResult,
     ChartFactSummaryResult,
@@ -117,6 +124,9 @@ __all__ = [
     "VisRAGDebugRetrieval",
     "VisRAGDiagnostics",
     "VisRAGResult",
+    "ImageOnlyChartJudgeResult",
+    "VLMImageBenchmarkImageResult",
+    "VLMImageBenchmarkSummary",
     "VLMChartDescriptionResult",
     "ChartFactSummaryResult",
     "ChartAnswerJudgeResult",

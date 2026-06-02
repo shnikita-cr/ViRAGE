@@ -360,3 +360,39 @@ Use the prompts in:
     docs/virage_manual_vulnerability_queries.md
 
 They are designed to expose remaining weaknesses in axis domains, plot area usage, compact categorical layout, repeat/facet labels, image-folder metrics, and orchestrator task planning.
+
+## Image-only VLM benchmark
+
+For comparing ViRAGE charts with charts produced by external systems, use the image-only VLM benchmark. The input is only a folder with chart images. The benchmark does not receive the source table, user query, Vega-Lite specification, or ground truth, so it evaluates only visible chart quality and publication readiness.
+
+Supported image formats:
+
+    .png .jpg .jpeg .tif .tiff .bmp .gif .webp
+
+Run:
+
+    python scripts/benchmarks/run_vlm_image_benchmark.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --images artifacts/external_charts --run-id external_charts_vlm_eval
+
+Outputs:
+
+    artifacts/<run_id>/benchmark_request.json
+    artifacts/<run_id>/per_image_scores.csv
+    artifacts/<run_id>/per_image_scores.jsonl
+    artifacts/<run_id>/benchmark_summary.json
+    artifacts/<run_id>/benchmark_report.md
+
+Image-only benchmark scores:
+
+    non_empty_score
+    readability_score
+    label_quality_score
+    legend_quality_score
+    visual_overload_score
+    plot_area_usage_score
+    axis_domain_score
+    layout_compactness_score
+    repeat_axis_label_score
+    publication_layout_score
+    overall_visual_score
+
+Scope limitation: this benchmark cannot judge data grounding, statistical correctness, field correctness, query alignment, or Spec Score, because it receives only the final image.

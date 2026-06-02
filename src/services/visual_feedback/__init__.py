@@ -15,3 +15,5 @@ __all__ = [
     "SemanticChartJudgeAdapters",
     "FeedbackCorpusWriterService",
 ]
+
+from src.services.visual_feedback.image_only_chart_judge import ImageOnlyChartJudgeService
