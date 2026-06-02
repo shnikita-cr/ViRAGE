@@ -200,7 +200,7 @@ def main() -> None:
     parser.add_argument("--source-download-timeout-seconds", type=float, default=60.0, help="Network timeout for source downloading.")
     parser.add_argument("--skip-extraction", action="store_true", help="Use existing rag_corpus/extracted/<source>.jsonl files instead of running extractors.")
     parser.add_argument("--skip-quality-filter", action="store_true", help="Skip post-deduplication quality filtering.")
-    parser.add_argument("--min-prompt-chars", type=int, default=120, help="Reject normalized rules with shorter prompt_text.")
+    parser.add_argument("--min-prompt-chars", type=int, default=20, help="Reject normalized rules with shorter prompt_text.")
     parser.add_argument("--min-retrieval-chars", type=int, default=24, help="Reject normalized rules with shorter retrieval_text.")
     parser.add_argument("--max-duplicates-per-key", type=int, default=3, help="Limit near-duplicate normalized rules.")
     parser.add_argument("--max-noise-cluster-records", type=int, default=30, help="Limit repeated generic readability clusters.")
