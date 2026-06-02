@@ -41,13 +41,31 @@ class AnalysisPlanner:
             raise ValueError("max_charts must be between 1 and 3.")
         self.max_charts = max_charts
 
-    def plan(self, *, user_query: str, data_path: str, data_profile: DataProfile) -> AnalysisPlan:
+    def plan(
+        self,
+        *,
+        user_query: str,
+        data_path: str,
+        data_profile: DataProfile,
+        input_type: str = "table",
+        original_input_path: str | None = None,
+        preprocessing_report_path: str | None = None,
+    ) -> AnalysisPlan:
         columns = self._column_sets(data_profile)
         candidates: list[AnalysisSubtask] = []
         skipped: list[SkippedAnalysisCandidate] = []
         query = user_query.strip()
         query_lower = query.lower()
         is_general = bool(_GENERAL_QUERY_RE.search(query))
+        if input_type == "image_folder":
+            return self._image_folder_plan(
+                query=query,
+                data_path=data_path,
+                data_profile=data_profile,
+                columns=columns,
+                original_input_path=original_input_path,
+                preprocessing_report_path=preprocessing_report_path,
+            )
 
         def add(candidate: AnalysisSubtask | None, task_type: AnalysisTaskType, reason: str, required: list[str]) -> None:
             if candidate is None:
@@ -107,9 +125,9 @@ class AnalysisPlanner:
 
         selected = self._select_tasks(candidates)
         if not selected and columns.measures:
-            fallback_task = self._distribution_task(query, columns)
-            if fallback_task is not None:
-                selected = [fallback_task]
+            default_task = self._distribution_task(query, columns)
+            if default_task is not None:
+                selected = [default_task]
         if not selected:
             selected = [
                 AnalysisSubtask(
@@ -126,12 +144,209 @@ class AnalysisPlanner:
         return AnalysisPlan(
             user_query=query,
             data_path=data_path,
-            input_type="table",
+            input_type=input_type,
+            original_input_path=original_input_path,
+            preprocessing_report_path=preprocessing_report_path,
             max_charts=self.max_charts,
             subtasks=selected,
             skipped_candidates=skipped,
             rationale=self._plan_rationale(query_lower, data_profile, selected, is_general),
         )
+
+
+    def _image_folder_plan(
+        self,
+        *,
+        query: str,
+        data_path: str,
+        data_profile: DataProfile,
+        columns: _ColumnSets,
+        original_input_path: str | None,
+        preprocessing_report_path: str | None,
+    ) -> AnalysisPlan:
+        candidates: list[AnalysisSubtask] = []
+        skipped: list[SkippedAnalysisCandidate] = []
+        available = {column.name for column in data_profile.columns}
+
+        def has(*names: str) -> bool:
+            return all(name in available for name in names)
+
+        if has("brisque_score", "niqe_score", "piqe_score", "laplacian_variance"):
+            candidates.append(
+                AnalysisSubtask(
+                    id="image_quality_analysis_001",
+                    task_type="image_quality_analysis",
+                    query=(
+                        "Analyse image quality using BRISQUE, NIQE, PIQE, exposure, sharpness, contrast, and brightness metrics. "
+                        f"Original request: {query}"
+                    ),
+                    purpose="Identify potential quality problems in the image collection using standard no-reference IQA metrics and interpretable image features.",
+                    required_fields=["brisque_score", "niqe_score", "piqe_score", "laplacian_variance"],
+                    optional_fields=[
+                        field
+                        for field in [
+                            "file_name",
+                            "relative_path",
+                            "group",
+                            "contrast_rms",
+                            "mean_brightness",
+                            "clipping_ratio",
+                            "exposure_balance_score",
+                        ]
+                        if field in available
+                    ],
+                    priority=10,
+                    constraints={
+                        "output_target": "scientific_figure",
+                        "input_type": "image_folder",
+                        "quality_metrics": [
+                            "brisque_score",
+                            "niqe_score",
+                            "piqe_score",
+                            "laplacian_variance",
+                            "contrast_rms",
+                            "mean_brightness",
+                        ],
+                        "iqa_score_direction": "lower_is_better",
+                    },
+                    rationale="Selected standard no-reference IQA metrics from pyiqa plus interpretable image-quality features.",
+                )
+            )
+        elif has("laplacian_variance", "contrast_rms", "mean_brightness"):
+            candidates.append(
+                AnalysisSubtask(
+                    id="image_quality_analysis_001",
+                    task_type="image_quality_analysis",
+                    query=(
+                        "Analyse image quality using sharpness, contrast, and brightness metrics. "
+                        f"Original request: {query}"
+                    ),
+                    purpose="Identify potential quality problems in the image collection using no-reference metrics.",
+                    required_fields=["laplacian_variance", "contrast_rms", "mean_brightness"],
+                    optional_fields=[field for field in ["file_name", "relative_path", "group"] if field in available],
+                    priority=10,
+                    constraints={
+                        "output_target": "scientific_figure",
+                        "input_type": "image_folder",
+                        "quality_metrics": ["laplacian_variance", "contrast_rms", "mean_brightness"],
+                    },
+                    rationale="Selected no-reference image-quality metrics computed during image-folder preprocessing.",
+                )
+            )
+        else:
+            skipped.append(
+                SkippedAnalysisCandidate(
+                    task_type="image_quality_analysis",
+                    reason="Required image-quality metrics were not found in the generated metrics table.",
+                    required_fields=["brisque_score", "niqe_score", "piqe_score", "laplacian_variance"],
+                )
+            )
+
+        sharpness = self._field_by_name(data_profile, "laplacian_variance")
+        if sharpness is not None:
+            candidates.append(
+                AnalysisSubtask(
+                    id="image_sharpness_distribution_001",
+                    task_type="distribution",
+                    query=f"Show the distribution of image sharpness using laplacian_variance. Original request: {query}",
+                    purpose="Assess whether the image collection contains blurred or low-sharpness files.",
+                    required_fields=["laplacian_variance"],
+                    optional_fields=[field for field in ["group", "file_name"] if field in available],
+                    priority=20,
+                    constraints={"output_target": "scientific_figure", "input_type": "image_folder"},
+                    rationale="Laplacian variance is available as a no-reference sharpness indicator.",
+                )
+            )
+
+        if has("mean_brightness", "contrast_rms"):
+            candidates.append(
+                AnalysisSubtask(
+                    id="brightness_contrast_relationship_001",
+                    task_type="correlation",
+                    query=f"Show the relationship between mean_brightness and contrast_rms. Original request: {query}",
+                    purpose="Check whether brightness and contrast reveal problematic image groups or acquisition conditions.",
+                    required_fields=["mean_brightness", "contrast_rms"],
+                    optional_fields=[field for field in ["group", "file_name"] if field in available],
+                    priority=30,
+                    constraints={"output_target": "scientific_figure", "input_type": "image_folder"},
+                    rationale="Brightness and RMS contrast were computed for every processed image.",
+                )
+            )
+
+        problem_metric = self._image_problem_ranking_metric(available)
+        if problem_metric and (has("file_name", problem_metric) or has("relative_path", problem_metric)):
+            id_field = "relative_path" if "relative_path" in available else "file_name"
+            prefer_low_values = problem_metric == "laplacian_variance"
+            candidates.append(
+                AnalysisSubtask(
+                    id="problem_image_ranking_001",
+                    task_type="ranking",
+                    query=f"Rank images by potential quality problems using {problem_metric}. Original request: {query}",
+                    purpose="Surface files with high no-reference IQA scores or low sharpness for manual inspection.",
+                    required_fields=[id_field, problem_metric],
+                    optional_fields=[
+                        field
+                        for field in ["contrast_rms", "mean_brightness", "clipping_ratio", "exposure_balance_score", "group"]
+                        if field in available
+                    ],
+                    priority=40,
+                    constraints={
+                        "output_target": "scientific_figure",
+                        "input_type": "image_folder",
+                        "sort_values": True,
+                        "prefer_low_values": prefer_low_values,
+                    },
+                    rationale=f"Selected '{id_field}' as image identifier and '{problem_metric}' as quality ranking metric.",
+                )
+            )
+
+        selected = self._select_tasks(candidates)
+        if not selected:
+            selected = [
+                AnalysisSubtask(
+                    id="image_overview_001",
+                    task_type="overview",
+                    query=f"Summarize the generated image metrics table. Original request: {query}",
+                    purpose="Provide a compact overview of generated image metadata and quality metrics.",
+                    required_fields=[column.name for column in data_profile.columns[: min(5, len(data_profile.columns))]],
+                    priority=90,
+                    constraints={"output_target": "scientific_figure", "input_type": "image_folder"},
+                    rationale="No standard image quality metric pattern was available.",
+                )
+            ]
+
+        return AnalysisPlan(
+            user_query=query,
+            data_path=data_path,
+            input_type="image_folder",
+            original_input_path=original_input_path,
+            preprocessing_report_path=preprocessing_report_path,
+            max_charts=self.max_charts,
+            subtasks=selected,
+            skipped_candidates=skipped,
+            rationale=[
+                f"Image-folder input was converted to a metrics table with {data_profile.row_count} rows and {data_profile.col_count} columns.",
+                f"Selected {len(selected)} image-analysis subtask(s), limit is {self.max_charts}.",
+                "The planner uses no-reference image metrics only; it does not infer domain labels or diagnose image content.",
+                "Chart types are not fixed by the planner; RAG and spec generation decide how to visualize each selected task.",
+            ],
+        )
+
+    @staticmethod
+    def _image_problem_ranking_metric(available: set[str]) -> str | None:
+        for metric in ("brisque_score", "niqe_score", "piqe_score"):
+            if metric in available:
+                return metric
+        if "laplacian_variance" in available:
+            return "laplacian_variance"
+        return None
+
+    @staticmethod
+    def _field_by_name(profile: DataProfile, name: str) -> DataColumnProfile | None:
+        for column in profile.columns:
+            if column.name == name:
+                return column
+        return None
 
     def _select_tasks(self, candidates: list[AnalysisSubtask]) -> list[AnalysisSubtask]:
         unique: list[AnalysisSubtask] = []

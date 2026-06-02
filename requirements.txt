@@ -28,10 +28,13 @@ jupyter
 
 # Анализ данных и вычисления
 pandas
+numpy
 pyarrow
 scikit-learn
 openpyxl
 beautifulsoup4
+Pillow
+pyiqa
 
 # Визуализация данных и графов
 matplotlib>=3.8

@@ -258,3 +258,54 @@ Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.j
     scripts/benchmark      запуск benchmark-сценариев
     scripts/rag_corpus     подготовка RAG-корпусов
     ui                     Streamlit-интерфейс
+
+## Step 7: Image-folder mode
+
+The orchestrator can now treat an image directory as a lightweight multimodal input. It does not perform domain diagnosis from image content. Instead, it converts the folder into a tabular no-reference image-quality dataset and then reuses the existing ViRAGE tabular pipeline.
+
+Input flow:
+
+    image folder
+    → input/image_folder/image_quality_metrics.csv
+    → DataProfiler
+    → AnalysisPlanner
+    → up to 3 ViRAGE subtasks
+
+Generated image-folder artifacts:
+
+    artifacts/<run_id>/input/image_folder/image_quality_metrics.csv
+    artifacts/<run_id>/input/image_folder/failed_images.csv
+    artifacts/<run_id>/input/image_folder/image_preprocessing_report.json
+
+Main extracted fields:
+
+    file_name, file_path, relative_path, group, extension, width, height, aspect_ratio, file_size_bytes, channels, mean_brightness, std_brightness, dynamic_range, contrast_rms, michelson_contrast, dark_pixel_ratio, bright_pixel_ratio, underexposure_ratio, overexposure_ratio, shadow_clipping_ratio, highlight_clipping_ratio, clipping_ratio, saturation_ratio, exposure_balance_score, entropy, edge_density, laplacian_variance, tenengrad_score, noise_estimate, snr_estimate, brisque_score, niqe_score, piqe_score
+
+Supported image extensions:
+
+    .png, .jpg, .jpeg, .tif, .tiff, .bmp, .gif, .webp
+
+Exposure metrics:
+
+    underexposure_ratio = count(I < 30) / N
+    overexposure_ratio = count(I > 225) / N
+    clipping_ratio = count(I <= 1 or I >= 254) / N
+    exposure_balance_score = 1 - abs(mean_brightness - 127.5) / 127.5
+
+No-reference IQA metrics:
+
+    brisque_score = pyiqa.create_metric("brisque")
+    niqe_score = pyiqa.create_metric("niqe")
+    piqe_score = pyiqa.create_metric("piqe")
+
+BRISQUE, NIQE, and PIQE are computed through the external `pyiqa` library. Lower values mean better perceived image quality. The image-folder mode does not compute PSNR, SSIM, MSE, LPIPS, or other reference-based metrics because they require a ground-truth/reference image.
+
+Run plan-only image-folder analysis:
+
+    python scripts/run_orchestrator.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Проанализируй качество изображений и найди проблемные файлы" --data-path path/to/images --input-type image_folder --run-id orch_images_plan
+
+Run with subtask execution:
+
+    python scripts/run_orchestrator.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Проанализируй качество изображений и найди проблемные файлы" --data-path path/to/images --input-type image_folder --run-id orch_images_execute --execute
+
+`--input-type auto` treats directories as image folders and files as ordinary tables.

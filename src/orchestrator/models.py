@@ -13,6 +13,7 @@ AnalysisTaskType = Literal[
     "outlier_detection",
     "ranking",
     "missingness_analysis",
+    "image_quality_analysis",
 ]
 
 
@@ -44,6 +45,8 @@ class AnalysisPlan(BaseModel):
     user_query: str
     data_path: str
     input_type: str = "table"
+    original_input_path: str | None = None
+    preprocessing_report_path: str | None = None
     max_charts: int = Field(default=3, ge=1, le=3)
     subtasks: list[AnalysisSubtask] = Field(default_factory=list)
     skipped_candidates: list[SkippedAnalysisCandidate] = Field(default_factory=list)
@@ -73,6 +76,9 @@ class OrchestratorReport(BaseModel):
     run_id: str
     user_query: str
     data_path: str
+    input_type: str = "table"
+    original_input_path: str | None = None
+    preprocessing_report_path: str | None = None
     plan_path: str
     data_profile_path: str | None = None
     executed: bool = False
