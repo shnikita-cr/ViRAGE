@@ -4,16 +4,16 @@
 # Requires AutoRAG >= 0.3.17 for lexical_retrieval / semantic_retrieval / hybrid_retrieval nodes.
 
 vectordb:
-#  - name: virage_chroma_bge_m3_latest-
-#    db_type: chroma
-#    client_type: persistent
-#    embedding_batch: 1
-#    embedding_model:
-#      - type: ollama
-#        model_name: bge-m3:latest
-#        base_url: http://localhost:11434
-#    collection_name: virage_guidance_chunks_bge_m3_latest
-#    path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_bge_m3_latest
+  - name: virage_chroma_bge_m3_latest-
+    db_type: chroma
+    client_type: persistent
+    embedding_batch: 1
+    embedding_model:
+      - type: ollama
+        model_name: bge-m3:latest
+        base_url: http://localhost:11434
+    collection_name: virage_guidance_chunks_bge_m3_latest
+    path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_bge_m3_latest
 
   - name: virage_chroma_mxbai_embed_large_latest
     db_type: chroma
@@ -25,28 +25,28 @@ vectordb:
         base_url: http://localhost:11434
     collection_name: virage_guidance_chunks_mxbai_embed_large_latest
     path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest
-#
-#  - name: virage_chroma_nomic_embed_text_latest-
-#    db_type: chroma
-#    client_type: persistent
-#    embedding_batch: 1
-#    embedding_model:
-#      - type: ollama
-#        model_name: nomic-embed-text:latest
-#        base_url: http://localhost:11434
-#    collection_name: virage_guidance_chunks_nomic_embed_text_latest
-#    path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_nomic_embed_text_latest
-#
-#  - name: virage_chroma_qwen3_embedding_latest--
-#    db_type: chroma
-#    client_type: persistent
-#    embedding_batch: 1
-#    embedding_model:
-#      - type: ollama
-#        model_name: qwen3-embedding:latest
-#        base_url: http://localhost:11434
-#    collection_name: virage_guidance_chunks_qwen3_embedding_latest
-#    path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_qwen3_embedding_latest
+
+  - name: virage_chroma_nomic_embed_text_latest-
+    db_type: chroma
+    client_type: persistent
+    embedding_batch: 1
+    embedding_model:
+      - type: ollama
+        model_name: nomic-embed-text:latest
+        base_url: http://localhost:11434
+    collection_name: virage_guidance_chunks_nomic_embed_text_latest
+    path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_nomic_embed_text_latest
+
+  - name: virage_chroma_qwen3_embedding_latest--
+    db_type: chroma
+    client_type: persistent
+    embedding_batch: 1
+    embedding_model:
+      - type: ollama
+        model_name: qwen3-embedding:latest
+        base_url: http://localhost:11434
+    collection_name: virage_guidance_chunks_qwen3_embedding_latest
+    path: ${PROJECT_DIR}/resources/chroma/virage_guidance_chunks_qwen3_embedding_latest
 
 node_lines:
   - node_line_name: retrieve_node_line
