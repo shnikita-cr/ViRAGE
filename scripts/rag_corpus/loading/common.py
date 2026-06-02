@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 import time
@@ -106,6 +107,82 @@ def _initial_queue(seed_urls: tuple[str, ...], config: LoaderConfig) -> tuple[de
     return queue, seeds
 
 
+
+
+def _normalise_marker_text(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _contains_required_text_marker(cleaned_text: str, markers: tuple[str, ...]) -> bool:
+    if not markers:
+        return True
+    normalised_text = _normalise_marker_text(cleaned_text)
+    return any(_normalise_marker_text(marker) in normalised_text for marker in markers if marker.strip())
+
+
+def _extract_marker_guided_text_from_html(html_text: str, *, page_url: str, config: LoaderConfig) -> str:
+    """Extract text from pages where useful guidance is outside common article tags.
+
+    Some publisher pages are rendered with custom components or script-backed
+    content. The generic HTML cleaner can then keep only navigation text. For
+    sources that declare required_text_markers, this extractor keeps semantic
+    visible text and marker-bearing script/JSON snippets, then validates the
+    result with the same marker contract as the ordinary path.
+    """
+
+    soup = BeautifulSoup(html_text, "html.parser")
+    lines: list[str] = []
+    seen: set[str] = set()
+
+    title = soup.title.get_text(" ", strip=True) if soup.title else ""
+    if title:
+        lines.append(f"# {title}")
+    lines.append(f"Source URL: {page_url}")
+
+    target_tags = (
+        "h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "dt", "dd",
+        "figcaption", "caption", "blockquote", "td", "th", "span", "div",
+    )
+    for element in soup.find_all(target_tags):
+        raw = element.get_text(" ", strip=True)
+        line = " ".join(raw.replace("\xa0", " ").split())
+        if not line or len(line) < 3:
+            continue
+        lowered = line.lower()
+        if lowered in seen:
+            continue
+        if any(noise in lowered for noise in ("manage cookies", "privacy policy", "terms & conditions")):
+            continue
+        seen.add(lowered)
+        if element.name and re.fullmatch(r"h[1-6]", element.name):
+            level = min(int(element.name[1]), 4)
+            lines.append(f"{'#' * level} {line}")
+        else:
+            lines.append(line)
+
+    markers = tuple(marker for marker in config.required_text_markers if marker.strip())
+    if markers:
+        marker_terms = tuple(_normalise_marker_text(marker) for marker in markers)
+        for script in soup.find_all("script"):
+            script_text = script.string or script.get_text(" ", strip=True)
+            if not script_text:
+                continue
+            normalised_script = _normalise_marker_text(script_text)
+            if not any(marker in normalised_script for marker in marker_terms):
+                continue
+            cleaned_script = re.sub(r"[{}\[\]\"'<>]", " ", script_text)
+            cleaned_script = re.sub(r"[,;]", "\n", cleaned_script)
+            for raw_line in cleaned_script.splitlines():
+                line = " ".join(raw_line.replace("\xa0", " ").split())
+                lowered = line.lower()
+                if len(line) < 20 or lowered in seen:
+                    continue
+                if any(marker in _normalise_marker_text(line) for marker in marker_terms):
+                    seen.add(lowered)
+                    lines.append(line)
+
+    return "\n\n".join(lines).strip() + "\n"
+
 def _fetch_clean_page(url: str, config: LoaderConfig, *, timeout_seconds: float) -> tuple[str, str, int, str]:
     payload, content_type = fetch_bytes(url, timeout_seconds=timeout_seconds, retries=config.retries)
     if len(payload) < config.min_bytes:
@@ -115,16 +192,34 @@ def _fetch_clean_page(url: str, config: LoaderConfig, *, timeout_seconds: float)
     if "html" not in content_type.lower():
         raise SourceDownloadError(f"Downloaded non-HTML response for {url}: Content-Type={content_type!r}")
     html_text = decode_payload(payload, content_type)
-    if looks_like_failed_download(html_text):
-        raise SourceDownloadError(f"Downloaded page looks like access/error page: {url}")
     cleaned = extract_helpful_text_from_html(html_text, page_url=url, content_selectors=config.content_selectors)
+    has_required_marker_in_cleaned = _contains_required_text_marker(cleaned, config.required_text_markers)
+    has_required_marker_in_html = _contains_required_text_marker(html_text, config.required_text_markers)
+    has_required_marker = has_required_marker_in_cleaned or has_required_marker_in_html
+
+    if config.required_text_markers and (not has_required_marker_in_cleaned or len(cleaned.strip()) < config.min_text_chars):
+        marker_guided = _extract_marker_guided_text_from_html(html_text, page_url=url, config=config)
+        marker_guided_has_marker = _contains_required_text_marker(marker_guided, config.required_text_markers)
+        if marker_guided_has_marker and len(marker_guided.strip()) >= len(cleaned.strip()):
+            cleaned = marker_guided
+            has_required_marker_in_cleaned = True
+            has_required_marker = True
+
+    failed_like = looks_like_failed_download(html_text)
+    if failed_like and not has_required_marker:
+        print(html_text)
+        raise SourceDownloadError(f"Downloaded page looks like access/error page: {url}")
+    if config.required_text_markers and not has_required_marker:
+        raise SourceDownloadError(
+            f"Downloaded page does not contain required guidance markers: {url}. "
+            f"Expected one of: {', '.join(config.required_text_markers)}"
+        )
     if len(cleaned.strip()) < config.min_text_chars:
         raise SourceDownloadError(
             f"Extracted cleaned text is too small: {url}: {len(cleaned.strip())} chars, "
             f"expected at least {config.min_text_chars}. The page may not contain useful guidance."
         )
     return cleaned, html_text, len(payload), content_type
-
 
 def download_html_pages(root: Path, config: LoaderConfig, *, refresh: bool, timeout_seconds: float) -> dict[str, object]:
     target_dir = raw_dir_for(root, config.source_id)

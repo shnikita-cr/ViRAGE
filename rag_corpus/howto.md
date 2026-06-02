@@ -63,6 +63,34 @@
 
     python scripts/rag_corpus/loading/download_sources.py --refresh
 
+### Ручной cache для защищённых страниц Nature, Cell и JCB
+
+Некоторые страницы Nature, Cell и JCB могут открываться в браузере, но при автоматической загрузке отдавать `Client Challenge`, `cookies_not_supported`, требование JavaScript, `403 Forbidden` или ошибку TLS/SSL-соединения. Такие страницы не нужно обходить кодом. Для них используется ручной cache.
+
+Если `load_scientific_figure_guidance.py --refresh` сообщает, что `nature_initial_submission`, `nature_figure_specifications` или `cell_figure_guidelines` требует ручной cache, открой URL в браузере, сохрани страницу как HTML или скопируй полезный текст в один из файлов:
+
+    rag_corpus/manual_sources/scientific_figure_guidance/nature_initial_submission.html
+
+    rag_corpus/manual_sources/scientific_figure_guidance/nature_initial_submission.txt
+
+    rag_corpus/manual_sources/scientific_figure_guidance/nature_figure_specifications.html
+
+    rag_corpus/manual_sources/scientific_figure_guidance/nature_figure_specifications.txt
+
+    rag_corpus/manual_sources/scientific_figure_guidance/cell_figure_guidelines.html
+
+    rag_corpus/manual_sources/scientific_figure_guidance/cell_figure_guidelines.txt
+
+    rag_corpus/manual_sources/scientific_figure_guidance/jcb_figure_video_guidelines.html
+
+    rag_corpus/manual_sources/scientific_figure_guidance/jcb_figure_video_guidelines.txt
+
+После этого повтори загрузку:
+
+    python scripts/rag_corpus/loading/load_scientific_figure_guidance.py --refresh
+
+Ручной cache не является fallback-источником. Loader принимает его только если файл содержит ожидаемые маркеры полезного текста: `figures`, `figure legend`, `high resolution figures`, `300 dpi`, `Arial or Helvetica`, `RGB colour`, `resolution`, `image`, `video` и похожие требования к научным рисункам.
+
 Экспортировать актуальный chunk-корпус:
 
     python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
