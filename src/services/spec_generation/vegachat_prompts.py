@@ -58,7 +58,7 @@ Output rules:
 Generation rules adapted from VegaChat-style correction loops:
 1. Use only safe field names listed in the schema block; never invent fields.
 2. Use the requested fields before visually similar alternatives.
-3. Choose the chart family from the analytic task: relationship -> point/scatter, trend -> line, comparison -> bar, distribution -> bin/histogram, part-to-whole -> stacked/normalized composition only when appropriate.
+3. Choose the visual encoding from the selected analytical task, data profile, and RAG guidance; do not rely on an upstream chart-family recommendation.
 4. If the request says against/versus/relationship between two numeric fields, preserve both fields on visible quantitative channels.
 5. If the request says split by, grouped by, broken down by, for each, or by category, make that grouping visible through color, row, column, facet, shape, or xOffset; tooltip-only grouping is not enough.
 6. Prefer channel-level aggregate/bin/timeUnit/sort/stack over unnecessary transform objects.
@@ -132,7 +132,8 @@ def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
         )
     return (
             "ChartSquared-style pre-generation checklist. The generated static PNG must satisfy these visible criteria; "
-            "avoid every critical failure before relying on retry loops:\n"
+            "avoid every critical failure before relying on retry loops. If VisRAG includes a selected analytical task contract, "
+            "do not replace that task with another task:\n"
             + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
     )
 

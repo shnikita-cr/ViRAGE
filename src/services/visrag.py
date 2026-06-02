@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from src.domain.models import DataProfile, QueryRequestAnalysisResult, VisRAGGuidanceChunk
 from src.infrastructure.runtime import RuntimeContext
@@ -26,6 +27,7 @@ class VisRAGService(BaseService):
             query_analysis: QueryRequestAnalysisResult,
             data_profile: DataProfile,
             runtime: RuntimeContext,
+            task_context: dict[str, Any] | None = None,
     ):
         opts = runtime.settings.visrag_runtime_options()
         store = create_visrag_store(
@@ -49,7 +51,7 @@ class VisRAGService(BaseService):
             embeddings=cached.embeddings,
             corpus_signature=signature,
             reasoning_llm=runtime.reasoning_llm,
-        ).invoke(query_analysis, data_profile)
+        ).invoke(query_analysis, data_profile, task_context=task_context)
 
     @classmethod
     def _load(cls, store: VisRAGStore, signature: dict[str, object]) -> _CachedChunkCorpus:

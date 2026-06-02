@@ -23,6 +23,12 @@ def rerank_by_compatibility(
         query_analysis: QueryRequestAnalysisResult,
         data_profile: DataProfile,
 ) -> tuple[list[VisRAGRuleDocument], list[dict[str, str]]]:
+    """Remove clearly incompatible documents without using chart-family recommendations.
+
+    Query analysis no longer recommends chart families. This compatibility pass is
+    therefore limited to data-schema constraints that are safe to infer, such as
+    rejecting map/choropleth guidance when no geographic fields are present.
+    """
     has_geo = _profile_has_geo(data_profile)
     kept: list[VisRAGRuleDocument] = []
     filtered: list[dict[str, str]] = []

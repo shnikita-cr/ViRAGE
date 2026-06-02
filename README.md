@@ -169,8 +169,25 @@ Plan-only запуск без вызова LLM-моделей:
 - максимум 3 подзадачи;
 - планировщик использует только существующие поля таблицы;
 - тип графика не фиксируется на этапе планирования;
-- RAG вызывается позже отдельно для каждой подзадачи;
 - plan-only режим нужен для быстрой проверки `chart_plan.json` без затрат на LLM.
+
+## Task-specific RAG guidance
+
+В execute-режиме оркестратор передаёт выбранную аналитическую подзадачу в `PipelineRequest.user_context.analysis_subtask`. Runtime RAG использует этот контракт для retrieval-запроса и prompt guidance:
+
+    AnalysisSubtask
+    + QueryRequestAnalysisResult
+    + DataProfile
+    → task-specific VisRAG guidance
+
+Разделение ответственности:
+
+- `AnalysisPlanner` выбирает, что анализировать;
+- `RAG Engine` ищет методические рекомендации для уже выбранной задачи;
+- `Spec Generator` строит Vega-Lite спецификацию;
+- RAG не заменяет выбранную аналитическую задачу другой задачей.
+
+Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все chunks, запуск должен завершиться ошибкой подготовки RAG, а не молча перейти на лексический поиск. BM25 остаётся только как явно заданный AutoRAG baseline.
 
 ## Benchmark
 

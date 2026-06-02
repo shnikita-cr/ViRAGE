@@ -149,7 +149,6 @@ class QueryRequestAnalyzerService(BaseService):
             "Do not generate Vega-Lite. Do not create rag_queries. Do not include generic chart-quality boilerplate.\n"
             "The result must describe only the user intent: analysis_task, selected_fields, "
             "field_bindings, aggregation_plan, visual_judge_requirements, query_variants, chart_answerability, assumptions, and ambiguity. "
-            "Do not choose or recommend a chart type here. Chart selection is handled later by RAG and spec generation.\n"
             "visual_judge_requirements must contain only criteria that can be checked from a static PNG chart. "
             "Tooltip-only information is not visible.\n"
             "query_variants are only for retrieval/debug. Prefer kinds: canonical, chart_pattern_retrieval, repair_rule_retrieval, analysis_rule_retrieval.\n"
@@ -169,6 +168,7 @@ class QueryRequestAnalyzerService(BaseService):
         return QueryRequestAnalysisResult(
             normalized_query=parsed.normalized_query.strip(),
             analysis_task=parsed.analysis_task.strip() or "descriptive_analytics",
+            recommended_chart_family="auto",
             selected_fields=selected_fields,
             field_bindings={
                 key.strip(): FieldBinding(**value.model_dump())

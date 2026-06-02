@@ -20,6 +20,7 @@ from src.domain.models import (
 from src.llm.helpers import invoke_structured
 from src.visrag_core.embeddings import build_embedding_model, cosine
 from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.task_context import task_context_prompt_block
 from src.visrag_core.stores import VisRAGStore
 
 
@@ -58,28 +59,31 @@ class VisRAGEngine:
         self._embeddings = embeddings
         self.reasoning_llm = reasoning_llm
 
-    def invoke(self, query_analysis: QueryRequestAnalysisResult, data_profile: DataProfile) -> VisRAGResult:
+    def invoke(
+            self,
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+            task_context: dict[str, Any] | None = None,
+    ) -> VisRAGResult:
         if not self.options.enabled:
             raise RuntimeError("VisRAG is disabled. Enable visrag_enabled=true or remove the visrag pipeline node.")
         chunks = self._chunks if self._chunks is not None else self.store.load_chunks()
         embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
-        query = build_visrag_query(query_analysis, data_profile)
+        query = build_visrag_query(query_analysis, data_profile, task_context=task_context)
         if not embeddings:
             raise RuntimeError(
-                "VisRAG embeddings are missing. Runtime lexical fallback is disabled by design. "
-                "Rebuild runtime embeddings before running the pipeline:\n"
-                "python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600"
+                "VisRAG embeddings are missing. Runtime lexical fallback is disabled. Run:\n"
+                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600"
             )
         missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
         if missing:
             raise RuntimeError(
-                "VisRAG embeddings are incomplete. Runtime lexical fallback is disabled by design. "
-                "Rebuild runtime embeddings before running the pipeline:\n"
-                "python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600\n"
+                "VisRAG embeddings are incomplete. Runtime lexical fallback is disabled. Run:\n"
+                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600\n"
                 f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
             )
         retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
-        guidance = self._generate_response(query_analysis, data_profile, retrieved)
+        guidance = self._generate_response(query_analysis, data_profile, retrieved, task_context=task_context)
         diagnostics = VisRAGDiagnostics(
             retrieved_count=len(retrieved),
             retrieved_count_by_type=self._count_by_kind(retrieved),
@@ -92,6 +96,7 @@ class VisRAGEngine:
             retrieved_chunks=retrieved,
             retrieved_documents=retrieved,
             scores=[{"chunk_id": chunk.chunk_id, "score": chunk.score, "source_id": chunk.source_id} for chunk in retrieved],
+            task_context=dict(task_context or {}),
         )
         return VisRAGResult(
             corpus_status={
@@ -136,6 +141,8 @@ class VisRAGEngine:
         weight = float(metadata.get("priority", 1.0) or 1.0)
         if chunk.source_kind in {"manual_feedback", "vlm_feedback"}:
             weight *= 1.5
+        if chunk.source_kind == "scientific_figure_guidance":
+            weight *= 1.2
         return max(0.1, min(weight, 4.0))
 
     def _generate_response(
@@ -143,6 +150,7 @@ class VisRAGEngine:
             query_analysis: QueryRequestAnalysisResult,
             data_profile: DataProfile,
             chunks: list[VisRAGRetrievedChunk],
+            task_context: dict[str, Any] | None = None,
     ) -> VisRAGGenerationGuidance:
         source_refs = [
             {
@@ -168,7 +176,7 @@ class VisRAGEngine:
                 quality_checks=[chunk.text for chunk in chunks if str(chunk.source_kind) in {"readability_rule", "vlm_readability_rule"}],
                 source_refs=source_refs,
             )
-            guidance.prompt_text = self._to_prompt_text(guidance)
+            guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
             return guidance
 
         payload = {
@@ -177,6 +185,7 @@ class VisRAGEngine:
                 "analysis_task": query_analysis.analysis_task,
                 "selected_fields": query_analysis.selected_fields,
             },
+            "selected_analytical_subtask": dict(task_context or {}),
             "data_profile": {
                 "columns": [column.model_dump() for column in data_profile.columns[:30]],
                 "row_count": getattr(data_profile, "row_count", None),
@@ -195,6 +204,7 @@ class VisRAGEngine:
         prompt = (
             "Generate final VisRAG guidance for Vega-Lite spec generation. "
             "Use only the retrieved chunks and the given data/query context. "
+            "If selected_analytical_subtask is provided, treat it as fixed: do not replace it with another task. "
             "Do not output Vega-Lite code or examples. Return concrete practical guidance.\n\n"
             f"Context JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
         )
@@ -218,11 +228,11 @@ class VisRAGEngine:
             feedback_warnings=parsed.feedback_warnings,
             source_refs=source_refs,
         )
-        guidance.prompt_text = self._to_prompt_text(guidance)
+        guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
         return guidance
 
     @staticmethod
-    def _to_prompt_text(guidance: VisRAGGenerationGuidance) -> str:
+    def _to_prompt_text(guidance: VisRAGGenerationGuidance, task_context: dict[str, Any] | None = None) -> str:
         sections = [
             ("Applicable rules", guidance.applicable_rules),
             ("Avoid", guidance.avoid),
@@ -230,6 +240,9 @@ class VisRAGEngine:
             ("Feedback warnings", guidance.feedback_warnings),
         ]
         lines: list[str] = ["VisRAG guidance:"]
+        task_block = task_context_prompt_block(task_context)
+        if task_block:
+            lines.append(task_block)
         for title, items in sections:
             if not items:
                 continue

@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 VisRAGChunkKind = Literal[
     "web_guidance",
-    "scientific_figure_guidance",
     "dataset_pattern",
     "manual_feedback",
     "vlm_feedback",
@@ -15,6 +14,7 @@ VisRAGChunkKind = Literal[
     "scale_plot_area_rule",
     "vlm_readability_rule",
     "domain_semantics_rule",
+    "scientific_figure_guidance",
 ]
 
 
@@ -94,6 +94,7 @@ class VisRAGDebugRetrieval(BaseModel):
     retrieved_chunks: list[VisRAGRetrievedChunk] = Field(default_factory=list)
     retrieved_documents: list[VisRAGRetrievedChunk] = Field(default_factory=list)
     scores: list[dict[str, Any]] = Field(default_factory=list)
+    task_context: dict[str, Any] = Field(default_factory=dict)
 
 
 class VisRAGDiagnostics(BaseModel):
