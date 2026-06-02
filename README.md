@@ -136,6 +136,42 @@ RAG-корпуса готовятся offline и больше не строят�
 
 AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `virage_rules.jsonl`.
 
+
+## Оркестратор аналитических задач
+
+Оркестратор добавляет верхний слой над single-chart pipeline. Он не выбирает финальный тип графика и не заменяет RAG. Его задача — раскрыть общий пользовательский запрос в 1–3 аналитические подзадачи, которые затем могут быть выполнены обычным ViRAGE pipeline.
+
+Логика разделения ответственности:
+
+    AnalysisPlanner решает, что анализировать.
+    RAG Engine подбирает guidance для выбранной подзадачи.
+    Spec Generator строит Vega-Lite спецификацию.
+
+Plan-only запуск без вызова LLM-моделей:
+
+    python scripts/run_orchestrator.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Проанализируй данные и покажи основные закономерности" --data-path demo_data/Iris.csv --run-id orch_iris_plan
+
+Полный запуск подзадач через pipeline:
+
+    python scripts/run_orchestrator.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Проанализируй данные и покажи основные закономерности" --data-path demo_data/Iris.csv --run-id orch_iris_execute --execute
+
+Основные артефакты:
+
+    artifacts/<run_id>/orchestrator_request.json
+    artifacts/<run_id>/data_profile.json
+    artifacts/<run_id>/chart_plan.json
+    artifacts/<run_id>/orchestrator_report.json
+    artifacts/<run_id>/final_summary.md
+    artifacts/<run_id>/subruns/<subtask>/run_report.json
+
+Ограничения текущего шага:
+
+- максимум 3 подзадачи;
+- планировщик использует только существующие поля таблицы;
+- тип графика не фиксируется на этапе планирования;
+- RAG вызывается позже отдельно для каждой подзадачи;
+- plan-only режим нужен для быстрой проверки `chart_plan.json` без затрат на LLM.
+
 ## Benchmark
 
 Проект тестируется по двум независимым направлениям.
