@@ -57,9 +57,9 @@
 
 ## 3. Подготовка runtime guidance chunks
 
-Если runtime-файл уже есть, этот шаг можно пропустить.
+Если runtime-файл уже есть и источники не менялись, этот шаг можно пропустить.
 
-Скачать или обновить исходники:
+Скачать или обновить исходники, включая `scientific_figure_guidance`:
 
     python scripts/rag_corpus/loading/download_sources.py --refresh
 
@@ -140,7 +140,7 @@ Config с ограниченным набором embedding-моделей:
 
     python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval.yaml --embedding-models bge-m3:latest,nomic-embed-text:latest
 
-Lexical-only fallback, если semantic/hybrid временно не запускается:
+Lexical-only baseline для отдельного AutoRAG-сравнения, если нужно оценить BM25 отдельно от semantic/hybrid:
 
     python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval_lexical.yaml --lexical-only
 
@@ -154,7 +154,7 @@ Lexical-only fallback, если semantic/hybrid временно не запус
 
     autorag evaluate --config rag_corpus/autorag/configs/virage_retrieval_eval.yaml --qa_data_path rag_corpus/autorag/datasets/runtime/qa.parquet --corpus_data_path rag_corpus/autorag/datasets/runtime/corpus.parquet --project_dir rag_corpus/autorag/trials
 
-Lexical-only fallback:
+Lexical-only baseline:
 
     autorag evaluate --config rag_corpus/autorag/configs/virage_retrieval_eval_lexical.yaml --qa_data_path rag_corpus/autorag/datasets/runtime/qa.parquet --corpus_data_path rag_corpus/autorag/datasets/runtime/corpus.parquet --project_dir rag_corpus/autorag/trials_lexical
 
@@ -248,6 +248,12 @@ Single-run с RAG:
 
 Не использовать `AutoRAG[gpu]` и `vllm` для текущего CPU/API-only контура.
 
+
+## Runtime RAG strict mode
+
+Runtime ViRAG не использует lexical fallback. Если `rag_corpus/runtime/guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все `chunk_id`, pipeline должен остановиться с ошибкой подготовки корпуса. BM25 используется только как явно выбранный baseline внутри AutoRAG, а не как скрытый runtime fallback.
+
+`recommended_chart_family` не используется в `query_request_analysis` и не участвует в RAG retrieval query. Query analysis описывает пользовательский intent, поля, агрегацию и видимые требования; выбор графика выполняется позже на основе data profile, RAG guidance и spec generation.
 
 ## AutoRAG embedding policy
 

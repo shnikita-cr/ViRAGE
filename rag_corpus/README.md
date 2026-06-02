@@ -9,10 +9,12 @@
 - `extracted/` — извлечённые исходные записи JSONL.
 - `processed/` — нормализованные правила после LLM-обработки.
 - `runtime/` — компактный JSONL для приложения.
-- `autorag/virage_rules/` — файлы для AutoRAG.
+- `autorag/` — конфиги, QA JSONL, datasets, trials и отчёты AutoRAG.
 - `reports/` — отчёты качества корпуса.
 
 ## Основные источники
+
+- `scientific_figure_guidance`
 
 - `ft_visual_vocabulary`
 - `from_data_to_viz`
@@ -64,3 +66,7 @@ Runtime-документы не должны содержать Vega-Lite `mark`
 
 Пайплайн дополнительно сохраняет несколько прямых HTML-страниц From Data to Viz, IBM Carbon и USWDS. Это нужно, чтобы извлечение не зависело только от текущей структуры репозиториев. VisText обрабатывается только как структурированный набор подписей и таблиц; файлы метрик, предсказаний и результатов моделей исключаются.
 
+
+## Runtime RAG strict mode
+
+Runtime RAG работает строго через `guidance_chunks.jsonl` и `guidance_chunk_embeddings.jsonl`. Скрытый lexical fallback запрещён; BM25 используется только как отдельный baseline в AutoRAG.

@@ -9,7 +9,7 @@
 
 ## Основные команды
 
-Скачать источники:
+Скачать источники, включая `scientific_figure_guidance`:
 
     python scripts/rag_corpus/loading/download_sources.py --refresh
 
@@ -42,3 +42,7 @@ LLM-нормализация всего корпуса заранее больш
 Для текущей схемы нужны обычный `AutoRAG`, YAML config и Ollama API на `localhost:11434`. Не устанавливать `AutoRAG[gpu]` ради этого сценария: он тянет `vllm`, который не нужен для Windows CPU + Ollama API.
 
     pip install --upgrade AutoRAG fastapi gradio chromadb pyarrow pandas scikit-learn llama-index-embeddings-ollama
+
+## Runtime RAG strict mode
+
+Runtime VisRAG не использует lexical fallback. Перед запуском pipeline должны быть пересобраны `rag_corpus/runtime/guidance_chunks.jsonl` и `rag_corpus/runtime/guidance_chunk_embeddings.jsonl`. BM25 остаётся только явным baseline внутри AutoRAG.

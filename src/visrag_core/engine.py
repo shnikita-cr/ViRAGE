@@ -20,7 +20,6 @@ from src.domain.models import (
 from src.llm.helpers import invoke_structured
 from src.visrag_core.embeddings import build_embedding_model, cosine
 from src.visrag_core.query_builder import build_visrag_query
-from src.visrag_core.text import tokens
 from src.visrag_core.stores import VisRAGStore
 
 
@@ -65,17 +64,21 @@ class VisRAGEngine:
         chunks = self._chunks if self._chunks is not None else self.store.load_chunks()
         embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
         query = build_visrag_query(query_analysis, data_profile)
-        if embeddings:
-            missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
-            if missing:
-                raise RuntimeError(
-                    "VisRAG embeddings are incomplete. Run:\n"
-                    "python scripts\\rag_corpus\\build_visrag_embeddings.py\n"
-                    f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
-                )
-            retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
-        else:
-            retrieved = self._retrieve_lexical(query, query_analysis, chunks)
+        if not embeddings:
+            raise RuntimeError(
+                "VisRAG embeddings are missing. Runtime lexical fallback is disabled by design. "
+                "Rebuild runtime embeddings before running the pipeline:\n"
+                "python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600"
+            )
+        missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
+        if missing:
+            raise RuntimeError(
+                "VisRAG embeddings are incomplete. Runtime lexical fallback is disabled by design. "
+                "Rebuild runtime embeddings before running the pipeline:\n"
+                "python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600\n"
+                f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
+            )
+        retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
         guidance = self._generate_response(query_analysis, data_profile, retrieved)
         diagnostics = VisRAGDiagnostics(
             retrieved_count=len(retrieved),
@@ -121,41 +124,18 @@ class VisRAGEngine:
         ranked: list[VisRAGRetrievedChunk] = []
         for chunk in chunks:
             score = cosine(query_vector, embeddings[chunk.chunk_id])
-            score *= self._metadata_weight(chunk, query_analysis)
+            score *= self._metadata_weight(chunk)
             if score > 0:
                 ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score"}), score=round(score, 6)))
         return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:max(1, self.options.top_k_chunks)]
 
-
-    def _retrieve_lexical(
-            self,
-            query: str,
-            query_analysis: QueryRequestAnalysisResult,
-            chunks: list[VisRAGGuidanceChunk],
-    ) -> list[VisRAGRetrievedChunk]:
-        query_tokens = set(tokens(query))
-        ranked: list[VisRAGRetrievedChunk] = []
-        for chunk in chunks:
-            doc_tokens = set(tokens(" ".join([chunk.title, chunk.text, str(chunk.metadata)])))
-            overlap = len(query_tokens & doc_tokens)
-            if overlap <= 0 and str(chunk.source_kind) != "domain_semantics_rule":
-                overlap = 1
-            score = float(overlap) * self._metadata_weight(chunk, query_analysis)
-            if str(chunk.source_kind) == "domain_semantics_rule" and not self._domain_semantics_matches(chunk, query_analysis, None):
-                score = 0.0
-            if score > 0:
-                ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score"}), score=round(score, 6)))
-        return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:max(1, self.options.top_k_chunks)]
 
     @staticmethod
-    def _metadata_weight(chunk: VisRAGGuidanceChunk, query_analysis: QueryRequestAnalysisResult) -> float:
+    def _metadata_weight(chunk: VisRAGGuidanceChunk) -> float:
         metadata = chunk.metadata or {}
         weight = float(metadata.get("priority", 1.0) or 1.0)
         if chunk.source_kind in {"manual_feedback", "vlm_feedback"}:
             weight *= 1.5
-        family = str(metadata.get("chart_family") or "").strip().lower()
-        if family and family == str(query_analysis.recommended_chart_family).strip().lower():
-            weight *= 1.15
         return max(0.1, min(weight, 4.0))
 
     def _generate_response(
@@ -195,7 +175,6 @@ class VisRAGEngine:
             "query_analysis": {
                 "normalized_query": query_analysis.normalized_query,
                 "analysis_task": query_analysis.analysis_task,
-                "recommended_chart_family": query_analysis.recommended_chart_family,
                 "selected_fields": query_analysis.selected_fields,
             },
             "data_profile": {

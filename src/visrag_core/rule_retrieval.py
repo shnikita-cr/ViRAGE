@@ -33,7 +33,6 @@ class _LexicalRuleRetriever:
         if query_analysis is not None:
             query_tokens.extend(tokens(" ".join([
                 query_analysis.analysis_task,
-                query_analysis.recommended_chart_family,
                 " ".join(query_analysis.selected_fields),
             ])))
         if not query_tokens:

@@ -9,6 +9,11 @@ from src.infrastructure.runtime import RuntimeContext
 from src.services.visrag import VisRAGService
 
 
+class _FakeEmbeddingModel:
+    def embed_query(self, query: str) -> list[float]:
+        return [1.0, 0.0]
+
+
 def _write_runtime_rules(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     records = [
@@ -51,6 +56,9 @@ def _write_runtime_rules(root: Path) -> None:
     with (root / "virage_rules.jsonl").open("w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    with (root / "guidance_chunk_embeddings.jsonl").open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps({"chunk_id": record["doc_id"], "embedding": [1.0, 0.0]}, ensure_ascii=False) + "\n")
 
 
 def _profile() -> DataProfile:
@@ -69,7 +77,6 @@ def _analysis() -> QueryRequestAnalysisResult:
     return QueryRequestAnalysisResult(
         normalized_query="Show average sales over time by region.",
         analysis_task="trend",
-        recommended_chart_family="line",
         selected_fields=["Order Date", "Sales", "Region"],
         field_bindings={
             "x": FieldBinding(field="Order Date", role="temporal_axis"),
@@ -84,7 +91,8 @@ def _analysis() -> QueryRequestAnalysisResult:
     )
 
 
-def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Path) -> None:
+def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **_: _FakeEmbeddingModel())
     corpus_root = tmp_path / "runtime_rules"
     _write_runtime_rules(corpus_root)
     runtime = RuntimeContext(
@@ -105,7 +113,8 @@ def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Pa
     assert "Vega-Lite" not in result.generation_guidance.prompt_text
 
 
-def test_domain_semantics_is_gated(tmp_path: Path) -> None:
+def test_domain_semantics_is_gated(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **_: _FakeEmbeddingModel())
     corpus_root = tmp_path / "runtime_rules"
     _write_runtime_rules(corpus_root)
     runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", visrag_corpus_root=corpus_root))
@@ -124,7 +133,6 @@ def test_domain_semantics_is_gated(tmp_path: Path) -> None:
     bio_analysis = QueryRequestAnalysisResult(
         normalized_query="Compare HbA1c by treatment group.",
         analysis_task="comparison",
-        recommended_chart_family="bar",
         selected_fields=["HbA1c", "treatment_group"],
     )
 

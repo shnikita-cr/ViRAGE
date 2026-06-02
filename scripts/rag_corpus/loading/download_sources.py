@@ -18,6 +18,7 @@ from scripts.rag_corpus.common.io import project_root, write_json
 from scripts.rag_corpus.common.progress import StageProgress
 from scripts.rag_corpus.loading.common import SourceDownloadError
 from scripts.rag_corpus.loading.load_chartability import load as load_chartability
+from scripts.rag_corpus.loading.load_scientific_figure_guidance import load as load_scientific_figure_guidance
 from scripts.rag_corpus.loading.load_from_data_to_viz import load as load_from_data_to_viz
 from scripts.rag_corpus.loading.load_ft_visual_vocabulary import load as load_ft_visual_vocabulary
 from scripts.rag_corpus.loading.load_uk_analysis_colours import load as load_uk_analysis_colours
@@ -33,6 +34,7 @@ LOADER_BY_SOURCE = {
     "uk_charts_checklist": load_uk_charts_checklist,
     "urban_institute_style_guide": load_urban_institute_style_guide,
     "chartability": load_chartability,
+    "scientific_figure_guidance": load_scientific_figure_guidance,
 }
 
 

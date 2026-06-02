@@ -97,7 +97,6 @@ def _request_contract(request: SpecGenerationRequest) -> str:
         payload = {
             "normalized_query": analysis.normalized_query,
             "analysis_task": analysis.analysis_task,
-            "recommended_chart_family": analysis.recommended_chart_family,
             "selected_original_fields": analysis.selected_fields,
             "selected_safe_fields": safe_selected,
             "field_bindings": {key: value.model_dump() for key, value in analysis.field_bindings.items()},
@@ -117,7 +116,6 @@ def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
     analysis = request.query_request_analysis
     payload = {
         "analysis_task": analysis.analysis_task if analysis is not None else None,
-        "recommended_chart_family": analysis.recommended_chart_family if analysis is not None else None,
         "aggregation_plan": analysis.aggregation_plan if analysis is not None else {},
         "chart_answerability": analysis.chart_answerability if analysis is not None else {},
         "must_be_visible": requirements.get("must_be_visible", []),

@@ -20,7 +20,6 @@ def _analysis() -> QueryRequestAnalysisResult:
     return QueryRequestAnalysisResult(
         normalized_query="Show average sales over time by region.",
         analysis_task="trend",
-        recommended_chart_family="line",
         selected_fields=["Order Date", "Region", "Sales"],
         field_bindings={
             "x": FieldBinding(field="Order Date", role="temporal_axis"),
@@ -58,7 +57,7 @@ def test_compatibility_reranker_removes_choropleth_for_line_trend_without_geo_fi
     assert filtered[0]["reason"].startswith("incompatible_chart_family")
 
 
-def test_compatibility_reranker_boosts_matching_line_rule() -> None:
+def test_compatibility_reranker_keeps_non_geo_rule_without_chart_family_boost() -> None:
     line = VisRAGRuleDocument(
         doc_id="chart_pattern__line",
         record_type="chart_pattern",
@@ -72,4 +71,4 @@ def test_compatibility_reranker_boosts_matching_line_rule() -> None:
     kept, filtered = rerank_by_compatibility([line], _analysis(), _profile())
 
     assert not filtered
-    assert kept[0].score > 1.0
+    assert kept[0].score == 1.0

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 VisRAGChunkKind = Literal[
     "web_guidance",
+    "scientific_figure_guidance",
     "dataset_pattern",
     "manual_feedback",
     "vlm_feedback",

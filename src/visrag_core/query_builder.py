@@ -13,7 +13,6 @@ def build_visrag_query(query_analysis: QueryRequestAnalysisResult, data_profile:
     return " ".join([
         query_analysis.normalized_query,
         query_analysis.analysis_task,
-        query_analysis.recommended_chart_family,
         fields,
         bindings,
         variants,

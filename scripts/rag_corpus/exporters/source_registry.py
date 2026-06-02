@@ -72,6 +72,15 @@ PRACTICAL_VISRAG_SOURCES: tuple[QualityCorpusSource, ...] = (
         format="web_html",
         purpose="Практические правила подписей, цветов, layout, аннотаций и единообразия оформления.",
     ),
+
+    QualityCorpusSource(
+        source_id="scientific_figure_guidance",
+        title="Scientific publication figure guidance",
+        raw_dir="rag_corpus/raw_external_rules/scientific_figure_guidance",
+        url="https://www.nature.com/nature/for-authors/initial-submission",
+        format="web_html",
+        purpose="Правила подготовки научных рисунков для статей: размеры, разрешение, читаемость, подписи, панели и форматы файлов.",
+    ),
     QualityCorpusSource(
         source_id="chartability",
         title="Chartability / POUR-CAF",
