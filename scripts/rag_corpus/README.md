@@ -15,11 +15,11 @@
 
 Экспортировать chunks:
 
-    python scripts/rag_corpus/export_guidance_chunks.py
+    python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
 
 Построить embeddings:
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
 Экспортировать AutoRAG данные:
 

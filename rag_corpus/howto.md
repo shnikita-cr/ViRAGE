@@ -65,7 +65,7 @@
 
 Экспортировать актуальный chunk-корпус:
 
-    python scripts/rag_corpus/export_guidance_chunks.py
+    python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
 
 Проверить наличие runtime-корпуса:
 
@@ -75,6 +75,15 @@
 
     rag_corpus/runtime/guidance_chunks.jsonl
 
+Ожидаемые отчёты длины chunks:
+
+    rag_corpus/runtime/runtime_export_report.json
+    rag_corpus/runtime/runtime_chunk_length_report.json
+
+Проверить, что в runtime-корпусе нет chunks длиннее лимита:
+
+    python -c "import json; r=json.load(open('rag_corpus/runtime/runtime_chunk_length_report.json', encoding='utf-8')); print(r['max_allowed_chars'], r['max_chunk_chars'], r['oversized_chunks'])"
+
 ## 4. Подготовка runtime embeddings для ViRAGE
 
 Этот файл используется runtime-поиском ViRAGE, но не передаётся напрямую в AutoRAG:
@@ -83,19 +92,23 @@
 
 Основная команда с `bge-m3`:
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
 Альтернативные embedding-модели из локального списка:
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model mxbai-embed-large:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model mxbai-embed-large:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model qwen3-embedding:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model qwen3-embedding:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
 Проверить наличие embeddings:
 
     python -c "from pathlib import Path; p=Path('rag_corpus/runtime/guidance_chunk_embeddings.jsonl'); print(p.exists(), p.stat().st_size if p.exists() else 0)"
+
+Проверить фактическую длину строк, которые отправляются в embedding-модель:
+
+    python -c "import json; r=json.load(open('rag_corpus/runtime/embedding_input_length_report.json', encoding='utf-8')); print(r['max_input_chars'], r['max_input_char_length'], r['exceeded_chunks'])"
 
 ## 5. Подготовка AutoRAG QA и dataset
 
@@ -189,7 +202,7 @@ Single-run с RAG:
 
 Если `rag_corpus/runtime/guidance_chunks.jsonl` уже есть:
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
     python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
 
@@ -203,9 +216,9 @@ Single-run с RAG:
 
     python scripts/rag_corpus/loading/download_sources.py --refresh
 
-    python scripts/rag_corpus/export_guidance_chunks.py
+    python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
     python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
 

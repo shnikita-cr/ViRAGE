@@ -56,6 +56,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--embedding-base-url", default="http://localhost:11434")
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--split-seed", type=int, default=42)
+    parser.add_argument("--chunk-min-chars", type=int, default=220)
+    parser.add_argument("--chunk-max-chars", type=int, default=1000)
+    parser.add_argument("--chunk-overlap-chars", type=int, default=120)
     parser.add_argument("--skip-environment-check", action="store_true")
     parser.add_argument("--skip-download", action="store_true")
     parser.add_argument("--refresh-sources", action="store_true")
@@ -85,7 +88,16 @@ def main() -> None:
     if not args.skip_clean:
         clean_outputs(root)
 
-    run_step("Export VisRAG guidance chunks", python_cmd("scripts/rag_corpus/export_guidance_chunks.py"), cwd=root)
+    run_step(
+        "Export VisRAG guidance chunks",
+        python_cmd(
+            "scripts/rag_corpus/export_guidance_chunks.py",
+            "--min-chars", str(args.chunk_min_chars),
+            "--max-chars", str(args.chunk_max_chars),
+            "--overlap-chars", str(args.chunk_overlap_chars),
+        ),
+        cwd=root,
+    )
 
     if not args.skip_embeddings:
         run_step(
