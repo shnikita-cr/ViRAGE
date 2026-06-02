@@ -1,9 +1,3 @@
---index-url https://download.pytorch.org/whl/cpu
-
-# Базовое ядро машинного обучения (CPU)
-torch==2.5.1
-torchvision==0.20.1
-
 # Дополнительный индекс для остальных пакетов из PyPI
 --extra-index-url https://pypi.org
 
