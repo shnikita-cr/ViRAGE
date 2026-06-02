@@ -309,3 +309,54 @@ Run with subtask execution:
     python scripts/run_orchestrator.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Проанализируй качество изображений и найди проблемные файлы" --data-path path/to/images --input-type image_folder --run-id orch_images_execute --execute
 
 `--input-type auto` treats directories as image folders and files as ordinary tables.
+
+## Publication-quality VLM criteria
+
+Visual judge now includes additional publication-oriented criteria. These scores are not separate primary pipeline metrics; they are additional VLM judge criteria saved in `visual_chart_judge.json` and propagated to `run_report.json`:
+
+    plot_area_usage_score
+    axis_domain_score
+    layout_compactness_score
+    repeat_axis_label_score
+    publication_layout_score
+
+The criteria target known failure patterns:
+
+- data variation occupies only a small part of the visible plot area;
+- an axis starts at zero or uses a very wide domain when zero is not visually justified by the task;
+- a small number of categories is spread across an unnecessarily wide canvas;
+- repeat/facet charts have ambiguous axis labels or missing metric names in panel headers;
+- the static chart would require manual cropping, relabeling, or layout repair before use in a paper.
+
+The judge also returns issue lists:
+
+    plot_area_issues
+    axis_domain_issues
+    layout_compactness_issues
+    repeat_axis_label_issues
+    publication_layout_issues
+
+These values are VLM-side criteria. A deterministic spec/data check for axis domains can be added later, but the current step intentionally keeps these checks inside the visual judge.
+
+## Manual publication-quality seed rules
+
+The project includes non-duplicative seed rules for recurrent publication-quality chart problems:
+
+    rag_corpus/manual_sources/scientific_figure_guidance/virage_publication_quality_rules.txt
+
+They cover four specific issue types instead of repeating generic corpus rules:
+
+    axis_domain_issue
+    compact_categorical_layout_issue
+    repeat_axis_label_issue
+    publication_layout_issue
+
+When `load_scientific_figure_guidance.py --refresh` is run, manual seed files from `rag_corpus/manual_sources/scientific_figure_guidance` are copied into the generated `scientific_figure_guidance` raw corpus. Browser-saved manual caches for protected external pages remain separate from these seed rules.
+
+## Manual vulnerability tests
+
+Use the prompts in:
+
+    docs/virage_manual_vulnerability_queries.md
+
+They are designed to expose remaining weaknesses in axis domains, plot area usage, compact categorical layout, repeat/facet labels, image-folder metrics, and orchestrator task planning.

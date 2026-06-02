@@ -40,6 +40,16 @@ class _VisualChartJudgeSchema(BaseModel):
     improvement_comments: list[str] = Field(default_factory=list)
     feedback_for_next_generation: str = ""
     is_blank_or_unreadable: bool = False
+    plot_area_usage_score: float = 0.0
+    axis_domain_score: float = 0.0
+    layout_compactness_score: float = 0.0
+    repeat_axis_label_score: float = 0.0
+    publication_layout_score: float = 0.0
+    plot_area_issues: list[str] = Field(default_factory=list)
+    axis_domain_issues: list[str] = Field(default_factory=list)
+    layout_compactness_issues: list[str] = Field(default_factory=list)
+    repeat_axis_label_issues: list[str] = Field(default_factory=list)
+    publication_layout_issues: list[str] = Field(default_factory=list)
     rationales: dict[str, str] = Field(default_factory=dict)
 
 
@@ -117,6 +127,16 @@ class VisualChartJudgeService(BaseService):
             improvement_comments=comments,
             feedback_for_next_generation=feedback,
             is_blank_or_unreadable=bool(parsed.is_blank_or_unreadable),
+            plot_area_usage_score=_clamp_score(parsed.plot_area_usage_score),
+            axis_domain_score=_clamp_score(parsed.axis_domain_score),
+            layout_compactness_score=_clamp_score(parsed.layout_compactness_score),
+            repeat_axis_label_score=_clamp_score(parsed.repeat_axis_label_score),
+            publication_layout_score=_clamp_score(parsed.publication_layout_score),
+            plot_area_issues=_clean_list(parsed.plot_area_issues),
+            axis_domain_issues=_clean_list(parsed.axis_domain_issues),
+            layout_compactness_issues=_clean_list(parsed.layout_compactness_issues),
+            repeat_axis_label_issues=_clean_list(parsed.repeat_axis_label_issues),
+            publication_layout_issues=_clean_list(parsed.publication_layout_issues),
             rationales=dict(parsed.rationales or {}),
         )
 
@@ -173,6 +193,13 @@ class VisualChartJudgeService(BaseService):
             "Set retry_recommendation='reject' only when the image is unusable.\n"
             "Critical rules: required axes, fields, legends, facet/grouping, trend/comparison/distribution/relationship "
             "must be visible and readable. Tooltip-only evidence is not acceptable for this static-image judge.\n"
+            "Also judge publication-oriented layout quality with separate 0..1 scores: "
+            "plot_area_usage_score, axis_domain_score, layout_compactness_score, repeat_axis_label_score, "
+            "and publication_layout_score. Penalize charts where data occupy only a small visible part of the plot, "
+            "axis domains create excessive empty area or hide variation, a small number of categories is spread across "
+            "an unnecessarily wide canvas, repeat/facet panels lack clear metric or panel labels, or the static figure "
+            "would require manual cropping/relabeling before use in a paper. "
+            "List concrete issues in the matching *_issues fields.\n"
             "Return concrete feedback for the next chart generation whenever retry is needed.\n\n"
             f"PNG-only judge payload:\n{payload_text}\n"
         )
@@ -197,8 +224,28 @@ class VisualChartJudgeService(BaseService):
             "improvement_comments": [],
             "feedback_for_next_generation": "",
             "is_blank_or_unreadable": False,
+            "plot_area_usage_score": 0.85,
+            "axis_domain_score": 0.85,
+            "layout_compactness_score": 0.9,
+            "repeat_axis_label_score": 1.0,
+            "publication_layout_score": 0.85,
+            "plot_area_issues": [],
+            "axis_domain_issues": [],
+            "layout_compactness_issues": [],
+            "repeat_axis_label_issues": [],
+            "publication_layout_issues": [],
             "rationales": {"prompt_compliance": "The visible chart contains the requested fields."},
         }
+
+
+def _publication_issues(result: VisualChartJudgeResult) -> list[str]:
+    return [
+        *result.plot_area_issues,
+        *result.axis_domain_issues,
+        *result.layout_compactness_issues,
+        *result.repeat_axis_label_issues,
+        *result.publication_layout_issues,
+    ]
 
 
 class VisualChartJudgeAdapters:
@@ -214,7 +261,7 @@ class VisualChartJudgeAdapters:
             visible_trends=[],
             visible_comparisons=result.observed_facts,
             visible_outliers=[],
-            readability_issues=result.readability_issues,
+            readability_issues=[*result.readability_issues, *_publication_issues(result)],
             uncertainties=[] if result.confidence >= 0.7 else ["visual_chart_judge_low_confidence"],
             confidence=result.confidence,
         )
@@ -229,7 +276,7 @@ class VisualChartJudgeAdapters:
             visible_variables=result.visible_fields,
             visible_relationships=result.observed_facts,
             uncertainties=[] if result.confidence >= 0.7 else ["visual_chart_judge_low_confidence"],
-            quality_notes=[*result.readability_issues, *result.wrong_or_suspicious_parts],
+            quality_notes=[*result.readability_issues, *_publication_issues(result), *result.wrong_or_suspicious_parts],
         )
 
     @staticmethod
@@ -239,7 +286,7 @@ class VisualChartJudgeAdapters:
             confidence=result.confidence,
             retry_recommendation=result.retry_recommendation,
             missing_requirements=result.missing_requirements,
-            wrong_or_suspicious_parts=[*result.wrong_or_suspicious_parts, *result.readability_issues],
+            wrong_or_suspicious_parts=[*result.wrong_or_suspicious_parts, *result.readability_issues, *_publication_issues(result)],
             improvement_comments=result.improvement_comments,
             feedback_for_next_generation=result.feedback_for_next_generation,
         )
@@ -256,7 +303,7 @@ class VisualChartJudgeAdapters:
             used_fields=used_fields,
             chart_type=result.detected_chart_type,
             observed_facts=result.observed_facts,
-            issues=[*result.missing_requirements, *result.wrong_or_suspicious_parts, *result.readability_issues],
+            issues=[*result.missing_requirements, *result.wrong_or_suspicious_parts, *result.readability_issues, *_publication_issues(result)],
             feedback_for_next_generation=result.feedback_for_next_generation,
             accepted=result.retry_recommendation == "accept" and result.answers_user_query,
             retry_recommendation=result.retry_recommendation,
@@ -283,6 +330,13 @@ class VisualChartJudgeAdapters:
             generated_spec=vega_spec.spec_json,
             rendered_png_path=rendered_png_path,
         )
+
+
+def _clamp_score(value: Any) -> float:
+    try:
+        return max(0.0, min(1.0, float(value or 0.0)))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _clean_list(values: list[str]) -> list[str]:

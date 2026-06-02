@@ -68,6 +68,16 @@ class VisualChartJudgeResult(BaseModel):
     improvement_comments: list[str] = Field(default_factory=list)
     feedback_for_next_generation: str = ""
     is_blank_or_unreadable: bool = False
+    plot_area_usage_score: float = 0.0
+    axis_domain_score: float = 0.0
+    layout_compactness_score: float = 0.0
+    repeat_axis_label_score: float = 0.0
+    publication_layout_score: float = 0.0
+    plot_area_issues: list[str] = Field(default_factory=list)
+    axis_domain_issues: list[str] = Field(default_factory=list)
+    layout_compactness_issues: list[str] = Field(default_factory=list)
+    repeat_axis_label_issues: list[str] = Field(default_factory=list)
+    publication_layout_issues: list[str] = Field(default_factory=list)
     rationales: dict[str, str] = Field(default_factory=dict)
 
 

@@ -1,0 +1,23 @@
+Source URL: internal:virage-publication-quality-feedback-rules
+
+# ViRAGE publication-quality feedback rules
+
+## Axis domain issue
+When plotting scientific measurements, avoid forcing an axis to start at zero unless zero is analytically meaningful for the task. If observed values occupy a narrow range far from zero, use a data-driven axis domain with modest padding so that variation is visible without clipping data. This applies especially to distributions, boxplots, line charts, point charts, and grouped comparisons.
+
+Metadata: feedback_type=axis_domain_issue; task_type=distribution,group_comparison,temporal_trend; publication_relevance=high; priority=3.0.
+
+## Compact categorical layout issue
+For boxplots, violin plots, strip plots, or other categorical comparison charts with only two to four categories, use a compact figure width. Avoid exporting a wide 4:3 canvas when only a few narrow categorical marks are shown, because the figure contains excessive empty horizontal space and is difficult to insert into an article without manual cropping.
+
+Metadata: feedback_type=compact_categorical_layout_issue; task_type=group_comparison; chart_family=boxplot,violin,strip; publication_relevance=high; priority=3.0.
+
+## Repeat axis label issue
+For repeat or facet charts, every panel must make the repeated metric or variable visible. Either use explicit panel headers for each repeated metric or axis titles that clearly identify the displayed measurement. Generic labels such as Value, Metric, or repeated measure are acceptable only when the panel headers clearly name the metrics.
+
+Metadata: feedback_type=repeat_axis_label_issue; task_type=overview,group_comparison,correlation; chart_family=repeat,facet; publication_relevance=high; priority=3.0.
+
+## Publication-ready static figure issue
+A static figure for a scientific article must not rely on tooltip-only information. It should have readable axes, clear labels, visible units when available, compact layout, minimal empty margins, and enough context to be understood after export as PNG, SVG, or PDF.
+
+Metadata: feedback_type=publication_layout_issue; task_type=overview,distribution,group_comparison,correlation,temporal_trend,outlier_detection; publication_relevance=high; priority=2.5.

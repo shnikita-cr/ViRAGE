@@ -99,6 +99,26 @@ def _vision_score(result: PipelineResult | None) -> float | None:
     return None
 
 
+
+
+def _visual_publication_scores(result: PipelineResult | None) -> dict[str, float | None]:
+    if result is None or result.visual_chart_judge is None:
+        return {
+            "plot_area_usage_score": None,
+            "axis_domain_score": None,
+            "layout_compactness_score": None,
+            "repeat_axis_label_score": None,
+            "publication_layout_score": None,
+        }
+    judge = result.visual_chart_judge
+    return {
+        "plot_area_usage_score": _maybe_float(getattr(judge, "plot_area_usage_score", None)),
+        "axis_domain_score": _maybe_float(getattr(judge, "axis_domain_score", None)),
+        "layout_compactness_score": _maybe_float(getattr(judge, "layout_compactness_score", None)),
+        "repeat_axis_label_score": _maybe_float(getattr(judge, "repeat_axis_label_score", None)),
+        "publication_layout_score": _maybe_float(getattr(judge, "publication_layout_score", None)),
+    }
+
 def _spec_score(result: PipelineResult | None) -> float | None:
     if result is None:
         return None
@@ -182,6 +202,8 @@ def build_run_report(
     tokens = _token_usage(result)
     duration_seconds = _stage_duration_seconds(result)
 
+    publication_scores = _visual_publication_scores(result)
+
     report: dict[str, Any] = {
         "schema_version": "1.0",
         "created_at": _now_iso(),
@@ -202,6 +224,7 @@ def build_run_report(
         "empty_chart": _empty_chart(result),
         "spec_score": _spec_score(result),
         "vision_score": _vision_score(result),
+        **publication_scores,
         "prompt_tokens": tokens["prompt_tokens"],
         "completion_tokens": tokens["completion_tokens"],
         "total_tokens": tokens["total_tokens"],
@@ -216,6 +239,11 @@ def build_run_report(
         "empty_chart": report["empty_chart"],
         "spec_score": report["spec_score"],
         "vision_score": report["vision_score"],
+        "plot_area_usage_score": report["plot_area_usage_score"],
+        "axis_domain_score": report["axis_domain_score"],
+        "layout_compactness_score": report["layout_compactness_score"],
+        "repeat_axis_label_score": report["repeat_axis_label_score"],
+        "publication_layout_score": report["publication_layout_score"],
         "prompt_tokens": report["prompt_tokens"],
         "completion_tokens": report["completion_tokens"],
         "total_tokens": report["total_tokens"],

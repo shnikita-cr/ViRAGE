@@ -11,6 +11,7 @@ from src.domain.models import (
     SpecValidationResult,
     StructuralSpecMetric,
     TokenUsage,
+    VisualChartJudgeResult,
 )
 from src.infrastructure.runtime import RuntimeContext
 
@@ -89,3 +90,29 @@ def test_error_report_and_failed_run_report_are_saved(tmp_path: Path) -> None:
     assert Path(errors_path).exists()
     assert Path(report_path).exists()
     assert "RuntimeError: boom" in Path(report_path).read_text(encoding="utf-8")
+
+
+def test_build_run_report_includes_publication_vlm_scores(tmp_path: Path) -> None:
+    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts"))
+    request = PipelineRequest(query="compare values", data_path="data.csv", run_id="run")
+    result = PipelineResult(
+        run_id="run",
+        query=request.query,
+        data_path=request.data_path,
+        visual_chart_judge=VisualChartJudgeResult(
+            plot_area_usage_score=0.4,
+            axis_domain_score=0.5,
+            layout_compactness_score=0.6,
+            repeat_axis_label_score=0.7,
+            publication_layout_score=0.8,
+        ),
+    )
+
+    report = build_run_report(request=request, result=result, runtime=runtime, status="completed")
+
+    assert report["plot_area_usage_score"] == 0.4
+    assert report["axis_domain_score"] == 0.5
+    assert report["layout_compactness_score"] == 0.6
+    assert report["repeat_axis_label_score"] == 0.7
+    assert report["publication_layout_score"] == 0.8
+    assert report["metrics"]["publication_layout_score"] == 0.8

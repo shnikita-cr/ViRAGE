@@ -192,6 +192,45 @@ def _read_manual_cache(root: Path, label: str, url: str, config: LoaderConfig) -
     return cleaned, len(raw), content_type
 
 
+def _manual_seed_source_paths(root: Path) -> list[Path]:
+    manual_root = root / _MANUAL_CACHE_ROOT
+    if not manual_root.exists():
+        return []
+    paths: list[Path] = []
+    for path in sorted(manual_root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in {".txt", ".md"}:
+            continue
+        if path.stem in _MANUAL_CACHE_LABELS:
+            continue
+        paths.append(path)
+    return paths
+
+
+def _copy_manual_seed_sources(root: Path, target_dir: Path) -> list[dict[str, object]]:
+    items: list[dict[str, object]] = []
+    for path in _manual_seed_source_paths(root):
+        text = path.read_text(encoding="utf-8", errors="strict").strip()
+        if len(text) < 120:
+            raise SourceDownloadError(f"Manual scientific guidance seed is too small: {path}")
+        rel = path.relative_to(root / _MANUAL_CACHE_ROOT)
+        output_path = target_dir / "manual_seed" / rel.with_suffix(".txt")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(text + "\n", encoding="utf-8")
+        items.append(
+            {
+                "status": "manual_seed",
+                "source_label": path.stem,
+                "url": "internal:manual_scientific_figure_guidance",
+                "path": str(output_path),
+                "bytes": output_path.stat().st_size,
+                "raw_bytes": path.stat().st_size,
+                "content_type": "text/plain; charset=utf-8; source=manual_seed",
+                "manual_cache_supported": False,
+            }
+        )
+    return items
+
+
 def _load_source(root: Path, label: str, url: str, config: LoaderConfig, *, timeout_seconds: float) -> tuple[str, int, str, str]:
     manual = _read_manual_cache(root, label, url, config)
     if manual is not None:
@@ -247,6 +286,8 @@ def load(root: Path, *, refresh: bool = False, timeout_seconds: float = 60.0) ->
                 "manual_cache_supported": label in _MANUAL_CACHE_LABELS,
             }
         )
+
+    items.extend(_copy_manual_seed_sources(root, target_dir))
 
     manifest = {
         "source_id": "scientific_figure_guidance",

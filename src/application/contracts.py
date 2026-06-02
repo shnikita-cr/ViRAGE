@@ -27,6 +27,7 @@ from src.domain.models import (
     VisRAGResult,
     VLMAnalysisResult,
     VLMChartDescriptionResult,
+    VisualChartJudgeResult,
     VisualFeedbackExample,
 )
 
@@ -57,6 +58,7 @@ class PipelineResult(BaseModel):
     vlm_chart_description: VLMChartDescriptionResult | None = None
     chart_fact_summary: ChartFactSummaryResult | None = None
     chart_answer_judge: ChartAnswerJudgeResult | None = None
+    visual_chart_judge: VisualChartJudgeResult | None = None
     visual_feedback_examples: list[VisualFeedbackExample] = Field(default_factory=list)
     semantic_feedback_loop_summary: SemanticFeedbackLoopSummary | None = None
     vlm_analysis: VLMAnalysisResult | None = None
