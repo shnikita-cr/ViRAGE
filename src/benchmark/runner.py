@@ -63,20 +63,54 @@ class VegaChatBenchmarkRunner:
 
         existing_by_id = load_case_results(output, BenchmarkCaseResult) if (resume or retry_failed) else {}
         results_by_id: dict[str, BenchmarkCaseResult] = {}
+        ok_count = 0
+        error_count = 0
+        reused_count = 0
         progress = ConsoleProgressBar(total=len(cases), title="NL2VIS benchmark")
         for index, case in enumerate(cases, start=1):
-            progress.update(index - 1, label=case.case_id)
+            progress.update(
+                index - 1,
+                ok=ok_count,
+                errors=error_count,
+                reused=reused_count,
+                stage="pipeline",
+                label=case.case_id,
+            )
             existing = existing_by_id.get(case.case_id)
             if should_reuse_case(existing, retry_failed=retry_failed):
                 results_by_id[case.case_id] = existing
-                progress.update(index, label=f"reused {case.case_id}")
+                reused_count += 1
+                if existing and existing.error is None:
+                    ok_count += 1
+                else:
+                    error_count += 1
+                progress.update(
+                    index,
+                    ok=ok_count,
+                    errors=error_count,
+                    reused=reused_count,
+                    stage="reuse",
+                    label=case.case_id,
+                )
                 continue
 
-            results_by_id[case.case_id] = self.run_case(case=case, case_root=case_root, output_dir=output)
+            result = self.run_case(case=case, case_root=case_root, output_dir=output)
+            results_by_id[case.case_id] = result
+            if result.error is None:
+                ok_count += 1
+            else:
+                error_count += 1
             self._write_incremental_results(self._ordered_results(cases, results_by_id), output)
-            progress.update(index, label=case.case_id)
+            progress.update(
+                index,
+                ok=ok_count,
+                errors=error_count,
+                reused=reused_count,
+                stage="pipeline",
+                label=case.case_id,
+            )
 
-        progress.close()
+        progress.close(label="completed")
         results = self._ordered_results(cases, results_by_id)
         self._write_incremental_results(results, output)
         report = BenchmarkAggregateReport.from_results(results)

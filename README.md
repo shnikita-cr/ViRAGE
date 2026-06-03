@@ -396,3 +396,25 @@ Image-only benchmark scores:
     overall_visual_score
 
 Scope limitation: this benchmark cannot judge data grounding, statistical correctness, field correctness, query alignment, or Spec Score, because it receives only the final image.
+
+## Shared benchmark status bar
+
+Benchmark scripts use one shared console status component:
+
+    src/benchmark/progress.py
+
+It displays:
+
+    completed / total
+    percentage
+    ok count
+    error count
+    reused count, when applicable
+    elapsed time
+    estimated remaining time
+    current stage
+    current case or image label
+
+The image-only VLM benchmark uses the same status bar as the existing benchmark runners. To disable it for machine-readable logs:
+
+    python scripts/benchmarks/run_vlm_image_benchmark.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --images artifacts/external_charts --run-id external_charts_vlm_eval --no-progress

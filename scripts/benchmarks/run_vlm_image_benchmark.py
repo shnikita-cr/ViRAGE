@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.application.project_config import load_project_config
+from src.benchmark.progress import ConsoleProgressBar
 from src.domain.models import VLMImageBenchmarkImageResult, VLMImageBenchmarkSummary
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.factory import build_chat_model
@@ -51,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.7,
         help="Threshold for publication pass/fail based on overall and publication layout scores.",
     )
+    parser.add_argument("--no-progress", action="store_true", help="Disable the shared benchmark status bar.")
     return parser
 
 
@@ -266,9 +268,23 @@ def main(argv: list[str] | None = None) -> int:
     service = ImageOnlyChartJudgeService()
     root = Path(args.images)
     results: list[VLMImageBenchmarkImageResult] = []
+    ok_count = 0
+    error_count = 0
+    progress = ConsoleProgressBar(
+        total=len(image_paths),
+        title="VLM image benchmark",
+        enabled=not args.no_progress,
+    )
 
-    for image_path in image_paths:
+    for index, image_path in enumerate(image_paths, start=1):
         relative_path = image_path.relative_to(root).as_posix()
+        progress.update(
+            index - 1,
+            ok=ok_count,
+            errors=error_count,
+            stage="vlm_judge",
+            label=relative_path,
+        )
         try:
             result = service.invoke(image_path=image_path, runtime=runtime)
             passed = _is_publication_pass(result.model_dump(), args.publication_threshold)
@@ -280,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
                 result=result,
                 passed_publication_threshold=passed,
             ))
+            ok_count += 1
         except Exception as exc:
             results.append(VLMImageBenchmarkImageResult(
                 image_path=image_path.as_posix(),
@@ -288,6 +305,15 @@ def main(argv: list[str] | None = None) -> int:
                 status="failed",
                 error=f"{type(exc).__name__}: {exc}",
             ))
+            error_count += 1
+        progress.update(
+            index,
+            ok=ok_count,
+            errors=error_count,
+            stage="vlm_judge",
+            label=relative_path,
+        )
+    progress.close(label="completed")
 
     csv_path = run_dir / "per_image_scores.csv"
     jsonl_path = run_dir / "per_image_scores.jsonl"
