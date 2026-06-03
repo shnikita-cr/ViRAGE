@@ -65,7 +65,7 @@ def main() -> None:
     parser.add_argument("--input", default="rag_corpus/runtime/guidance_chunks.jsonl")
     parser.add_argument("--output", default="rag_corpus/runtime/guidance_chunk_embeddings.jsonl")
     parser.add_argument("--provider", default="ollama")
-    parser.add_argument("--model", default="nomic-embed-text")
+    parser.add_argument("--model", default="nomic-embed-text:latest")
     parser.add_argument("--base-url", default="http://localhost:11434")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-input-chars", type=int, default=DEFAULT_MAX_INPUT_CHARS)

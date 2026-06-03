@@ -1,7 +1,7 @@
 mode = "streamlit"
 
 [settings]
-visrag_retriever_backend = "huggingface"
+visrag_retrieval_backend = "semantic"
 visrag_embedding_provider = "huggingface"
 visrag_embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
 visrag_embedding_base_url = ""

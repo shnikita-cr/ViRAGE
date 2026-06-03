@@ -129,3 +129,46 @@ def test_task_contract_is_written_to_guidance_prompt(monkeypatch) -> None:
     assert "group_comparison" in prompt
     assert "Do not replace this task" in prompt
     assert result.debug_retrieval.task_context["task_type"] == "group_comparison"
+
+
+def test_runtime_visrag_supports_explicit_semantic_backend(monkeypatch) -> None:
+    monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **kwargs: _FakeEmbedder())
+    engine = VisRAGEngine(
+        store=_Store(),
+        options=VisRAGCoreOptions(enabled=True, retrieval_backend="semantic", top_k_chunks=1),
+        chunks=[
+            VisRAGGuidanceChunk(chunk_id="c1", source_id="s", text="Use compact boxplots for group comparison."),
+            VisRAGGuidanceChunk(chunk_id="c2", source_id="s", text="Use maps for geographic coordinates."),
+        ],
+        embeddings={"c1": [1.0, 0.0], "c2": [0.0, 1.0]},
+    )
+
+    result = engine.invoke(_analysis(), _profile())
+
+    assert result.retrieval_strategy.startswith("chunk_guidance:test:semantic")
+    assert [chunk.chunk_id for chunk in result.debug_retrieval.retrieved_chunks] == ["c1"]
+
+
+def test_runtime_visrag_supports_explicit_hybrid_backend(monkeypatch) -> None:
+    monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **kwargs: _FakeEmbedder())
+    engine = VisRAGEngine(
+        store=_Store(),
+        options=VisRAGCoreOptions(
+            enabled=True,
+            retrieval_backend="hybrid",
+            top_k_chunks=1,
+            hybrid_method="cc",
+            hybrid_weight=0.1,
+        ),
+        chunks=[
+            VisRAGGuidanceChunk(chunk_id="c1", source_id="s", text="Use compact boxplots for group comparison."),
+            VisRAGGuidanceChunk(chunk_id="c2", source_id="s", text="Unrelated geographic map guidance."),
+        ],
+        embeddings={"c1": [0.0, 1.0], "c2": [1.0, 0.0]},
+    )
+
+    result = engine.invoke(_analysis(), _profile())
+
+    assert result.retrieval_strategy.startswith("chunk_guidance:test:hybrid:cc")
+    assert result.debug_retrieval.retrieved_chunks[0].chunk_id == "c1"
+    assert result.debug_retrieval.retrieved_chunks[0].metadata["retrieval_score_kind"] == "hybrid"

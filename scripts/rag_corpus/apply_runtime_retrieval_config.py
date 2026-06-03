@@ -28,12 +28,15 @@ DEFAULT_RECOMMENDED = "rag_corpus/autorag/virage_rules/runtime_retriever_eval/re
 DEFAULT_BASE_CONFIG = "ui/config/benchmark/project-gemma4-bench_rag.toml"
 DEFAULT_OUTPUT_CONFIG = "ui/config/benchmark/project-gemma4-bench_rag_autorag.toml"
 ALLOWED_KEYS = {
-    "visrag_retriever_backend",
-    "visrag_top_k_chart_patterns",
-    "visrag_top_k_readability_rules",
-    "visrag_top_k_scale_plot_area_rules",
-    "visrag_top_k_vlm_readability_rules",
-    "visrag_top_k_domain_semantics_rules",
+    "visrag_retrieval_backend",
+    "visrag_top_k_chunks",
+    "visrag_hybrid_method",
+    "visrag_hybrid_weight",
+    "visrag_hybrid_rrf_k",
+    "visrag_candidate_pool_size",
+    "visrag_embedding_provider",
+    "visrag_embedding_model",
+    "visrag_embedding_base_url",
 }
 
 

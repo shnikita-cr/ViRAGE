@@ -33,13 +33,7 @@ DEFAULT_QA = "rag_corpus/autorag/virage_rules/qa.parquet"
 DEFAULT_OUTPUT_DIR = "rag_corpus/autorag/virage_rules/runtime_retriever_eval"
 DEFAULT_BACKENDS = ["keyword", "bm25", "tfidf"]
 DEFAULT_TOP_K = [1, 2, 3, 5, 8]
-SUPPORTED_RUNTIME_TOP_K_KEYS = {
-    "chart_pattern": "visrag_top_k_chart_patterns",
-    "readability_rule": "visrag_top_k_readability_rules",
-    "scale_plot_area_rule": "visrag_top_k_scale_plot_area_rules",
-    "vlm_readability_rule": "visrag_top_k_vlm_readability_rules",
-    "domain_semantics_rule": "visrag_top_k_domain_semantics_rules",
-}
+SUPPORTED_RUNTIME_TOP_K_KEYS: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
@@ -259,14 +253,19 @@ def _best_rows(metric_rows: list[dict[str, Any]], select_by: str) -> dict[str, d
 def _runtime_config_toml(best: dict[str, dict[str, Any]]) -> str:
     overall = best.get("__all__") or {}
     backend = str(overall.get("backend") or "bm25")
+    top_k = max(1, int(overall.get("top_k") or 8))
+    if backend in {"bm25", "keyword", "tfidf"}:
+        retrieval_backend = "lexical_bm25"
+    else:
+        retrieval_backend = "semantic"
     lines = [
         "[settings]",
-        f'visrag_retriever_backend = "{backend}"',
+        f'visrag_retrieval_backend = "{retrieval_backend}"',
+        f"visrag_top_k_chunks = {top_k}",
+        'visrag_embedding_provider = "ollama"',
+        'visrag_embedding_model = "nomic-embed-text:latest"',
+        'visrag_embedding_base_url = "http://localhost:11434"',
     ]
-    for record_type, setting_name in SUPPORTED_RUNTIME_TOP_K_KEYS.items():
-        row = best.get(record_type) or overall
-        top_k = int(row.get("top_k") or 1)
-        lines.append(f"{setting_name} = {max(0, top_k)}")
     return "\n".join(lines) + "\n"
 
 

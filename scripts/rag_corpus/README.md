@@ -19,7 +19,7 @@
 
 Построить embeddings:
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
 Экспортировать AutoRAG данные:
 

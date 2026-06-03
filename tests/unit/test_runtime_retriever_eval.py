@@ -29,9 +29,8 @@ mode = "streamlit"
 
 [settings]
 visrag_enabled = true
-visrag_retriever_backend = "bm25"
-visrag_top_k_chart_patterns = 2
-visrag_top_k_readability_rules = 2
+visrag_retrieval_backend = "semantic"
+visrag_top_k_chunks = 8
 
 [reasoning_model]
 provider = "ollama"
@@ -43,9 +42,11 @@ model = "gemma4:31b-cloud"
     recommended.write_text(
         """
 [settings]
-visrag_retriever_backend = "tfidf"
-visrag_top_k_chart_patterns = 3
-visrag_top_k_readability_rules = 1
+visrag_retrieval_backend = "hybrid"
+visrag_top_k_chunks = 8
+visrag_hybrid_method = "cc"
+visrag_hybrid_weight = 0.1
+visrag_embedding_model = "nomic-embed-text:latest"
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -54,8 +55,8 @@ visrag_top_k_readability_rules = 1
     report = apply_config(base, recommended, output)
     text = output.read_text(encoding="utf-8")
 
-    assert report["applied_settings"]["visrag_retriever_backend"] == "tfidf"
-    assert 'visrag_retriever_backend = "tfidf"' in text
-    assert "visrag_top_k_chart_patterns = 3" in text
-    assert "visrag_top_k_readability_rules = 1" in text
+    assert report["applied_settings"]["visrag_retrieval_backend"] == "hybrid"
+    assert 'visrag_retrieval_backend = "hybrid"' in text
+    assert "visrag_top_k_chunks = 8" in text
+    assert 'visrag_embedding_model = "nomic-embed-text:latest"' in text
     assert '[reasoning_model]' in text

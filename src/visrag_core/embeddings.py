@@ -25,7 +25,7 @@ def build_embedding_model(*, provider: str | None, model: str | None, base_url: 
             from langchain_ollama import OllamaEmbeddings
         except ImportError as exc:
             raise RuntimeError("Ollama embeddings require langchain-ollama.") from exc
-        kwargs: dict[str, object] = {"model": model or "nomic-embed-text"}
+        kwargs: dict[str, object] = {"model": model or "nomic-embed-text:latest"}
         if base_url:
             kwargs["base_url"] = base_url
         return OllamaEmbeddings(**kwargs)

@@ -1,7 +1,7 @@
 mode = "streamlit"
 
 [settings]
-visrag_retriever_backend = "openai"
+visrag_retrieval_backend = "semantic"
 visrag_embedding_provider = "openai"
 visrag_embedding_model = "text-embedding-3-small"
 visrag_embedding_base_url = ""

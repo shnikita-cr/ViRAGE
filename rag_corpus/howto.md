@@ -118,15 +118,15 @@
 
     rag_corpus/runtime/guidance_chunk_embeddings.jsonl
 
-Основная команда с `bge-m3`:
+Основная команда для текущего runtime config с `nomic-embed-text:latest`:
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
+
+Альтернативные embedding-модели оставлены только для отдельных экспериментов после проверки:
 
     python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
-Альтернативные embedding-модели из локального списка:
-
     python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model mxbai-embed-large:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
-
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
     python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model qwen3-embedding:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
@@ -230,7 +230,7 @@ Single-run с RAG:
 
 Если `rag_corpus/runtime/guidance_chunks.jsonl` уже есть:
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
     python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
 
@@ -246,7 +246,7 @@ Single-run с RAG:
 
     python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model bge-m3:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
 
     python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/runtime/guidance_chunks.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/runtime
 

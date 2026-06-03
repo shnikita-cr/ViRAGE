@@ -134,7 +134,25 @@ RAG-корпуса готовятся offline и больше не строят�
     python scripts/rag_corpus/run_export_autorag.py
     python scripts/rag_corpus/run_export_runtime.py
 
-AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `virage_rules.jsonl`.
+AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует актуальный chunk-корпус `rag_corpus/runtime/guidance_chunks.jsonl` и заранее рассчитанные embeddings `rag_corpus/runtime/guidance_chunk_embeddings.jsonl`.
+
+Текущие runtime-настройки RAG задаются явно через config:
+
+    visrag_retrieval_backend = "hybrid"
+    visrag_top_k_chunks = 8
+    visrag_hybrid_method = "cc"
+    visrag_hybrid_weight = 0.1
+    visrag_embedding_provider = "ollama"
+    visrag_embedding_model = "nomic-embed-text:latest"
+    visrag_embedding_base_url = "http://localhost:11434"
+
+Поддерживаемые runtime retrieval backend:
+
+- `semantic` — cosine similarity по precomputed embeddings;
+- `hybrid` — явное объединение semantic retrieval и BM25 lexical score;
+- `lexical_bm25` — явный BM25-режим для экспериментов, не fallback.
+
+По умолчанию используется `hybrid` с `HybridCC`-style объединением и `top_k=8`, потому что текущий AutoRAG baseline показал, что lexical-сигнал важен, а hybrid даёт лучший recall. Рабочая embedding-модель по умолчанию — `nomic-embed-text:latest`; остальные embedding-модели не используются в runtime config, пока они не проверены отдельно.
 
 
 ## Оркестратор аналитических задач
@@ -187,7 +205,7 @@ Plan-only запуск без вызова LLM-моделей:
 - `Spec Generator` строит Vega-Lite спецификацию;
 - RAG не заменяет выбранную аналитическую задачу другой задачей.
 
-Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все chunks, запуск должен завершиться ошибкой подготовки RAG, а не молча перейти на лексический поиск. BM25 остаётся только как явно заданный AutoRAG baseline.
+Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все chunks, запуск должен завершиться ошибкой подготовки RAG, а не молча перейти на лексический поиск. BM25 допускается только как явно заданный backend `lexical_bm25` или как часть явно выбранного `hybrid` backend.
 
 ## Benchmark
 

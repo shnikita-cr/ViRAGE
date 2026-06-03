@@ -37,7 +37,12 @@ class VisRAGService(BaseService):
         options = VisRAGCoreOptions(
             enabled=bool(opts["enabled"]),
             store_backend=str(opts["store_backend"]),
+            retrieval_backend=str(opts["retrieval_backend"]),
             top_k_chunks=int(opts["top_k_chunks"]),
+            hybrid_method=str(opts["hybrid_method"]),
+            hybrid_weight=float(opts["hybrid_weight"]),
+            hybrid_rrf_k=float(opts["hybrid_rrf_k"]),
+            candidate_pool_size=int(opts["candidate_pool_size"]),
             embedding_provider=opts["embedding_provider"],
             embedding_model=opts["embedding_model"],
             embedding_base_url=opts["embedding_base_url"],

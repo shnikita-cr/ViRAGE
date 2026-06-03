@@ -1,12 +1,15 @@
 mode = "streamlit"
 
 [settings]
-# AutoRAG-selected NLV benchmark profile: BM25 with top_k=1 and no readability-rule noise.
-visrag_top_k_chart_patterns = 1
-visrag_top_k_readability_rules = 0
-visrag_top_k_scale_plot_area_rules = 0
-visrag_top_k_vlm_readability_rules = 0
-visrag_top_k_domain_semantics_rules = 0
+visrag_retrieval_backend = "hybrid"
+visrag_top_k_chunks = 8
+visrag_hybrid_method = "cc"
+visrag_hybrid_weight = 0.1
+visrag_hybrid_rrf_k = 60.0
+visrag_candidate_pool_size = 64
+visrag_embedding_provider = "ollama"
+visrag_embedding_model = "nomic-embed-text:latest"
+visrag_embedding_base_url = "http://localhost:11434"
 analytics_tail_enabled = false
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
 
