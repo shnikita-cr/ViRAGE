@@ -309,6 +309,7 @@ class VisualFeedbackPipelineNodesMixin:
                 chart_facts=state["chart_fact_summary"],
                 judge_result=judge,
                 request_analysis=state.get("query_request_analysis"),
+                data_profile=state.get("data_profile"),
             )
             artifact_paths = self._save_into(
                 artifact_paths,
@@ -375,6 +376,7 @@ class VisualFeedbackPipelineNodesMixin:
             chart_facts=state["chart_fact_summary"],
             judge_result=state["chart_answer_judge"],
             request_analysis=state.get("query_request_analysis"),
+            data_profile=state.get("data_profile"),
         )
         artifact_paths = self._save(state, f"semantic_attempt_{attempt_number:03d}_feedback_example",
                                     example.model_dump())

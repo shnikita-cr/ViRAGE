@@ -122,6 +122,7 @@ class VisualFeedbackExample(BaseModel):
     requested_regeneration: bool = False
     feedback_weight: float = 1.0
     request_analysis_summary: dict[str, Any] = Field(default_factory=dict)
+    data_profile_summary: dict[str, Any] = Field(default_factory=dict)
     generated_spec: dict[str, Any] = Field(default_factory=dict)
     rendered_png_path: str = ""
     vlm_chart_description: VLMChartDescriptionResult

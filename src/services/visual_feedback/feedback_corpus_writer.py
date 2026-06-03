@@ -7,6 +7,7 @@ from pathlib import Path
 from src.domain.models import (
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
+    DataProfile,
     QueryRequestAnalysisResult,
     VLMChartDescriptionResult,
     VegaLiteSpecArtifact,
@@ -15,6 +16,45 @@ from src.domain.models import (
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 
+
+
+def _compact_feedback_data_profile(data_profile: DataProfile | None) -> dict[str, object]:
+    if data_profile is None:
+        return {}
+    fields: list[dict[str, object]] = []
+    for column in data_profile.columns[:50]:
+        payload: dict[str, object] = {
+            "name": column.name,
+            "safe_name": column.safe_name or column.name,
+            "semantic_type": column.role,
+            "dtype": column.dtype,
+            "null_count_hint": None,
+            "missing_ratio": column.missing_ratio,
+            "unique_count": column.unique_count,
+        }
+        if column.min_value is not None:
+            payload["min"] = column.min_value
+        if column.max_value is not None:
+            payload["max"] = column.max_value
+        if column.outlier_count:
+            payload["outlier_count"] = column.outlier_count
+            payload["outlier_ratio"] = column.outlier_ratio
+        sample_values = list(column.sample_values or [])[:3]
+        if sample_values:
+            payload["sample_values"] = sample_values
+        flags = list(column.quality_flags or [])[:5]
+        if flags:
+            payload["quality_flags"] = flags
+        fields.append(payload)
+    return {
+        "row_count": data_profile.row_count,
+        "column_count": data_profile.col_count,
+        "available_fields": [column.name for column in data_profile.columns[:50]],
+        "fields": fields,
+        "quality_notes": list(data_profile.quality_notes[:10]),
+        "complexity_hints": list(data_profile.complexity_hints[:10]),
+        "data_complexity": data_profile.data_complexity,
+    }
 
 class FeedbackCorpusWriterService(BaseService):
     def invoke(self, *args, **kwargs):
@@ -32,6 +72,7 @@ class FeedbackCorpusWriterService(BaseService):
             chart_facts: ChartFactSummaryResult,
             judge_result: ChartAnswerJudgeResult,
             request_analysis: QueryRequestAnalysisResult | None = None,
+            data_profile: DataProfile | None = None,
     ) -> VisualFeedbackExample:
         return VisualFeedbackExample(
             status="accepted" if judge_result.retry_recommendation == "accept" else "rejected_or_needs_improvement",
@@ -40,6 +81,7 @@ class FeedbackCorpusWriterService(BaseService):
             attempt_number=attempt_number,
             user_query=query,
             request_analysis_summary=request_analysis.model_dump() if request_analysis is not None else {},
+            data_profile_summary=_compact_feedback_data_profile(data_profile),
             generated_spec=vega_spec.spec_json,
             rendered_png_path=rendered_png_path,
             vlm_chart_description=vlm_description,
@@ -67,6 +109,7 @@ class FeedbackCorpusWriterService(BaseService):
             rendered_png_path: str,
             request_analysis: QueryRequestAnalysisResult | None = None,
             attempt_number: int = 1,
+            data_profile: DataProfile | None = None,
     ) -> VisualFeedbackExample:
         cleaned_comment = comment.strip()
         judge_result = ChartAnswerJudgeResult(
@@ -89,6 +132,7 @@ class FeedbackCorpusWriterService(BaseService):
             requested_regeneration=needs_regeneration,
             feedback_weight=3.0 if needs_regeneration else 2.0,
             request_analysis_summary=request_analysis.model_dump() if request_analysis is not None else {},
+            data_profile_summary=_compact_feedback_data_profile(data_profile),
             generated_spec=vega_spec.spec_json,
             rendered_png_path=rendered_png_path,
             vlm_chart_description=VLMChartDescriptionResult(

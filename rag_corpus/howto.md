@@ -295,3 +295,31 @@ Do not include `embeddinggemma:latest` in AutoRAG experiments. Use only:
     mxbai-embed-large:latest
     nomic-embed-text:latest
     qwen3-embedding:latest
+
+## Feedback corpus export
+
+Raw feedback remains a log and is not used as a runtime RAG corpus directly:
+
+    rag_corpus/feedback/visual_feedback.jsonl
+
+Normalize feedback with the project LLM:
+
+    python scripts/rag_corpus/export_feedback_chunks.py --mode llm --config ui/config/benchmark/project-gemma4-bench_rag.toml --raw rag_corpus/feedback/visual_feedback.jsonl --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl
+
+For offline/manual bootstrapping, use the explicit deterministic rules mode:
+
+    python scripts/rag_corpus/export_feedback_chunks.py --mode rules --raw rag_corpus/feedback/visual_feedback.jsonl --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl
+
+By default, normalized records are not approved for RAG. After manual review, export approved records explicitly. For a fully reviewed file, use:
+
+    python scripts/rag_corpus/export_feedback_chunks.py --mode rules --normalized-only --approve-all --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl
+
+Create a temporary corpus variant for AutoRAG comparison without overwriting runtime corpus:
+
+    python scripts/rag_corpus/export_feedback_chunks.py --mode rules --normalized-only --approve-all --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl --base-corpus rag_corpus/runtime/guidance_chunks.jsonl --merged-output rag_corpus/feedback/guidance_with_feedback.jsonl
+
+Then export this variant to AutoRAG dataset:
+
+    python scripts/autorag_eval/export_autorag_dataset.py --corpus rag_corpus/feedback/guidance_with_feedback.jsonl --queries rag_corpus/autorag/qa/retrieval_queries.jsonl --output-dir rag_corpus/autorag/datasets/guidance_with_feedback
+
+Do not overwrite `rag_corpus/runtime/guidance_chunks.jsonl` with feedback chunks until the feedback corpus has been reviewed and evaluated.

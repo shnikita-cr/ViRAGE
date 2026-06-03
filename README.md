@@ -361,60 +361,20 @@ Use the prompts in:
 
 They are designed to expose remaining weaknesses in axis domains, plot area usage, compact categorical layout, repeat/facet labels, image-folder metrics, and orchestrator task planning.
 
-## Image-only VLM benchmark
+## Feedback corpus preparation
 
-For comparing ViRAGE charts with charts produced by external systems, use the image-only VLM benchmark. The input is only a folder with chart images. The benchmark does not receive the source table, user query, Vega-Lite specification, or ground truth, so it evaluates only visible chart quality and publication readiness.
+ViRAGE stores raw user/VLM chart feedback as an append-only log. This raw log is not used directly by runtime RAG. Feedback must be normalized, reviewed, and exported as approved `manual_feedback` / `vlm_feedback` chunks.
 
-Supported image formats:
+Main command:
 
-    .png .jpg .jpeg .tif .tiff .bmp .gif .webp
+    python scripts/rag_corpus/export_feedback_chunks.py --mode llm --config ui/config/benchmark/project-gemma4-bench_rag.toml --raw rag_corpus/feedback/visual_feedback.jsonl --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl
 
-Run:
+Explicit rules mode is available for offline bootstrapping and unit tests:
 
-    python scripts/benchmarks/run_vlm_image_benchmark.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --images artifacts/external_charts --run-id external_charts_vlm_eval
+    python scripts/rag_corpus/export_feedback_chunks.py --mode rules --raw rag_corpus/feedback/visual_feedback.jsonl --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl
 
-Outputs:
+Approved feedback can be combined with the current guidance corpus into a temporary AutoRAG variant:
 
-    artifacts/<run_id>/benchmark_request.json
-    artifacts/<run_id>/per_image_scores.csv
-    artifacts/<run_id>/per_image_scores.jsonl
-    artifacts/<run_id>/benchmark_summary.json
-    artifacts/<run_id>/benchmark_report.md
+    python scripts/rag_corpus/export_feedback_chunks.py --mode rules --normalized-only --approve-all --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl --base-corpus rag_corpus/runtime/guidance_chunks.jsonl --merged-output rag_corpus/feedback/guidance_with_feedback.jsonl
 
-Image-only benchmark scores:
-
-    non_empty_score
-    readability_score
-    label_quality_score
-    legend_quality_score
-    visual_overload_score
-    plot_area_usage_score
-    axis_domain_score
-    layout_compactness_score
-    repeat_axis_label_score
-    publication_layout_score
-    overall_visual_score
-
-Scope limitation: this benchmark cannot judge data grounding, statistical correctness, field correctness, query alignment, or Spec Score, because it receives only the final image.
-
-## Shared benchmark status bar
-
-Benchmark scripts use one shared console status component:
-
-    src/benchmark/progress.py
-
-It displays:
-
-    completed / total
-    percentage
-    ok count
-    error count
-    reused count, when applicable
-    elapsed time
-    estimated remaining time
-    current stage
-    current case or image label
-
-The image-only VLM benchmark uses the same status bar as the existing benchmark runners. To disable it for machine-readable logs:
-
-    python scripts/benchmarks/run_vlm_image_benchmark.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --images artifacts/external_charts --run-id external_charts_vlm_eval --no-progress
+The script never silently adds raw feedback to the runtime RAG corpus.
