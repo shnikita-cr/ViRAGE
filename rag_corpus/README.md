@@ -69,4 +69,4 @@ Runtime-документы не должны содержать Vega-Lite `mark`
 
 ## Runtime RAG strict mode
 
-Runtime RAG работает строго через `guidance_chunks.jsonl` и `guidance_chunk_embeddings.jsonl`. Скрытый lexical fallback запрещён; BM25 используется только как отдельный baseline в AutoRAG.
+Runtime RAG работает строго через `guidance_chunks.jsonl`. Для `semantic` и `hybrid` обязателен `guidance_chunk_embeddings.jsonl`; `lexical_bm25` является явным backend и не требует embeddings. Скрытая подмена backend запрещена.

@@ -80,10 +80,10 @@ def test_user_context_extraction_keeps_orchestrator_subtask_contract() -> None:
     assert context["constraints"]["task_is_fixed"] is True
 
 
-def test_runtime_visrag_requires_embeddings_without_lexical_fallback() -> None:
+def test_runtime_visrag_requires_embeddings_for_semantic_backend() -> None:
     engine = VisRAGEngine(
         store=_Store(),
-        options=VisRAGCoreOptions(enabled=True),
+        options=VisRAGCoreOptions(enabled=True, retrieval_backend="semantic"),
         chunks=[VisRAGGuidanceChunk(chunk_id="c1", source_id="s", text="Use box plots for group comparison.")],
         embeddings={},
     )
@@ -91,7 +91,7 @@ def test_runtime_visrag_requires_embeddings_without_lexical_fallback() -> None:
     try:
         engine.invoke(_analysis(), _profile())
     except RuntimeError as exc:
-        assert "Runtime lexical fallback is disabled" in str(exc)
+        assert "embeddings are missing" in str(exc)
     else:
         raise AssertionError("Expected runtime RAG to fail without embeddings.")
 
@@ -100,7 +100,7 @@ def test_task_contract_is_written_to_guidance_prompt(monkeypatch) -> None:
     monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **kwargs: _FakeEmbedder())
     engine = VisRAGEngine(
         store=_Store(),
-        options=VisRAGCoreOptions(enabled=True, top_k_chunks=1),
+        options=VisRAGCoreOptions(enabled=True, retrieval_backend="semantic", top_k_chunks=1),
         chunks=[
             VisRAGGuidanceChunk(
                 chunk_id="c1",
@@ -167,8 +167,34 @@ def test_runtime_visrag_supports_explicit_hybrid_backend(monkeypatch) -> None:
         embeddings={"c1": [0.0, 1.0], "c2": [1.0, 0.0]},
     )
 
+    monkeypatch.setattr(
+        "src.visrag_core.engine.RankBM25ChunkRetriever.score",
+        lambda self, query, chunks: {"c1": 2.0, "c2": 0.0},
+    )
     result = engine.invoke(_analysis(), _profile())
 
     assert result.retrieval_strategy.startswith("chunk_guidance:test:hybrid:cc")
     assert result.debug_retrieval.retrieved_chunks[0].chunk_id == "c1"
     assert result.debug_retrieval.retrieved_chunks[0].metadata["retrieval_score_kind"] == "hybrid"
+
+
+def test_runtime_visrag_supports_explicit_lexical_backend_without_embeddings(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.visrag_core.engine.RankBM25ChunkRetriever.score",
+        lambda self, query, chunks: {"c1": 2.0, "c2": 0.0},
+    )
+    engine = VisRAGEngine(
+        store=_Store(),
+        options=VisRAGCoreOptions(enabled=True, retrieval_backend="lexical_bm25", top_k_chunks=1),
+        chunks=[
+            VisRAGGuidanceChunk(chunk_id="c1", source_id="s", text="Use compact boxplots for group comparison."),
+            VisRAGGuidanceChunk(chunk_id="c2", source_id="s", text="Use maps for geographic coordinates."),
+        ],
+        embeddings={},
+    )
+
+    result = engine.invoke(_analysis(), _profile())
+
+    assert result.retrieval_strategy.startswith("chunk_guidance:test:lexical_bm25")
+    assert [chunk.chunk_id for chunk in result.debug_retrieval.retrieved_chunks] == ["c1"]
+    assert result.debug_retrieval.retrieved_chunks[0].metadata["retrieval_score_kind"] == "lexical_bm25"

@@ -279,9 +279,9 @@ Single-run с RAG:
 
 ## Runtime RAG strict mode
 
-Runtime ViRAG не использует lexical fallback. Если `rag_corpus/runtime/guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все `chunk_id`, pipeline должен остановиться с ошибкой подготовки корпуса. BM25 используется только как явно выбранный baseline внутри AutoRAG, а не как скрытый runtime fallback.
+Runtime ViRAG не выполняет скрытую подмену retrieval backend. Для `semantic` и `hybrid` отсутствие или неполное покрытие `rag_corpus/runtime/guidance_chunk_embeddings.jsonl` является ошибкой. `lexical_bm25` — явный runtime/backend baseline и не требует embeddings.
 
-`recommended_chart_family` не используется в `query_request_analysis` и не участвует в RAG retrieval query. Query analysis описывает пользовательский intent, поля, агрегацию и видимые требования; выбор графика выполняется позже на основе data profile, RAG guidance и spec generation.
+Query analysis описывает пользовательский intent, поля, агрегацию и видимые требования; выбор визуального решения выполняется позже на основе data profile, RAG guidance и spec generation.
 
 ## AutoRAG embedding policy
 

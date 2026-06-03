@@ -49,7 +49,7 @@ def test_build_autorag_config_filters_excluded_embedding_models(tmp_path: Path) 
     assert "model_name: embeddinggemma:latest" not in text
 
 
-def test_build_autorag_config_can_write_lexical_only_fallback(tmp_path: Path) -> None:
+def test_build_autorag_config_can_write_lexical_only_baseline(tmp_path: Path) -> None:
     output = tmp_path / "virage_retrieval_eval_lexical.yaml"
 
     report = build_autorag_config(output_path=output, lexical_only=True)

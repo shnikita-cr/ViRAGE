@@ -170,7 +170,6 @@ class QueryRequestAnalyzerService(BaseService):
         return QueryRequestAnalysisResult(
             normalized_query=parsed.normalized_query.strip(),
             analysis_task=parsed.analysis_task.strip() or "descriptive_analytics",
-            recommended_chart_family="auto",
             selected_fields=selected_fields,
             field_bindings={
                 key.strip(): FieldBinding(**value.model_dump())

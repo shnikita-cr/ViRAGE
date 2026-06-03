@@ -68,7 +68,7 @@ class ViRAGESettings(BaseModel):
     model_health_check_timeout_seconds: float = Field(default=10.0, ge=1.0)
     model_health_check_required_roles: list[str] = Field(
         default_factory=lambda: ["reasoning", "vlm", "vision_judge"])
-    vlm_fail_soft: bool = Field(default=True)
+    vlm_fail_soft: bool = Field(default=False)
 
     def visrag_runtime_options(self) -> dict[str, object]:
         """Single source of truth for runtime VisRAG options."""

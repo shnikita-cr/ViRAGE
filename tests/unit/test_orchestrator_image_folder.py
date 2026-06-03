@@ -6,10 +6,11 @@ from pathlib import Path
 from PIL import Image
 
 from scripts.run_orchestrator import main
-from tests.unit.test_run_orchestrator_cli import _write_config
+from tests.unit.test_run_orchestrator_cli import _fake_build_chat_model, _write_config
 
 
-def test_run_orchestrator_image_folder_plan_only(tmp_path: Path) -> None:
+def test_run_orchestrator_image_folder_plan_only(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("scripts.run_orchestrator.build_chat_model", _fake_build_chat_model)
     image_dir = tmp_path / "images"
     (image_dir / "set_a").mkdir(parents=True)
     Image.new("L", (12, 8), color=80).save(image_dir / "set_a" / "dark.png")

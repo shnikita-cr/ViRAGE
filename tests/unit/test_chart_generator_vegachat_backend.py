@@ -91,7 +91,6 @@ def test_chart_generator_uses_vegachat_codegen_backend_and_safe_fields(tmp_path:
         query_request_analysis=QueryRequestAnalysisResult(
             normalized_query="compare metric by region",
             analysis_task="comparison",
-            recommended_chart_family="bar",
             selected_fields=["Region.Name", "Metric Value (%)"],
         ),
         visrag=visrag,

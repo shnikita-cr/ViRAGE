@@ -14,7 +14,7 @@ from typing import Any
 
 from scripts.rag_corpus.common.io import project_root, read_json, read_jsonl, write_json, write_text
 
-DEFAULT_INPUT = "rag_corpus/runtime/virage_rules.jsonl"
+DEFAULT_INPUT = "rag_corpus/runtime/guidance_chunks.jsonl"
 DEFAULT_OUT_JSON = "rag_corpus/runtime/runtime_export_report.json"
 DEFAULT_OUT_MD = "rag_corpus/runtime/runtime_export_report.md"
 

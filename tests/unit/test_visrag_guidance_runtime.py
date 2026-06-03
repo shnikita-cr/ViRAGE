@@ -53,7 +53,7 @@ def _write_runtime_rules(root: Path) -> None:
             "metadata": {"title": "HbA1c semantics", "domain": "medicine"},
         },
     ]
-    with (root / "virage_rules.jsonl").open("w", encoding="utf-8") as handle:
+    with (root / "guidance_chunks.jsonl").open("w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
     with (root / "guidance_chunk_embeddings.jsonl").open("w", encoding="utf-8") as handle:
@@ -78,7 +78,6 @@ def _analysis() -> QueryRequestAnalysisResult:
     return QueryRequestAnalysisResult(
         normalized_query="Show average sales over time by region.",
         analysis_task="trend",
-        recommended_chart_family="line",
         selected_fields=["Order Date", "Sales", "Region"],
         field_bindings={
             "x": FieldBinding(field="Order Date", role="temporal_axis"),
@@ -101,6 +100,7 @@ def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Pa
             artifact_root=tmp_path / "artifacts",
             visrag_corpus_root=corpus_root,
             visrag_runtime_store_backend="jsonl",
+            visrag_retrieval_backend="semantic",
         )
     )
 
@@ -118,7 +118,7 @@ def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Pa
 def test_domain_semantics_is_gated(tmp_path: Path, monkeypatch) -> None:
     corpus_root = tmp_path / "runtime_rules"
     _write_runtime_rules(corpus_root)
-    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", visrag_corpus_root=corpus_root))
+    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", visrag_corpus_root=corpus_root, visrag_retrieval_backend="semantic"))
 
     monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **kwargs: _FakeEmbedder())
     normal = VisRAGService().invoke(_analysis(), _profile(), runtime)
@@ -135,7 +135,6 @@ def test_domain_semantics_is_gated(tmp_path: Path, monkeypatch) -> None:
     bio_analysis = QueryRequestAnalysisResult(
         normalized_query="Compare HbA1c by treatment group.",
         analysis_task="comparison",
-        recommended_chart_family="bar",
         selected_fields=["HbA1c", "treatment_group"],
     )
 

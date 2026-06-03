@@ -37,54 +37,50 @@ _BOOL_METRIC_FIELDS = ("valid_spec", "render_success", "empty_chart")
 @dataclass(frozen=True)
 class BenchmarkCase:
     case_id: str
-    suite: str
-    input_modality: str
-    query_specificity: str
-    analysis_task: str
-    chart_family: str
-    output_target: str
-    expected_charts: str
-    evaluation_mode: str
-    known_risks: list[str]
     data_path: str
     query: str
+    suite: str = "manual"
+    input_modality: str = "table"
+    query_specificity: str = "unspecified"
+    analysis_task: str = "unspecified"
+    chart_family: str = "unspecified"
+    output_target: str = "unspecified"
+    expected_charts: str = "unspecified"
+    evaluation_mode: str = "e2e"
+    known_risks: list[str] = field(default_factory=list)
     expected_checks: list[str] = field(default_factory=list)
     user_context: dict[str, Any] = field(default_factory=dict)
+    focus: list[str] = field(default_factory=list)
+    input_type: str | None = None
+
+    def __post_init__(self) -> None:
+        normalized_input = self.input_type or self.input_modality
+        object.__setattr__(self, "input_modality", normalized_input)
+        object.__setattr__(self, "input_type", normalized_input)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "BenchmarkCase":
-        required = [
-            "case_id",
-            "suite",
-            "input_modality",
-            "query_specificity",
-            "analysis_task",
-            "chart_family",
-            "output_target",
-            "expected_charts",
-            "evaluation_mode",
-            "known_risks",
-            "data_path",
-            "query",
-        ]
+        required = ["case_id", "data_path", "query"]
         missing = [key for key in required if key not in payload]
         if missing:
             raise ValueError(f"Benchmark case is missing required fields {missing}: {payload}")
+        input_modality = payload.get("input_modality", payload.get("input_type", "table"))
         return cls(
             case_id=str(payload["case_id"]),
-            suite=str(payload["suite"]),
-            input_modality=str(payload["input_modality"]),
-            query_specificity=str(payload["query_specificity"]),
-            analysis_task=str(payload["analysis_task"]),
-            chart_family=str(payload["chart_family"]),
-            output_target=str(payload["output_target"]),
-            expected_charts=str(payload["expected_charts"]),
-            evaluation_mode=str(payload["evaluation_mode"]),
-            known_risks=[str(item) for item in payload.get("known_risks", [])],
             data_path=str(payload["data_path"]),
             query=str(payload["query"]),
+            suite=str(payload.get("suite", "manual")),
+            input_modality=str(input_modality),
+            query_specificity=str(payload.get("query_specificity", "unspecified")),
+            analysis_task=str(payload.get("analysis_task", "unspecified")),
+            chart_family=str(payload.get("chart_family", "unspecified")),
+            output_target=str(payload.get("output_target", "unspecified")),
+            expected_charts=str(payload.get("expected_charts", "unspecified")),
+            evaluation_mode=str(payload.get("evaluation_mode", "e2e")),
+            known_risks=[str(item) for item in payload.get("known_risks", [])],
             expected_checks=[str(item) for item in payload.get("expected_checks", [])],
             user_context=dict(payload.get("user_context") or {}),
+            focus=[str(item) for item in payload.get("focus", [])],
         )
 
     def model_dump(self) -> dict[str, Any]:
@@ -103,7 +99,11 @@ class BenchmarkCase:
             "query": self.query,
             "expected_checks": self.expected_checks,
             "user_context": self.user_context,
+            "focus": self.focus,
         }
+
+
+VirageE2ETestCase = BenchmarkCase
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -131,10 +131,13 @@ def load_suites(path: Path) -> dict[str, Any]:
     return payload
 
 
-def discover_case_files(cases_dir: Path, suite_names: set[str] | None) -> list[Path]:
-    if not cases_dir.exists():
-        raise FileNotFoundError(f"Cases directory does not exist: {cases_dir}")
-    files = sorted(cases_dir.glob("*.jsonl"))
+def discover_case_files(cases_path: Path, suite_names: set[str] | None) -> list[Path]:
+    if not cases_path.exists():
+        raise FileNotFoundError(f"Cases path does not exist: {cases_path}")
+    if cases_path.is_file():
+        files = [cases_path]
+    else:
+        files = sorted(cases_path.glob("*.jsonl"))
     if suite_names:
         files = [path for path in files if path.stem in suite_names]
     return files
@@ -165,7 +168,16 @@ def _case_input_type(case: BenchmarkCase) -> str:
 def _resolve_case_data_path(case: BenchmarkCase, *, image_folder_override: str | None) -> str:
     if case.input_modality == "image_folder" and image_folder_override:
         return image_folder_override
+    if case.data_path == "{image_folder}" and image_folder_override:
+        return image_folder_override
     return case.data_path
+
+
+def resolve_case_data_path(case: BenchmarkCase, *, image_folder: str | None, project_root: Path) -> Path:
+    resolved = Path(_resolve_case_data_path(case, image_folder_override=image_folder))
+    if resolved.is_absolute():
+        return resolved
+    return project_root / resolved
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -397,16 +409,17 @@ def run_case(
     status = "completed"
     error_type = ""
     error = ""
-    try:
-        exit_code = run_orchestrator_main(args)
-        if exit_code != 0:
+    if execute:
+        try:
+            exit_code = run_orchestrator_main(args)
+            if exit_code != 0:
+                status = "error"
+                error_type = "NonZeroExit"
+                error = f"run_orchestrator exited with code {exit_code}"
+        except Exception as exc:  # noqa: BLE001 - benchmark must continue per case.
             status = "error"
-            error_type = "NonZeroExit"
-            error = f"run_orchestrator exited with code {exit_code}"
-    except Exception as exc:  # noqa: BLE001 - benchmark must continue per case.
-        status = "error"
-        error_type = type(exc).__name__
-        error = str(exc)
+            error_type = type(exc).__name__
+            error = str(exc)
     duration = time.perf_counter() - started
 
     config = load_project_config(config_path)

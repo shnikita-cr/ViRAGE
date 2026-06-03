@@ -204,7 +204,7 @@ def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[st
     groups: dict[str, list[BenchmarkCaseResult]] = {}
     for item in results:
         for key in (
-        "dataset_name", "utterance_type", "difficulty", "analysis_task", "recommended_chart_family", "chart_type"):
+        "dataset_name", "utterance_type", "difficulty", "analysis_task", "chart_type"):
             value = item.dataset_name if key == "dataset_name" else item.metadata.get(key)
             if value is None or value == "":
                 continue

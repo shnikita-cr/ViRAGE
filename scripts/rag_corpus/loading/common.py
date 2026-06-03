@@ -207,8 +207,10 @@ def _fetch_clean_page(url: str, config: LoaderConfig, *, timeout_seconds: float)
 
     failed_like = looks_like_failed_download(html_text)
     if failed_like and not has_required_marker:
-        print(html_text)
-        raise SourceDownloadError(f"Downloaded page looks like access/error page: {url}")
+        raise SourceDownloadError(
+            f"Downloaded page looks like access/error page: {url}; "
+            f"html_chars={len(html_text)}; content_type={content_type!r}."
+        )
     if config.required_text_markers and not has_required_marker:
         raise SourceDownloadError(
             f"Downloaded page does not contain required guidance markers: {url}. "

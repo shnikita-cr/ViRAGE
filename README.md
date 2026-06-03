@@ -132,9 +132,9 @@ RAG-корпуса готовятся offline и больше не строят�
 
     python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
     python scripts/rag_corpus/run_export_autorag.py
-    python scripts/rag_corpus/run_export_runtime.py
+    python scripts/rag_corpus/export_guidance_chunks.py
 
-AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `virage_rules.jsonl`.
+AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `guidance_chunks.jsonl`.
 
 
 ## Оркестратор аналитических задач
@@ -147,7 +147,7 @@ AutoRAG используется offline для выбора retrieval-конф�
     RAG Engine подбирает guidance для выбранной подзадачи.
     Spec Generator строит Vega-Lite спецификацию.
 
-Plan-only запуск без вызова LLM-моделей:
+Plan-only запуск строит план через reasoning LLM и не выполняет subtask pipeline:
 
     python scripts/run_orchestrator.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --query "Проанализируй данные и покажи основные закономерности" --data-path demo_data/Iris.csv --run-id orch_iris_plan
 
@@ -169,7 +169,7 @@ Plan-only запуск без вызова LLM-моделей:
 - максимум 3 подзадачи;
 - планировщик использует только существующие поля таблицы;
 - тип графика не фиксируется на этапе планирования;
-- plan-only режим нужен для быстрой проверки `chart_plan.json` без затрат на LLM.
+- plan-only режим нужен для быстрой проверки `chart_plan.json` без запуска subtask pipeline; сам план строится через reasoning LLM.
 
 ## Task-specific RAG guidance
 
@@ -187,7 +187,7 @@ Plan-only запуск без вызова LLM-моделей:
 - `Spec Generator` строит Vega-Lite спецификацию;
 - RAG не заменяет выбранную аналитическую задачу другой задачей.
 
-Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все chunks, запуск должен завершиться ошибкой подготовки RAG, а не молча перейти на лексический поиск. BM25 остаётся только как явно заданный AutoRAG baseline.
+`semantic` и `hybrid` требуют полного `guidance_chunk_embeddings.jsonl`; при отсутствии embeddings запуск завершается ошибкой подготовки RAG. `lexical_bm25` используется только как явно заданный backend/baseline и не включается автоматически.
 
 ## Benchmark
 

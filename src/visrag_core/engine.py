@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
-from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,8 +20,8 @@ from src.domain.models import (
 from src.llm.helpers import invoke_structured
 from src.visrag_core.embeddings import build_embedding_model, cosine
 from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.lexical_retriever import RankBM25ChunkRetriever
 from src.visrag_core.task_context import task_context_prompt_block
-from src.visrag_core.text import tokens
 from src.visrag_core.stores import VisRAGStore
 
 
@@ -76,20 +74,9 @@ class VisRAGEngine:
         if not self.options.enabled:
             raise RuntimeError("VisRAG is disabled. Enable visrag_enabled=true or remove the visrag pipeline node.")
         chunks = self._chunks if self._chunks is not None else self.store.load_chunks()
-        embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
         query = build_visrag_query(query_analysis, data_profile, task_context=task_context)
-        if not embeddings:
-            raise RuntimeError(
-                "VisRAG embeddings are missing. Runtime lexical fallback is disabled. Run:\n"
-                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600"
-            )
-        missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
-        if missing:
-            raise RuntimeError(
-                "VisRAG embeddings are incomplete. Runtime lexical fallback is disabled. Run:\n"
-                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600\n"
-                f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
-            )
+        backend = self._normalized_retrieval_backend()
+        embeddings = self._load_required_embeddings(chunks, backend)
         retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
         guidance = self._generate_response(query_analysis, data_profile, retrieved, task_context=task_context)
         diagnostics = VisRAGDiagnostics(
@@ -129,19 +116,46 @@ class VisRAGEngine:
         if not query.strip():
             return []
         backend = self._normalized_retrieval_backend()
-        semantic_scores = self._semantic_scores(query, chunks, embeddings)
+        lexical_query = self._lexical_query(query, query_analysis)
         if backend == "semantic":
+            semantic_scores = self._semantic_scores(query, chunks, embeddings)
             return self._rank_from_scores(chunks, semantic_scores, score_kind="semantic")
-        lexical_scores = self._lexical_bm25_scores(query, query_analysis, chunks)
         if backend == "lexical_bm25":
+            lexical_scores = self._lexical_bm25_scores(lexical_query, chunks)
             return self._rank_from_scores(chunks, lexical_scores, score_kind="lexical_bm25")
         if backend == "hybrid":
+            semantic_scores = self._semantic_scores(query, chunks, embeddings)
+            lexical_scores = self._lexical_bm25_scores(lexical_query, chunks)
             hybrid_scores = self._hybrid_scores(semantic_scores, lexical_scores)
             return self._rank_from_scores(chunks, hybrid_scores, score_kind="hybrid")
         raise RuntimeError(
             f"Unsupported VisRAG retrieval backend: {self.options.retrieval_backend!r}. "
             "Use one of: semantic, hybrid, lexical_bm25."
         )
+
+    def _load_required_embeddings(
+            self,
+            chunks: list[VisRAGGuidanceChunk],
+            backend: str,
+    ) -> dict[str, list[float]]:
+        if backend == "lexical_bm25":
+            return {}
+        embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
+        if not embeddings:
+            raise RuntimeError(
+                "VisRAG embeddings are missing for retrieval backend "
+                f"{backend!r}. Run:\n"
+                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600"
+            )
+        missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
+        if missing:
+            raise RuntimeError(
+                "VisRAG embeddings are incomplete for retrieval backend "
+                f"{backend!r}. Run:\n"
+                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600\n"
+                f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
+            )
+        return embeddings
 
     def _semantic_scores(
             self,
@@ -157,43 +171,20 @@ class VisRAGEngine:
         query_vector = list(embedder.embed_query(query))
         return {chunk.chunk_id: cosine(query_vector, embeddings[chunk.chunk_id]) for chunk in chunks}
 
-    def _lexical_bm25_scores(
-            self,
-            query: str,
-            query_analysis: QueryRequestAnalysisResult,
-            chunks: list[VisRAGGuidanceChunk],
-    ) -> dict[str, float]:
-        query_tokens = tokens(" ".join([
+    @staticmethod
+    def _lexical_query(query: str, query_analysis: QueryRequestAnalysisResult) -> str:
+        return " ".join([
             query,
             query_analysis.analysis_task,
             " ".join(query_analysis.selected_fields),
-        ]))
-        if not query_tokens:
-            return {chunk.chunk_id: 0.0 for chunk in chunks}
-        tokenized_docs = [tokens(self._chunk_retrieval_text(chunk)) for chunk in chunks]
-        n_docs = max(1, len(tokenized_docs))
-        avg_len = sum(len(item) for item in tokenized_docs) / n_docs if tokenized_docs else 1.0
-        document_frequency: dict[str, int] = {}
-        for doc_tokens in tokenized_docs:
-            for token in set(doc_tokens):
-                document_frequency[token] = document_frequency.get(token, 0) + 1
-        k1 = 1.5
-        b = 0.75
-        scores: dict[str, float] = {}
-        for chunk, doc_tokens in zip(chunks, tokenized_docs, strict=False):
-            counts = Counter(doc_tokens)
-            doc_len = max(1, len(doc_tokens))
-            score = 0.0
-            for token in set(query_tokens):
-                tf = counts.get(token, 0)
-                if not tf:
-                    continue
-                df = document_frequency.get(token, 0)
-                idf = math.log(1.0 + (n_docs - df + 0.5) / (df + 0.5))
-                denom = tf + k1 * (1.0 - b + b * doc_len / max(avg_len, 1.0))
-                score += idf * (tf * (k1 + 1.0)) / denom
-            scores[chunk.chunk_id] = score
-        return scores
+        ]).strip()
+
+    @staticmethod
+    def _lexical_bm25_scores(
+            query: str,
+            chunks: list[VisRAGGuidanceChunk],
+    ) -> dict[str, float]:
+        return RankBM25ChunkRetriever().score(query=query, chunks=chunks)
 
     def _hybrid_scores(self, semantic_scores: dict[str, float], lexical_scores: dict[str, float]) -> dict[str, float]:
         method = (self.options.hybrid_method or "cc").strip().lower()
@@ -226,15 +217,26 @@ class VisRAGEngine:
             *,
             score_kind: str,
     ) -> list[VisRAGRetrievedChunk]:
+        raw_ranked = sorted(
+            [chunk for chunk in chunks if float(scores.get(chunk.chunk_id, 0.0) or 0.0) > 0],
+            key=lambda chunk: (-float(scores.get(chunk.chunk_id, 0.0) or 0.0), chunk.source_id, chunk.chunk_id),
+        )
+        pool_limit = max(int(self.options.top_k_chunks), int(self.options.candidate_pool_size))
         ranked: list[VisRAGRetrievedChunk] = []
-        for chunk in chunks:
+        for chunk in raw_ranked[:pool_limit]:
             raw_score = float(scores.get(chunk.chunk_id, 0.0) or 0.0)
             final_score = raw_score * self._metadata_weight(chunk)
-            if final_score > 0:
-                metadata = dict(chunk.metadata or {})
-                metadata["retrieval_score_kind"] = score_kind
-                metadata["raw_retrieval_score"] = round(raw_score, 6)
-                ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score", "metadata"}), metadata=metadata, score=round(final_score, 6)))
+            metadata = dict(chunk.metadata or {})
+            metadata["retrieval_score_kind"] = score_kind
+            metadata["raw_retrieval_score"] = round(raw_score, 6)
+            metadata["candidate_pool_size"] = pool_limit
+            ranked.append(
+                VisRAGRetrievedChunk(
+                    **chunk.model_dump(exclude={"score", "metadata"}),
+                    metadata=metadata,
+                    score=round(final_score, 6),
+                )
+            )
         limit = max(1, int(self.options.top_k_chunks))
         return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:limit]
 
@@ -248,12 +250,6 @@ class VisRAGEngine:
         if high == low:
             return {key: 1.0 if float(value) > 0 else 0.0 for key, value in scores.items()}
         return {key: ((float(value) - low) / (high - low)) if float(value) > 0 else 0.0 for key, value in scores.items()}
-
-    @staticmethod
-    def _chunk_retrieval_text(chunk: VisRAGGuidanceChunk) -> str:
-        metadata = chunk.metadata or {}
-        metadata_text = " ".join(str(value) for value in metadata.values() if isinstance(value, (str, int, float)))
-        return " ".join([chunk.title, chunk.source_name, chunk.source_kind, metadata_text, chunk.text])
 
     def _normalized_retrieval_backend(self) -> str:
         return (self.options.retrieval_backend or "semantic").strip().lower()

@@ -77,7 +77,7 @@ def _semantic_modules(embedding_models: list[str]) -> list[str]:
 def _retrieve_config(*, embedding_models: list[str], ollama_base_url: str, lexical_only: bool) -> str:
     if lexical_only:
         return """# ViRAGE AutoRAG retrieval evaluation config.
-# Lexical-only fallback. The main config should include lexical, semantic and hybrid retrieval.
+# Lexical-only baseline. The main config should include lexical, semantic and hybrid retrieval.
 
 node_lines:
   - node_line_name: retrieve_node_line

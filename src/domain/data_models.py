@@ -93,7 +93,6 @@ class QueryAmbiguity(BaseModel):
 class QueryRequestAnalysisResult(BaseModel):
     normalized_query: str
     analysis_task: str = "descriptive_analytics"
-    recommended_chart_family: str = "auto"
     selected_fields: list[str] = Field(default_factory=list)
     field_bindings: dict[str, FieldBinding] = Field(default_factory=dict)
     field_mappings: list[RequestFieldMapping] = Field(default_factory=list)

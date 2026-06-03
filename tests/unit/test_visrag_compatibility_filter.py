@@ -20,7 +20,6 @@ def _analysis() -> QueryRequestAnalysisResult:
     return QueryRequestAnalysisResult(
         normalized_query="Show average sales over time by region.",
         analysis_task="trend",
-        recommended_chart_family="line",
         selected_fields=["Order Date", "Region", "Sales"],
         field_bindings={
             "x": FieldBinding(field="Order Date", role="temporal_axis"),

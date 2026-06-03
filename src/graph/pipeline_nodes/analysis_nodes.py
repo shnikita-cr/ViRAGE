@@ -42,7 +42,7 @@ class AnalysisPipelineNodesMixin:
         try:
             result = self.vlm_analysis.invoke(plot_image, state["analysis_rubric"], runtime=self.runtime)
         except Exception as exc:
-            if not bool(getattr(self.runtime.settings, "vlm_fail_soft", True)):
+            if not bool(getattr(self.runtime.settings, "vlm_fail_soft", False)):
                 raise
             result = VLMAnalysisResult(
                 summary=f"Chart-grounded analysis skipped after {type(exc).__name__}: {exc}",

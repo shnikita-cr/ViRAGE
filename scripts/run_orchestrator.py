@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.application.project_config import load_project_config
 from src.infrastructure.runtime import RuntimeContext
+from src.llm.factory import build_chat_model
 from src.orchestrator import (
     AnalysisPlanner,
     FinalSummaryBuilder,
@@ -130,9 +131,10 @@ def main(argv: list[str] | None = None) -> int:
     }
     _write_json(run_dir / "orchestrator_request.json", request_payload)
 
-    profiling_runtime = RuntimeContext(settings=config.settings)
-    profiling_runtime.current_run_id = run_id
-    data_profile = DataProfilerService().invoke(effective_data_path, profiling_runtime)
+    reasoning_llm = build_chat_model(config.reasoning_model)
+    planning_runtime = RuntimeContext(settings=config.settings, reasoning_llm=reasoning_llm)
+    planning_runtime.current_run_id = run_id
+    data_profile = DataProfilerService().invoke(effective_data_path, planning_runtime)
     data_profile_path = run_dir / "data_profile.json"
     _write_json(data_profile_path, data_profile.model_dump())
 
@@ -140,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
         user_query=args.query,
         data_path=effective_data_path,
         data_profile=data_profile,
+        runtime=planning_runtime,
+        user_context=request_payload["user_context"],
         input_type=input_type,
         original_input_path=args.data_path if input_type != "table" else None,
         preprocessing_report_path=preprocessing_payload.get("preprocessing_report_path"),

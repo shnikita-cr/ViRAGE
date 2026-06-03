@@ -5,8 +5,7 @@ from typing import Any
 
 from src.domain.models import DataPreparationResult, DataProfile, SpecGenerationRequest
 from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
-
-VEGA_LITE_SCHEMA_URL = "https://vega.github.io/schema/vega-lite/v5.json"
+from src.services.spec_generation.vegachat_contract import VEGA_LITE_SCHEMA_URL, vegachat_output_contract
 
 
 def build_vegachat_codegen_prompt(
@@ -49,11 +48,12 @@ Prompt version: {prompt_version}.
 Generate one valid Vega-Lite v5 JSON specification for the provided dataset and user request.
 
 Output rules:
-1. Return only <explain>...</explain> and <json>...</json>.
+1. Return only <explain>...</explain><json>...</json>; no text outside these tags.
 2. The <explain> block must be concise English.
-3. The <json> block must contain exactly one Vega-Lite object.
+3. The <json> block must contain exactly one Vega-Lite object, not a wrapper object.
 4. Do not include data or datasets. Runtime attaches data.url.
 5. Set $schema exactly to "{VEGA_LITE_SCHEMA_URL}".
+6. Do not include markdown or code fences.
 
 Generation rules adapted from VegaChat-style correction loops:
 1. Use only safe field names listed in the schema block; never invent fields.
@@ -205,22 +205,4 @@ def _strip_data(value: Any) -> Any:
 
 
 def _output_contract() -> str:
-    return f"""
-Return format:
-<explain>
-Short explanation in English.
-</explain>
-
-<json>
-{{
-  "$schema": "{VEGA_LITE_SCHEMA_URL}",
-  "mark": "bar",
-  "encoding": {{
-    "x": {{"field": "safe_dimension_name", "type": "nominal"}},
-    "y": {{"field": "safe_measure_name", "type": "quantitative", "aggregate": "mean"}}
-  }}
-}}
-</json>
-
-Layer/facet/repeat/concat specifications are also allowed when the user request requires them.
-"""
+    return vegachat_output_contract()

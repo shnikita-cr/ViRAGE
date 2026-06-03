@@ -45,4 +45,4 @@ LLM-нормализация всего корпуса заранее больш
 
 ## Runtime RAG strict mode
 
-Runtime VisRAG не использует lexical fallback. Перед запуском pipeline должны быть пересобраны `rag_corpus/runtime/guidance_chunks.jsonl` и `rag_corpus/runtime/guidance_chunk_embeddings.jsonl`. BM25 остаётся только явным baseline внутри AutoRAG.
+Runtime VisRAG не выполняет скрытую подмену retrieval backend. Перед запуском `semantic`/`hybrid` должны быть пересобраны `rag_corpus/runtime/guidance_chunks.jsonl` и `rag_corpus/runtime/guidance_chunk_embeddings.jsonl`. `lexical_bm25` — явный backend и не требует embeddings.

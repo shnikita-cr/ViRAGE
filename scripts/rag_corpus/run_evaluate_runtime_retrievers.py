@@ -147,7 +147,6 @@ def _query_analysis(query: str) -> QueryRequestAnalysisResult:
     return QueryRequestAnalysisResult(
         normalized_query=query,
         analysis_task="retrieval_evaluation",
-        recommended_chart_family="auto",
         confidence=1.0,
     )
 

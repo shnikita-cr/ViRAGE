@@ -62,7 +62,7 @@ Default config includes BM25, semantic VectorDB retrieval with Ollama embeddings
 
     python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval.yaml
 
-Lexical-only fallback config:
+Lexical-only baseline config:
 
     python scripts/autorag_eval/build_autorag_config.py --output rag_corpus/autorag/configs/virage_retrieval_eval_lexical.yaml --lexical-only
 

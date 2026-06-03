@@ -1,7 +1,31 @@
 from __future__ import annotations
 
+import json
+import re
+from typing import Any
+
+import pytest
+
 from src.domain.models import DataColumnProfile, DataProfile
 from src.orchestrator.analysis_planner import AnalysisPlanner
+
+
+class FakeLLMResult:
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.usage_metadata = {"input_tokens": 1, "output_tokens": 1}
+
+
+class FakePlannerLLM:
+    model = "fake-planner"
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.payload = payload
+        self.prompts: list[str] = []
+
+    def invoke(self, messages: Any) -> FakeLLMResult:
+        self.prompts.append(str(messages))
+        return FakeLLMResult(json.dumps(self.payload, ensure_ascii=False))
 
 
 def _profile() -> DataProfile:
@@ -18,47 +42,124 @@ def _profile() -> DataProfile:
     )
 
 
-def test_general_query_creates_at_most_three_executable_subtasks() -> None:
-    plan = AnalysisPlanner(max_charts=3).plan(
+def _valid_payload() -> dict[str, Any]:
+    return {
+        "user_query": "Проанализируй данные",
+        "data_path": "data.csv",
+        "input_type": "table",
+        "max_charts": 3,
+        "subtasks": [
+            {
+                "id": "group_001",
+                "task_type": "group_comparison",
+                "query": "Compare score across condition.",
+                "purpose": "Compare the main measure between groups.",
+                "required_fields": ["condition", "score"],
+                "optional_fields": [],
+                "priority": 1,
+                "constraints": {"output_target": "scientific_figure"},
+                "rationale": "Both fields exist and match the request.",
+            },
+            {
+                "id": "trend_001",
+                "task_type": "temporal_trend",
+                "query": "Show score over date.",
+                "purpose": "Check temporal dynamics of the score.",
+                "required_fields": ["date", "score"],
+                "optional_fields": [],
+                "priority": 2,
+                "constraints": {"output_target": "scientific_figure"},
+                "rationale": "A temporal field and measure are available.",
+            },
+        ],
+        "skipped_candidates": [
+            {"task_type": "correlation", "reason": "The request did not prioritize a relationship view.", "required_fields": []}
+        ],
+        "rationale": ["The plan stays within max_charts and uses existing fields."],
+    }
+
+
+def test_llm_planner_accepts_strict_valid_plan() -> None:
+    plan = AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(_valid_payload())).plan(
         user_query="Проанализируй данные и покажи основные закономерности",
         data_path="data.csv",
         data_profile=_profile(),
     )
 
-    assert 1 <= len(plan.subtasks) <= 3
+    assert len(plan.subtasks) == 2
     available = {column.name for column in _profile().columns}
     assert all(set(item.required_fields).issubset(available) for item in plan.subtasks)
-    assert len({item.task_type for item in plan.subtasks}) == len(plan.subtasks)
-    assert any(item.task_type in {"group_comparison", "temporal_trend", "distribution", "correlation"} for item in plan.subtasks)
+    assert plan.subtasks[0].task_type == "group_comparison"
+    assert plan.subtasks[0].required_fields == ["condition", "score"]
 
 
-def test_specific_group_query_prioritizes_group_comparison() -> None:
-    plan = AnalysisPlanner(max_charts=3).plan(
+def test_llm_planner_requires_reasoning_llm() -> None:
+    with pytest.raises(RuntimeError, match="reasoning LLM"):
+        AnalysisPlanner(max_charts=3).plan(
+            user_query="Проанализируй данные",
+            data_path="data.csv",
+            data_profile=_profile(),
+        )
+
+
+def test_llm_planner_rejects_invented_fields() -> None:
+    payload = _valid_payload()
+    payload["subtasks"][0]["required_fields"] = ["condition", "invented_score"]
+
+    with pytest.raises(RuntimeError, match="absent from DataProfile"):
+        AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(payload)).plan(
+            user_query="Проанализируй данные",
+            data_path="data.csv",
+            data_profile=_profile(),
+        )
+
+
+def test_llm_planner_rejects_empty_required_fields() -> None:
+    payload = _valid_payload()
+    payload["subtasks"][0]["required_fields"] = []
+
+    with pytest.raises(RuntimeError, match="Failed to parse AnalysisPlan"):
+        AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(payload), max_attempts=1).plan(
+            user_query="Проанализируй данные",
+            data_path="data.csv",
+            data_profile=_profile(),
+        )
+
+
+
+
+def test_llm_planner_rejects_more_subtasks_than_runtime_max_charts() -> None:
+    payload = json.loads(json.dumps(_valid_payload()))
+    payload["subtasks"].append(
+        {
+            "id": "corr_001",
+            "task_type": "correlation",
+            "query": "Analyze the relationship between age and score.",
+            "purpose": "Check whether age relates to score.",
+            "required_fields": ["age", "score"],
+            "optional_fields": [],
+            "priority": 3,
+            "constraints": {"output_target": "scientific_figure"},
+            "rationale": "Both numeric fields exist in the DataProfile.",
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="Failed to parse AnalysisPlan"):
+        AnalysisPlanner(max_charts=2, reasoning_llm=FakePlannerLLM(payload), max_attempts=1).plan(
+            user_query="Проанализируй данные",
+            data_path="data.csv",
+            data_profile=_profile(),
+        )
+
+
+def test_llm_planner_prompt_contains_no_rules_mode() -> None:
+    llm = FakePlannerLLM(_valid_payload())
+    AnalysisPlanner(max_charts=3, reasoning_llm=llm).plan(
         user_query="Сравни score между condition",
         data_path="data.csv",
         data_profile=_profile(),
     )
 
-    assert plan.subtasks[0].task_type == "group_comparison"
-    assert plan.subtasks[0].required_fields == ["condition", "score"]
-    assert plan.subtasks[0].constraints["output_target"] == "scientific_figure"
-
-
-def test_planner_records_skipped_candidates_when_fields_are_missing() -> None:
-    profile = DataProfile(
-        row_count=10,
-        col_count=1,
-        columns=[DataColumnProfile(name="label", dtype="categorical", role="dimension", unique_count=3)],
-    )
-
-    plan = AnalysisPlanner(max_charts=3).plan(
-        user_query="Покажи корреляцию и выбросы",
-        data_path="labels.csv",
-        data_profile=profile,
-    )
-
-    skipped = {item.task_type for item in plan.skipped_candidates}
-    assert "correlation" in skipped
-    assert "outlier_detection" in skipped
-    assert len(plan.subtasks) == 1
-    assert plan.subtasks[0].task_type == "overview"
+    assert llm.prompts
+    assert "rules planner has been removed" not in llm.prompts[0]
+    assert re.search(r"available_fields", llm.prompts[0])

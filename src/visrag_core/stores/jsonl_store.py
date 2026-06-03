@@ -20,9 +20,7 @@ class JsonlVisRAGStore(VisRAGStore):
     def chunks_path(self) -> Path:
         if self.root.is_file():
             return self.root
-        guidance_path = self.root / "guidance_chunks.jsonl"
-        legacy_path = self.root / "virage_rules.jsonl"
-        return guidance_path if guidance_path.exists() or not legacy_path.exists() else legacy_path
+        return self.root / "guidance_chunks.jsonl"
 
     @property
     def embeddings_path(self) -> Path:
