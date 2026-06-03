@@ -81,6 +81,15 @@ PRACTICAL_VISRAG_SOURCES: tuple[QualityCorpusSource, ...] = (
         format="web_html",
         purpose="Правила подготовки научных рисунков для статей: размеры, разрешение, читаемость, подписи, панели и форматы файлов.",
     ),
+
+    QualityCorpusSource(
+        source_id="eda_guidance",
+        title="ViRAGE EDA guidance",
+        raw_dir="rag_corpus/raw_external_rules/eda_guidance",
+        url="internal:eda_guidance",
+        format="web_html",
+        purpose="Практические правила первичного анализа данных: распределения, пропуски, выбросы, корреляции, временные тренды и high-cardinality поля.",
+    ),
     QualityCorpusSource(
         source_id="chartability",
         title="Chartability / POUR-CAF",

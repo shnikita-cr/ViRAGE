@@ -379,28 +379,44 @@ Approved feedback can be combined with the current guidance corpus into a tempor
 
 The script never silently adds raw feedback to the runtime RAG corpus.
 
-## ViRAGE E2E test cases
+## Benchmark suites and EDA guidance
 
-Для проверки orchestrator, task-specific RAG, scientific guidance, image-folder mode и VLM publication criteria добавлен фиксированный набор тестовых кейсов:
+ViRAGE benchmark cases are classified by suite, input modality, analytical task, chart family, output target, and known risks. Cases are stored in:
 
-    benchmarks/virage_e2e_test_cases.jsonl
+    benchmarks/cases/*.jsonl
 
-Документация:
+Run all E2E cases in plan-only mode:
 
-    docs/virage_e2e_test_cases.md
+    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --run-id e2e_plan_001
 
-Plan-only запуск:
+Run all E2E cases with execution:
 
-    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --cases benchmarks/virage_e2e_test_cases.jsonl --run-id e2e_plan_001
+    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --run-id e2e_execute_001 --execute
 
-Execute запуск:
+Run one suite:
 
-    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --cases benchmarks/virage_e2e_test_cases.jsonl --run-id e2e_execute_001 --execute
+    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --run-id e2e_eda_001 --suite eda_manual --execute
 
-Image-folder case:
-
-    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --cases benchmarks/virage_e2e_test_cases.jsonl --run-id e2e_images_001 --case-id image_folder_quality --image-folder path/to/images --execute
-
-Скрипт использует общий benchmark status bar и пишет отчёт в:
+The runner writes reports to:
 
     artifacts/<run_id>/e2e_cases_report/
+
+EDA guidance is stored as a separate RAG source kind:
+
+    eda_guidance
+
+Prepare it with:
+
+    python scripts/rag_corpus/loading/load_eda_guidance.py --refresh
+
+Then rebuild runtime chunks and embeddings:
+
+    python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
+
+    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
+
+See also:
+
+    docs/virage_benchmark_taxonomy.md
+    docs/virage_eda_guidance.md
+

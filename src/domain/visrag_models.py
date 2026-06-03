@@ -15,6 +15,7 @@ VisRAGChunkKind = Literal[
     "vlm_readability_rule",
     "domain_semantics_rule",
     "scientific_figure_guidance",
+    "eda_guidance",
 ]
 
 

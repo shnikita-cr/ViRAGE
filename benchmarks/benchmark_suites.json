@@ -1,0 +1,30 @@
+{
+  "manual_vulnerability": {
+    "description": "Targeted cases for known ViRAGE weaknesses: axis domains, empty plot area, compact layout, repeat labels, and publication readiness.",
+    "default_execute": true
+  },
+  "eda_manual": {
+    "description": "Open-ended EDA requests that should trigger complementary diagnostic subtasks.",
+    "default_execute": true
+  },
+  "chart_type_coverage": {
+    "description": "Coverage cases for common chart families: bar, line, scatter, boxplot, histogram, heatmap, repeat/facet.",
+    "default_execute": true
+  },
+  "analysis_task_coverage": {
+    "description": "Coverage cases for analysis tasks: distribution, group comparison, correlation, temporal trend, ranking, outliers, missingness, EDA overview.",
+    "default_execute": true
+  },
+  "image_folder_quality": {
+    "description": "Image-folder multimodal preprocessing and analysis cases for PNG/JPG/TIFF image collections.",
+    "default_execute": true
+  },
+  "nlv_comparison": {
+    "description": "Reserved suite for NLV/VegaChat-compatible cases and output comparison.",
+    "default_execute": true
+  },
+  "external_agents_image_only": {
+    "description": "Reserved suite for image-only VLM comparison with charts produced by external agents or projects.",
+    "default_execute": false
+  }
+}
