@@ -12,7 +12,7 @@ visrag_embedding_model = "nomic-embed-text:latest"
 visrag_embedding_base_url = "http://localhost:11434"
 visrag_chroma_persist_dir = "./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"
 visrag_chroma_collection_name = "virage_guidance_chunks_nomic_embed_text_latest"
-analytics_tail_enabled = false
+analytics_tail_enabled = true
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
 
 [reasoning_model]
