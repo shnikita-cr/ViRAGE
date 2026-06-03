@@ -19,7 +19,6 @@ from scripts.rag_corpus.common.io import ensure_dir, read_jsonl, write_json, wri
 DEFAULT_CORPUS = "rag_corpus/runtime/guidance_chunks.jsonl"
 DEFAULT_QUERIES = "rag_corpus/autorag/qa/retrieval_queries.jsonl"
 DEFAULT_OUTPUT_DIR = "rag_corpus/autorag/datasets/runtime"
-DEFAULT_EMBEDDINGS = "rag_corpus/runtime/guidance_chunk_embeddings.jsonl"
 
 
 class AutoRAGDatasetExportError(RuntimeError):
@@ -209,31 +208,11 @@ def _qa_rows(
     return rows, empty_qids
 
 
-def _embedding_report(embedding_path: Path | None) -> dict[str, Any]:
-    if embedding_path is None:
-        return {"path": None, "exists": False, "records": 0, "used_by_autorag": False}
-    exists = embedding_path.exists()
-    records = 0
-    if exists:
-        try:
-            records = len(read_jsonl(embedding_path))
-        except Exception:
-            records = 0
-    return {
-        "path": str(embedding_path),
-        "exists": exists,
-        "records": records,
-        "used_by_autorag": False,
-        "note": "This file is used by ViRAGE runtime semantic retrieval. AutoRAG builds semantic indexes from corpus.parquet and its vectordb config.",
-    }
-
-
 def export_autorag_dataset(
     *,
     corpus_path: Path,
     queries_path: Path,
     output_dir: Path,
-    embeddings_path: Path | None = None,
     max_gt_per_query: int = 20,
     allow_empty_gt: bool = False,
 ) -> dict[str, Any]:
@@ -276,7 +255,6 @@ def export_autorag_dataset(
         "output_dir": str(output_dir),
         "corpus": {"records": len(corpus_rows), "path": str(corpus_output), "by_source": source_counts},
         "qa": {"records": len(qa_rows), "path": str(qa_output), "empty_qids": empty_qids},
-        "embeddings": _embedding_report(embeddings_path),
         "max_gt_per_query": max_gt_per_query,
         "allow_empty_gt": allow_empty_gt,
     }
@@ -292,9 +270,6 @@ def export_autorag_dataset(
             f"QA records: **{len(qa_rows)}**",
             f"Corpus parquet: `{corpus_output}`",
             f"QA parquet: `{qa_output}`",
-            f"Runtime embeddings file exists: **{report['embeddings']['exists']}**",
-            "",
-            "Note: `guidance_chunk_embeddings.jsonl` is not injected into AutoRAG directly. AutoRAG semantic retrieval uses the vector DB declared in the AutoRAG YAML config.",
             "",
         ]),
     )
@@ -313,7 +288,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--corpus", default=DEFAULT_CORPUS)
     parser.add_argument("--queries", default=DEFAULT_QUERIES)
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--embeddings", default=DEFAULT_EMBEDDINGS)
     parser.add_argument("--max-gt-per-query", type=int, default=20)
     parser.add_argument("--allow-empty-gt", action="store_true")
     return parser.parse_args()
@@ -325,7 +299,6 @@ def main() -> None:
         corpus_path=ROOT / args.corpus,
         queries_path=ROOT / args.queries,
         output_dir=ROOT / args.output_dir,
-        embeddings_path=_resolve_optional_path(args.embeddings),
         max_gt_per_query=args.max_gt_per_query,
         allow_empty_gt=args.allow_empty_gt,
     )

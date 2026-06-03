@@ -5,9 +5,7 @@ from src.visrag_core.text import tokens
 
 
 class RankBM25ChunkRetriever:
-    """Lexical VisRAG retriever backed by the external rank-bm25 package."""
-
-    backend_name = "lexical_bm25"
+    backend_name = "lexical"
 
     def score(self, *, query: str, chunks: list[VisRAGGuidanceChunk]) -> dict[str, float]:
         query_tokens = tokens(query)
@@ -19,9 +17,7 @@ class RankBM25ChunkRetriever:
         try:
             from rank_bm25 import BM25Okapi
         except ImportError as exc:
-            raise RuntimeError(
-                "VisRAG lexical_bm25 backend requires the rank-bm25 package. Install project requirements first."
-            ) from exc
+            raise RuntimeError("VisRAG lexical backend requires the rank-bm25 package.") from exc
         bm25 = BM25Okapi(tokenized_docs)
         scores = bm25.get_scores(query_tokens)
         return {chunk.chunk_id: float(score) for chunk, score in zip(chunks, scores, strict=False)}

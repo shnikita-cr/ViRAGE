@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 from scripts.rag_corpus.export_guidance_chunks import chunk_text, export_chunks
-from scripts.rag_corpus.build_visrag_embeddings import _write_embedding_input_length_report
+from src.visrag_core.chroma_index import chunk_embedding_text
+from src.domain.models import VisRAGGuidanceChunk
 
 
 def test_chunk_text_never_exceeds_max_chars_for_long_paragraph() -> None:
@@ -42,29 +43,18 @@ def test_export_chunks_writes_length_report_and_chunking_metadata(tmp_path: Path
     assert all(row["metadata"]["chunk_max_chars"] == 600 for row in rows)
 
 
-def test_embedding_input_length_report_identifies_oversized_vector_text(tmp_path: Path) -> None:
-    rows = [
-        {
-            "chunk_id": "chunk_short",
-            "source_id": "source",
-            "source_name": "source name",
-            "source_kind": "web_guidance",
-            "title": "short",
-            "text": "short text",
-            "metadata": {},
-        },
-        {
-            "chunk_id": "chunk_long",
-            "source_id": "source",
-            "source_name": "source name",
-            "source_kind": "web_guidance",
-            "title": "long",
-            "text": "x" * 2000,
-            "metadata": {},
-        },
-    ]
+def test_chunk_embedding_text_respects_max_chars() -> None:
+    chunk = VisRAGGuidanceChunk(
+        chunk_id="chunk_long",
+        source_id="source",
+        source_name="source name",
+        source_kind="web_guidance",
+        title="long",
+        text="x" * 2000,
+        metadata={},
+    )
 
-    report = _write_embedding_input_length_report(rows, tmp_path / "report.json", 1000)
+    text = chunk_embedding_text(chunk, max_chars=1000)
 
-    assert report["exceeded_chunks"] == 1
-    assert report["longest_inputs"][0]["chunk_id"] == "chunk_long"
+    assert len(text) == 1000
+    assert text.startswith("long")

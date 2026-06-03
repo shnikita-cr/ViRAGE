@@ -14,12 +14,9 @@ from src.visrag_core.stores import VisRAGStore
 class _CachedChunkCorpus:
     signature: dict[str, object]
     chunks: list[VisRAGGuidanceChunk]
-    embeddings: dict[str, list[float]]
 
 
 class VisRAGService(BaseService):
-    """Runtime VisRAG over pre-embedded guidance chunks."""
-
     _cache: dict[str, _CachedChunkCorpus] = {}
 
     def invoke(
@@ -46,6 +43,8 @@ class VisRAGService(BaseService):
             embedding_provider=opts["embedding_provider"],
             embedding_model=opts["embedding_model"],
             embedding_base_url=opts["embedding_base_url"],
+            chroma_persist_dir=opts["chroma_persist_dir"],
+            chroma_collection_name=str(opts["chroma_collection_name"]),
         )
         signature = store.corpus_signature()
         cached = self._load(store, signature)
@@ -53,7 +52,6 @@ class VisRAGService(BaseService):
             store=store,
             options=options,
             chunks=cached.chunks,
-            embeddings=cached.embeddings,
             corpus_signature=signature,
             reasoning_llm=runtime.reasoning_llm,
         ).invoke(query_analysis, data_profile, task_context=task_context)
@@ -65,8 +63,7 @@ class VisRAGService(BaseService):
         if cached is not None:
             return cached
         chunks = store.load_chunks()
-        embeddings = store.load_embeddings()
-        result = _CachedChunkCorpus(signature=signature, chunks=chunks, embeddings=embeddings)
+        result = _CachedChunkCorpus(signature=signature, chunks=chunks)
         cls._cache.clear()
         cls._cache[key] = result
         return result

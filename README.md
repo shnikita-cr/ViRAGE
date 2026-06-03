@@ -187,7 +187,7 @@ Plan-only запуск строит план через reasoning LLM и не в
 - `Spec Generator` строит Vega-Lite спецификацию;
 - RAG не заменяет выбранную аналитическую задачу другой задачей.
 
-`semantic` и `hybrid` требуют полного `guidance_chunk_embeddings.jsonl`; при отсутствии embeddings запуск завершается ошибкой подготовки RAG. `lexical_bm25` используется только как явно заданный backend/baseline и не включается автоматически.
+`semantic` и `hybrid` работают через предварительно построенный Chroma index. `lexical` использует текущий runtime corpus напрямую.
 
 ## Benchmark
 
@@ -409,11 +409,11 @@ Prepare it with:
 
     python scripts/rag_corpus/loading/load_eda_guidance.py --refresh
 
-Then rebuild runtime chunks and embeddings:
+Then rebuild runtime chunks and the Chroma index:
 
     python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
 
-    python scripts/rag_corpus/build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600
+    python scripts/rag_corpus/build_runtime_chroma_index.py --chunks rag_corpus/runtime/guidance_chunks.jsonl --persist-dir resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest --collection virage_guidance_chunks_mxbai_embed_large_latest --embedding-provider ollama --embedding-model mxbai-embed-large:latest --embedding-base-url http://localhost:11434 --recreate
 
 See also:
 

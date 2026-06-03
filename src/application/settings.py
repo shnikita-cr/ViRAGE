@@ -15,16 +15,18 @@ class ViRAGESettings(BaseModel):
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/runtime"))
     visrag_runtime_store_backend: str = Field(default="jsonl")
-    visrag_retrieval_backend: Literal["semantic", "hybrid", "lexical_bm25"] = Field(default="hybrid")
+    visrag_retrieval_backend: Literal["semantic", "hybrid", "lexical"] = Field(default="hybrid")
     visrag_top_k_chunks: int = Field(default=8, ge=1)
     visrag_hybrid_method: Literal["cc", "rrf"] = Field(default="cc")
     visrag_hybrid_weight: float = Field(default=0.1, ge=0.0, le=1.0)
     visrag_hybrid_rrf_k: float = Field(default=60.0, gt=0.0)
     visrag_candidate_pool_size: int = Field(default=64, ge=1)
     visrag_embedding_provider: str | None = Field(default="ollama")
-    visrag_embedding_model: str | None = Field(default="nomic-embed-text:latest")
+    visrag_embedding_model: str | None = Field(default="mxbai-embed-large:latest")
     visrag_embedding_base_url: str | None = Field(default="http://localhost:11434")
     visrag_embedding_timeout_seconds: float = Field(default=60.0)
+    visrag_chroma_persist_dir: Path = Field(default=Path("./resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest"))
+    visrag_chroma_collection_name: str = Field(default="virage_guidance_chunks_mxbai_embed_large_latest")
 
     vega_output_format: str = Field(default="png")
     enable_scenegraph_check: bool = Field(default=True)
@@ -85,4 +87,6 @@ class ViRAGESettings(BaseModel):
             "embedding_provider": self.visrag_embedding_provider,
             "embedding_model": self.visrag_embedding_model,
             "embedding_base_url": self.visrag_embedding_base_url,
+            "chroma_persist_dir": self.visrag_chroma_persist_dir,
+            "chroma_collection_name": self.visrag_chroma_collection_name,
         }

@@ -37,6 +37,8 @@ ALLOWED_KEYS = {
     "visrag_embedding_provider",
     "visrag_embedding_model",
     "visrag_embedding_base_url",
+    "visrag_chroma_persist_dir",
+    "visrag_chroma_collection_name",
 }
 
 

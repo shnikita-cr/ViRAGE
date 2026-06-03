@@ -10,9 +10,6 @@ class VisRAGStore:
     def load_chunks(self) -> list[VisRAGGuidanceChunk]:
         raise NotImplementedError
 
-    def load_embeddings(self) -> dict[str, list[float]]:
-        raise NotImplementedError
-
     def corpus_signature(self) -> dict[str, object]:
         return {
             "backend": self.backend_name,
@@ -31,10 +28,5 @@ class UnsupportedVisRAGStore(VisRAGStore):
     def load_chunks(self) -> list[VisRAGGuidanceChunk]:
         raise RuntimeError(
             f"Unsupported VisRAG store backend {self.backend_name!r}. "
-            "Select an implemented backend or add a VisRAGStore adapter. "
-            "Backend choice is intentionally storage-agnostic for future FAISS/Chroma/DB tests."
+            "Select an implemented VisRAGStore adapter."
         )
-
-    def load_embeddings(self) -> dict[str, list[float]]:
-        self.load_chunks()
-        return {}

@@ -2,9 +2,11 @@ mode = "streamlit"
 
 [settings]
 visrag_retrieval_backend = "semantic"
-visrag_embedding_provider = "openai"
-visrag_embedding_model = "text-embedding-3-small"
-visrag_embedding_base_url = ""
+visrag_embedding_provider = "ollama"
+visrag_embedding_model = "nomic-embed-text:latest"
+visrag_embedding_base_url = "http://localhost:11434"
+visrag_chroma_persist_dir = "./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"
+visrag_chroma_collection_name = "virage_guidance_chunks_nomic_embed_text_latest"
 
 [reasoning_model]
 provider = "openai"

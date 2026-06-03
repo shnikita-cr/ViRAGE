@@ -75,7 +75,6 @@ def test_export_autorag_dataset_accepts_runtime_guidance_chunks_with_chunk_id(tm
     corpus_path = tmp_path / "guidance_chunks.jsonl"
     queries_path = tmp_path / "queries.jsonl"
     output_dir = tmp_path / "out"
-    embeddings_path = tmp_path / "guidance_chunk_embeddings.jsonl"
     _write_jsonl(
         corpus_path,
         [
@@ -99,7 +98,6 @@ def test_export_autorag_dataset_accepts_runtime_guidance_chunks_with_chunk_id(tm
             },
         ],
     )
-    _write_jsonl(embeddings_path, [{"chunk_id": "chunk_bar", "embedding": [0.1, 0.2]}])
     _write_jsonl(
         queries_path,
         [
@@ -115,12 +113,9 @@ def test_export_autorag_dataset_accepts_runtime_guidance_chunks_with_chunk_id(tm
         corpus_path=corpus_path,
         queries_path=queries_path,
         output_dir=output_dir,
-        embeddings_path=embeddings_path,
     )
 
     assert report["corpus"]["records"] == 2
     assert report["corpus"]["by_source"] == {"wilke_fundamentals": 2}
-    assert report["embeddings"]["exists"] is True
-    assert report["embeddings"]["used_by_autorag"] is False
     qa = pd.read_parquet(output_dir / "qa.parquet")
     assert list(qa.loc[0, "retrieval_gt"]) == ["chunk_bar"]

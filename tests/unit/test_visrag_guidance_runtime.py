@@ -9,11 +9,6 @@ from src.infrastructure.runtime import RuntimeContext
 from src.services.visrag import VisRAGService
 
 
-class _FakeEmbedder:
-    def embed_query(self, query: str):
-        return [1.0, 0.0, 0.0]
-
-
 def _write_runtime_rules(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     records = [
@@ -56,10 +51,6 @@ def _write_runtime_rules(root: Path) -> None:
     with (root / "guidance_chunks.jsonl").open("w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    with (root / "guidance_chunk_embeddings.jsonl").open("w", encoding="utf-8") as handle:
-        for index, record in enumerate(records, start=1):
-            vector = [1.0, 0.0, float(index) / 100.0]
-            handle.write(json.dumps({"chunk_id": record["doc_id"], "embedding": vector}, ensure_ascii=False) + "\n")
 
 
 def _profile() -> DataProfile:
@@ -93,6 +84,7 @@ def _analysis() -> QueryRequestAnalysisResult:
 
 
 def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("src.visrag_core.engine.RankBM25ChunkRetriever.score", lambda self, query, chunks: {chunk.chunk_id: float(len(chunks) - index) for index, chunk in enumerate(chunks)})
     corpus_root = tmp_path / "runtime_rules"
     _write_runtime_rules(corpus_root)
     runtime = RuntimeContext(
@@ -100,11 +92,10 @@ def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Pa
             artifact_root=tmp_path / "artifacts",
             visrag_corpus_root=corpus_root,
             visrag_runtime_store_backend="jsonl",
-            visrag_retrieval_backend="semantic",
+            visrag_retrieval_backend="lexical",
         )
     )
 
-    monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **kwargs: _FakeEmbedder())
     result = VisRAGService().invoke(_analysis(), _profile(), runtime)
 
     assert result.generation_guidance.has_guidance
@@ -116,11 +107,13 @@ def test_visrag_returns_generation_guidance_without_spec_candidates(tmp_path: Pa
 
 
 def test_domain_semantics_is_gated(tmp_path: Path, monkeypatch) -> None:
+    def _scores(self, query, chunks):
+        return {chunk.chunk_id: (10.0 if "hba1c" in query.lower() and chunk.chunk_id == "domain_rule" else float(len(chunks) - index)) for index, chunk in enumerate(chunks)}
+    monkeypatch.setattr("src.visrag_core.engine.RankBM25ChunkRetriever.score", _scores)
     corpus_root = tmp_path / "runtime_rules"
     _write_runtime_rules(corpus_root)
-    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", visrag_corpus_root=corpus_root, visrag_retrieval_backend="semantic"))
+    runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path / "artifacts", visrag_corpus_root=corpus_root, visrag_retrieval_backend="lexical"))
 
-    monkeypatch.setattr("src.visrag_core.engine.build_embedding_model", lambda **kwargs: _FakeEmbedder())
     normal = VisRAGService().invoke(_analysis(), _profile(), runtime)
     assert normal.generation_guidance.domain_semantics_rules == []
 

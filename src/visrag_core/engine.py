@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -18,11 +19,11 @@ from src.domain.models import (
     VisRAGRetrievedChunk,
 )
 from src.llm.helpers import invoke_structured
-from src.visrag_core.embeddings import build_embedding_model, cosine
-from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.chroma_index import ChromaChunkRetriever, validate_chroma_manifest
 from src.visrag_core.lexical_retriever import RankBM25ChunkRetriever
+from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.stores import JsonlVisRAGStore, VisRAGStore
 from src.visrag_core.task_context import task_context_prompt_block
-from src.visrag_core.stores import VisRAGStore
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,8 @@ class VisRAGCoreOptions:
     embedding_provider: str | None = None
     embedding_model: str | None = None
     embedding_base_url: str | None = None
+    chroma_persist_dir: str | Path = "resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest"
+    chroma_collection_name: str = "virage_guidance_chunks_mxbai_embed_large_latest"
 
 
 class _VisRAGResponseSchema(BaseModel):
@@ -55,14 +58,12 @@ class VisRAGEngine:
             options: VisRAGCoreOptions,
             corpus_signature: dict[str, Any] | None = None,
             chunks: list[VisRAGGuidanceChunk] | None = None,
-            embeddings: dict[str, list[float]] | None = None,
             reasoning_llm: Any | None = None,
     ) -> None:
         self.store = store
         self.options = options
         self._signature = corpus_signature or {}
         self._chunks = chunks
-        self._embeddings = embeddings
         self.reasoning_llm = reasoning_llm
 
     def invoke(
@@ -75,9 +76,7 @@ class VisRAGEngine:
             raise RuntimeError("VisRAG is disabled. Enable visrag_enabled=true or remove the visrag pipeline node.")
         chunks = self._chunks if self._chunks is not None else self.store.load_chunks()
         query = build_visrag_query(query_analysis, data_profile, task_context=task_context)
-        backend = self._normalized_retrieval_backend()
-        embeddings = self._load_required_embeddings(chunks, backend)
-        retrieved = self._retrieve(query, query_analysis, chunks, embeddings)
+        retrieved = self._retrieve(query, query_analysis, chunks)
         guidance = self._generate_response(query_analysis, data_profile, retrieved, task_context=task_context)
         diagnostics = VisRAGDiagnostics(
             retrieved_count=len(retrieved),
@@ -111,65 +110,49 @@ class VisRAGEngine:
             query: str,
             query_analysis: QueryRequestAnalysisResult,
             chunks: list[VisRAGGuidanceChunk],
-            embeddings: dict[str, list[float]],
     ) -> list[VisRAGRetrievedChunk]:
         if not query.strip():
             return []
         backend = self._normalized_retrieval_backend()
         lexical_query = self._lexical_query(query, query_analysis)
         if backend == "semantic":
-            semantic_scores = self._semantic_scores(query, chunks, embeddings)
+            semantic_scores = self._semantic_scores(query, chunks)
             return self._rank_from_scores(chunks, semantic_scores, score_kind="semantic")
-        if backend == "lexical_bm25":
-            lexical_scores = self._lexical_bm25_scores(lexical_query, chunks)
-            return self._rank_from_scores(chunks, lexical_scores, score_kind="lexical_bm25")
+        if backend == "lexical":
+            lexical_scores = self._lexical_scores(lexical_query, chunks)
+            return self._rank_from_scores(chunks, lexical_scores, score_kind="lexical")
         if backend == "hybrid":
-            semantic_scores = self._semantic_scores(query, chunks, embeddings)
-            lexical_scores = self._lexical_bm25_scores(lexical_query, chunks)
+            semantic_scores = self._semantic_scores(query, chunks)
+            lexical_scores = self._top_lexical_scores(lexical_query, chunks)
             hybrid_scores = self._hybrid_scores(semantic_scores, lexical_scores)
             return self._rank_from_scores(chunks, hybrid_scores, score_kind="hybrid")
         raise RuntimeError(
             f"Unsupported VisRAG retrieval backend: {self.options.retrieval_backend!r}. "
-            "Use one of: semantic, hybrid, lexical_bm25."
+            "Use one of: semantic, hybrid, lexical."
         )
 
-    def _load_required_embeddings(
-            self,
-            chunks: list[VisRAGGuidanceChunk],
-            backend: str,
-    ) -> dict[str, list[float]]:
-        if backend == "lexical_bm25":
-            return {}
-        embeddings = self._embeddings if self._embeddings is not None else self.store.load_embeddings()
-        if not embeddings:
-            raise RuntimeError(
-                "VisRAG embeddings are missing for retrieval backend "
-                f"{backend!r}. Run:\n"
-                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600"
-            )
-        missing = [chunk.chunk_id for chunk in chunks if chunk.chunk_id not in embeddings]
-        if missing:
-            raise RuntimeError(
-                "VisRAG embeddings are incomplete for retrieval backend "
-                f"{backend!r}. Run:\n"
-                "python scripts\\rag_corpus\\build_visrag_embeddings.py --provider ollama --model nomic-embed-text:latest --base-url http://localhost:11434 --batch-size 1 --max-input-chars 1600\n"
-                f"Missing embeddings for {len(missing)} chunks; first missing chunk_id={missing[0]!r}."
-            )
-        return embeddings
-
-    def _semantic_scores(
-            self,
-            query: str,
-            chunks: list[VisRAGGuidanceChunk],
-            embeddings: dict[str, list[float]],
-    ) -> dict[str, float]:
-        embedder = build_embedding_model(
-            provider=self.options.embedding_provider,
-            model=self.options.embedding_model,
-            base_url=self.options.embedding_base_url,
+    def _semantic_scores(self, query: str, chunks: list[VisRAGGuidanceChunk]) -> dict[str, float]:
+        self._validate_semantic_index(chunks)
+        retriever = ChromaChunkRetriever(
+            persist_dir=Path(self.options.chroma_persist_dir),
+            collection_name=self.options.chroma_collection_name,
+            embedding_provider=self.options.embedding_provider,
+            embedding_model=self.options.embedding_model,
+            embedding_base_url=self.options.embedding_base_url,
         )
-        query_vector = list(embedder.embed_query(query))
-        return {chunk.chunk_id: cosine(query_vector, embeddings[chunk.chunk_id]) for chunk in chunks}
+        return retriever.score(query=query, chunks=chunks, limit=self._candidate_pool_limit())
+
+    def _validate_semantic_index(self, chunks: list[VisRAGGuidanceChunk]) -> None:
+        if not isinstance(self.store, JsonlVisRAGStore):
+            raise RuntimeError("Semantic VisRAG retrieval requires JsonlVisRAGStore as corpus source.")
+        validate_chroma_manifest(
+            persist_dir=Path(self.options.chroma_persist_dir),
+            chunks_path=self.store.chunks_path,
+            collection_name=self.options.chroma_collection_name,
+            embedding_provider=self.options.embedding_provider,
+            embedding_model=self.options.embedding_model,
+            expected_chunk_count=len(chunks),
+        )
 
     @staticmethod
     def _lexical_query(query: str, query_analysis: QueryRequestAnalysisResult) -> str:
@@ -180,11 +163,14 @@ class VisRAGEngine:
         ]).strip()
 
     @staticmethod
-    def _lexical_bm25_scores(
-            query: str,
-            chunks: list[VisRAGGuidanceChunk],
-    ) -> dict[str, float]:
+    def _lexical_scores(query: str, chunks: list[VisRAGGuidanceChunk]) -> dict[str, float]:
         return RankBM25ChunkRetriever().score(query=query, chunks=chunks)
+
+    def _top_lexical_scores(self, query: str, chunks: list[VisRAGGuidanceChunk]) -> dict[str, float]:
+        scores = self._lexical_scores(query, chunks)
+        ranked = sorted(scores.items(), key=lambda item: (-float(item[1]), item[0]))
+        keep = {chunk_id for chunk_id, score in ranked[:self._candidate_pool_limit()] if float(score) > 0.0}
+        return {chunk_id: score for chunk_id, score in scores.items() if chunk_id in keep}
 
     def _hybrid_scores(self, semantic_scores: dict[str, float], lexical_scores: dict[str, float]) -> dict[str, float]:
         method = (self.options.hybrid_method or "cc").strip().lower()
@@ -221,15 +207,14 @@ class VisRAGEngine:
             [chunk for chunk in chunks if float(scores.get(chunk.chunk_id, 0.0) or 0.0) > 0],
             key=lambda chunk: (-float(scores.get(chunk.chunk_id, 0.0) or 0.0), chunk.source_id, chunk.chunk_id),
         )
-        pool_limit = max(int(self.options.top_k_chunks), int(self.options.candidate_pool_size))
         ranked: list[VisRAGRetrievedChunk] = []
-        for chunk in raw_ranked[:pool_limit]:
+        for chunk in raw_ranked[:self._candidate_pool_limit()]:
             raw_score = float(scores.get(chunk.chunk_id, 0.0) or 0.0)
             final_score = raw_score * self._metadata_weight(chunk)
             metadata = dict(chunk.metadata or {})
             metadata["retrieval_score_kind"] = score_kind
             metadata["raw_retrieval_score"] = round(raw_score, 6)
-            metadata["candidate_pool_size"] = pool_limit
+            metadata["candidate_pool_size"] = self._candidate_pool_limit()
             ranked.append(
                 VisRAGRetrievedChunk(
                     **chunk.model_dump(exclude={"score", "metadata"}),
@@ -239,6 +224,9 @@ class VisRAGEngine:
             )
         limit = max(1, int(self.options.top_k_chunks))
         return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:limit]
+
+    def _candidate_pool_limit(self) -> int:
+        return max(int(self.options.top_k_chunks), int(self.options.candidate_pool_size))
 
     @staticmethod
     def _minmax_normalize(scores: dict[str, float]) -> dict[str, float]:
@@ -263,10 +251,9 @@ class VisRAGEngine:
             )
         if backend == "semantic":
             return f"chunk_guidance:{self.store.backend_name}:semantic:{self.options.embedding_model}:top_k={self.options.top_k_chunks}"
-        if backend == "lexical_bm25":
-            return f"chunk_guidance:{self.store.backend_name}:lexical_bm25:top_k={self.options.top_k_chunks}"
+        if backend == "lexical":
+            return f"chunk_guidance:{self.store.backend_name}:lexical:top_k={self.options.top_k_chunks}"
         return f"chunk_guidance:{self.store.backend_name}:{backend}"
-
 
     @staticmethod
     def _metadata_weight(chunk: VisRAGGuidanceChunk) -> float:
@@ -465,4 +452,3 @@ class VisRAGEngine:
             if cls._domain_semantics_matches(chunk, query_analysis, data_profile):
                 kept.append(document)
         return kept
-
