@@ -134,25 +134,7 @@ RAG-корпуса готовятся offline и больше не строят�
     python scripts/rag_corpus/run_export_autorag.py
     python scripts/rag_corpus/run_export_runtime.py
 
-AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует актуальный chunk-корпус `rag_corpus/runtime/guidance_chunks.jsonl` и заранее рассчитанные embeddings `rag_corpus/runtime/guidance_chunk_embeddings.jsonl`.
-
-Текущие runtime-настройки RAG задаются явно через config:
-
-    visrag_retrieval_backend = "hybrid"
-    visrag_top_k_chunks = 8
-    visrag_hybrid_method = "cc"
-    visrag_hybrid_weight = 0.1
-    visrag_embedding_provider = "ollama"
-    visrag_embedding_model = "nomic-embed-text:latest"
-    visrag_embedding_base_url = "http://localhost:11434"
-
-Поддерживаемые runtime retrieval backend:
-
-- `semantic` — cosine similarity по precomputed embeddings;
-- `hybrid` — явное объединение semantic retrieval и BM25 lexical score;
-- `lexical_bm25` — явный BM25-режим для экспериментов, не fallback.
-
-По умолчанию используется `hybrid` с `HybridCC`-style объединением и `top_k=8`, потому что текущий AutoRAG baseline показал, что lexical-сигнал важен, а hybrid даёт лучший recall. Рабочая embedding-модель по умолчанию — `nomic-embed-text:latest`; остальные embedding-модели не используются в runtime config, пока они не проверены отдельно.
+AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `virage_rules.jsonl`.
 
 
 ## Оркестратор аналитических задач
@@ -205,7 +187,7 @@ Plan-only запуск без вызова LLM-моделей:
 - `Spec Generator` строит Vega-Lite спецификацию;
 - RAG не заменяет выбранную аналитическую задачу другой задачей.
 
-Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все chunks, запуск должен завершиться ошибкой подготовки RAG, а не молча перейти на лексический поиск. BM25 допускается только как явно заданный backend `lexical_bm25` или как часть явно выбранного `hybrid` backend.
+Runtime lexical fallback отключён. Если `guidance_chunk_embeddings.jsonl` отсутствует или не покрывает все chunks, запуск должен завершиться ошибкой подготовки RAG, а не молча перейти на лексический поиск. BM25 остаётся только как явно заданный AutoRAG baseline.
 
 ## Benchmark
 
@@ -396,3 +378,29 @@ Approved feedback can be combined with the current guidance corpus into a tempor
     python scripts/rag_corpus/export_feedback_chunks.py --mode rules --normalized-only --approve-all --normalized rag_corpus/feedback/normalized_feedback.jsonl --output rag_corpus/feedback/manual_feedback_chunks.jsonl --base-corpus rag_corpus/runtime/guidance_chunks.jsonl --merged-output rag_corpus/feedback/guidance_with_feedback.jsonl
 
 The script never silently adds raw feedback to the runtime RAG corpus.
+
+## ViRAGE E2E test cases
+
+Для проверки orchestrator, task-specific RAG, scientific guidance, image-folder mode и VLM publication criteria добавлен фиксированный набор тестовых кейсов:
+
+    benchmarks/virage_e2e_test_cases.jsonl
+
+Документация:
+
+    docs/virage_e2e_test_cases.md
+
+Plan-only запуск:
+
+    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --cases benchmarks/virage_e2e_test_cases.jsonl --run-id e2e_plan_001
+
+Execute запуск:
+
+    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --cases benchmarks/virage_e2e_test_cases.jsonl --run-id e2e_execute_001 --execute
+
+Image-folder case:
+
+    python scripts/benchmarks/run_virage_e2e_test_cases.py --config ui/config/benchmark/project-gemma4-bench_rag.toml --cases benchmarks/virage_e2e_test_cases.jsonl --run-id e2e_images_001 --case-id image_folder_quality --image-folder path/to/images --execute
+
+Скрипт использует общий benchmark status bar и пишет отчёт в:
+
+    artifacts/<run_id>/e2e_cases_report/

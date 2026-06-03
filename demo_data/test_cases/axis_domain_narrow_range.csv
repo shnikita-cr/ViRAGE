@@ -1,0 +1,11 @@
+sample_id,condition,measurement,replicate
+s01,control,88.2,1
+s02,control,89.1,2
+s03,control,87.8,3
+s04,control,90.0,4
+s05,treatment,94.4,1
+s06,treatment,95.2,2
+s07,treatment,93.9,3
+s08,treatment,96.1,4
+s09,treatment,94.8,5
+s10,control,88.7,5
