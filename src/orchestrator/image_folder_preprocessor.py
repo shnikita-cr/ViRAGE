@@ -260,7 +260,8 @@ class ImageFolderPreprocessor:
 
 
 class _PyIQARunner:
-    def __init__(self, *, enabled: bool, available: bool, unavailable_reason: str | None, metrics: dict[str, Any]) -> None:
+    def __init__(self, *, enabled: bool, available: bool, unavailable_reason: str | None,
+                 metrics: dict[str, Any]) -> None:
         self.enabled = enabled
         self.available = available
         self.unavailable_reason = unavailable_reason
@@ -305,9 +306,9 @@ class _PyIQARunner:
             return scores
         tensor = self._to_tensor(rgb_float)
         for metric_name, column in (
-            ("brisque", "brisque_score"),
-            ("niqe", "niqe_score"),
-            ("piqe", "piqe_score"),
+                ("brisque", "brisque_score"),
+                ("niqe", "niqe_score"),
+                ("piqe", "piqe_score"),
         ):
             metric = self.metrics.get(metric_name)
             if metric is None:
@@ -355,11 +356,11 @@ def _laplacian(gray: np.ndarray) -> np.ndarray:
     padded = np.pad(gray, 1, mode="edge")
     center = padded[1:-1, 1:-1]
     return (
-        padded[:-2, 1:-1]
-        + padded[2:, 1:-1]
-        + padded[1:-1, :-2]
-        + padded[1:-1, 2:]
-        - 4.0 * center
+            padded[:-2, 1:-1]
+            + padded[2:, 1:-1]
+            + padded[1:-1, :-2]
+            + padded[1:-1, 2:]
+            - 4.0 * center
     )
 
 

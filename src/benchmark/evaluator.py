@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.application.contracts import PipelineResult
+from src.benchmark.chart_text_metrics import chart_text_consistency_score
 from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
 from src.domain.models import EmptyChartCheckResult, PlotImageArtifact, VegaLiteSpecArtifact
 from src.infrastructure.runtime import RuntimeContext
@@ -13,7 +14,6 @@ from src.services.data import read_dataframe
 from src.services.spec_score import SpecScoreService
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegachat_spec_metrics import compute_vegachat_spec_score
-from src.benchmark.chart_text_metrics import chart_text_consistency_score
 from src.services.vision_score import VisionScoreService
 
 

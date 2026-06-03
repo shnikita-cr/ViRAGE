@@ -79,12 +79,14 @@ class _AmbiguitySchema(BaseModel):
 class _QueryRequestAnalysisSchema(BaseModel):
     normalized_query: str = Field(
         min_length=1,
-        validation_alias=AliasChoices("normalized_query", "canonical_query", "intent", "analytic_intent", "user_intent"),
+        validation_alias=AliasChoices("normalized_query", "canonical_query", "intent", "analytic_intent",
+                                      "user_intent"),
     )
     analysis_task: str = "descriptive_analytics"
     selected_fields: list[str] = Field(default_factory=list)
     field_bindings: dict[str, _FieldBindingSchema] = Field(default_factory=dict)
-    field_mappings: list[_FieldMappingSchema] = Field(default_factory=list, validation_alias=AliasChoices("field_mappings", "mappings"))
+    field_mappings: list[_FieldMappingSchema] = Field(default_factory=list,
+                                                      validation_alias=AliasChoices("field_mappings", "mappings"))
     aggregation_plan: dict[str, Any] = Field(default_factory=dict)
     visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
     query_variants: list[_QueryVariantSchema] = Field(default_factory=list)
@@ -224,9 +226,11 @@ class QueryRequestAnalyzerService(BaseService):
                 seen_texts.add(key)
                 result.append(QueryVariant(kind=kind, text=text, confidence=item.confidence, source="llm"))
         if original_query.strip().lower() not in seen_texts:
-            result.insert(0, QueryVariant(kind="canonical", text=original_query.strip(), confidence=0.55, source="derived"))
+            result.insert(0, QueryVariant(kind="canonical", text=original_query.strip(), confidence=0.55,
+                                          source="derived"))
         if not any(item.kind == "canonical" for item in result):
-            result.insert(0, QueryVariant(kind="canonical", text=original_query.strip(), confidence=0.55, source="derived"))
+            result.insert(0, QueryVariant(kind="canonical", text=original_query.strip(), confidence=0.55,
+                                          source="derived"))
         return result
 
     @staticmethod
@@ -263,7 +267,8 @@ class QueryRequestAnalyzerService(BaseService):
                 "y": {"field": y_field, "role": "measure_axis", "confidence": 0.7, "rationale": "example"},
             },
             "field_mappings": [
-                {"query_term": x_field, "column_name": x_field, "confidence": 0.8, "rationale": "schema-grounded example"}
+                {"query_term": x_field, "column_name": x_field, "confidence": 0.8,
+                 "rationale": "schema-grounded example"}
             ],
             "aggregation_plan": {"operation": "mean", "column": y_field, "group_by": [x_field]},
             "visual_judge_requirements": {
@@ -276,7 +281,8 @@ class QueryRequestAnalyzerService(BaseService):
                 {"kind": "canonical", "text": "Show average value over time by category.", "confidence": 0.8},
                 {"kind": "chart_pattern_retrieval", "text": "time trend mean measure by category", "confidence": 0.7},
             ],
-            "chart_answerability": {"status": "answerable_by_chart", "reason": "A static trend chart can answer this request."},
+            "chart_answerability": {"status": "answerable_by_chart",
+                                    "reason": "A static trend chart can answer this request."},
             "assumptions": [],
             "ambiguity": {"missing_fields": [], "notes": [], "confidence": 0.0},
             "confidence": 0.75,

@@ -59,7 +59,8 @@ class ChartGroundedAnalysisBenchmarkRunner:
             cases_path=source,
             config_path=config_path,
             corpus_root=getattr(getattr(self.pipeline, "settings", None), "visrag_corpus_root", None),
-            run_options={"evaluation_mode": self.evaluator.mode, "failure_policy": self.failure_policy, **(run_options or {})},
+            run_options={"evaluation_mode": self.evaluator.mode, "failure_policy": self.failure_policy,
+                         **(run_options or {})},
         )
         cases = self._load_cases(source)
         if case_id:
@@ -167,7 +168,8 @@ class ChartGroundedAnalysisBenchmarkRunner:
                     evaluation_verdict="unknown",
                     evaluation_score=0.0,
                     artifact_run_dir=artifact_run_dir,
-                    metadata={**case.metadata, "chart_rejection_reason": "chart_not_accepted_after_visual_judge_retries"},
+                    metadata={**case.metadata,
+                              "chart_rejection_reason": "chart_not_accepted_after_visual_judge_retries"},
                 )
                 self._write_case_result(result_row, output_dir)
                 return result_row

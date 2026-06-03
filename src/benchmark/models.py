@@ -124,8 +124,11 @@ class BenchmarkAggregateReport(BaseModel):
         failed = total - successful
         spec_scores = [float(item.spec_score) for item in results if item.spec_score is not None]
         vision_scores = [float(item.vision_score) for item in results if item.vision_score is not None]
-        spec_scores_failure_as_zero = [float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0 for item in results]
-        vision_scores_failure_as_zero = [float(item.vision_score) if item.vision_score is not None and item.error is None else 0.0 for item in results]
+        spec_scores_failure_as_zero = [
+            float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0 for item in results]
+        vision_scores_failure_as_zero = [
+            float(item.vision_score) if item.vision_score is not None and item.error is None else 0.0 for item in
+            results]
         durations = [float(item.duration_seconds) for item in results if item.duration_seconds is not None]
         vegachat_metrics = _mean_metrics([item.metrics for item in results])
         text_consistency_values = [
@@ -200,7 +203,8 @@ def _mean_metrics(metrics: list[dict[str, float]]) -> dict[str, float]:
 def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[str, float | int | None]]:
     groups: dict[str, list[BenchmarkCaseResult]] = {}
     for item in results:
-        for key in ("dataset_name", "utterance_type", "difficulty", "analysis_task", "recommended_chart_family", "chart_type"):
+        for key in (
+        "dataset_name", "utterance_type", "difficulty", "analysis_task", "recommended_chart_family", "chart_type"):
             value = item.dataset_name if key == "dataset_name" else item.metadata.get(key)
             if value is None or value == "":
                 continue
@@ -221,6 +225,7 @@ def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[st
                 for item in items
             ]),
             "mean_total_tokens": _mean([float(item.total_tokens) for item in items]),
-            "mean_duration_seconds": _mean([float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
+            "mean_duration_seconds": _mean(
+                [float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
         }
     return out

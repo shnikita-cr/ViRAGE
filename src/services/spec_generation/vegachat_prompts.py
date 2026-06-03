@@ -203,6 +203,7 @@ def _strip_data(value: Any) -> Any:
         return [_strip_data(item) for item in value]
     return value
 
+
 def _output_contract() -> str:
     return f"""
 Return format:

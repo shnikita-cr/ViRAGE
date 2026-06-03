@@ -42,14 +42,14 @@ class AnalysisPlanner:
         self.max_charts = max_charts
 
     def plan(
-        self,
-        *,
-        user_query: str,
-        data_path: str,
-        data_profile: DataProfile,
-        input_type: str = "table",
-        original_input_path: str | None = None,
-        preprocessing_report_path: str | None = None,
+            self,
+            *,
+            user_query: str,
+            data_path: str,
+            data_profile: DataProfile,
+            input_type: str = "table",
+            original_input_path: str | None = None,
+            preprocessing_report_path: str | None = None,
     ) -> AnalysisPlan:
         columns = self._column_sets(data_profile)
         candidates: list[AnalysisSubtask] = []
@@ -67,7 +67,8 @@ class AnalysisPlanner:
                 preprocessing_report_path=preprocessing_report_path,
             )
 
-        def add(candidate: AnalysisSubtask | None, task_type: AnalysisTaskType, reason: str, required: list[str]) -> None:
+        def add(candidate: AnalysisSubtask | None, task_type: AnalysisTaskType, reason: str,
+                required: list[str]) -> None:
             if candidate is None:
                 skipped.append(SkippedAnalysisCandidate(task_type=task_type, reason=reason, required_fields=required))
                 return
@@ -101,7 +102,8 @@ class AnalysisPlanner:
                 "No numeric measure was found.",
                 ["numeric"],
             )
-        if _OUTLIER_RE.search(query) or (is_general and any((column.outlier_count or 0) > 0 for column in columns.measures)):
+        if _OUTLIER_RE.search(query) or (
+                is_general and any((column.outlier_count or 0) > 0 for column in columns.measures)):
             add(
                 self._outlier_task(query, columns),
                 "outlier_detection",
@@ -135,7 +137,8 @@ class AnalysisPlanner:
                     task_type="overview",
                     query=f"Summarize the available dataset structure for: {query}",
                     purpose="Provide a compact overview when no numeric analytical subtask can be safely selected.",
-                    required_fields=[column.name for column in data_profile.columns[: min(5, len(data_profile.columns))]],
+                    required_fields=[column.name for column in
+                                     data_profile.columns[: min(5, len(data_profile.columns))]],
                     priority=90,
                     rationale="No standard numeric, categorical, or temporal pattern was available.",
                 )
@@ -153,16 +156,15 @@ class AnalysisPlanner:
             rationale=self._plan_rationale(query_lower, data_profile, selected, is_general),
         )
 
-
     def _image_folder_plan(
-        self,
-        *,
-        query: str,
-        data_path: str,
-        data_profile: DataProfile,
-        columns: _ColumnSets,
-        original_input_path: str | None,
-        preprocessing_report_path: str | None,
+            self,
+            *,
+            query: str,
+            data_path: str,
+            data_profile: DataProfile,
+            columns: _ColumnSets,
+            original_input_path: str | None,
+            preprocessing_report_path: str | None,
     ) -> AnalysisPlan:
         candidates: list[AnalysisSubtask] = []
         skipped: list[SkippedAnalysisCandidate] = []
@@ -286,7 +288,8 @@ class AnalysisPlanner:
                     required_fields=[id_field, problem_metric],
                     optional_fields=[
                         field
-                        for field in ["contrast_rms", "mean_brightness", "clipping_ratio", "exposure_balance_score", "group"]
+                        for field in
+                        ["contrast_rms", "mean_brightness", "clipping_ratio", "exposure_balance_score", "group"]
                         if field in available
                     ],
                     priority=40,
@@ -308,7 +311,8 @@ class AnalysisPlanner:
                     task_type="overview",
                     query=f"Summarize the generated image metrics table. Original request: {query}",
                     purpose="Provide a compact overview of generated image metadata and quality metrics.",
-                    required_fields=[column.name for column in data_profile.columns[: min(5, len(data_profile.columns))]],
+                    required_fields=[column.name for column in
+                                     data_profile.columns[: min(5, len(data_profile.columns))]],
                     priority=90,
                     constraints={"output_target": "scientific_figure", "input_type": "image_folder"},
                     rationale="No standard image quality metric pattern was available.",
@@ -479,21 +483,23 @@ class AnalysisPlanner:
         )
 
     def _plan_rationale(
-        self,
-        query_lower: str,
-        profile: DataProfile,
-        selected: list[AnalysisSubtask],
-        is_general: bool,
+            self,
+            query_lower: str,
+            profile: DataProfile,
+            selected: list[AnalysisSubtask],
+            is_general: bool,
     ) -> list[str]:
         rationale = [
             f"Dataset profile: {profile.row_count} rows, {profile.col_count} columns.",
             f"Selected {len(selected)} analytical subtask(s), limit is {self.max_charts}.",
         ]
         if is_general:
-            rationale.append("The user request is broad; the plan prioritizes complementary overview, comparison, and diagnostic tasks.")
+            rationale.append(
+                "The user request is broad; the plan prioritizes complementary overview, comparison, and diagnostic tasks.")
         else:
             rationale.append(f"The user request was matched against analytical task keywords: {query_lower[:160]}.")
-        rationale.append("Chart types are not fixed by the planner; RAG and spec generation decide how to visualize each selected task.")
+        rationale.append(
+            "Chart types are not fixed by the planner; RAG and spec generation decide how to visualize each selected task.")
         return rationale
 
     @staticmethod
@@ -531,7 +537,7 @@ class AnalysisPlanner:
             key=lambda column: (
                 bool(column.is_high_cardinality),
                 bool(column.missing_ratio >= 0.5),
-                column.unique_count if column.unique_count > 0 else 10**9,
+                column.unique_count if column.unique_count > 0 else 10 ** 9,
                 column.name.lower(),
             ),
         )[0]

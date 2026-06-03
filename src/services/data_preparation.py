@@ -5,7 +5,6 @@ import pandas as pd
 from src.domain.models import DataPreparationResult, DataProfile, QueryRequestAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
-from src.services.data import read_dataframe
 
 
 class DataPreparationService(BaseService):

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import dataclass, field
-import re
 from typing import Any
 
 
@@ -173,12 +173,12 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _normalize_encoding(
-        cls,
-        encoding: dict[str, Any],
-        *,
-        root: dict[str, Any],
-        view: dict[str, Any],
-        changes: list[str],
+            cls,
+            encoding: dict[str, Any],
+            *,
+            root: dict[str, Any],
+            view: dict[str, Any],
+            changes: list[str],
     ) -> None:
         mark_type = cls._mark_type(view)
         for channel, channel_def in list(encoding.items()):
@@ -187,13 +187,13 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _normalize_channel(
-        cls,
-        channel: str,
-        channel_def: Any,
-        *,
-        root: dict[str, Any],
-        mark_type: str,
-        changes: list[str],
+            cls,
+            channel: str,
+            channel_def: Any,
+            *,
+            root: dict[str, Any],
+            mark_type: str,
+            changes: list[str],
     ) -> None:
         if isinstance(channel_def, list):
             for item in channel_def:
@@ -236,12 +236,12 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _normalize_view_title(
-        cls,
-        view: dict[str, Any],
-        encoding: dict[str, Any],
-        *,
-        root: dict[str, Any],
-        changes: list[str],
+            cls,
+            view: dict[str, Any],
+            encoding: dict[str, Any],
+            *,
+            root: dict[str, Any],
+            changes: list[str],
     ) -> None:
         title = cls._chart_title(encoding, root=root, view=view)
         if not title:
@@ -254,12 +254,12 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _should_replace_chart_title(
-        cls,
-        title: str,
-        encoding: dict[str, Any],
-        *,
-        root: dict[str, Any],
-        view: dict[str, Any],
+            cls,
+            title: str,
+            encoding: dict[str, Any],
+            *,
+            root: dict[str, Any],
+            view: dict[str, Any],
     ) -> bool:
         normalized = cls._normalize_text(title)
         if not normalized or normalized in cls.GENERIC_TITLES:
@@ -279,11 +279,11 @@ class SpecPresentationConsistencyService:
         if aggregate and cls._title_has_wrong_aggregate(normalized, aggregate):
             return True
         if (
-            aggregate
-            and isinstance(dimension_field, str)
-            and cls._normalize_text(dimension_field) in normalized
-            and isinstance(measure_field, str)
-            and cls._normalize_text(measure_field) not in normalized
+                aggregate
+                and isinstance(dimension_field, str)
+                and cls._normalize_text(dimension_field) in normalized
+                and isinstance(measure_field, str)
+                and cls._normalize_text(measure_field) not in normalized
         ):
             return True
         deterministic = cls._chart_title(encoding, root=root, view=view)
@@ -301,7 +301,8 @@ class SpecPresentationConsistencyService:
     def _title_has_wrong_aggregate(cls, normalized_title: str, expected_aggregate: str) -> bool:
         expected = cls._canonical_aggregate(expected_aggregate)
         for word, aggregate in cls.AGGREGATE_WORDS.items():
-            if re.search(rf"\b{re.escape(word)}\b", normalized_title) and cls._canonical_aggregate(aggregate) != expected:
+            if re.search(rf"\b{re.escape(word)}\b", normalized_title) and cls._canonical_aggregate(
+                    aggregate) != expected:
                 return True
         return False
 
@@ -403,13 +404,13 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _repeat_chart_title(
-        cls,
-        encoding: dict[str, Any],
-        *,
-        root: dict[str, Any],
-        mark_type: str,
-        repeat_channel_def: dict[str, Any] | None,
-        dimension_channel_def: dict[str, Any] | None,
+            cls,
+            encoding: dict[str, Any],
+            *,
+            root: dict[str, Any],
+            mark_type: str,
+            repeat_channel_def: dict[str, Any] | None,
+            dimension_channel_def: dict[str, Any] | None,
     ) -> str:
         repeated_label = cls._repeated_measure_group_label(root)
         dimension_label = cls._field_display_label(cls._field_from_channel(dimension_channel_def), root=root)
@@ -432,11 +433,11 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _dimension_labels(
-        cls,
-        encoding: dict[str, Any],
-        *,
-        root: dict[str, Any],
-        exclude_defs: list[dict[str, Any] | None] | None = None,
+            cls,
+            encoding: dict[str, Any],
+            *,
+            root: dict[str, Any],
+            exclude_defs: list[dict[str, Any] | None] | None = None,
     ) -> list[str]:
         labels: list[str] = []
         excluded = cls._field_identity_set(exclude_defs or [])
@@ -457,11 +458,11 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _group_labels(
-        cls,
-        encoding: dict[str, Any],
-        *,
-        root: dict[str, Any],
-        exclude_defs: list[dict[str, Any] | None] | None = None,
+            cls,
+            encoding: dict[str, Any],
+            *,
+            root: dict[str, Any],
+            exclude_defs: list[dict[str, Any] | None] | None = None,
     ) -> list[str]:
         labels: list[str] = []
         excluded = cls._field_identity_set(exclude_defs or [])
@@ -484,7 +485,8 @@ class SpecPresentationConsistencyService:
         title = " ".join(parts).strip()
         unique_dimensions = cls._unique_case_insensitive([item for item in dimensions if item])
         if unique_dimensions:
-            title = f"{title} by {cls._join_labels(unique_dimensions)}" if title else cls._join_labels(unique_dimensions)
+            title = f"{title} by {cls._join_labels(unique_dimensions)}" if title else cls._join_labels(
+                unique_dimensions)
         return re.sub(r"\s+", " ", title).strip()
 
     @staticmethod
@@ -560,12 +562,12 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _label_for_channel(
-        cls,
-        channel_def: dict[str, Any],
-        *,
-        channel: str,
-        root: dict[str, Any],
-        mark_type: str = "",
+            cls,
+            channel_def: dict[str, Any],
+            *,
+            channel: str,
+            root: dict[str, Any],
+            mark_type: str = "",
     ) -> str:
         field = cls._field_from_channel(channel_def)
         if field is None:
@@ -579,12 +581,12 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _measure_label(
-        cls,
-        field: str | RepeatFieldReference,
-        *,
-        aggregate: str = "",
-        root: dict[str, Any],
-        time_unit: str = "",
+            cls,
+            field: str | RepeatFieldReference,
+            *,
+            aggregate: str = "",
+            root: dict[str, Any],
+            time_unit: str = "",
     ) -> str:
         field_label = cls._field_display_label(field, root=root, time_unit=time_unit)
         aggregate_label = cls._aggregate_label(aggregate)
@@ -600,11 +602,11 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _field_display_label(
-        cls,
-        field: str | RepeatFieldReference | None,
-        *,
-        root: dict[str, Any],
-        time_unit: str = "",
+            cls,
+            field: str | RepeatFieldReference | None,
+            *,
+            root: dict[str, Any],
+            time_unit: str = "",
     ) -> str:
         if field is None:
             return ""

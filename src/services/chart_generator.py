@@ -13,8 +13,8 @@ from src.domain.models import (
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.spec_generation import VegaChatCodegenBackend
-from src.services.spec_presentation_consistency import SpecPresentationConsistencyService
 from src.services.spec_generation.base import SpecGenerationBackend
+from src.services.spec_presentation_consistency import SpecPresentationConsistencyService
 
 
 class ChartGeneratorService(BaseService):
@@ -80,7 +80,6 @@ class ChartGeneratorService(BaseService):
             generation_warnings=[*result.warning_messages, *presentation_notes],
             generation_artifacts=generation_artifacts,
         )
-
 
     @staticmethod
     def _save_presentation_consistency_report(
@@ -162,6 +161,7 @@ class ChartGeneratorService(BaseService):
             if isinstance(text, str):
                 return text.strip()
         return ""
+
     async def ainvoke(
             self,
             prepared: DataPreparationResult,

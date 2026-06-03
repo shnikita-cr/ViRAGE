@@ -124,7 +124,8 @@ class AnalysisBenchmarkReport(BaseModel):
     def from_results(cls, results: list[AnalysisBenchmarkResult]) -> "AnalysisBenchmarkReport":
         total = len(results)
         success = sum(1 for item in results if item.error is None)
-        technical_failures = sum(1 for item in results if item.error is not None and not str(item.error).startswith("chart_not_accepted"))
+        technical_failures = sum(
+            1 for item in results if item.error is not None and not str(item.error).startswith("chart_not_accepted"))
         accepted = [item.chart_was_accepted for item in results]
         rejected = [not item.chart_was_accepted and item.error is None for item in results]
         confidences = [item.confidence for item in results if item.error is None]
@@ -197,8 +198,10 @@ def _stratified_metrics(results: list[AnalysisBenchmarkResult]) -> dict[str, dic
                 item.evaluation_score if item.error is None else 0.0
                 for item in items
             ]),
-            "mean_chart_groundedness": _mean([item.chart_groundedness for item in items if item.evaluation_verdict != "unknown"]),
+            "mean_chart_groundedness": _mean(
+                [item.chart_groundedness for item in items if item.evaluation_verdict != "unknown"]),
             "mean_total_tokens": _mean([float(item.total_tokens) for item in items]),
-            "mean_duration_seconds": _mean([float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
+            "mean_duration_seconds": _mean(
+                [float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
         }
     return out

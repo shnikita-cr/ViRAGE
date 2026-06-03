@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage
-from src.domain.models import AnalysisRubric, InsightsResult, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
+from src.domain.models import AnalysisRubric, PlotImageArtifact, SemanticFeedbackLoopSummary, StepLog, \
     VLMAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.observability import traceable
@@ -192,8 +191,6 @@ def _vega_spec_artifact_payload(spec_artifact: Any) -> dict[str, Any]:
     }
 
 
-
-
 class BasePipelineNodes:
     def __init__(self, runtime: RuntimeContext) -> None:
         self.runtime = runtime
@@ -301,6 +298,7 @@ class BasePipelineNodes:
             focus_areas.extend([analysis.analysis_task or "", analysis.normalized_query or ""])
             focus_areas.extend(list(analysis.selected_fields or []))
         return AnalysisRubric(focus_areas=list(dict.fromkeys(item for item in focus_areas if item)))
+
 
 __all__ = [
     'BasePipelineNodes',

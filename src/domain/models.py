@@ -9,7 +9,6 @@ from src.domain.analysis_models import (
     InsightReasoningResult,
     InsightsResult,
 )
-
 from src.domain.chart_models import (
     VegaLiteSpecArtifact,
     SpecValidationResult,
@@ -18,7 +17,6 @@ from src.domain.chart_models import (
     PlotImageArtifact,
     PlotRenderingResult,
 )
-
 from src.domain.data_models import (
     DataColumnProfile,
     DataProfile,
@@ -28,31 +26,29 @@ from src.domain.data_models import (
     QueryRequestAnalysisResult,
     DataPreparationResult,
 )
-
 from src.domain.evaluation_models import (
     StructuralSpecMetric,
     VisualQualityMetric,
     EvaluationSummaryResult,
 )
-
+from src.domain.feedback_models import (
+    NormalizedFeedbackRecord,
+)
 from src.domain.query_models import (
     QueryVariant,
 )
-
 from src.domain.runtime_models import (
     TokenUsage,
     ModelCallLog,
     StepLog,
     StageExecutionLog,
 )
-
 from src.domain.spec_generation_models import (
     SpecGenerationBackendName,
     SpecGenerationRequest,
     SpecGenerationAttempt,
     SpecGenerationResult,
 )
-
 from src.domain.visrag_models import (
     VisRAGChunkKind,
     VisRAGRuleDocument,
@@ -63,18 +59,6 @@ from src.domain.visrag_models import (
     VisRAGDiagnostics,
     VisRAGResult,
 )
-
-from src.domain.feedback_models import (
-    NormalizedFeedbackRecord,
-)
-
-
-from src.domain.vlm_image_benchmark_models import (
-    ImageOnlyChartJudgeResult,
-    VLMImageBenchmarkImageResult,
-    VLMImageBenchmarkSummary,
-)
-
 from src.domain.visual_feedback_models import (
     VLMChartDescriptionResult,
     ChartFactSummaryResult,
@@ -85,6 +69,11 @@ from src.domain.visual_feedback_models import (
     ChartRevisionRecord,
     VisualFeedbackExample,
     SemanticFeedbackLoopSummary,
+)
+from src.domain.vlm_image_benchmark_models import (
+    ImageOnlyChartJudgeResult,
+    VLMImageBenchmarkImageResult,
+    VLMImageBenchmarkSummary,
 )
 
 __all__ = [

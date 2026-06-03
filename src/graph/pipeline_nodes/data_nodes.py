@@ -5,6 +5,7 @@ from src.domain.enums import PipelineStage
 from src.graph.pipeline_nodes.common import _data_profile_artifact_payload
 from src.observability import traceable
 
+
 class DataPipelineNodesMixin:
     @traceable(name="virage.data_profiler")
     def data_profiler_node(self, state: PipelineState) -> dict:
@@ -21,7 +22,8 @@ class DataPipelineNodesMixin:
                 title="Data profiling",
                 summary=f"Rows={result.row_count}, Cols={result.col_count}",
                 inputs=[state["data_path"]],
-                outputs=[", ".join(column.name for column in result.measure_columns()[:3]), ", ".join(column.name for column in result.temporal_columns()[:3])],
+                outputs=[", ".join(column.name for column in result.measure_columns()[:3]),
+                         ", ".join(column.name for column in result.temporal_columns()[:3])],
                 details={"artifact": artifact_paths["data_profile"]},
             ),
         }

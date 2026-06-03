@@ -70,6 +70,7 @@ def scan_source_root(source_root: str | Path = DEFAULT_SOURCE_ROOT) -> dict[str,
         "label_samples": sample_labels,
     }
 
+
 CHART_ANSWERABLE_KEYWORDS = (
     "compare", "comparison", "trend", "over time", "relationship", "versus", " vs ", "against",
     "distribution", "spread", "outlier", "increase", "decrease", "higher than", "lower than",

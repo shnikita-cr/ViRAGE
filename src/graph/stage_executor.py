@@ -8,7 +8,6 @@ from src.domain.enums import PipelineStage
 from src.domain.models import StageExecutionLog, StepLog, TokenUsage
 from src.infrastructure.runtime import RuntimeContext
 
-
 STAGE_TITLES = {
     "data_profiler": "Data profiling",
     "query_request_analysis": "Query and request analysis",
@@ -109,7 +108,8 @@ def enrich_step_logs_with_duration(
 
 
 class StageExecutor:
-    def __init__(self, *, name: str, callable_node: Callable[[PipelineState], dict[str, Any]], runtime: RuntimeContext) -> None:
+    def __init__(self, *, name: str, callable_node: Callable[[PipelineState], dict[str, Any]],
+                 runtime: RuntimeContext) -> None:
         self.name = name
         self.callable_node = callable_node
         self.runtime = runtime

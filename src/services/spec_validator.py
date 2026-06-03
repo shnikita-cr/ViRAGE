@@ -109,7 +109,8 @@ class SpecValidatorService(BaseService):
         return False
 
     @staticmethod
-    def _load_runtime_data(spec: dict[str, Any], errors: list[str], *, runtime: RuntimeContext | None = None) -> tuple[Path | None, set[str]]:
+    def _load_runtime_data(spec: dict[str, Any], errors: list[str], *, runtime: RuntimeContext | None = None) -> tuple[
+        Path | None, set[str]]:
         data = spec.get('data', {})
         data_url = data.get('url') if isinstance(data, dict) else None
         if not isinstance(data_url, str) or not data_url.strip():
@@ -201,7 +202,8 @@ class SpecValidatorService(BaseService):
                 yield from SpecValidatorService._walk(item)
 
     @classmethod
-    def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path, *, runtime: RuntimeContext | None = None) -> dict[str, Any]:
+    def _validate_with_vega_runtime(cls, spec: dict[str, Any], dataset_path: Path, *,
+                                    runtime: RuntimeContext | None = None) -> dict[str, Any]:
         repair_hints: list[str] = []
         try:
             import vl_convert as vlc  # type: ignore

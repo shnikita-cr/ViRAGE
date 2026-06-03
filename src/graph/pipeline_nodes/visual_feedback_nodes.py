@@ -11,6 +11,7 @@ from src.graph.pipeline_nodes.common import (
 from src.observability import traceable
 from src.services.visual_feedback import VisualChartJudgeAdapters
 
+
 class VisualFeedbackPipelineNodesMixin:
     @traceable(name="virage.semantic_loop_gate")
     def semantic_loop_gate_node(self, state: PipelineState) -> dict:
@@ -408,4 +409,3 @@ class VisualFeedbackPipelineNodesMixin:
 
     def semantic_chart_judge_node(self, state: PipelineState) -> dict:
         return self.visual_chart_judge_node(state)
-

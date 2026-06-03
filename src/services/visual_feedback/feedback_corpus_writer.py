@@ -17,7 +17,6 @@ from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 
 
-
 def _compact_feedback_data_profile(data_profile: DataProfile | None) -> dict[str, object]:
     if data_profile is None:
         return {}
@@ -55,6 +54,7 @@ def _compact_feedback_data_profile(data_profile: DataProfile | None) -> dict[str
         "complexity_hints": list(data_profile.complexity_hints[:10]),
         "data_complexity": data_profile.data_complexity,
     }
+
 
 class FeedbackCorpusWriterService(BaseService):
     def invoke(self, *args, **kwargs):

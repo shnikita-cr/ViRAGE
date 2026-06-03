@@ -3,8 +3,8 @@ from src.services.visual_feedback.chart_fact_summary import ChartFactSummaryServ
 from src.services.visual_feedback.feedback_corpus_writer import FeedbackCorpusWriterService
 from src.services.visual_feedback.feedback_normalizer import FeedbackNormalizerService
 from src.services.visual_feedback.image_only_chart_judge import ImageOnlyChartJudgeService
-from src.services.visual_feedback.visual_chart_judge import VisualChartJudgeAdapters, VisualChartJudgeService
 from src.services.visual_feedback.semantic_chart_judge import SemanticChartJudgeAdapters, SemanticChartJudgeService
+from src.services.visual_feedback.visual_chart_judge import VisualChartJudgeAdapters, VisualChartJudgeService
 from src.services.visual_feedback.vlm_chart_description import VLMChartDescriptionService
 
 __all__ = [

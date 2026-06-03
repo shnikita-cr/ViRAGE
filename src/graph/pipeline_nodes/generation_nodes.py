@@ -10,6 +10,7 @@ from src.graph.pipeline_nodes.common import (
 from src.observability import traceable
 from src.visrag_core.task_context import task_context_from_user_context
 
+
 class GenerationPipelineNodesMixin:
     @traceable(name="virage.visrag")
     def visrag_node(self, state: PipelineState) -> dict:
@@ -22,7 +23,8 @@ class GenerationPipelineNodesMixin:
             task_context=task_context,
         )
         artifact_paths = self._save(state, "visrag", result.model_dump())
-        guidance_summary = result.generation_guidance.prompt_text.splitlines()[0] if result.generation_guidance.prompt_text else "no guidance"
+        guidance_summary = result.generation_guidance.prompt_text.splitlines()[
+            0] if result.generation_guidance.prompt_text else "no guidance"
         retrieved_types = result.diagnostics.retrieved_count_by_type
         return {
             "visrag": result,
@@ -35,9 +37,11 @@ class GenerationPipelineNodesMixin:
                 stage="visrag",
                 title="Rule guidance retrieval",
                 summary=guidance_summary,
-                inputs=[state["query_request_analysis"].normalized_query, f"task_type={task_context.get('task_type', 'single_chart')}"] ,
+                inputs=[state["query_request_analysis"].normalized_query,
+                        f"task_type={task_context.get('task_type', 'single_chart')}"],
                 outputs=[f"{key}:{value}" for key, value in sorted(retrieved_types.items())],
-                details=self._stage_details(before) | {"artifact": artifact_paths["visrag"], "task_context": task_context},
+                details=self._stage_details(before) | {"artifact": artifact_paths["visrag"],
+                                                       "task_context": task_context},
             ),
         }
 

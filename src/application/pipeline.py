@@ -5,9 +5,9 @@ from typing import Callable
 
 from src.application.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest, PipelineResult
+from src.application.pipeline_result_factory import PipelineResultFactory
 from src.application.project_config import ProjectConfig
 from src.application.run_report import save_error_report, save_run_report, save_task_request
-from src.application.pipeline_result_factory import PipelineResultFactory
 from src.application.settings import ViRAGESettings
 from src.application.state import PipelineState
 from src.domain.enums import PipelineStage

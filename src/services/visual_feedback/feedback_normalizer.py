@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from typing import Any, Iterable
 
 from pydantic import BaseModel, Field
@@ -40,12 +39,12 @@ class FeedbackNormalizerService:
     """
 
     def normalize(
-        self,
-        raw: dict[str, Any] | VisualFeedbackExample,
-        *,
-        mode: str = "rules",
-        runtime: RuntimeContext | None = None,
-        approved_for_rag: bool = False,
+            self,
+            raw: dict[str, Any] | VisualFeedbackExample,
+            *,
+            mode: str = "rules",
+            runtime: RuntimeContext | None = None,
+            approved_for_rag: bool = False,
     ) -> NormalizedFeedbackRecord:
         payload = raw.model_dump() if isinstance(raw, VisualFeedbackExample) else dict(raw)
         if mode == "llm":
@@ -57,7 +56,8 @@ class FeedbackNormalizerService:
         else:
             raise ValueError("mode must be one of: rules, llm")
 
-        source_kind = "manual_feedback" if str(payload.get("source") or "").lower().find("user") >= 0 else "vlm_feedback"
+        source_kind = "manual_feedback" if str(payload.get("source") or "").lower().find(
+            "user") >= 0 else "vlm_feedback"
         feedback_id = self._feedback_id(payload)
         base_priority = self._base_priority(payload, source_kind)
         priority = max(base_priority, float(parsed.get("priority") or 0.0))
@@ -125,7 +125,8 @@ class FeedbackNormalizerService:
             feedback_type = "readability_issue" if feedback_type == "general_visual_feedback" else feedback_type
         if any(token in lowered for token in ["wrong field", "wrong encoding", "не то поле", "кодиров"]):
             feedback_type = "wrong_encoding_issue"
-        severity = "high" if bool(payload.get("requested_regeneration")) or self._retry_recommended(payload) else "medium"
+        severity = "high" if bool(payload.get("requested_regeneration")) or self._retry_recommended(
+            payload) else "medium"
         return {
             "feedback_type": feedback_type,
             "severity": severity,
@@ -136,7 +137,8 @@ class FeedbackNormalizerService:
             "avoid": self._avoid_for_type(feedback_type),
             "quality_checks": self._checks_for_type(feedback_type),
             "fields_used": self._fields_used(payload),
-            "priority": self._base_priority(payload, "manual_feedback" if str(payload.get("source") or "").lower().find("user") >= 0 else "vlm_feedback"),
+            "priority": self._base_priority(payload, "manual_feedback" if str(payload.get("source") or "").lower().find(
+                "user") >= 0 else "vlm_feedback"),
         }
 
     @staticmethod
@@ -189,7 +191,8 @@ class FeedbackNormalizerService:
                 parts.append(value)
         judge = payload.get("judge_result") or {}
         if isinstance(judge, dict):
-            for key in ("feedback_for_next_generation", "missing_requirements", "wrong_or_suspicious_parts", "improvement_comments"):
+            for key in ("feedback_for_next_generation", "missing_requirements", "wrong_or_suspicious_parts",
+                        "improvement_comments"):
                 value = judge.get(key)
                 if isinstance(value, list):
                     parts.extend(str(item).strip() for item in value if str(item).strip())
@@ -272,11 +275,16 @@ class FeedbackNormalizerService:
     @staticmethod
     def _avoid_for_type(feedback_type: str) -> list[str]:
         mapping = {
-            "axis_domain_issue": ["Do not force an axis to start at zero when zero is not analytically meaningful and the data occupy a narrow non-zero range."],
-            "plot_area_issue": ["Do not export charts where the visible data occupy only a small fraction of the plotting area."],
-            "compact_categorical_layout_issue": ["Do not use a wide 4:3 canvas for two to four narrow categorical marks such as boxplots."],
-            "repeat_axis_label_issue": ["Do not leave repeat/facet panels with only generic axis labels such as Value or Metric when panel titles are unclear."],
-            "publication_layout_issue": ["Do not rely on tooltips or excessive whitespace for a static article figure."],
+            "axis_domain_issue": [
+                "Do not force an axis to start at zero when zero is not analytically meaningful and the data occupy a narrow non-zero range."],
+            "plot_area_issue": [
+                "Do not export charts where the visible data occupy only a small fraction of the plotting area."],
+            "compact_categorical_layout_issue": [
+                "Do not use a wide 4:3 canvas for two to four narrow categorical marks such as boxplots."],
+            "repeat_axis_label_issue": [
+                "Do not leave repeat/facet panels with only generic axis labels such as Value or Metric when panel titles are unclear."],
+            "publication_layout_issue": [
+                "Do not rely on tooltips or excessive whitespace for a static article figure."],
         }
         return mapping.get(feedback_type, [])
 
@@ -287,6 +295,8 @@ class FeedbackNormalizerService:
             "plot_area_issue": ["Check that data marks use the plotting area efficiently."],
             "compact_categorical_layout_issue": ["Check that figure width matches the number of categories."],
             "repeat_axis_label_issue": ["Check that each repeat/facet panel has a visible metric or variable label."],
-            "publication_layout_issue": ["Check that the static figure is readable and suitable for insertion into an article."],
+            "publication_layout_issue": [
+                "Check that the static figure is readable and suitable for insertion into an article."],
         }
-        return mapping.get(feedback_type, ["Check that the feedback recommendation is reflected in the next chart generation."])
+        return mapping.get(feedback_type,
+                           ["Check that the feedback recommendation is reflected in the next chart generation."])

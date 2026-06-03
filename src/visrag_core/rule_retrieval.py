@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable
 
 from src.domain.models import QueryRequestAnalysisResult, VisRAGRuleDocument
 from src.visrag_core.text import tokens

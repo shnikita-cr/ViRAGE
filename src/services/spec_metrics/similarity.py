@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.services.spec_metrics.chart_type_utils import canonicalize_chart_type
 from src.services.spec_metrics.extraction import all_encodings
 from src.services.spec_metrics.models import (
     FACET_EQUIVALENT,
@@ -13,7 +14,6 @@ from src.services.spec_metrics.models import (
     TransformItem,
     View,
 )
-from src.services.spec_metrics.chart_type_utils import canonicalize_chart_type
 
 
 def normalize_mark(value: str) -> str:

@@ -7,6 +7,7 @@ from src.domain.enums import PipelineStage
 from src.graph.pipeline_nodes.common import _build_live_chart_preview_payload
 from src.observability import traceable
 
+
 class ValidationPipelineNodesMixin:
     @staticmethod
     def _validation_attempt_payload(attempt_number: int, vega_spec, validation_result) -> dict:

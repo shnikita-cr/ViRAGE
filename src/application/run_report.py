@@ -99,8 +99,6 @@ def _vision_score(result: PipelineResult | None) -> float | None:
     return None
 
 
-
-
 def _visual_publication_scores(result: PipelineResult | None) -> dict[str, float | None]:
     if result is None or result.visual_chart_judge is None:
         return {
@@ -118,6 +116,7 @@ def _visual_publication_scores(result: PipelineResult | None) -> dict[str, float
         "repeat_axis_label_score": _maybe_float(getattr(judge, "repeat_axis_label_score", None)),
         "publication_layout_score": _maybe_float(getattr(judge, "publication_layout_score", None)),
     }
+
 
 def _spec_score(result: PipelineResult | None) -> float | None:
     if result is None:

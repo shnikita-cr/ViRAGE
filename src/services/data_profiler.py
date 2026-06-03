@@ -9,7 +9,6 @@ import pandas as pd
 from src.domain.models import DataColumnProfile, DataProfile
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
-from src.services.data import read_dataframe
 
 _TEMPORAL_NAME_RE = re.compile(r"(^|[_\s-])(date|time|timestamp|year|month|day)([_\s-]|$)", re.IGNORECASE)
 _ID_NAME_RE = re.compile(r"(^|[_\s-])(id|uuid|guid|key)([_\s-]|$)", re.IGNORECASE)
@@ -180,7 +179,6 @@ class DataProfilerService(BaseService):
             ),
             quality_notes,
         )
-
 
     @staticmethod
     def _field_role(semantic_dtype: str, is_identifier: bool) -> str:

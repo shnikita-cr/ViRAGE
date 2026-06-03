@@ -5,6 +5,7 @@ from src.domain.enums import PipelineStage
 from src.domain.models import InsightsResult, PlotImageArtifact, VLMAnalysisResult
 from src.observability import traceable
 
+
 class AnalysisPipelineNodesMixin:
     @traceable(name="virage.vlm_chart_analysis")
     def vlm_analysis_node(self, state: PipelineState) -> dict:

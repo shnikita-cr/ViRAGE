@@ -20,8 +20,8 @@ from src.domain.models import (
 from src.llm.helpers import invoke_structured
 from src.visrag_core.embeddings import build_embedding_model, cosine
 from src.visrag_core.query_builder import build_visrag_query
-from src.visrag_core.task_context import task_context_prompt_block
 from src.visrag_core.stores import VisRAGStore
+from src.visrag_core.task_context import task_context_prompt_block
 
 
 @dataclass(frozen=True)
@@ -95,7 +95,8 @@ class VisRAGEngine:
             retrieval_query=query,
             retrieved_chunks=retrieved,
             retrieved_documents=retrieved,
-            scores=[{"chunk_id": chunk.chunk_id, "score": chunk.score, "source_id": chunk.source_id} for chunk in retrieved],
+            scores=[{"chunk_id": chunk.chunk_id, "score": chunk.score, "source_id": chunk.source_id} for chunk in
+                    retrieved],
             task_context=dict(task_context or {}),
         )
         return VisRAGResult(
@@ -132,8 +133,8 @@ class VisRAGEngine:
             score *= self._metadata_weight(chunk)
             if score > 0:
                 ranked.append(VisRAGRetrievedChunk(**chunk.model_dump(exclude={"score"}), score=round(score, 6)))
-        return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[:max(1, self.options.top_k_chunks)]
-
+        return sorted(ranked, key=lambda item: (-item.score, item.source_id, item.chunk_id))[
+               :max(1, self.options.top_k_chunks)]
 
     @staticmethod
     def _metadata_weight(chunk: VisRAGGuidanceChunk) -> float:
@@ -171,9 +172,12 @@ class VisRAGEngine:
                 readability_rules=categorized["readability_rule"],
                 scale_plot_area_rules=categorized["scale_plot_area_rule"],
                 vlm_readability_rules=categorized["vlm_readability_rule"],
-                domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
-                applicable_rules=[chunk.text for chunk in chunks if str(chunk.source_kind) not in {"domain_semantics_rule"}],
-                quality_checks=[chunk.text for chunk in chunks if str(chunk.source_kind) in {"readability_rule", "vlm_readability_rule"}],
+                domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis,
+                                                                   data_profile),
+                applicable_rules=[chunk.text for chunk in chunks if
+                                  str(chunk.source_kind) not in {"domain_semantics_rule"}],
+                quality_checks=[chunk.text for chunk in chunks if
+                                str(chunk.source_kind) in {"readability_rule", "vlm_readability_rule"}],
                 source_refs=source_refs,
             )
             guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
@@ -221,7 +225,8 @@ class VisRAGEngine:
             readability_rules=categorized["readability_rule"],
             scale_plot_area_rules=categorized["scale_plot_area_rule"],
             vlm_readability_rules=categorized["vlm_readability_rule"],
-            domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
+            domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis,
+                                                               data_profile),
             applicable_rules=parsed.applicable_rules,
             avoid=parsed.avoid,
             quality_checks=parsed.quality_checks,
@@ -308,7 +313,8 @@ class VisRAGEngine:
         metadata = chunk.metadata or {}
         domain = str(metadata.get("domain") or "").lower()
         if domain in {"medicine", "medical", "biomedical", "biology"}:
-            return any(token in query_text for token in ["hba1c", "biomarker", "clinical", "treatment", "cell", "gene", "patient"])
+            return any(token in query_text for token in
+                       ["hba1c", "biomarker", "clinical", "treatment", "cell", "gene", "patient"])
         return True
 
     @classmethod
@@ -332,4 +338,3 @@ class VisRAGEngine:
             if cls._domain_semantics_matches(chunk, query_analysis, data_profile):
                 kept.append(document)
         return kept
-

@@ -44,7 +44,8 @@ def fingerprint_dataset(path: str | Path) -> DatasetFingerprint:
     return DatasetFingerprint(data_path.as_posix(), True, stat.st_size, stat.st_mtime_ns, digest)
 
 
-def read_dataframe_cached(cache: dict[str, pd.DataFrame], path: str | Path, *, nrows: int | None = None) -> pd.DataFrame:
+def read_dataframe_cached(cache: dict[str, pd.DataFrame], path: str | Path, *,
+                          nrows: int | None = None) -> pd.DataFrame:
     fingerprint = fingerprint_dataset(path)
     full_key = fingerprint.cache_key + ":full"
     if full_key in cache:

@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
-from src.services.spec_metrics.models import COMPOSITION_KEYS, EncodingItem, FACET_EQUIVALENT, TransformItem, View
 from src.services.spec_metrics.chart_type_utils import normalize_aggregate
+from src.services.spec_metrics.models import COMPOSITION_KEYS, EncodingItem, FACET_EQUIVALENT, TransformItem, View
 
 
 def extract_views(spec: Any) -> list[View]:

@@ -10,8 +10,8 @@ from typing import Any, Callable
 
 import pandas as pd
 
-from src.application.settings import ViRAGESettings
 from src.application.dataset_context import read_dataframe_cached
+from src.application.settings import ViRAGESettings
 from src.domain.models import ModelCallLog, StageExecutionLog, StepLog, TokenUsage
 
 _MODEL_CALL_CSV_COLUMNS = [
