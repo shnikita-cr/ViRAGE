@@ -1,12 +1,16 @@
-cd D:\programming\projects\ViRAGE
-
 $ErrorActionPreference = "Stop"
 
 $runner = "scripts/benchmark/run_virage_e2e_test_cases.py"
-$suites = (Get-Content "benchmarks/benchmark_suites.json" -Raw | ConvertFrom-Json).PSObject.Properties.Name
-
-$cloudConfig = "ui/config/benchmark/project-gemma4-bench_rag.toml"
 $localBaseConfig = "ui/config/benchmark/project-gemma3_local-bench_rag.toml"
+
+$suites = @(
+    "manual_vulnerability",
+    "eda_manual",
+    "nlv_comparison"
+    "image_folder_widefield_bpae",
+    "analysis_task_coverage",
+    "chart_type_coverage",
+)
 
 $localAllInOneModels = @(
     "qwen3.5:latest",
@@ -17,47 +21,160 @@ $localAllInOneModels = @(
 )
 
 function Convert-ModelNameToPathName {
-    param([Parameter(Mandatory = $true)][string]$ModelName)
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ModelName
+    )
+
     return $ModelName.Replace("/", "_").Replace(":", "_").Replace(".", "_")
 }
 
 function Set-TomlModelSection {
     param(
-        [Parameter(Mandatory = $true)][string]$Content,
-        [Parameter(Mandatory = $true)][string]$SectionName,
-        [Parameter(Mandatory = $true)][string]$ModelName
+        [AllowEmptyString()]
+        [string[]]$Lines,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SectionName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ModelName
     )
 
-    $sectionPattern = "(?ms)(\[$SectionName\]\s.*?model\s*=\s*)`"[^`"]+`""
-    if ($Content -notmatch "(?m)^\[$SectionName\]\s*$") {
-        throw "TOML section [$SectionName] not found"
-    }
-    if ($Content -notmatch $sectionPattern) {
-        throw "TOML section [$SectionName] does not contain model field"
+    $insideSection = $false
+    $modelWasUpdated = $false
+    $updatedLines = New-Object System.Collections.Generic.List[string]
+
+    foreach ($line in $Lines) {
+        if ($line -match '^\s*\[(.+)\]\s*$') {
+            $insideSection = ($Matches[1] -eq $SectionName)
+            $updatedLines.Add($line)
+            continue
+        }
+
+        if ($insideSection -and $line -match '^\s*model\s*=') {
+            $updatedLines.Add("model = `"$ModelName`"")
+            $modelWasUpdated = $true
+            continue
+        }
+
+        $updatedLines.Add($line)
     }
 
-    return [regex]::Replace($Content, $sectionPattern, "`$1`"$ModelName`"", 1)
+    if (-not $modelWasUpdated) {
+        throw "TOML section [$SectionName] with model field not found"
+    }
+
+    return $updatedLines.ToArray()
+}
+
+function Write-Utf8NoBom {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [AllowEmptyString()]
+        [string[]]$Lines
+    )
+
+    $directory = Split-Path $Path
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+
+    $content = ($Lines -join "`n") + "`n"
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $content, $encoding)
 }
 
 function New-AllInOneConfig {
     param(
-        [Parameter(Mandatory = $true)][string]$BaseConfig,
-        [Parameter(Mandatory = $true)][string]$OutputConfig,
-        [Parameter(Mandatory = $true)][string]$ModelName
+        [Parameter(Mandatory = $true)]
+        [string]$BaseConfig,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutputConfig,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ModelName
     )
 
-    $content = Get-Content $BaseConfig -Raw
-    $content = Set-TomlModelSection -Content $content -SectionName "reasoning_model" -ModelName $ModelName
-    $content = Set-TomlModelSection -Content $content -SectionName "spec_model" -ModelName $ModelName
-    $content = Set-TomlModelSection -Content $content -SectionName "vlm_model" -ModelName $ModelName
+    if (-not (Test-Path $BaseConfig)) {
+        throw "Base config not found: $BaseConfig"
+    }
 
-    New-Item -ItemType Directory -Force -Path (Split-Path $OutputConfig) | Out-Null
-    Set-Content -Path $OutputConfig -Value $content -Encoding UTF8
+    $lines = [System.IO.File]::ReadAllLines((Resolve-Path $BaseConfig))
+
+    if ($lines.Count -eq 0) {
+        throw "Base config is empty: $BaseConfig"
+    }
+
+    $lines = Set-TomlModelSection -Lines $lines -SectionName "reasoning_model" -ModelName $ModelName
+    $lines = Set-TomlModelSection -Lines $lines -SectionName "spec_model" -ModelName $ModelName
+    $lines = Set-TomlModelSection -Lines $lines -SectionName "vlm_model" -ModelName $ModelName
+
+    Write-Utf8NoBom -Path $OutputConfig -Lines $lines
 }
 
-foreach ($suite in $suites) {
-    $runId = "model_suites/cloud_gemma4/$suite"
-    python $runner --config $cloudConfig --suite $suite --run-id $runId --execute
+function Invoke-BenchmarkRunner {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Suite,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RunId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$LogDir
+    )
+
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+
+    $stdoutPath = Join-Path $LogDir "stdout.txt"
+    $stderrPath = Join-Path $LogDir "stderr.txt"
+
+    $arguments = @(
+        $runner,
+        "--config", $ConfigPath,
+        "--suite", $Suite,
+        "--run-id", $RunId,
+        "--execute"
+    )
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo.FileName = "python"
+    $process.StartInfo.Arguments = ($arguments | ForEach-Object {
+        if ($_ -match '\s') {
+            "`"$_`""
+        }
+        else {
+            $_
+        }
+    }) -join " "
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+
+    [void]$process.Start()
+
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+
+    $process.WaitForExit()
+
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($stdoutPath, $stdout, $encoding)
+    [System.IO.File]::WriteAllText($stderrPath, $stderr, $encoding)
+
+    return @{
+        ExitCode = $process.ExitCode
+        Stdout = $stdout
+        Stderr = $stderr
+        StdoutPath = $stdoutPath
+        StderrPath = $stderrPath
+    }
 }
 
 foreach ($model in $localAllInOneModels) {
@@ -68,6 +185,37 @@ foreach ($model in $localAllInOneModels) {
 
     foreach ($suite in $suites) {
         $runId = "model_suites/local_all_in_one_$modelPathName/$suite"
-        python $runner --config $tmpConfig --suite $suite --run-id $runId --execute
+        $logDir = "artifacts/model_suites/local_all_in_one_$modelPathName/$suite/logs"
+
+        Write-Host ""
+        Write-Host "=== model=$model | suite=$suite ==="
+
+        $result = Invoke-BenchmarkRunner -ConfigPath $tmpConfig -Suite $suite -RunId $runId -LogDir $logDir
+
+        if ($result.ExitCode -ne 0) {
+            Write-Host "FAILED: model=$model suite=$suite exit_code=$($result.ExitCode)"
+            Write-Host "stdout: $($result.StdoutPath)"
+            Write-Host "stderr: $($result.StderrPath)"
+
+            if ($result.Stdout.Trim().Length -gt 0) {
+                Write-Host ""
+                Write-Host "stdout tail:"
+                ($result.Stdout -split "`n" | Select-Object -Last 40) | ForEach-Object { Write-Host $_ }
+            }
+
+            if ($result.Stderr.Trim().Length -gt 0) {
+                Write-Host ""
+                Write-Host "stderr tail:"
+                ($result.Stderr -split "`n" | Select-Object -Last 40) | ForEach-Object { Write-Host $_ }
+            }
+
+            throw "Benchmark failed: model=$model suite=$suite"
+        }
+
+        Write-Host "OK: model=$model suite=$suite"
+
+        if ($result.Stdout.Trim().Length -gt 0) {
+            ($result.Stdout -split "`n" | Select-Object -Last 12) | ForEach-Object { Write-Host $_ }
+        }
     }
 }
