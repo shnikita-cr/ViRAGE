@@ -62,8 +62,8 @@ def test_benchmark_case_metrics_include_vision_submetrics() -> None:
         vision_metric=metric,
     )
 
-    assert metrics["vision_judge"] == 0.8
+    assert metrics["vision_score"] == 0.8
     assert metrics["vision_visualization_type"] == 1.0
     assert metrics["vision_data_encoding"] == 0.5
     assert metrics["vision_prompt_compliance"] == 1.0
-    assert metrics["vision_judge_is_empty_chart"] == 0.0
+    assert metrics["vision_is_empty_chart"] == 0.0

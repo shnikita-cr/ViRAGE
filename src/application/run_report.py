@@ -82,7 +82,7 @@ def _vision_score(result: PipelineResult | None) -> float | None:
     summary = result.evaluation_summary
     if summary is not None:
         scores = getattr(summary, "benchmark_scores", {}) or {}
-        for key in ("vision_score", "vision_judge", "vision_metric", "vision"):
+        for key in ("vision_score", "vision_metric", "vision"):
             value = _maybe_float(scores.get(key))
             if value is not None:
                 return value

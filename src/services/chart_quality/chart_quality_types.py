@@ -41,6 +41,20 @@ class ChartQualityThresholds:
     max_rendered_height_px: int = 3600
     dense_x_category_count: int = 18
     dense_label_min_chars: int = 10
+    target_plot_area_usage: float = 0.35
+    hard_fail_codes: tuple[str, ...] = (
+        "render_failed",
+        "empty_chart",
+        "severity_field_not_used",
+        "shared_axis_for_incompatible_metrics",
+        "folded_metrics_shared_scale",
+        "multi_metric_shared_scale_risk",
+        "bar_chart_truncated_axis",
+        "required_legend_not_rendered",
+        "position_axis_hidden",
+        "png_labels_clipped",
+        "repeat_labels_invalid",
+    )
 
     @classmethod
     def from_settings(cls, settings: Any) -> "ChartQualityThresholds":
@@ -51,6 +65,8 @@ class ChartQualityThresholds:
             max_rendered_height_px=int(settings.chart_quality_max_rendered_height_px),
             dense_x_category_count=int(settings.chart_quality_dense_x_category_count),
             dense_label_min_chars=int(settings.chart_quality_dense_label_min_chars),
+            target_plot_area_usage=float(settings.chart_quality_target_plot_area_usage),
+            hard_fail_codes=tuple(str(code) for code in settings.chart_quality_hard_fail_codes),
         )
 
 

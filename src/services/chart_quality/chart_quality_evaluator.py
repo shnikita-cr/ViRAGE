@@ -6,22 +6,20 @@ from typing import Any
 import pandas as pd
 
 from src.services.chart_quality._spec_utils import get_encoding, iter_unit_specs, mark_type
-from src.services.chart_quality.chart_quality_types import ChartQualityIssue, ChartQualityReport
+from src.services.chart_quality.chart_quality_types import ChartQualityIssue, ChartQualityReport, ChartQualityThresholds
 
 
 class ChartQualityEvaluator:
-    HARD_FAIL_CODES = {
-        "bar_chart_truncated_axis",
-        "folded_metrics_shared_scale",
-        "multi_metric_shared_scale_risk",
-        "required_legend_not_rendered",
-        "position_axis_hidden",
-    }
-
-    def __init__(self, *, hard_fail_codes: set[str] | None = None, max_warnings_for_pass: int = 2) -> None:
+    def __init__(
+            self,
+            thresholds: ChartQualityThresholds | None = None,
+            *,
+            max_warnings_for_pass: int = 2,
+    ) -> None:
         if max_warnings_for_pass < 0:
             raise ValueError("max_warnings_for_pass must be non-negative.")
-        self.hard_fail_codes = set(hard_fail_codes or self.HARD_FAIL_CODES)
+        self.thresholds = thresholds or ChartQualityThresholds()
+        self.hard_fail_codes = set(self.thresholds.hard_fail_codes)
         self.max_warnings_for_pass = max_warnings_for_pass
 
     def evaluate(
@@ -35,10 +33,9 @@ class ChartQualityEvaluator:
     ) -> ChartQualityReport:
         issues: list[ChartQualityIssue] = list(policy_issues or [])
         metrics = self._collect_metrics(spec=spec, png_path=png_path, scenegraph_summary=scenegraph_summary, data=data, issues=issues)
-        critical = sum(1 for issue in issues if issue.severity == "critical")
-        warnings = sum(1 for issue in issues if issue.severity == "warning")
-        status = self._status(issues=issues, critical=critical, warnings=warnings)
-        score = max(0.0, 1.0 - critical * 0.4 - warnings * 0.08)
+        issue_counts = self._issue_counts(issues)
+        status = self._status(issues=issues, critical=issue_counts["critical"], warnings=issue_counts["warning"])
+        score = max(0.0, 1.0 - issue_counts["critical"] * 0.4 - issue_counts["warning"] * 0.08)
         return ChartQualityReport(status=status, score=round(score, 4), issues=issues, metrics=metrics)
 
     def _collect_metrics(
@@ -50,9 +47,9 @@ class ChartQualityEvaluator:
             data: pd.DataFrame | None,
             issues: list[ChartQualityIssue],
     ) -> dict[str, Any]:
-        metrics: dict[str, Any] = {}
-        metrics.update(self._size_metrics(spec, png_path, issues))
+        metrics = self._size_metrics(spec, png_path, issues)
         metrics.update(self._spec_metrics(spec, scenegraph_summary, issues))
+        metrics.update(self._scenegraph_metrics(scenegraph_summary, issues))
         issues.extend(self._dense_category_issues(spec, data))
         return metrics
 
@@ -66,46 +63,48 @@ class ChartQualityEvaluator:
         return "pass"
 
     @staticmethod
-    def _size_metrics(spec: dict[str, Any], png_path: str | Path | None, issues: list[ChartQualityIssue]) -> dict[str, Any]:
-        logical_width = int(spec.get("width") or 0) if isinstance(spec.get("width"), int) else 0
-        logical_height = int(spec.get("height") or 0) if isinstance(spec.get("height"), int) else 0
-        pixel_width, pixel_height = ChartQualityEvaluator._png_size(Path(png_path)) if png_path else (0, 0)
+    def _issue_counts(issues: list[ChartQualityIssue]) -> dict[str, int]:
+        return {
+            "critical": sum(1 for issue in issues if issue.severity == "critical"),
+            "warning": sum(1 for issue in issues if issue.severity == "warning"),
+            "info": sum(1 for issue in issues if issue.severity == "info"),
+        }
+
+    def _size_metrics(self, spec: dict[str, Any], png_path: str | Path | None, issues: list[ChartQualityIssue]) -> dict[str, Any]:
+        logical_width = self._integer_value(spec.get("width"))
+        logical_height = self._integer_value(spec.get("height"))
+        pixel_width, pixel_height = self._png_size(Path(png_path)) if png_path else (0, 0)
         if pixel_width and pixel_height:
-            ChartQualityEvaluator._append_canvas_issues(pixel_width=pixel_width, pixel_height=pixel_height, issues=issues)
+            self._append_canvas_issues(pixel_width=pixel_width, pixel_height=pixel_height, issues=issues)
         return {"logical_width": logical_width, "logical_height": logical_height, "pixel_width": pixel_width, "pixel_height": pixel_height}
 
     @staticmethod
-    def _append_canvas_issues(*, pixel_width: int, pixel_height: int, issues: list[ChartQualityIssue]) -> None:
-        aspect = pixel_width / max(pixel_height, 1)
-        if aspect > 2.8:
-            issues.append(ChartQualityIssue(
-                code="excessive_wide_canvas",
-                severity="warning",
-                message="rendered image is very wide relative to height",
-                details={"pixel_width": pixel_width, "pixel_height": pixel_height, "aspect_ratio": round(aspect, 3)},
-            ))
-        if aspect < 0.45:
-            issues.append(ChartQualityIssue(
-                code="excessive_tall_canvas",
-                severity="warning",
-                message="rendered image is very tall relative to width",
-                details={"pixel_width": pixel_width, "pixel_height": pixel_height, "aspect_ratio": round(aspect, 3)},
-            ))
+    def _integer_value(value: Any) -> int:
+        return int(value) if isinstance(value, int) else 0
 
-    @staticmethod
-    def _spec_metrics(spec: dict[str, Any], scenegraph_summary: dict[str, Any] | None, issues: list[ChartQualityIssue]) -> dict[str, Any]:
+    def _append_canvas_issues(self, *, pixel_width: int, pixel_height: int, issues: list[ChartQualityIssue]) -> None:
+        aspect = pixel_width / max(pixel_height, 1)
+        if pixel_width > self.thresholds.max_rendered_width_px:
+            issues.append(ChartQualityIssue("excessive_rendered_width", "warning", "rendered image exceeds configured width", {"pixel_width": pixel_width}))
+        if pixel_height > self.thresholds.max_rendered_height_px:
+            issues.append(ChartQualityIssue("excessive_rendered_height", "warning", "rendered image exceeds configured height", {"pixel_height": pixel_height}))
+        if aspect > self.thresholds.max_aspect_ratio:
+            issues.append(ChartQualityIssue("excessive_wide_canvas", "warning", "rendered image is very wide relative to height", {"aspect_ratio": round(aspect, 3)}))
+        if aspect < self.thresholds.min_aspect_ratio:
+            issues.append(ChartQualityIssue("excessive_tall_canvas", "warning", "rendered image is very tall relative to width", {"aspect_ratio": round(aspect, 3)}))
+
+    def _spec_metrics(self, spec: dict[str, Any], scenegraph_summary: dict[str, Any] | None, issues: list[ChartQualityIssue]) -> dict[str, Any]:
         unit_specs = list(iter_unit_specs(spec))
-        uses_color, visible_legend_required = ChartQualityEvaluator._inspect_unit_specs(unit_specs, issues)
+        uses_color, visible_legend_required = self._inspect_unit_specs(unit_specs, issues)
         has_legend = bool((scenegraph_summary or {}).get("has_legend"))
         repeat_used = bool(spec.get("repeat"))
         if uses_color and visible_legend_required and not has_legend:
-            issues.append(ChartQualityIssue(code="required_legend_not_rendered", severity="critical", message="color encoding requires a visible legend"))
-        if repeat_used and not ChartQualityEvaluator._title_exists(spec):
-            issues.append(ChartQualityIssue(code="repeat_title_missing", severity="warning", message="repeat chart needs visible panel or chart title context"))
+            issues.append(ChartQualityIssue("required_legend_not_rendered", "critical", "color encoding requires a visible legend"))
+        if repeat_used and not self._repeat_labels_are_specific(spec):
+            issues.append(ChartQualityIssue("repeat_labels_invalid", "critical", "repeat chart must expose concrete metric labels in title, axis or panel headers"))
         return {"unit_spec_count": len(unit_specs), "uses_color": uses_color, "has_legend": has_legend, "repeat_used": repeat_used}
 
-    @staticmethod
-    def _inspect_unit_specs(unit_specs: list[dict[str, Any]], issues: list[ChartQualityIssue]) -> tuple[bool, bool]:
+    def _inspect_unit_specs(self, unit_specs: list[dict[str, Any]], issues: list[ChartQualityIssue]) -> tuple[bool, bool]:
         uses_color = False
         visible_legend_required = False
         for unit in unit_specs:
@@ -114,8 +113,8 @@ class ChartQualityEvaluator:
             if isinstance(color, dict) and color.get("field"):
                 uses_color = True
                 visible_legend_required = visible_legend_required or color.get("legend") is not False
-            ChartQualityEvaluator._append_axis_issues(encoding, issues)
-            ChartQualityEvaluator._append_mark_scale_issues(unit, encoding, issues)
+            self._append_axis_issues(encoding, issues)
+            self._append_mark_scale_issues(unit, encoding, issues)
         return uses_color, visible_legend_required
 
     @staticmethod
@@ -126,9 +125,9 @@ class ChartQualityEvaluator:
                 continue
             axis = channel_def.get("axis")
             if axis is False:
-                issues.append(ChartQualityIssue(code="position_axis_hidden", severity="critical", message="position axis is hidden", details={"channel": channel_name}))
+                issues.append(ChartQualityIssue("position_axis_hidden", "critical", "position axis is hidden", {"channel": channel_name}))
             if isinstance(axis, dict) and not str(axis.get("title") or "").strip():
-                issues.append(ChartQualityIssue(code="position_axis_title_missing", severity="warning", message="position axis title is missing", details={"channel": channel_name}))
+                issues.append(ChartQualityIssue("position_axis_title_missing", "warning", "position axis title is missing", {"channel": channel_name}))
 
     @staticmethod
     def _append_mark_scale_issues(unit: dict[str, Any], encoding: dict[str, Any], issues: list[ChartQualityIssue]) -> None:
@@ -139,23 +138,36 @@ class ChartQualityEvaluator:
             if isinstance(channel_def, dict) and channel_def.get("type") == "quantitative":
                 scale = channel_def.get("scale")
                 if isinstance(scale, dict) and scale.get("zero") is False:
-                    issues.append(ChartQualityIssue(code="bar_chart_truncated_axis", severity="critical", message="bar chart uses a truncated quantitative axis", details={"channel": channel_name}))
+                    issues.append(ChartQualityIssue("bar_chart_truncated_axis", "critical", "bar chart uses a truncated quantitative axis", {"channel": channel_name}))
 
-    @staticmethod
-    def _dense_category_issues(spec: dict[str, Any], data: pd.DataFrame | None) -> list[ChartQualityIssue]:
+    def _scenegraph_metrics(self, scenegraph_summary: dict[str, Any] | None, issues: list[ChartQualityIssue]) -> dict[str, Any]:
+        summary = scenegraph_summary or {}
+        clipped_text_count = int(summary.get("clipped_text_count") or 0)
+        plot_area_usage = float(summary.get("plot_area_usage") or 0.0)
+        if clipped_text_count:
+            issues.append(ChartQualityIssue("png_labels_clipped", "critical", "rendered chart has text outside canvas", {"clipped_text_count": clipped_text_count}))
+        if plot_area_usage and plot_area_usage < self.thresholds.target_plot_area_usage:
+            issues.append(ChartQualityIssue("low_plot_area_usage", "warning", "plot marks use too little of the rendered canvas", {"plot_area_usage": round(plot_area_usage, 4)}))
+        return {
+            "plot_area_usage": round(plot_area_usage, 4),
+            "text_count": int(summary.get("text_count") or 0),
+            "clipped_text_count": clipped_text_count,
+            "mark_bbox_area": float(summary.get("mark_bbox_area") or 0.0),
+        }
+
+    def _dense_category_issues(self, spec: dict[str, Any], data: pd.DataFrame | None) -> list[ChartQualityIssue]:
         if data is None:
             return []
         issues: list[ChartQualityIssue] = []
         for unit in iter_unit_specs(spec):
             encoding = get_encoding(unit)
             for channel_name in ("x", "y"):
-                issue = ChartQualityEvaluator._dense_category_issue(encoding.get(channel_name), channel_name, data)
+                issue = self._dense_category_issue(encoding.get(channel_name), channel_name, data)
                 if issue is not None:
                     issues.append(issue)
         return issues
 
-    @staticmethod
-    def _dense_category_issue(channel_def: Any, channel_name: str, data: pd.DataFrame) -> ChartQualityIssue | None:
+    def _dense_category_issue(self, channel_def: Any, channel_name: str, data: pd.DataFrame) -> ChartQualityIssue | None:
         if not isinstance(channel_def, dict) or channel_def.get("type") not in {"nominal", "ordinal"}:
             return None
         field = channel_def.get("field")
@@ -166,7 +178,7 @@ class ChartQualityEvaluator:
             return None
         cardinality = int(labels.nunique())
         longest = int(labels.map(len).max())
-        if channel_name == "x" and cardinality >= 18 and longest >= 10:
+        if channel_name == "x" and cardinality >= self.thresholds.dense_x_category_count and longest >= self.thresholds.dense_label_min_chars:
             return ChartQualityIssue(
                 code="high_cardinality_x_categories",
                 severity="warning",
@@ -184,11 +196,48 @@ class ChartQualityEvaluator:
         raise ValueError(f"Rendered chart is not a PNG file: {path}")
 
     @staticmethod
-    def _title_exists(spec: dict[str, Any]) -> bool:
-        title = spec.get("title")
-        if isinstance(title, str):
-            return bool(title.strip())
-        if isinstance(title, dict):
-            value = title.get("text")
-            return bool(str(value or "").strip())
-        return False
+    def _repeat_labels_are_specific(spec: dict[str, Any]) -> bool:
+        repeated = ChartQualityEvaluator._repeat_fields(spec)
+        if not repeated:
+            return True
+        visible_text = " ".join([ChartQualityEvaluator._title_text(spec.get("title")), ChartQualityEvaluator._axis_titles(spec)]).lower()
+        return any(field.replace("_", " ").lower() in visible_text for field in repeated)
+
+    @staticmethod
+    def _repeat_fields(spec: dict[str, Any]) -> list[str]:
+        repeat = spec.get("repeat")
+        values: list[str] = []
+        if isinstance(repeat, list):
+            values.extend(str(value) for value in repeat if str(value).strip())
+        if isinstance(repeat, dict):
+            for key in ("row", "column"):
+                field_values = repeat.get(key)
+                if isinstance(field_values, list):
+                    values.extend(str(value) for value in field_values if str(value).strip())
+        return values
+
+    @staticmethod
+    def _axis_titles(spec: dict[str, Any]) -> str:
+        titles: list[str] = []
+        for unit in iter_unit_specs(spec):
+            for channel_def in get_encoding(unit).values():
+                if not isinstance(channel_def, dict):
+                    continue
+                axis = channel_def.get("axis")
+                if isinstance(axis, dict):
+                    title = axis.get("title")
+                    if isinstance(title, str) and title.strip():
+                        titles.append(title.strip())
+        return " ".join(titles)
+
+    @staticmethod
+    def _title_text(value: Any) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, dict):
+            text = value.get("text")
+            if isinstance(text, str):
+                return text.strip()
+            if isinstance(text, list):
+                return " ".join(str(item).strip() for item in text if str(item).strip())
+        return ""

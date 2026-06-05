@@ -45,7 +45,6 @@ class ViRAGEPipeline:
             reasoning_llm: object | None = None,
             spec_llm: object | None = None,
             vlm: object | None = None,
-            vision_judge_llm: object | None = None,
     ) -> None:
         bootstrap_project_environment()
         self.settings = settings or ViRAGESettings()
@@ -54,7 +53,6 @@ class ViRAGEPipeline:
             reasoning_llm=reasoning_llm,
             spec_llm=spec_llm,
             vlm=vlm,
-            vision_judge_llm=vision_judge_llm,
         )
         self.graph = build_pipeline_graph(self.runtime)
 
@@ -71,7 +69,6 @@ class ViRAGEPipeline:
             "reasoning": build_chat_model(config.reasoning_model),
             "spec": build_chat_model(config.spec_model),
             "vlm": build_chat_model(config.vlm_model),
-            "vision_judge": build_chat_model(config.vision_judge_model),
         }
         if bool(getattr(settings, "model_health_check_enabled", False)):
             required_roles = set(getattr(settings, "model_health_check_required_roles", []) or [])
@@ -87,7 +84,6 @@ class ViRAGEPipeline:
             reasoning_llm=models["reasoning"],
             spec_llm=models["spec"],
             vlm=models["vlm"],
-            vision_judge_llm=models["vision_judge"],
         )
 
     def _save_input_artifacts(self, request: PipelineRequest) -> dict[str, str]:

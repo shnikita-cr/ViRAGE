@@ -30,7 +30,6 @@ class ProjectConfig(BaseModel):
     reasoning_model: ModelRoleConfig
     spec_model: ModelRoleConfig
     vlm_model: ModelRoleConfig
-    vision_judge_model: ModelRoleConfig
 
 
 DEFAULT_CONFIG_PATH = Path("ui/config/app/project-gemma4.toml")
@@ -54,5 +53,4 @@ def load_project_config(path: str | Path = DEFAULT_CONFIG_PATH) -> ProjectConfig
         reasoning_model=ModelRoleConfig(**payload["reasoning_model"]),
         spec_model=ModelRoleConfig(**payload["spec_model"]),
         vlm_model=ModelRoleConfig(**payload["vlm_model"]),
-        vision_judge_model=ModelRoleConfig(**payload["vision_judge_model"]),
     )

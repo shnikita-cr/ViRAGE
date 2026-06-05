@@ -20,7 +20,9 @@ from src.domain.models import (
 )
 from src.llm.helpers import invoke_structured
 from src.visrag_core.chroma_index import ChromaChunkRetriever, validate_chroma_manifest
+from src.visrag_core.hybrid_retrieval_scorer import HybridRetrievalScorer
 from src.visrag_core.lexical_retriever import RankBM25ChunkRetriever
+from src.visrag_core.metadata_weighting import MetadataWeightingPolicy
 from src.visrag_core.query_builder import build_visrag_query
 from src.visrag_core.stores import JsonlVisRAGStore, VisRAGStore
 from src.visrag_core.task_context import task_context_prompt_block
@@ -29,7 +31,8 @@ from src.visrag_core.task_context import task_context_prompt_block
 @dataclass(frozen=True)
 class VisRAGCoreOptions:
     enabled: bool = True
-    store_backend: str = "jsonl"
+    corpus_source: str = "jsonl"
+    vector_index: str = "chroma"
     retrieval_backend: str = "hybrid"
     top_k_chunks: int = 8
     hybrid_method: str = "cc"
@@ -117,6 +120,7 @@ class VisRAGEngine:
             },
             "retrieval_mode": backend,
             "retrieval_backend": self._retrieval_runtime_backend(),
+            "metadata_weighting": self._metadata_weighting_policy().diagnostics(),
         }
         if backend in {"semantic", "hybrid"}:
             status["vector_index"] = {
@@ -208,28 +212,11 @@ class VisRAGEngine:
         return {chunk_id: score for chunk_id, score in scores.items() if chunk_id in keep}
 
     def _hybrid_scores(self, semantic_scores: dict[str, float], lexical_scores: dict[str, float]) -> dict[str, float]:
-        method = (self.options.hybrid_method or "cc").strip().lower()
-        if method == "rrf":
-            return self._hybrid_rrf_scores(semantic_scores, lexical_scores)
-        if method == "cc":
-            semantic_norm = self._minmax_normalize(semantic_scores)
-            lexical_norm = self._minmax_normalize(lexical_scores)
-            semantic_weight = max(0.0, min(float(self.options.hybrid_weight), 1.0))
-            lexical_weight = 1.0 - semantic_weight
-            keys = set(semantic_scores) | set(lexical_scores)
-            return {key: lexical_weight * lexical_norm.get(key, 0.0) + semantic_weight * semantic_norm.get(key, 0.0) for key in keys}
-        raise RuntimeError(f"Unsupported VisRAG hybrid method: {self.options.hybrid_method!r}. Use cc or rrf.")
-
-    def _hybrid_rrf_scores(self, semantic_scores: dict[str, float], lexical_scores: dict[str, float]) -> dict[str, float]:
-        k = max(float(self.options.hybrid_rrf_k), 1.0)
-        scores: dict[str, float] = {}
-        for score_map in (semantic_scores, lexical_scores):
-            ranked = sorted(score_map.items(), key=lambda item: (-item[1], item[0]))
-            for rank, (chunk_id, score) in enumerate(ranked, start=1):
-                if score <= 0:
-                    continue
-                scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (k + rank)
-        return scores
+        return HybridRetrievalScorer(
+            method=self.options.hybrid_method,
+            semantic_weight=self.options.hybrid_weight,
+            rrf_k=self.options.hybrid_rrf_k,
+        ).score(semantic_scores, lexical_scores)
 
     def _rank_from_scores(
             self,
@@ -263,17 +250,6 @@ class VisRAGEngine:
     def _candidate_pool_limit(self) -> int:
         return max(int(self.options.top_k_chunks), int(self.options.candidate_pool_size))
 
-    @staticmethod
-    def _minmax_normalize(scores: dict[str, float]) -> dict[str, float]:
-        positive = [float(value) for value in scores.values() if float(value) > 0]
-        if not positive:
-            return {key: 0.0 for key in scores}
-        low = min(positive)
-        high = max(positive)
-        if high == low:
-            return {key: 1.0 if float(value) > 0 else 0.0 for key, value in scores.items()}
-        return {key: ((float(value) - low) / (high - low)) if float(value) > 0 else 0.0 for key, value in scores.items()}
-
     def _normalized_retrieval_backend(self) -> str:
         return (self.options.retrieval_backend or "semantic").strip().lower()
 
@@ -296,15 +272,15 @@ class VisRAGEngine:
         return f"chunk_guidance:{backend}"
 
     def _metadata_weight(self, chunk: VisRAGGuidanceChunk) -> float:
-        metadata = chunk.metadata or {}
-        weight = float(metadata.get("priority", 1.0) or 1.0)
-        if chunk.source_kind in {"manual_feedback", "vlm_feedback"}:
-            weight *= self.options.metadata_weight_manual_feedback
-        if chunk.source_kind == "scientific_figure_guidance":
-            weight *= self.options.metadata_weight_scientific_figure
-        lower = float(self.options.metadata_weight_min)
-        upper = max(lower, float(self.options.metadata_weight_max))
-        return max(lower, min(weight, upper))
+        return self._metadata_weighting_policy().weight(chunk)
+
+    def _metadata_weighting_policy(self) -> MetadataWeightingPolicy:
+        return MetadataWeightingPolicy(
+            manual_feedback_weight=self.options.metadata_weight_manual_feedback,
+            scientific_figure_weight=self.options.metadata_weight_scientific_figure,
+            min_weight=self.options.metadata_weight_min,
+            max_weight=self.options.metadata_weight_max,
+        )
 
     def _generate_response(
             self,

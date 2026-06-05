@@ -14,7 +14,8 @@ class ViRAGESettings(BaseModel):
 
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/runtime"))
-    visrag_runtime_store_backend: str = Field(default="jsonl")
+    visrag_corpus_source: Literal["jsonl"] = Field(default="jsonl")
+    visrag_vector_index: Literal["chroma"] = Field(default="chroma")
     visrag_retrieval_backend: Literal["semantic", "hybrid", "lexical"] = Field(default="hybrid")
     visrag_top_k_chunks: int = Field(default=8, ge=1)
     visrag_hybrid_method: Literal["cc", "rrf"] = Field(default="cc")
@@ -31,6 +32,35 @@ class ViRAGESettings(BaseModel):
     visrag_embedding_timeout_seconds: float = Field(default=60.0)
     visrag_chroma_persist_dir: Path = Field(default=Path("./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"))
     visrag_chroma_collection_name: str = Field(default="virage_guidance_chunks_nomic_embed_text_latest")
+
+    chart_quality_max_aspect_ratio: float = Field(default=2.8, gt=0.0)
+    chart_quality_min_aspect_ratio: float = Field(default=0.45, gt=0.0)
+    chart_quality_max_rendered_width_px: int = Field(default=4800, ge=1)
+    chart_quality_max_rendered_height_px: int = Field(default=3600, ge=1)
+    chart_quality_dense_x_category_count: int = Field(default=18, ge=1)
+    chart_quality_dense_label_min_chars: int = Field(default=10, ge=1)
+    chart_quality_target_plot_area_usage: float = Field(default=0.35, ge=0.0, le=1.0)
+    chart_quality_hard_fail_codes: list[str] = Field(
+        default_factory=lambda: [
+            "render_failed",
+            "empty_chart",
+            "severity_field_not_used",
+            "shared_axis_for_incompatible_metrics",
+            "folded_metrics_shared_scale",
+            "multi_metric_shared_scale_risk",
+            "bar_chart_truncated_axis",
+            "required_legend_not_rendered",
+            "position_axis_hidden",
+            "png_labels_clipped",
+            "repeat_labels_invalid",
+        ]
+    )
+
+    image_text_alignment_enabled: bool = Field(default=False)
+    image_text_alignment_models: list[str] = Field(default_factory=lambda: ["openai/clip-vit-large-patch14"])
+    image_text_alignment_device: str = Field(default="cuda")
+    image_text_alignment_dtype: Literal["float32", "float16", "bfloat16"] = Field(default="float16")
+    image_text_alignment_batch_size: int = Field(default=1, ge=1)
 
     vega_output_format: str = Field(default="png")
     vega_export_scale: float = Field(default=2.0, ge=1.0, le=4.0)
@@ -75,7 +105,7 @@ class ViRAGESettings(BaseModel):
     model_health_check_enabled: bool = Field(default=False)
     model_health_check_timeout_seconds: float = Field(default=10.0, ge=1.0)
     model_health_check_required_roles: list[str] = Field(
-        default_factory=lambda: ["reasoning", "vlm", "vision_judge"])
+        default_factory=lambda: ["reasoning", "vlm"])
     vlm_fail_soft: bool = Field(default=False)
 
     def visrag_runtime_options(self) -> dict[str, object]:
@@ -83,7 +113,8 @@ class ViRAGESettings(BaseModel):
         return {
             "enabled": self.visrag_enabled,
             "corpus_root": self.visrag_corpus_root,
-            "store_backend": self.visrag_runtime_store_backend,
+            "corpus_source": self.visrag_corpus_source,
+            "vector_index": self.visrag_vector_index,
             "retrieval_backend": self.visrag_retrieval_backend,
             "top_k_chunks": self.visrag_top_k_chunks,
             "hybrid_method": self.visrag_hybrid_method,

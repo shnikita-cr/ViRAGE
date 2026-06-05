@@ -28,12 +28,13 @@ class VisRAGService(BaseService):
     ):
         opts = runtime.settings.visrag_runtime_options()
         store = create_visrag_store(
-            backend=str(opts["store_backend"]),
+            backend=str(opts["corpus_source"]),
             uri=opts["corpus_root"],
         )
         options = VisRAGCoreOptions(
             enabled=bool(opts["enabled"]),
-            store_backend=str(opts["store_backend"]),
+            corpus_source=str(opts["corpus_source"]),
+            vector_index=str(opts["vector_index"]),
             retrieval_backend=str(opts["retrieval_backend"]),
             top_k_chunks=int(opts["top_k_chunks"]),
             hybrid_method=str(opts["hybrid_method"]),

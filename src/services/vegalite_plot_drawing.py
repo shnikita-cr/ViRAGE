@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import struct
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,21 @@ from src.services.base import BaseService
 from src.services.data import read_dataframe
 from src.services.chart_quality import ChartQualityEvaluator, ChartQualityPipeline, ChartQualityThresholds
 from src.services.rendering import ChartRenderPolicy
+
+
+@dataclass(frozen=True)
+class _Bounds:
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+    @property
+    def area(self) -> float:
+        return max(0.0, self.x2 - self.x1) * max(0.0, self.y2 - self.y1)
+
+    def clipped_by(self, *, width: float, height: float) -> bool:
+        return self.x1 < 0 or self.y1 < 0 or self.x2 > width or self.y2 > height
 
 
 class VegaLitePlotDrawingService(BaseService):
@@ -140,6 +156,11 @@ class VegaLitePlotDrawingService(BaseService):
         mark_nodes = [node for node in cls._walk(scenegraph) if node.get('role') == 'mark']
         axis_nodes = [node for node in cls._walk(scenegraph) if node.get('role') == 'axis']
         legend_nodes = [node for node in cls._walk(scenegraph) if node.get('role') == 'legend']
+        text_nodes = [node for node in cls._walk(scenegraph) if cls._node_is_text(node)]
+        width = float(scenegraph.get('width') or 0.0)
+        height = float(scenegraph.get('height') or 0.0)
+        mark_bounds = cls._merged_bounds(cls._node_bounds(node) for node in mark_nodes)
+        text_bounds = [bounds for bounds in (cls._node_bounds(node) for node in text_nodes) if bounds is not None]
         marks_count = sum(cls._count_mark_items(node) for node in mark_nodes)
         mark_types = sorted({str(node.get('marktype')) for node in mark_nodes if node.get('marktype')})
         return {
@@ -149,8 +170,59 @@ class VegaLitePlotDrawingService(BaseService):
             'axes': [str(node.get('ariaRoleDescription') or node.get('orient') or 'axis') for node in axis_nodes],
             'has_legend': bool(legend_nodes),
             'legend_count': len(legend_nodes),
+            'scenegraph_width': width,
+            'scenegraph_height': height,
+            'plot_area_usage': cls._plot_area_usage(mark_bounds, width=width, height=height),
+            'mark_bbox_area': 0.0 if mark_bounds is None else mark_bounds.area,
+            'text_count': len(text_bounds),
+            'clipped_text_count': cls._clipped_text_count(text_bounds, width=width, height=height),
             'notes': [],
         }
+
+
+    @staticmethod
+    def _node_is_text(node: dict[str, Any]) -> bool:
+        return node.get('marktype') == 'text' or node.get('role') in {'axis-label', 'axis-title', 'legend-label', 'legend-title', 'title'}
+
+    @classmethod
+    def _node_bounds(cls, node: dict[str, Any]) -> _Bounds | None:
+        bounds = cls._bounds_from_mapping(node.get('bounds'))
+        if bounds is not None:
+            return bounds
+        return cls._merged_bounds(cls._bounds_from_mapping(item.get('bounds')) for item in node.get('items', []) if isinstance(item, dict))
+
+    @staticmethod
+    def _bounds_from_mapping(value: Any) -> _Bounds | None:
+        if not isinstance(value, dict):
+            return None
+        keys = {'x1', 'y1', 'x2', 'y2'}
+        if not keys.issubset(value):
+            return None
+        return _Bounds(float(value['x1']), float(value['y1']), float(value['x2']), float(value['y2']))
+
+    @staticmethod
+    def _merged_bounds(bounds_values) -> _Bounds | None:
+        bounds = [value for value in bounds_values if value is not None]
+        if not bounds:
+            return None
+        return _Bounds(
+            min(value.x1 for value in bounds),
+            min(value.y1 for value in bounds),
+            max(value.x2 for value in bounds),
+            max(value.y2 for value in bounds),
+        )
+
+    @staticmethod
+    def _plot_area_usage(bounds: _Bounds | None, *, width: float, height: float) -> float:
+        if bounds is None or width <= 0 or height <= 0:
+            return 0.0
+        return max(0.0, min(1.0, bounds.area / (width * height)))
+
+    @staticmethod
+    def _clipped_text_count(bounds: list[_Bounds], *, width: float, height: float) -> int:
+        if width <= 0 or height <= 0:
+            return 0
+        return sum(1 for item in bounds if item.clipped_by(width=width, height=height))
 
     @classmethod
     def _count_mark_items(cls, mark_node: dict[str, Any]) -> int:

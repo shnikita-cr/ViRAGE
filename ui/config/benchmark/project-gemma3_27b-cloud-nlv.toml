@@ -17,7 +17,3 @@ model = "gemma3:27b-cloud"
 [vlm_model]
 provider = "ollama"
 model = "gemma3:27b-cloud"
-
-[vision_judge_model]
-provider = "ollama"
-model = "gemma3:27b-cloud"

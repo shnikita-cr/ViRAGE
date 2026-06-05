@@ -248,7 +248,7 @@ class VegaChatBenchmarkEvaluator:
         if consistency_score is not None:
             metrics["chart_text_consistency"] = float(consistency_score)
         if vision_score is not None:
-            metrics["vision_judge"] = float(vision_score)
+            metrics["vision_score"] = float(vision_score)
         if vision_metric is not None:
             metrics.update({
                 "vision_visualization_type": float(getattr(vision_metric, "visualization_type", 0.0) or 0.0),
@@ -258,7 +258,7 @@ class VegaChatBenchmarkEvaluator:
                 "vision_prompt_compliance": float(getattr(vision_metric, "prompt_compliance", 0.0) or 0.0),
             })
         if vision_is_blank is not None:
-            metrics["vision_judge_is_empty_chart"] = 1.0 if vision_is_blank else 0.0
+            metrics["vision_is_empty_chart"] = 1.0 if vision_is_blank else 0.0
         return metrics
 
     def render_reference_image(self, *, reference_spec: dict[str, Any], data_path: str, output_path: Path) -> str:

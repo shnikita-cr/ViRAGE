@@ -278,7 +278,7 @@ $$w_{blank} = 1000$$
 
 $$VisionScore = \frac{w_{type}\hat{c}_{type} + w_{encoding}\hat{c}_{encoding} + w_{transformation}\hat{c}_{transformation} + w_{aesthetics}\hat{c}_{aesthetics} + w_{prompt}\hat{c}_{prompt}}{w_{type} + w_{encoding} + w_{transformation} + w_{aesthetics} + w_{prompt} + \mathbb{1}[is\_blank] \cdot w_{blank}}$$
 
-В ViRAGE это поле сохраняется как `vision_judge` и агрегируется как `mean_vision_score`. Для анализа сохраняются отдельные подметрики: `vision_visualization_type`, `vision_data_encoding`, `vision_data_transformation`, `vision_aesthetics`, `vision_prompt_compliance`, `vision_judge_is_empty_chart`.
+В ViRAGE это поле сохраняется как `vision_score` и агрегируется как `mean_vision_score`. Для анализа сохраняются отдельные подметрики: `vision_visualization_type`, `vision_data_encoding`, `vision_data_transformation`, `vision_aesthetics`, `vision_prompt_compliance`, `vision_is_empty_chart`.
 
 Важно: VegaChat-compatible Vision Score считается только в reference-mode, где доступны $I_{hyp}$ и $I_{ref}$. Self-mode оценка одного изображения используется только как внутренняя UI-диагностика ViRAGE и не используется для академического сравнения с VegaChat.
 

@@ -11,7 +11,3 @@ model = "gpt-oss:20b-cloud"
 [vlm_model]
 provider = "ollama"
 model = "gpt-oss:20b-cloud"
-
-[vision_judge_model]
-provider = "ollama"
-model = "gpt-oss:20b-cloud"

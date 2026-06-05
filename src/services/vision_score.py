@@ -98,18 +98,18 @@ class VisionScoreService(BaseService):
             user_prompt: str | None = None,
             reference_image_path: str | None = None,
     ) -> VisualQualityMetric:
-        if runtime.vision_judge_llm is None:
-            raise RuntimeError("Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.")
+        if runtime.vlm is None:
+            raise RuntimeError("Vision scoring requires runtime.vlm. No VLM model was provided.")
         if reference_image_path:
             prompt = self._build_reference_prompt(query_request_analysis, user_prompt)
             parsed = invoke_structured_multimodal_many(
-                runtime.vision_judge_llm,
+                runtime.vlm,
                 prompt,
                 [plot_image.image_path, reference_image_path],
                 _VisionScoreSchema,
                 runtime=runtime,
                 stage="vision_score",
-                role="vision_judge",
+                role="vlm",
                 examples=[self._reference_example()],
                 max_attempts=2,
             )
@@ -117,13 +117,13 @@ class VisionScoreService(BaseService):
 
         prompt = self._build_self_prompt(query_request_analysis, user_prompt)
         parsed = invoke_structured_multimodal(
-            runtime.vision_judge_llm,
+            runtime.vlm,
             prompt,
             plot_image.image_path,
             _VisionScoreSchema,
             runtime=runtime,
             stage="vision_score",
-            role="vision_judge",
+            role="vlm",
             examples=[self._self_example()],
             max_attempts=2,
         )
@@ -138,18 +138,18 @@ class VisionScoreService(BaseService):
             user_prompt: str | None = None,
             reference_image_path: str | None = None,
     ) -> VisualQualityMetric:
-        if runtime.vision_judge_llm is None:
-            raise RuntimeError("Vision scoring requires runtime.vision_judge_llm. No vision-judge model was provided.")
+        if runtime.vlm is None:
+            raise RuntimeError("Vision scoring requires runtime.vlm. No VLM model was provided.")
         if reference_image_path:
             prompt = self._build_reference_prompt(query_request_analysis, user_prompt)
             parsed = await ainvoke_structured_multimodal_many(
-                runtime.vision_judge_llm,
+                runtime.vlm,
                 prompt,
                 [plot_image.image_path, reference_image_path],
                 _VisionScoreSchema,
                 runtime=runtime,
                 stage="vision_score",
-                role="vision_judge",
+                role="vlm",
                 examples=[self._reference_example()],
                 max_attempts=2,
             )
@@ -157,13 +157,13 @@ class VisionScoreService(BaseService):
 
         prompt = self._build_self_prompt(query_request_analysis, user_prompt)
         parsed = await ainvoke_structured_multimodal(
-            runtime.vision_judge_llm,
+            runtime.vlm,
             prompt,
             plot_image.image_path,
             _VisionScoreSchema,
             runtime=runtime,
             stage="vision_score",
-            role="vision_judge",
+            role="vlm",
             examples=[self._self_example()],
             max_attempts=2,
         )

@@ -60,7 +60,6 @@ class RuntimeContext:
     reasoning_llm: Any | None = None
     spec_llm: Any | None = None
     vlm: Any | None = None
-    vision_judge_llm: Any | None = None
     model_call_logs: list[ModelCallLog] = field(default_factory=list)
     stage_execution_logs: list[StageExecutionLog] = field(default_factory=list)
     artifact_indices: dict[str, int] = field(default_factory=dict)

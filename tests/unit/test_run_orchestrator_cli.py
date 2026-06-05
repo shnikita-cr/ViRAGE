@@ -89,9 +89,6 @@ model = "dummy"
 provider = "ollama"
 model = "dummy"
 
-[vision_judge_model]
-provider = "ollama"
-model = "dummy"
 '''.strip(),
         encoding="utf-8",
     )

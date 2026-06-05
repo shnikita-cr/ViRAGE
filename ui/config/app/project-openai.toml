@@ -19,7 +19,3 @@ model = "gpt-4.1-mini"
 [vlm_model]
 provider = "openai"
 model = "gpt-4.1-mini"
-
-[vision_judge_model]
-provider = "openai"
-model = "gpt-4.1-mini"

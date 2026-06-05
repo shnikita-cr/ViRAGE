@@ -11,7 +11,3 @@ model = "qwen2.5-coder:7b"
 [vlm_model]
 provider = "openai"
 model = "gpt-4.1-mini"
-
-[vision_judge_model]
-provider = "openai"
-model = "gpt-4.1-mini"
