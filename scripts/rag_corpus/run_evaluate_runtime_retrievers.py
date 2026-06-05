@@ -262,10 +262,10 @@ def _runtime_config_toml(best: dict[str, dict[str, Any]]) -> str:
         f'visrag_retrieval_backend = "{retrieval_backend}"',
         f"visrag_top_k_chunks = {top_k}",
         'visrag_embedding_provider = "ollama"',
-        'visrag_embedding_model = "mxbai-embed-large:latest"',
+        'visrag_embedding_model = "nomic-embed-text:latest"',
         'visrag_embedding_base_url = "http://localhost:11434"',
-        'visrag_chroma_persist_dir = "./resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest"',
-        'visrag_chroma_collection_name = "virage_guidance_chunks_mxbai_embed_large_latest"',
+        'visrag_chroma_persist_dir = "./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"',
+        'visrag_chroma_collection_name = "virage_guidance_chunks_nomic_embed_text_latest"',
     ]
     return "\n".join(lines) + "\n"
 

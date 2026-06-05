@@ -5,6 +5,7 @@ import pandas as pd
 from src.domain.models import DataPreparationResult, DataProfile, QueryRequestAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
+from src.services.metric_severity_transformer import MetricSeverityTransformer
 
 
 class DataPreparationService(BaseService):
@@ -29,14 +30,6 @@ class DataPreparationService(BaseService):
             df = df.rename(columns=column_name_map)
             operations.append(f"safe_column_mapping:{renamed_column_count}")
 
-        safe_columns = [str(column) for column in df.columns]
-
-        # todo provide chart gen actual data profile instead of removing this step
-        # fields = [field for field in request_analysis.selected_fields if field in df.columns]
-        # if fields:
-        #     df = df[_unique(fields)].copy()
-        #     operations.append(f"select_fields:{','.join(df.columns)}")
-
         for column_profile in data_profile.temporal_columns():
             original_column = column_profile.name
             safe_column = column_name_map.get(original_column, original_column)
@@ -44,14 +37,22 @@ class DataPreparationService(BaseService):
                 df[safe_column] = _parse_temporal(original_column, df[safe_column])
                 operations.append(f"to_datetime:{original_column}->{safe_column}")
 
-        for column_profile in data_profile.measure_columns():
-            original_column = column_profile.name
-            safe_column = column_name_map.get(original_column, original_column)
-            if safe_column in df.columns and df[safe_column].isna().any():
-                median = df[safe_column].median()
-                if pd.notna(median):
-                    df[safe_column] = df[safe_column].fillna(median)
-                    operations.append(f"fill_numeric_median:{original_column}->{safe_column}")
+        metric_semantics = _map_metric_semantics(
+            getattr(request_analysis, "metric_semantics", {}) or {},
+            column_name_map=column_name_map,
+        )
+        selected_fields = [column_name_map.get(field, field) for field in list(getattr(request_analysis, "selected_fields", []) or [])]
+        severity_result = MetricSeverityTransformer().apply(
+            df,
+            metric_semantics=metric_semantics,
+            ranking_strategy=getattr(request_analysis, "ranking_strategy", None),
+            selected_fields=selected_fields,
+            max_ranked_rows=runtime.settings.problematic_item_top_n,
+        )
+        df = severity_result.frame
+        operations.extend(severity_result.operations)
+
+        safe_columns = [str(column) for column in df.columns]
 
         output_path = runtime.next_artifact_path("cleaned_data.csv", run_id=run_id)
         df.to_csv(output_path, index=False)
@@ -67,6 +68,16 @@ class DataPreparationService(BaseService):
             renamed_column_count=renamed_column_count,
         )
 
+
+
+def _map_metric_semantics(value: dict, *, column_name_map: dict[str, str]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, direction in dict(value or {}).items():
+        original = str(key).strip()
+        if not original:
+            continue
+        result[column_name_map.get(original, original)] = direction
+    return result
 
 def _build_column_name_map(*, data_profile: DataProfile, original_columns: list[str]) -> dict[str, str]:
     mapping = {str(original): str(safe) for original, safe in data_profile.original_to_safe_map().items()}

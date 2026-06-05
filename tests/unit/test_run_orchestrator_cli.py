@@ -24,12 +24,12 @@ class _FakePlannerLLM:
         if fields_match:
             fields = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', fields_match.group(1))
         fields = fields or ["field"]
-        is_image = "image_folder" in text
+        is_image = re.search(r'"input_type"\s*:\s*"image_folder"', text) is not None
         if is_image:
             required = [field for field in ["laplacian_variance", "contrast_rms", "mean_brightness"] if field in fields]
             required = required or fields[:1]
             task_type = "image_quality_analysis"
-            query = "Analyze generated image quality metrics."
+            query = "Find problematic generated image quality records."
         else:
             required = [field for field in ["condition", "score"] if field in fields] or fields[:1]
             task_type = "group_comparison" if len(required) >= 2 else "overview"
@@ -49,6 +49,10 @@ class _FakePlannerLLM:
                     "optional_fields": [],
                     "priority": 1,
                     "constraints": {"output_target": "scientific_figure"},
+                    "metric_semantics": {field: "higher_is_better" for field in required if field in {"laplacian_variance"}} if is_image else {},
+                    "ranking_strategy": "top_n_highest_severity" if is_image else None,
+                    "scale_strategy": "normalized_severity" if is_image else None,
+                    "visual_constraints": ["use_overall_severity_for_problematic_items"] if is_image else [],
                     "rationale": "The fields are present in the DataProfile.",
                 }
             ],

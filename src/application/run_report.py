@@ -86,17 +86,53 @@ def _vision_score(result: PipelineResult | None) -> float | None:
             value = _maybe_float(scores.get(key))
             if value is not None:
                 return value
-    if result.chart_answer_judge is not None:
-        for key in ("confidence", "score", "answer_confidence"):
-            value = _maybe_float(getattr(result.chart_answer_judge, key, None))
-            if value is not None:
-                return value
-    if result.vlm_analysis is not None:
-        for key in ("confidence", "score"):
-            value = _maybe_float(getattr(result.vlm_analysis, key, None))
-            if value is not None:
-                return value
+    judge = result.visual_chart_judge
+    if judge is not None:
+        values = [
+            _maybe_float(getattr(judge, "plot_area_usage_score", None)),
+            _maybe_float(getattr(judge, "axis_domain_score", None)),
+            _maybe_float(getattr(judge, "layout_compactness_score", None)),
+            _maybe_float(getattr(judge, "repeat_axis_label_score", None)),
+            _maybe_float(getattr(judge, "publication_layout_score", None)),
+        ]
+        clean = [value for value in values if value is not None]
+        if clean:
+            return sum(clean) / len(clean)
     return None
+
+
+def _chart_quality_report(result: PipelineResult | None) -> dict[str, Any]:
+    if result is None or result.plot_rendering is None:
+        return {}
+    report = getattr(result.plot_rendering, "chart_quality_report", {}) or {}
+    return report if isinstance(report, dict) else {}
+
+
+def _chart_quality_status(result: PipelineResult | None) -> str | None:
+    report = _chart_quality_report(result)
+    value = report.get("status")
+    return str(value) if value else None
+
+
+def _chart_quality_score(result: PipelineResult | None) -> float | None:
+    report = _chart_quality_report(result)
+    return _maybe_float(report.get("score"))
+
+
+def _chart_quality_issue_counts(result: PipelineResult | None) -> dict[str, int]:
+    report = _chart_quality_report(result)
+    issues = report.get("issues") if isinstance(report, dict) else []
+    if not isinstance(issues, list):
+        return {"critical": 0, "warning": 0}
+    critical = 0
+    warning = 0
+    for item in issues:
+        if not isinstance(item, dict):
+            continue
+        severity = str(item.get("severity") or "").lower()
+        critical += int(severity == "critical")
+        warning += int(severity == "warning")
+    return {"critical": critical, "warning": warning}
 
 
 def _visual_publication_scores(result: PipelineResult | None) -> dict[str, float | None]:
@@ -177,6 +213,40 @@ def _token_usage(result: PipelineResult | None) -> dict[str, int]:
     }
 
 
+def _effective_run_status(result: PipelineResult | None, requested_status: str) -> str:
+    normalized = str(requested_status or "").lower()
+    if normalized in {"failed", "error"}:
+        return "error"
+    if result is None:
+        return "error"
+    if _valid_spec(result) is False or _empty_chart(result) is True:
+        return "error"
+    if not _path_exists(_path_from_plot_image(result.plot_image)):
+        return "error"
+    semantic_status = (_semantic_status(result) or "").lower()
+    quality_status = (_chart_quality_status(result) or "").lower()
+    issue_counts = _chart_quality_issue_counts(result)
+    judge = result.visual_chart_judge
+    answer_judge = result.chart_answer_judge
+    if semantic_status == "failed":
+        return "partial"
+    if quality_status == "fail" or issue_counts["critical"] >= 2:
+        return "partial"
+    if quality_status == "retry" or issue_counts["critical"] == 1:
+        return "partial"
+    if judge is not None:
+        recommendation = str(getattr(judge, "retry_recommendation", "") or "").lower()
+        if bool(getattr(judge, "is_blank_or_unreadable", False)):
+            return "error"
+        if not bool(getattr(judge, "answers_user_query", False)) or recommendation in {"retry", "reject"}:
+            return "partial"
+    if answer_judge is not None:
+        recommendation = str(getattr(answer_judge, "retry_recommendation", "") or "").lower()
+        if not bool(getattr(answer_judge, "answers_user_query", False)) or recommendation in {"retry", "reject"}:
+            return "partial"
+    return "completed"
+
+
 def build_task_request_payload(request: PipelineRequest) -> dict[str, Any]:
     return {
         "run_id": request.run_id,
@@ -203,13 +273,17 @@ def build_run_report(
 
     publication_scores = _visual_publication_scores(result)
 
+    effective_status = _effective_run_status(result, status)
+    quality_counts = _chart_quality_issue_counts(result)
+
     report: dict[str, Any] = {
         "schema_version": "1.0",
         "created_at": _now_iso(),
         "run_id": request.run_id,
         "query": request.query,
         "data_path": request.data_path,
-        "status": status,
+        "status": effective_status,
+        "pipeline_status": status,
         "semantic_status": _semantic_status(result),
         "error_type": error_type,
         "error": error,
@@ -223,6 +297,10 @@ def build_run_report(
         "empty_chart": _empty_chart(result),
         "spec_score": _spec_score(result),
         "vision_score": _vision_score(result),
+        "chart_quality_status": _chart_quality_status(result),
+        "chart_quality_score": _chart_quality_score(result),
+        "chart_quality_critical_count": quality_counts["critical"],
+        "chart_quality_warning_count": quality_counts["warning"],
         **publication_scores,
         "prompt_tokens": tokens["prompt_tokens"],
         "completion_tokens": tokens["completion_tokens"],
@@ -238,6 +316,10 @@ def build_run_report(
         "empty_chart": report["empty_chart"],
         "spec_score": report["spec_score"],
         "vision_score": report["vision_score"],
+        "chart_quality_status": report["chart_quality_status"],
+        "chart_quality_score": report["chart_quality_score"],
+        "chart_quality_critical_count": report["chart_quality_critical_count"],
+        "chart_quality_warning_count": report["chart_quality_warning_count"],
         "plot_area_usage_score": report["plot_area_usage_score"],
         "axis_domain_score": report["axis_domain_score"],
         "layout_compactness_score": report["layout_compactness_score"],

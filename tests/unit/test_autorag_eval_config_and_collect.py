@@ -17,9 +17,7 @@ def test_build_autorag_config_writes_yaml_and_manifest(tmp_path: Path) -> None:
     assert report["output"] == str(output)
     assert report["retrieval_nodes"] == ["lexical_retrieval", "semantic_retrieval", "hybrid_retrieval"]
     assert report["embedding_provider"] == "ollama"
-    assert "bge-m3:latest" in report["embedding_models"]
-    assert "qwen3-embedding:latest" in report["embedding_models"]
-    assert "embeddinggemma:latest" not in report["embedding_models"]
+    assert report["embedding_models"] == ["nomic-embed-text:latest"]
     assert report["embedding_batch"] == 1
     assert "node_type: lexical_retrieval" in text
     assert "node_type: semantic_retrieval" in text
@@ -27,26 +25,21 @@ def test_build_autorag_config_writes_yaml_and_manifest(tmp_path: Path) -> None:
     assert "module_type: bm25" in text
     assert "module_type: vectordb" in text
     assert "type: ollama" in text
-    assert "model_name: bge-m3:latest" in text
-    assert "model_name: mxbai-embed-large:latest" in text
     assert "model_name: nomic-embed-text:latest" in text
-    assert "model_name: qwen3-embedding:latest" in text
-    assert "model_name: embeddinggemma:latest" not in text
     assert "embedding_batch: 1" in text
     assert "module_type: hybrid_rrf" in text
     assert "module_type: hybrid_cc" in text
     assert output.with_suffix(".manifest.json").exists()
 
 
-def test_build_autorag_config_filters_excluded_embedding_models(tmp_path: Path) -> None:
+def test_build_autorag_config_accepts_explicit_embedding_models(tmp_path: Path) -> None:
     output = tmp_path / "virage_retrieval_eval.yaml"
 
-    report = build_autorag_config(output_path=output, embedding_models=["bge-m3:latest", "embeddinggemma:latest"])
+    report = build_autorag_config(output_path=output, embedding_models=["nomic-embed-text:latest"])
 
     text = output.read_text(encoding="utf-8")
-    assert report["embedding_models"] == ["bge-m3:latest"]
-    assert "model_name: bge-m3:latest" in text
-    assert "model_name: embeddinggemma:latest" not in text
+    assert report["embedding_models"] == ["nomic-embed-text:latest"]
+    assert "model_name: nomic-embed-text:latest" in text
 
 
 def test_build_autorag_config_can_write_lexical_only_baseline(tmp_path: Path) -> None:

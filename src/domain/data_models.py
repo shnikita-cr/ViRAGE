@@ -97,6 +97,11 @@ class QueryRequestAnalysisResult(BaseModel):
     field_bindings: dict[str, FieldBinding] = Field(default_factory=dict)
     field_mappings: list[RequestFieldMapping] = Field(default_factory=list)
     aggregation_plan: dict[str, Any] = Field(default_factory=dict)
+    metric_semantics: dict[str, str] = Field(default_factory=dict)
+    ranking_strategy: str | None = None
+    scale_strategy: str | None = None
+    visual_constraints: list[str] = Field(default_factory=list)
+    comparison_group_id: str | None = None
     visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
     query_variants: list[Any] = Field(default_factory=list)
     chart_answerability: dict[str, Any] = Field(default_factory=dict)

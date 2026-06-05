@@ -1,7 +1,5 @@
 # ViRAGE AutoRAG retrieval evaluation config.
 # AutoRAG computes retrieval metrics and compares lexical, semantic and hybrid retrieval.
-# Data, config, labelled QA and trial outputs must stay under rag_corpus/autorag/.
-# Requires AutoRAG >= 0.3.17 for lexical_retrieval / semantic_retrieval / hybrid_retrieval nodes.
 
 vectordb:
   - name: virage_chroma_bge_m3_latest
@@ -85,5 +83,5 @@ node_lines:
             weight_range: (4, 80)
           - module_type: hybrid_cc
             normalize_method: [mm, tmm, z, dbsf]
-            weight_range: (0.0, 1.0)
+            weight_range: [0.0, 1.0]
             test_weight_size: 11

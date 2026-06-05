@@ -5,12 +5,16 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from src.application.contracts import PipelineResult
 from src.benchmark.chart_text_metrics import chart_text_consistency_score
 from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
 from src.domain.models import EmptyChartCheckResult, PlotImageArtifact, VegaLiteSpecArtifact
 from src.infrastructure.runtime import RuntimeContext
 from src.services.data import read_dataframe
+from src.services.chart_quality import ChartQualityPipeline
+from src.services.rendering import ChartRenderPolicy
 from src.services.spec_score import SpecScoreService
 from src.services.spec_validator import SpecValidatorService
 from src.services.vegachat_spec_metrics import compute_vegachat_spec_score
@@ -265,9 +269,9 @@ class VegaChatBenchmarkEvaluator:
         except Exception as exc:
             raise RuntimeError("vl-convert-python is required to render benchmark reference images.") from exc
 
-        spec = self._spec_with_data_values(reference_spec, data_path)
+        spec, render_policy = self._spec_with_data_values(reference_spec, data_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        png_bytes = vlc.vegalite_to_png(vl_spec=spec, scale=1)
+        png_bytes = vlc.vegalite_to_png(vl_spec=spec, scale=render_policy.scale)
         output_path.write_bytes(png_bytes)
         sidecar = output_path.with_suffix(".json")
         sidecar.write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -296,14 +300,14 @@ class VegaChatBenchmarkEvaluator:
         return clone
 
     @staticmethod
-    def _spec_with_data_values(spec: dict[str, Any], data_path: str) -> dict[str, Any]:
+    def _spec_with_data_values(spec: dict[str, Any], data_path: str):
         clone = deepcopy(spec)
         clone.setdefault("$schema", "https://vega.github.io/schema/vega-lite/v5.json")
         data = clone.get("data")
         if isinstance(data, dict) and isinstance(data.get("values"), list):
-            return clone
-        df = read_dataframe(data_path)
-        clone["data"] = {"values": df.where(df.notna(), None).to_dict(orient="records")}
-        clone.setdefault("width", 720)
-        clone.setdefault("height", 420)
-        return clone
+            df = pd.DataFrame(data.get("values") or [])
+        else:
+            df = read_dataframe(data_path)
+            clone["data"] = {"values": df.where(df.notna(), None).to_dict(orient="records")}
+        policy_result = ChartQualityPipeline().apply(clone, data=df)
+        return ChartRenderPolicy.apply(policy_result.spec, data=df, target="benchmark", default_dpi=192, export_scale=2.0)

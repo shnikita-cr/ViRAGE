@@ -137,8 +137,10 @@ def chunk_text(
 def source_kind_for(source_id: str) -> str:
     if source_id == "scientific_figure_guidance":
         return "scientific_figure_guidance"
-    if source_id == "eda_guidance":
+    if source_id == "eda_best_practices":
         return "eda_guidance"
+    if source_id == "image_quality_metrics":
+        return "metric_semantics_guidance"
     if "feedback" in source_id:
         return "manual_feedback"
     if source_id in {"vlat", "massvis", "previs"}:

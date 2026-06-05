@@ -11,10 +11,15 @@ from src.domain.models import PlotImageArtifact, PlotRenderingResult, SpecValida
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.data import read_dataframe
+from src.services.chart_quality import ChartQualityEvaluator, ChartQualityPipeline, ChartQualityThresholds
+from src.services.rendering import ChartRenderPolicy
 
 
 class VegaLitePlotDrawingService(BaseService):
-    """Render validated Vega-Lite specs with the Vega runtime, not a Matplotlib subset."""
+    """Render validated Vega-Lite specs with the Vega runtime."""
+
+    def __init__(self) -> None:
+        self.quality_pipeline = ChartQualityPipeline()
 
     def invoke(self, spec_validation: SpecValidationResult, run_id: str,
                runtime: RuntimeContext) -> PlotRenderingResult:
@@ -22,7 +27,7 @@ class VegaLitePlotDrawingService(BaseService):
             raise RuntimeError('Cannot draw a Vega-Lite plot from an invalid specification.')
         try:
             import vl_convert as vlc  # type: ignore
-        except Exception as exc:
+        except ImportError as exc:
             raise RuntimeError(
                 "vl-convert-python is required for Vega-Lite rendering. Install dependency 'vl-convert-python'."
             ) from exc
@@ -31,27 +36,61 @@ class VegaLitePlotDrawingService(BaseService):
         data_url = self._extract_data_url(spec)
         df = read_dataframe(data_url)
         spec_with_data = self._spec_add_data(spec, df)
-        spec_with_data = self._apply_render_defaults(spec_with_data)
+        quality_pipeline = self.quality_pipeline.apply(spec_with_data, data=df)
+        spec_with_data, render_policy = self._apply_render_policy(
+            quality_pipeline.spec,
+            df=df,
+            default_dpi=int(getattr(runtime.settings, "default_figure_dpi", 192) or 192),
+            export_scale=float(getattr(runtime.settings, "vega_export_scale", 2.0) or 2.0),
+        )
 
         run_dir = runtime.ensure_run_dir(run_id)
         image_path = runtime.next_artifact_path('plot.png', run_id=run_id)
 
         try:
-            png_bytes = vlc.vegalite_to_png(vl_spec=spec_with_data, scale=1)
+            png_bytes = vlc.vegalite_to_png(vl_spec=spec_with_data, scale=render_policy.scale)
             image_path.write_bytes(png_bytes)
             scenegraph = vlc.vegalite_to_scenegraph(vl_spec=spec_with_data, show_warnings=False)
-        except Exception as exc:
+        except (ValueError, RuntimeError, OSError) as exc:
             raise RuntimeError(f'Vega-Lite rendering failed: {exc}') from exc
 
         pixel_width, pixel_height = self._read_png_size(image_path)
         scenegraph_summary = self._summarize_scenegraph(scenegraph)
         scenegraph_summary['source'] = 'vl-convert-python'
+        scenegraph_summary['render_policy'] = {
+            'width': render_policy.width,
+            'height': render_policy.height,
+            'scale': render_policy.scale,
+            'padding': render_policy.padding,
+            'reasoning': render_policy.reasoning,
+        }
+        scenegraph_summary['quality_policy'] = {
+            'changes': quality_pipeline.changes,
+            'issues': quality_pipeline.issue_dicts(),
+        }
+        quality_report = ChartQualityEvaluator(ChartQualityThresholds.from_settings(runtime.settings)).evaluate(
+            spec=spec_with_data,
+            png_path=image_path,
+            scenegraph_summary=scenegraph_summary,
+            data=df,
+            policy_issues=quality_pipeline.issues,
+        )
+        scenegraph_summary['chart_quality'] = quality_report.to_dict()
         scenegraph_summary['notes'].append('Rendered with Vega-Lite runtime via vl-convert-python.')
+        if quality_pipeline.changes:
+            scenegraph_summary['notes'].append('Applied chart quality policies: ' + ', '.join(quality_pipeline.changes[:8]))
+        if quality_report.status != 'pass':
+            scenegraph_summary['notes'].append(
+                'Chart quality status: ' + quality_report.status + '; issues=' + ', '.join(
+                    issue.code for issue in quality_report.issues[:8]
+                )
+            )
 
         return PlotRenderingResult(
             plot_image=PlotImageArtifact(image_path=image_path.as_posix(), width=pixel_width, height=pixel_height),
             rendered_scenegraph=scenegraph_summary,
             render_notes=scenegraph_summary['notes'],
+            chart_quality_report=quality_report.to_dict(),
         )
 
     @staticmethod
@@ -71,20 +110,20 @@ class VegaLitePlotDrawingService(BaseService):
         return clone
 
     @staticmethod
-    def _apply_render_defaults(spec: dict[str, Any]) -> dict[str, Any]:
-        clone = deepcopy(spec)
-        clone.setdefault('width', 720)
-        clone.setdefault('height', 420)
-        config = clone.setdefault('config', {})
-        axis_config = config.setdefault('axis', {})
-        axis_config.setdefault('labelLimit', 180)
-        axis_config.setdefault('labelOverlap', 'greedy')
-        axis_config.setdefault('titleLimit', 220)
-        axis_config.setdefault('labelFontSize', 11)
-        axis_config.setdefault('titleFontSize', 12)
-        legend_config = config.setdefault('legend', {})
-        legend_config.setdefault('labelLimit', 180)
-        return clone
+    def _apply_render_policy(
+            spec: dict[str, Any],
+            *,
+            df: pd.DataFrame,
+            default_dpi: int,
+            export_scale: float,
+    ):
+        return ChartRenderPolicy.apply(
+            spec,
+            data=df,
+            target='artifact',
+            default_dpi=default_dpi,
+            export_scale=export_scale,
+        )
 
     @staticmethod
     def _walk(node: Any):

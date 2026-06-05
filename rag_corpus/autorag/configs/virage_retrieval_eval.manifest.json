@@ -2,19 +2,14 @@
   "autorag_root": "rag_corpus/autorag",
   "embedding_batch": 1,
   "embedding_models": [
-    "bge-m3:latest",
-    "mxbai-embed-large:latest",
-    "nomic-embed-text:latest",
-    "qwen3-embedding:latest"
+    "nomic-embed-text:latest"
   ],
   "embedding_provider": "ollama",
-  "excluded_embedding_models": [
-    "embeddinggemma:latest"
-  ],
+  "excluded_embedding_models": [],
   "lexical_only": false,
   "note": "AutoRAG computes retrieval metrics during autorag evaluate. ViRAGE does not recalculate them.",
   "ollama_base_url": "http://localhost:11434",
-  "output": "D:\\programming\\projects\\ViRAGE\\rag_corpus\\autorag\\configs\\virage_retrieval_eval.yaml",
+  "output": "rag_corpus/autorag/configs/virage_retrieval_eval.yaml",
   "retrieval_nodes": [
     "lexical_retrieval",
     "semantic_retrieval",

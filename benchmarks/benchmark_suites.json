@@ -26,5 +26,9 @@
   "external_agents_image_only": {
     "description": "Reserved suite for image-only VLM comparison with charts produced by external agents or projects.",
     "default_execute": false
+  },
+  "image_folder_widefield_bpae": {
+    "description": "Two image-folder runs for WideField_BPAE_R raw and ground-truth folders with the same image-quality analysis request.",
+    "default_execute": true
   }
 }

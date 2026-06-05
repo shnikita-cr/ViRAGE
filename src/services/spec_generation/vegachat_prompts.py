@@ -70,6 +70,10 @@ Generation rules adapted from VegaChat-style correction loops:
 12. Add informative tooltips, but do not rely on tooltip for required visual meaning.
 13. If previous technical validation feedback is provided, fix those exact errors.
 14. If previous PNG-only visual feedback is provided, change the visible chart so the missing requirement is visible.
+15. If Query request analysis includes ranking_strategy or scale_strategy=normalized_severity and prepared severity fields are available, use severity fields for ranking/problem detection while keeping original metrics in tooltip.
+16. Do not compare different-scale raw metrics on a shared quantitative axis; use normalized severity, independent facets, or separate views.
+17. If overall_severity is available and ranking_strategy=top_n_highest_severity, the main visible quantitative channel must use overall_severity and must sort by highest severity.
+18. Raw source metrics for severity-based tasks should be shown in tooltip or separate details, not as the main shared-axis grouped chart.
 """
 
 
@@ -86,6 +90,11 @@ def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparatio
         if compact_mapping:
             lines.append("Column mapping original -> safe:")
             lines.append(json.dumps(compact_mapping, ensure_ascii=False, indent=2))
+    derived_fields = [field for field in prepared.safe_columns if field not in set(prepared.reverse_column_name_map)]
+    if derived_fields:
+        lines.append("Prepared derived fields available for chart generation:")
+        for field in derived_fields:
+            lines.append(f"- safe={field!r}; role=derived_metric")
     return "\n".join(lines)
 
 
@@ -101,6 +110,11 @@ def _request_contract(request: SpecGenerationRequest) -> str:
             "selected_safe_fields": safe_selected,
             "field_bindings": {key: value.model_dump() for key, value in analysis.field_bindings.items()},
             "aggregation_plan": analysis.aggregation_plan,
+            "metric_semantics": analysis.metric_semantics,
+            "ranking_strategy": analysis.ranking_strategy,
+            "scale_strategy": analysis.scale_strategy,
+            "visual_constraints": analysis.visual_constraints,
+            "comparison_group_id": analysis.comparison_group_id,
             "chart_answerability": analysis.chart_answerability,
             "assumptions": analysis.assumptions,
             "ambiguity": analysis.ambiguity.model_dump(),

@@ -1,6 +1,6 @@
 # VisRAG chunk runtime
 
-Runtime VisRAG works over pre-embedded source chunks. It retrieves relevant chunks, then generates the
+Runtime VisRAG works over indexed runtime guidance chunks. It retrieves relevant chunks, then generates the
 final `VisRAGGenerationGuidance` object for spec generation. It does not use pre-generated rule records in the runtime
 path.
 

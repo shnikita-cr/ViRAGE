@@ -7,20 +7,17 @@ from scripts.rag_corpus.common.io import ensure_dir, project_root, write_text
 DEFAULT_OUTPUT = "rag_corpus/autorag/visrag_chunks/configs/visrag_chunks_ollama_all.yaml"
 
 CONFIG_TEXT = """# ViRAGE AutoRAG config: API AutoRAG + Ollama localhost retrieval variants.
-# This config intentionally avoids vLLM and AutoRAG[gpu] local LLM backends.
-# Pull the embedding models before running semantic or hybrid retrieval:
-#   ollama pull nomic-embed-text
-#   ollama pull mxbai-embed-large
-#   ollama pull bge-m3
+# Pull the embedding model before running semantic or hybrid retrieval:
+#   ollama pull nomic-embed-text:latest
 
 vectordb:
-  - name: chroma_ollama_nomic_embed_text
+  - name: chroma_ollama_nomic_embed_text_latest
     db_type: chroma
     client_type: persistent
     embedding_batch: 1
     embedding_model:
       - type: ollama
-        model_name: nomic-embed-text
+        model_name: nomic-embed-text:latest
         base_url: http://localhost:11434
     collection_name: visrag_chunks_nomic_embed_text
     path: ${PROJECT_DIR}/resources/chroma/nomic_embed_text
@@ -78,9 +75,6 @@ node_lines:
         top_k: [1, 2, 3, 5, 8]
         modules:
           - module_type: hybrid_rrf
-            # AutoRAG HybridRRF expects an ascending [min, max] range.
-            # Do not use pair-like weights such as [6, 4]: AutoRAG computes
-            # max - min + 1 internally and fails when the range is reversed.
             weight_range:
               - [4, 80]
           - module_type: hybrid_cc

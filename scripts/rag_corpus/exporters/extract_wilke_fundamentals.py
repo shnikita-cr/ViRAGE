@@ -91,19 +91,14 @@ def _refine_wilke_record(record: SourceRecord, index: int) -> SourceRecord:
             "preferred_record_type": _infer_preferred_record_type(record),
             "corpus_category": _infer_corpus_category(record),
             "source_kind": "web_txt",
-            "normalization_strategy": "hybrid_wilke_source_section_to_atomic_rules",
+            "normalization_strategy": "wilke_source_section_to_guidance_chunks",
             "fragment_index": index,
-            "allows_zero_rules": True,
-            "max_atomic_rules": 5,
         }
     )
     raw = dict(record.raw or {})
     raw.update(
         {
-            "hybrid_note": (
-                "This SourceRecord is a Wilke source section. LLM normalization may return 0..5 "
-                "atomic practical RagRuleRecord items from it."
-            ),
+            "source_note": "Wilke source section exported as deterministic guidance text.",
             "source_section_title": record.title,
         }
     )

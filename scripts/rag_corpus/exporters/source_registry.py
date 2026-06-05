@@ -82,13 +82,22 @@ PRACTICAL_VISRAG_SOURCES: tuple[QualityCorpusSource, ...] = (
         purpose="Правила подготовки научных рисунков для статей: размеры, разрешение, читаемость, подписи, панели и форматы файлов.",
     ),
 
+
     QualityCorpusSource(
-        source_id="eda_guidance",
-        title="ViRAGE EDA guidance",
-        raw_dir="rag_corpus/raw_external_rules/eda_guidance",
-        url="internal:eda_guidance",
+        source_id="image_quality_metrics",
+        title="Data Quality Metrics image quality metrics",
+        raw_dir="rag_corpus/raw_external_rules/image_quality_metrics",
+        url="https://data-quality-metrics.readthedocs.io/",
         format="web_html",
-        purpose="Практические правила первичного анализа данных: распределения, пропуски, выбросы, корреляции, временные тренды и high-cardinality поля.",
+        purpose="Семантика метрик качества изображений, включая BRISQUE, NIQE и PIQE.",
+    ),
+    QualityCorpusSource(
+        source_id="eda_best_practices",
+        title="NIST/SEMATECH EDA Handbook and R for Data Science EDA",
+        raw_dir="rag_corpus/raw_external_rules/eda_best_practices",
+        url="https://www.itl.nist.gov/div898/handbook/eda/eda.htm",
+        format="web_html",
+        purpose="Принципы разведочного анализа данных: графическое исследование структуры, распределений, выбросов, пропусков, предположений и уточнение аналитических вопросов.",
     ),
     QualityCorpusSource(
         source_id="chartability",
@@ -100,58 +109,8 @@ PRACTICAL_VISRAG_SOURCES: tuple[QualityCorpusSource, ...] = (
     ),
 )
 
-LEGACY_COMPATIBILITY_SOURCES: tuple[QualityCorpusSource, ...] = (
-    QualityCorpusSource(
-        source_id="data_visualisation_catalogue",
-        title="Data Visualisation Catalogue",
-        raw_dir="rag_corpus/raw_external_rules/data_visualisation_catalogue",
-        url="https://datavizcatalogue.com/",
-        format="web_html",
-        purpose="Legacy chart-type descriptions; not part of the default practical visrag corpus.",
-    ),
-    QualityCorpusSource(
-        source_id="ibm_carbon_chart_anatomy",
-        title="IBM Carbon: Chart Anatomy",
-        raw_dir="rag_corpus/raw_external_rules/ibm_carbon_chart_anatomy",
-        url="https://carbondesignsystem.com/data-visualization/chart-anatomy/",
-        format="web_html",
-        purpose="Legacy chart anatomy guidance; kept for backward-compatible extractors/tests.",
-    ),
-    QualityCorpusSource(
-        source_id="ibm_carbon_legends",
-        title="IBM Carbon: Legends",
-        raw_dir="rag_corpus/raw_external_rules/ibm_carbon_legends",
-        url="https://carbondesignsystem.com/data-visualization/legends/",
-        format="web_html",
-        purpose="Legacy legend guidance; kept for backward-compatible extractors/tests.",
-    ),
-    QualityCorpusSource(
-        source_id="uswds_data_visualizations",
-        title="USWDS Data Visualizations",
-        raw_dir="rag_corpus/raw_external_rules/uswds_data_visualizations",
-        url="https://designsystem.digital.gov/components/data-visualizations/",
-        format="web_html",
-        purpose="Legacy accessibility/usability guidance; kept for backward-compatible extractors/tests.",
-    ),
-    QualityCorpusSource(
-        source_id="w3c_wai_complex_images",
-        title="W3C WAI Complex Images",
-        raw_dir="rag_corpus/raw_external_rules/w3c_wai_complex_images",
-        url="https://www.w3.org/WAI/tutorials/images/complex/",
-        format="web_html",
-        purpose="Legacy complex-image alternative text guidance; kept for backward-compatible extractors/tests.",
-    ),
-    QualityCorpusSource(
-        source_id="vistext",
-        title="VisText",
-        raw_dir="rag_corpus/raw_external_rules/vistext",
-        url="https://github.com/mitvis/vistext.git",
-        format="structured_dataset",
-        purpose="Legacy chart description dataset; not part of the default practical visrag corpus.",
-    ),
-)
 
-QUALITY_CORPUS_SOURCES: tuple[QualityCorpusSource, ...] = (*PRACTICAL_VISRAG_SOURCES, *LEGACY_COMPATIBILITY_SOURCES)
+QUALITY_CORPUS_SOURCES: tuple[QualityCorpusSource, ...] = PRACTICAL_VISRAG_SOURCES
 QUALITY_CORPUS_SOURCE_IDS: tuple[str, ...] = tuple(source.source_id for source in QUALITY_CORPUS_SOURCES)
 QUALITY_CORPUS_BY_ID: dict[str, QualityCorpusSource] = {source.source_id: source for source in QUALITY_CORPUS_SOURCES}
 PRACTICAL_VISRAG_SOURCE_IDS: tuple[str, ...] = tuple(source.source_id for source in PRACTICAL_VISRAG_SOURCES)

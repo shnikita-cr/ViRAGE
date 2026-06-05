@@ -4,6 +4,21 @@ from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
+from src.orchestrator.planning_contract import (
+    MetricSemantic,
+    RankingStrategy,
+    ScaleStrategy,
+    VisualConstraint,
+    allowed_metric_semantics,
+    allowed_ranking_strategies,
+    allowed_scale_strategies,
+    allowed_visual_constraints,
+    is_problem_ranking_strategy,
+    requires_problem_ranking,
+    requires_severity_fields,
+    supports_severity_scale,
+)
+
 AnalysisTaskType = Literal[
     "overview",
     "distribution",
@@ -28,15 +43,42 @@ class AnalysisSubtask(BaseModel):
     optional_fields: list[str] = Field(default_factory=list)
     priority: int = Field(default=100, ge=1)
     constraints: dict[str, Any] = Field(default_factory=dict)
+    metric_semantics: dict[str, MetricSemantic] = Field(default_factory=dict)
+    ranking_strategy: RankingStrategy | None = None
+    scale_strategy: ScaleStrategy | None = None
+    visual_constraints: list[VisualConstraint] = Field(default_factory=list)
+    comparison_group_id: str | None = None
     rationale: str = Field(min_length=1)
 
     @model_validator(mode="after")
     def _dedupe_fields(self) -> "AnalysisSubtask":
         self.required_fields = _dedupe(self.required_fields)
         self.optional_fields = [field for field in _dedupe(self.optional_fields) if field not in self.required_fields]
+        self.visual_constraints = _dedupe(self.visual_constraints)
+        self.metric_semantics = {str(key).strip(): value for key, value in dict(self.metric_semantics or {}).items() if str(key).strip()}
         if not self.required_fields:
             raise ValueError(f"Analysis subtask {self.id!r} must contain at least one required field.")
+        self._validate_problematic_strategy()
         return self
+
+    def _validate_problematic_strategy(self) -> None:
+        if not requires_problem_ranking(self.query, self.purpose, self.task_type):
+            return
+        if not is_problem_ranking_strategy(self.ranking_strategy):
+            raise ValueError(
+                f"Analysis subtask {self.id!r} targets problematic/quality items but has no controlled ranking_strategy. "
+                f"Allowed ranking strategies: {allowed_ranking_strategies()}"
+            )
+        if requires_severity_fields(self.ranking_strategy) and not self.metric_semantics:
+            raise ValueError(
+                f"Analysis subtask {self.id!r} uses severity ranking but metric_semantics is empty. "
+                f"Allowed metric semantics: {allowed_metric_semantics()}"
+            )
+        if requires_severity_fields(self.ranking_strategy) and not supports_severity_scale(self.scale_strategy):
+            raise ValueError(
+                f"Analysis subtask {self.id!r} uses severity ranking but scale_strategy={self.scale_strategy!r}. "
+                f"Allowed severity scale strategies: {sorted({'normalized_severity', 'independent_panels', 'single_metric'})}"
+            )
 
 
 class SkippedAnalysisCandidate(BaseModel):
@@ -85,6 +127,11 @@ class AnalysisPlan(BaseModel):
                 available_fields=available_fields,
                 context=f"subtask {subtask.id!r} optional_fields",
             )
+            _validate_fields(
+                fields=list(subtask.metric_semantics.keys()),
+                available_fields=available_fields,
+                context=f"subtask {subtask.id!r} metric_semantics",
+            )
         for candidate in self.skipped_candidates:
             _validate_fields(
                 fields=candidate.required_fields,
@@ -119,6 +166,16 @@ class OrchestratorReport(BaseModel):
 
 def allowed_analysis_task_types() -> list[str]:
     return sorted(_ALLOWED_TASK_TYPES)
+
+
+def analysis_plan_contract_metadata() -> dict[str, list[str]]:
+    return {
+        "task_types": allowed_analysis_task_types(),
+        "metric_semantics": allowed_metric_semantics(),
+        "ranking_strategies": allowed_ranking_strategies(),
+        "scale_strategies": allowed_scale_strategies(),
+        "visual_constraints": allowed_visual_constraints(),
+    }
 
 
 def _validate_fields(*, fields: list[str], available_fields: set[str], context: str) -> None:

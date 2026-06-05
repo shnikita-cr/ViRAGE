@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from scripts.benchmarks.run_virage_e2e_test_cases import BenchmarkCase, load_cases, main
-from scripts.rag_corpus.loading.load_eda_guidance import load as load_eda_guidance
+from scripts.rag_corpus.loading import load_eda_best_practices as eda_loader
 from scripts.rag_corpus.export_guidance_chunks import source_kind_for
 
 
@@ -117,17 +117,23 @@ def test_e2e_runner_plan_only_writes_reports(tmp_path: Path) -> None:
     assert summary["completed_cases"] == 1
 
 
-def test_eda_guidance_loader_and_source_kind(tmp_path: Path) -> None:
-    manual = tmp_path / "rag_corpus" / "manual_sources" / "eda_guidance"
-    manual.mkdir(parents=True)
-    manual.joinpath("seed.txt").write_text(
-        "EDA guidance rule. Check distributions, missing values, outliers, correlations, temporal trends, and high-cardinality fields. "
-        "Use diagnostic visualizations before publication styling.",
-        encoding="utf-8",
-    )
+def test_eda_best_practices_loader_and_source_kind(tmp_path: Path, monkeypatch) -> None:
+    captured = {}
 
-    report = load_eda_guidance(tmp_path, refresh=True)
+    def fake_download_html_pages(root, config, *, refresh, timeout_seconds):
+        captured["root"] = root
+        captured["config"] = config
+        captured["refresh"] = refresh
+        captured["timeout_seconds"] = timeout_seconds
+        return {"source_id": config.source_id, "downloaded_pages": len(config.seed_urls)}
 
-    assert report["source_id"] == "eda_guidance"
-    assert report["downloaded_pages"] == 1
-    assert source_kind_for("eda_guidance") == "eda_guidance"
+    monkeypatch.setattr(eda_loader, "download_html_pages", fake_download_html_pages)
+
+    report = eda_loader.load(tmp_path, refresh=True, timeout_seconds=12.0)
+
+    config = captured["config"]
+    assert report["source_id"] == "eda_best_practices"
+    assert report["downloaded_pages"] == 2
+    assert "www.itl.nist.gov" in config.allowed_hosts
+    assert "r4ds.had.co.nz" in config.allowed_hosts
+    assert source_kind_for("eda_best_practices") == "eda_guidance"

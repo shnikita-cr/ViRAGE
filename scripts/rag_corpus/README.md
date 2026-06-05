@@ -1,16 +1,19 @@
-# Runtime VisRAG corpus
+# Runtime RAG corpus scripts
 
-Runtime VisRAG uses one text corpus and one Chroma index.
+Основной runtime-путь корпуса:
 
-Pipeline:
+    python scripts/rag_corpus/loading/download_sources.py --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability scientific_figure_guidance image_quality_metrics eda_best_practices
 
-    python scripts/rag_corpus/export_guidance_chunks.py --min-chars 220 --max-chars 1000 --overlap-chars 120
-    python scripts/rag_corpus/build_runtime_chroma_index.py --chunks rag_corpus/runtime/guidance_chunks.jsonl --persist-dir resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest --collection virage_guidance_chunks_mxbai_embed_large_latest --embedding-provider ollama --embedding-model mxbai-embed-large:latest --embedding-base-url http://localhost:11434 --recreate
+    python scripts/rag_corpus/export_guidance_chunks.py --raw-root rag_corpus/raw_external_rules --output rag_corpus/runtime/guidance_chunks.jsonl --min-chars 220 --max-chars 1000 --overlap-chars 120
+
+    python scripts/rag_corpus/report_corpus_quality.py --input rag_corpus/runtime/guidance_chunks.jsonl --output-dir rag_corpus/reports
+
+    python scripts/rag_corpus/build_runtime_chroma_index.py --chunks rag_corpus/runtime/guidance_chunks.jsonl --persist-dir resources/chroma/virage_guidance_chunks_nomic_embed_text_latest --collection virage_guidance_chunks_nomic_embed_text_latest --embedding-provider ollama --embedding-model nomic-embed-text:latest --embedding-base-url http://localhost:11434 --batch-size 8 --max-input-chars 1600 --recreate
 
 Runtime retrieval modes:
 
-- `semantic`: Chroma vector retrieval.
-- `hybrid`: Chroma vector retrieval plus lexical scoring and metadata weighting.
-- `lexical`: BM25 over `rag_corpus/runtime/guidance_chunks.jsonl`.
+    semantic
+    hybrid
+    lexical
 
-For `semantic` and `hybrid`, the Chroma manifest must match the current corpus, collection name and embedding model.
+`semantic` и `hybrid` используют Chroma. `lexical` использует `guidance_chunks.jsonl`.

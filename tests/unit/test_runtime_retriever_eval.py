@@ -46,7 +46,7 @@ visrag_retrieval_backend = "hybrid"
 visrag_top_k_chunks = 8
 visrag_hybrid_method = "cc"
 visrag_hybrid_weight = 0.1
-visrag_embedding_model = "mxbai-embed-large:latest"
+visrag_embedding_model = "nomic-embed-text:latest"
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -58,5 +58,5 @@ visrag_embedding_model = "mxbai-embed-large:latest"
     assert report["applied_settings"]["visrag_retrieval_backend"] == "hybrid"
     assert 'visrag_retrieval_backend = "hybrid"' in text
     assert "visrag_top_k_chunks = 8" in text
-    assert 'visrag_embedding_model = "mxbai-embed-large:latest"' in text
+    assert 'visrag_embedding_model = "nomic-embed-text:latest"' in text
     assert '[reasoning_model]' in text

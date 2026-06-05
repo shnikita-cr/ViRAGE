@@ -16,17 +16,15 @@ VisRAGChunkKind = Literal[
     "domain_semantics_rule",
     "scientific_figure_guidance",
     "eda_guidance",
+    "planner_guidance",
+    "metric_semantics_guidance",
+    "image_folder_guidance",
+    "multi_metric_guidance",
+    "quality_severity_guidance",
 ]
 
 
 class VisRAGRuleDocument(BaseModel):
-    """Backward-compatible runtime rule document used by RAG evaluation scripts.
-
-    The current runtime uses guidance chunks, but older evaluation utilities and
-    tests still work with typed rule documents. Keeping this small schema makes
-    corpus evaluation possible while preserving the chunk-based runtime path.
-    """
-
     doc_id: str
     record_type: str
     title: str = ""
@@ -37,12 +35,6 @@ class VisRAGRuleDocument(BaseModel):
 
 
 class VisRAGGuidanceChunk(BaseModel):
-    """Primary runtime VisRAG corpus unit.
-
-    Stores cleaned source text or feedback-derived guidance text. It is not a
-    pre-generated rule and never stores Vega-Lite specifications.
-    """
-
     chunk_id: str
     source_id: str
     source_name: str = ""
@@ -56,12 +48,10 @@ class VisRAGGuidanceChunk(BaseModel):
 
 
 class VisRAGRetrievedChunk(VisRAGGuidanceChunk):
-    """Guidance chunk retrieved at runtime with a similarity score."""
+    pass
 
 
 class VisRAGGenerationGuidance(BaseModel):
-    """Final VisRAG answer inserted into the specification-generation prompt."""
-
     chart_patterns: list[VisRAGRuleDocument] = Field(default_factory=list)
     readability_rules: list[VisRAGRuleDocument] = Field(default_factory=list)
     scale_plot_area_rules: list[VisRAGRuleDocument] = Field(default_factory=list)

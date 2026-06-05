@@ -29,6 +29,9 @@ _FLOAT_METRIC_FIELDS = (
     "layout_compactness_score",
     "repeat_axis_label_score",
     "publication_layout_score",
+    "chart_quality_score",
+    "chart_quality_critical_count",
+    "chart_quality_warning_count",
     "duration_seconds",
 )
 _BOOL_METRIC_FIELDS = ("valid_spec", "render_success", "empty_chart")
@@ -51,6 +54,7 @@ class BenchmarkCase:
     expected_checks: list[str] = field(default_factory=list)
     user_context: dict[str, Any] = field(default_factory=dict)
     focus: list[str] = field(default_factory=list)
+    comparison_group_id: str | None = None
     input_type: str | None = None
 
     def __post_init__(self) -> None:
@@ -81,6 +85,7 @@ class BenchmarkCase:
             expected_checks=[str(item) for item in payload.get("expected_checks", [])],
             user_context=dict(payload.get("user_context") or {}),
             focus=[str(item) for item in payload.get("focus", [])],
+            comparison_group_id=str(payload.get("comparison_group_id") or "").strip() or None,
         )
 
     def model_dump(self) -> dict[str, Any]:
@@ -100,6 +105,7 @@ class BenchmarkCase:
             "expected_checks": self.expected_checks,
             "user_context": self.user_context,
             "focus": self.focus,
+            "comparison_group_id": self.comparison_group_id,
         }
 
 
@@ -182,12 +188,14 @@ def resolve_case_data_path(case: BenchmarkCase, *, image_folder: str | None, pro
 
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return {}
+        return {"artifact_read_error": "missing", "artifact_path": path.as_posix()}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    except json.JSONDecodeError as exc:
+        return {"artifact_read_error": f"invalid_json:{exc}", "artifact_path": path.as_posix()}
+    if not isinstance(payload, dict):
+        return {"artifact_read_error": "not_object", "artifact_path": path.as_posix()}
+    return payload
 
 
 def _read_subrun_reports(orchestrator_report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -244,11 +252,17 @@ def _aggregate_subrun_metrics(reports: list[dict[str, Any]]) -> dict[str, Any]:
         values = [value for report in reports if (value := _maybe_bool(report.get(field))) is not None]
         metrics[f"{field}_rate"] = _rate(values)
     if reports:
+        metrics["artifact_read_error_count"] = sum(1 for report in reports if report.get("artifact_read_error"))
         metrics["successful_subrun_count"] = sum(1 for report in reports if report.get("status") == "completed")
-        metrics["error_subrun_count"] = sum(1 for report in reports if report.get("status") != "completed")
+        metrics["partial_subrun_count"] = sum(1 for report in reports if report.get("status") == "partial")
+        metrics["error_subrun_count"] = sum(1 for report in reports if report.get("status") not in {"completed", "partial"})
+        metrics["partial_success_rate"] = (metrics["successful_subrun_count"] + 0.5 * metrics["partial_subrun_count"]) / len(reports)
     else:
+        metrics["artifact_read_error_count"] = 0
         metrics["successful_subrun_count"] = 0
+        metrics["partial_subrun_count"] = 0
         metrics["error_subrun_count"] = 0
+        metrics["partial_success_rate"] = None
     return metrics
 
 
@@ -283,10 +297,12 @@ def _benchmark_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by_suite: dict[str, dict[str, Any]] = {}
     for row in rows:
         suite = str(row.get("suite") or "unknown")
-        bucket = by_suite.setdefault(suite, {"cases": 0, "ok": 0, "errors": 0})
+        bucket = by_suite.setdefault(suite, {"cases": 0, "completed": 0, "partial": 0, "errors": 0})
         bucket["cases"] += 1
         if row.get("status") == "completed":
-            bucket["ok"] += 1
+            bucket["completed"] += 1
+        elif row.get("status") == "partial":
+            bucket["partial"] += 1
         else:
             bucket["errors"] += 1
     metric_means: dict[str, float | None] = {}
@@ -301,13 +317,16 @@ def _benchmark_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_layout_compactness_score",
         "mean_repeat_axis_label_score",
         "mean_publication_layout_score",
+        "mean_chart_quality_score",
+        "partial_success_rate",
     ):
         values = [value for row in rows if (value := _maybe_float(row.get(key))) is not None]
         metric_means[key] = _mean(values)
     return {
         "total_cases": len(rows),
         "completed_cases": sum(1 for row in rows if row.get("status") == "completed"),
-        "error_cases": sum(1 for row in rows if row.get("status") != "completed"),
+        "partial_cases": sum(1 for row in rows if row.get("status") == "partial"),
+        "error_cases": sum(1 for row in rows if row.get("status") not in {"completed", "partial"}),
         "by_suite": by_suite,
         "metric_means": metric_means,
     }
@@ -318,6 +337,7 @@ def _write_report(path: Path, *, rows: list[dict[str, Any]], summary: dict[str, 
     lines.append("## Summary")
     lines.append("")
     lines.append(f"- Completed cases: {summary['completed_cases']}")
+    lines.append(f"- Partial cases: {summary['partial_cases']}")
     lines.append(f"- Error cases: {summary['error_cases']}")
     lines.append("")
     lines.append("## Metrics")
@@ -372,9 +392,12 @@ def _case_user_context(case: BenchmarkCase) -> dict[str, Any]:
                 "expected_charts": case.expected_charts,
                 "known_risks": case.known_risks,
                 "expected_checks": case.expected_checks,
+                "comparison_group_id": case.comparison_group_id,
             }
         }
     )
+    if case.comparison_group_id:
+        context["comparison_group_id"] = case.comparison_group_id
     return context
 
 
@@ -416,7 +439,7 @@ def run_case(
                 status = "error"
                 error_type = "NonZeroExit"
                 error = f"run_orchestrator exited with code {exit_code}"
-        except Exception as exc:  # noqa: BLE001 - benchmark must continue per case.
+        except (RuntimeError, ValueError, OSError) as exc:
             status = "error"
             error_type = type(exc).__name__
             error = str(exc)
@@ -444,6 +467,20 @@ def run_case(
         "planned_subtasks": len(chart_plan.get("subtasks") or []),
         **metrics,
     }
+    if status == "completed" and subrun_reports:
+        subrun_statuses = {str(report.get("status") or "") for report in subrun_reports}
+        if any(report.get("artifact_read_error") for report in subrun_reports):
+            result["status"] = "error"
+            result["error_type"] = "ArtifactReadError"
+            result["error"] = "At least one subrun report could not be read."
+        elif any(item not in {"completed", "partial"} for item in subrun_statuses):
+            result["status"] = "error"
+        elif "partial" in subrun_statuses:
+            result["status"] = "partial"
+    elif status == "completed" and execute and not subrun_reports:
+        result["status"] = "error"
+        result["error_type"] = "MissingSubrunReports"
+        result["error"] = "No subrun run_report.json files were found."
     return result
 
 
@@ -512,6 +549,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         rows.append(row)
         if row.get("status") == "completed":
+            ok += 1
+        elif row.get("status") == "partial":
             ok += 1
         else:
             errors += 1

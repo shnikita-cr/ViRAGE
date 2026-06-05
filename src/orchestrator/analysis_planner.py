@@ -8,8 +8,9 @@ from pydantic import ValidationError
 from src.domain.models import DataProfile
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_text
-from src.orchestrator.models import AnalysisPlan, allowed_analysis_task_types
+from src.orchestrator.models import AnalysisPlan, analysis_plan_contract_metadata, allowed_analysis_task_types
 from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
+from src.services.planning_guidance import PlanningGuidanceService
 
 
 class AnalysisPlanner:
@@ -51,6 +52,12 @@ class AnalysisPlanner:
         if llm is None:
             raise RuntimeError("AnalysisPlanner requires a reasoning LLM; rules planner has been removed.")
 
+        planning_guidance = self._planning_guidance(
+            user_query=user_query,
+            data_profile=data_profile,
+            runtime=runtime,
+            input_type=input_type,
+        )
         prompt = self._prompt(
             user_query=user_query,
             data_path=data_path,
@@ -59,6 +66,7 @@ class AnalysisPlanner:
             input_type=input_type,
             original_input_path=original_input_path,
             preprocessing_report_path=preprocessing_report_path,
+            planning_guidance=planning_guidance,
         )
         available_fields = {column.name for column in data_profile.columns}
         errors: list[str] = []
@@ -104,6 +112,20 @@ class AnalysisPlanner:
             f"Last error: {errors[-1] if errors else 'unknown'}"
         )
 
+    def _planning_guidance(
+            self,
+            *,
+            user_query: str,
+            data_profile: DataProfile,
+            runtime: RuntimeContext | None,
+            input_type: str,
+    ) -> str:
+        return PlanningGuidanceService().invoke(
+            user_query=user_query,
+            data_profile=data_profile,
+            runtime=runtime,
+            input_type=input_type,
+        ).text
 
     @staticmethod
     def _parse_strict_plan_json(raw_response: str) -> AnalysisPlan:
@@ -148,6 +170,7 @@ class AnalysisPlanner:
             input_type: str,
             original_input_path: str | None,
             preprocessing_report_path: str | None,
+            planning_guidance: str,
     ) -> str:
         context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
         payload = {
@@ -157,6 +180,7 @@ class AnalysisPlanner:
             "preprocessing_report_path": preprocessing_report_path,
             "max_charts": self.max_charts,
             "allowed_task_types": allowed_analysis_task_types(),
+            "allowed_controlled_values": analysis_plan_contract_metadata(),
             "available_fields": [column.name for column in data_profile.columns],
         }
         return (
@@ -173,10 +197,14 @@ class AnalysisPlanner:
             "7. Do not choose chart families. Do not recommend chart types. Select analytical subtasks and fields only.\n"
             "8. For image_folder input, use only columns generated in the image metrics table. If every IQA metric column is unusable or absent, do not select it.\n"
             "9. If the request is broad EDA, select the most useful complementary subtasks, not duplicate views.\n"
-            "10. If the request is specific, prioritize the requested analytical task and include other subtasks only when they are clearly useful.\n\n"
+            "10. If the request is specific, prioritize the requested analytical task and include other subtasks only when they are clearly useful.\n"
+            "11. Use retrieved planning guidance to define metric_semantics, ranking_strategy, scale_strategy and visual_constraints when relevant. metric_semantics keys must be exact available field names.\n"
+            "12. For problematic-item or quality requests, plan ranking/severity views instead of raw all-items multi-metric charts.\n"
+            "13. Do not put different-scale metrics on one shared quantitative axis. Plan normalized severity or independent panels.\n\n"
             f"Authoritative metadata JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}\n\n"
             f"User request:\n{user_query.strip()}\n\n"
             f"User context:\n{context_lines}\n\n"
+            f"Retrieved planning guidance:\n{planning_guidance or 'No planning guidance retrieved.'}\n\n"
             f"Compact DataProfile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile, max_columns=40)}\n"
         )
 
@@ -208,6 +236,11 @@ class AnalysisPlanner:
                     "optional_fields": [],
                     "priority": 1,
                     "constraints": {"output_target": "scientific_figure"},
+                    "metric_semantics": {},
+                    "ranking_strategy": None,
+                    "scale_strategy": None,
+                    "visual_constraints": [],
+                    "comparison_group_id": None,
                     "rationale": "The selected fields exist in the provided DataProfile and match the request.",
                 }
             ],

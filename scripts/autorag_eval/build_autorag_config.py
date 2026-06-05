@@ -16,13 +16,8 @@ from scripts.rag_corpus.common.io import ensure_dir, write_json, write_text
 
 DEFAULT_OUTPUT = "rag_corpus/autorag/configs/virage_retrieval_eval.yaml"
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_OLLAMA_EMBEDDING_MODELS = [
-    "bge-m3:latest",
-    "mxbai-embed-large:latest",
-    "nomic-embed-text:latest",
-    "qwen3-embedding:latest",
-]
-EXCLUDED_OLLAMA_EMBEDDING_MODELS = {"embeddinggemma:latest"}
+DEFAULT_OLLAMA_EMBEDDING_MODELS = ["nomic-embed-text:latest"]
+EXCLUDED_OLLAMA_EMBEDDING_MODELS: set[str] = set()
 
 
 def _parse_embedding_models(raw_models: str | list[str] | tuple[str, ...] | None) -> list[str]:

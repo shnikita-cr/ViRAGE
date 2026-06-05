@@ -45,3 +45,4 @@ class PlotRenderingResult(BaseModel):
     plot_image: PlotImageArtifact
     rendered_scenegraph: dict[str, Any] = Field(default_factory=dict)
     render_notes: list[str] = Field(default_factory=list)
+    chart_quality_report: dict[str, Any] = Field(default_factory=dict)

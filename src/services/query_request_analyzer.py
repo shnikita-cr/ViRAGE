@@ -13,6 +13,7 @@ from src.domain.models import (
     RequestFieldMapping,
 )
 from src.infrastructure.runtime import RuntimeContext
+from src.orchestrator.planning_contract import MetricSemantic, RankingStrategy, ScaleStrategy, VisualConstraint
 from src.llm.helpers import invoke_structured
 from src.services.base import BaseService
 from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
@@ -88,6 +89,11 @@ class _QueryRequestAnalysisSchema(BaseModel):
     field_mappings: list[_FieldMappingSchema] = Field(default_factory=list,
                                                       validation_alias=AliasChoices("field_mappings", "mappings"))
     aggregation_plan: dict[str, Any] = Field(default_factory=dict)
+    metric_semantics: dict[str, MetricSemantic] = Field(default_factory=dict)
+    ranking_strategy: RankingStrategy | None = None
+    scale_strategy: ScaleStrategy | None = None
+    visual_constraints: list[VisualConstraint] = Field(default_factory=list)
+    comparison_group_id: str | None = None
     visual_judge_requirements: dict[str, Any] = Field(default_factory=dict)
     query_variants: list[_QueryVariantSchema] = Field(default_factory=list)
     chart_answerability: dict[str, Any] = Field(default_factory=dict)
@@ -120,6 +126,23 @@ class _QueryRequestAnalysisSchema(BaseModel):
         return data
 
 
+def _merge_dicts(*values: Any) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        for key, item in value.items():
+            clean_key = str(key).strip()
+            if clean_key:
+                result[clean_key] = item
+    return result
+
+
+def _subtask_constraints(subtask: dict[str, Any]) -> dict[str, Any]:
+    constraints = subtask.get("constraints") if isinstance(subtask, dict) else None
+    return dict(constraints or {}) if isinstance(constraints, dict) else {}
+
+
 class QueryRequestAnalyzerService(BaseService):
     def invoke(
             self,
@@ -140,7 +163,7 @@ class QueryRequestAnalyzerService(BaseService):
             examples=[self._example_payload(data_profile)],
             max_attempts=2,
         )
-        return self._build_result(parsed, query)
+        return self._build_result(parsed, query, user_context)
 
     def _prompt(self, query: str, user_context: dict[str, Any], data_profile: DataProfile) -> str:
         context_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(user_context.items())) or "- none"
@@ -150,18 +173,22 @@ class QueryRequestAnalyzerService(BaseService):
             "field_bindings.*.field, field_mappings.column_name, and ambiguity.missing_fields. Do not invent fields.\n"
             "Do not generate Vega-Lite. Do not create rag_queries. Do not include generic chart-quality boilerplate.\n"
             "The result must describe only the user intent: analysis_task, selected_fields, "
-            "field_bindings, aggregation_plan, visual_judge_requirements, query_variants, chart_answerability, assumptions, and ambiguity. "
+            "field_bindings, aggregation_plan, metric_semantics, ranking_strategy, scale_strategy, visual_constraints, "
+            "visual_judge_requirements, query_variants, chart_answerability, assumptions, and ambiguity. "
             "visual_judge_requirements must contain only criteria that can be checked from a static PNG chart. "
             "Tooltip-only information is not visible.\n"
             "query_variants are only for retrieval/debug. Prefer kinds: canonical, chart_pattern_retrieval, repair_rule_retrieval, analysis_rule_retrieval.\n"
-            "chart_answerability.status must be one of: answerable_by_chart, requires_computation, uncertain.\n\n"
+            "chart_answerability.status must be one of: answerable_by_chart, requires_computation, uncertain.\n"
+            "If user_context contains analysis_subtask, preserve its required fields, metric semantics, ranking strategy, scale strategy, and visual constraints unless they reference absent fields.\n\n"
             f"User request:\n{query}\n\n"
             f"User context:\n{context_lines}\n\n"
             f"Dataset profile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile)}\n"
         )
 
-    def _build_result(self, parsed: _QueryRequestAnalysisSchema, original_query: str) -> QueryRequestAnalysisResult:
-        selected_fields = self._dedupe(parsed.selected_fields)
+    def _build_result(self, parsed: _QueryRequestAnalysisSchema, original_query: str, user_context: dict[str, Any]) -> QueryRequestAnalysisResult:
+        subtask = user_context.get("analysis_subtask") if isinstance(user_context, dict) else None
+        subtask = subtask if isinstance(subtask, dict) else {}
+        selected_fields = self._dedupe([*(subtask.get("required_fields") or []), *(subtask.get("optional_fields") or []), *parsed.selected_fields])
         ambiguity = QueryAmbiguity(
             missing_fields=self._dedupe(parsed.ambiguity.missing_fields),
             notes=self._dedupe(parsed.ambiguity.notes),
@@ -177,7 +204,12 @@ class QueryRequestAnalyzerService(BaseService):
                 if key.strip()
             },
             field_mappings=[RequestFieldMapping(**item.model_dump()) for item in parsed.field_mappings],
-            aggregation_plan=dict(parsed.aggregation_plan or {}),
+            aggregation_plan={**dict(parsed.aggregation_plan or {}), **_subtask_constraints(subtask)},
+            metric_semantics=self._subtask_first_dict(parsed.metric_semantics, subtask.get("metric_semantics")),
+            ranking_strategy=self._subtask_first_value(parsed.ranking_strategy, subtask.get("ranking_strategy")),
+            scale_strategy=self._subtask_first_value(parsed.scale_strategy, subtask.get("scale_strategy")),
+            visual_constraints=self._dedupe([*(subtask.get("visual_constraints") or []), *(parsed.visual_constraints or [])]),
+            comparison_group_id=str(subtask.get("comparison_group_id") or parsed.comparison_group_id or "").strip() or None,
             visual_judge_requirements=self._normalize_visual_judge_requirements(parsed.visual_judge_requirements),
             query_variants=self._normalize_variants(parsed.query_variants, original_query),
             chart_answerability=self._normalize_chart_answerability(parsed.chart_answerability),
@@ -185,6 +217,18 @@ class QueryRequestAnalyzerService(BaseService):
             ambiguity=ambiguity,
             confidence=parsed.confidence,
         )
+
+
+    @staticmethod
+    def _subtask_first_value(parsed_value: str | None, subtask_value: Any) -> str | None:
+        text = str(subtask_value or parsed_value or "").strip()
+        return text or None
+
+    @staticmethod
+    def _subtask_first_dict(parsed_value: dict[str, Any], subtask_value: Any) -> dict[str, Any]:
+        if isinstance(subtask_value, dict) and subtask_value:
+            return {str(key).strip(): value for key, value in subtask_value.items() if str(key).strip()}
+        return _merge_dicts(parsed_value)
 
     @staticmethod
     def _normalize_visual_judge_requirements(raw: dict[str, Any]) -> dict[str, Any]:
@@ -270,6 +314,11 @@ class QueryRequestAnalyzerService(BaseService):
                  "rationale": "schema-grounded example"}
             ],
             "aggregation_plan": {"operation": "mean", "column": y_field, "group_by": [x_field]},
+            "metric_semantics": {},
+            "ranking_strategy": None,
+            "scale_strategy": None,
+            "visual_constraints": [],
+            "comparison_group_id": None,
             "visual_judge_requirements": {
                 "must_be_visible": ["The x-axis and y-axis show the requested fields."],
                 "acceptable_visual_encodings": {},

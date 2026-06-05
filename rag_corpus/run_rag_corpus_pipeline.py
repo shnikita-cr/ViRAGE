@@ -14,12 +14,13 @@ PRACTICAL_SOURCES = [
     "uk_charts_checklist",
     "urban_institute_style_guide",
     "chartability",
+    "image_quality_metrics",
 ]
 
 CLEAN_PATHS = [
     "rag_corpus/runtime/guidance_chunks.jsonl",
     "rag_corpus/runtime/runtime_export_report.json",
-    "resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest",
+    "resources/chroma/virage_guidance_chunks_nomic_embed_text_latest",
     "rag_corpus/autorag/visrag_chunks",
     "rag_corpus/autorag/runs/visrag_chunks_train",
     "rag_corpus/autorag/runs/visrag_chunks_test",
@@ -52,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the chunk-based VisRAG corpus pipeline.")
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--embedding-provider", default="ollama")
-    parser.add_argument("--embedding-model", default="mxbai-embed-large:latest")
+    parser.add_argument("--embedding-model", default="nomic-embed-text:latest")
     parser.add_argument("--embedding-base-url", default="http://localhost:11434")
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--split-seed", type=int, default=42)
@@ -105,8 +106,8 @@ def main() -> None:
             python_cmd(
                 "scripts/rag_corpus/build_runtime_chroma_index.py",
                 "--chunks", "rag_corpus/runtime/guidance_chunks.jsonl",
-                "--persist-dir", "resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest",
-                "--collection", "virage_guidance_chunks_mxbai_embed_large_latest",
+                "--persist-dir", "resources/chroma/virage_guidance_chunks_nomic_embed_text_latest",
+                "--collection", "virage_guidance_chunks_nomic_embed_text_latest",
                 "--embedding-provider", args.embedding_provider,
                 "--embedding-model", args.embedding_model,
                 "--embedding-base-url", args.embedding_base_url,

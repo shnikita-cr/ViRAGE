@@ -39,8 +39,12 @@ class VisRAGCoreOptions:
     embedding_provider: str | None = None
     embedding_model: str | None = None
     embedding_base_url: str | None = None
-    chroma_persist_dir: str | Path = "resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest"
-    chroma_collection_name: str = "virage_guidance_chunks_mxbai_embed_large_latest"
+    metadata_weight_manual_feedback: float = 1.5
+    metadata_weight_scientific_figure: float = 1.2
+    metadata_weight_min: float = 0.1
+    metadata_weight_max: float = 4.0
+    chroma_persist_dir: str | Path = "resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"
+    chroma_collection_name: str = "virage_guidance_chunks_nomic_embed_text_latest"
 
 
 class _VisRAGResponseSchema(BaseModel):
@@ -81,7 +85,7 @@ class VisRAGEngine:
         diagnostics = VisRAGDiagnostics(
             retrieved_count=len(retrieved),
             retrieved_count_by_type=self._count_by_kind(retrieved),
-            corpus_backend=self.store.backend_name,
+            corpus_backend=self._retrieval_runtime_backend(),
             corpus_uri=self.store.corpus_uri,
             corpus_hash=str(self._signature.get("hash") or ""),
         )
@@ -93,17 +97,48 @@ class VisRAGEngine:
             task_context=dict(task_context or {}),
         )
         return VisRAGResult(
-            corpus_status={
-                "enabled": True,
-                "chunks": len(chunks),
-                "backend": self.store.backend_name,
-                "signature": self._signature,
-            },
+            corpus_status=self._corpus_status(chunks),
             retrieval_strategy=self._retrieval_strategy(),
             generation_guidance=guidance,
             debug_retrieval=debug,
             diagnostics=diagnostics,
         )
+
+
+    def _corpus_status(self, chunks: list[VisRAGGuidanceChunk]) -> dict[str, Any]:
+        backend = self._normalized_retrieval_backend()
+        status: dict[str, Any] = {
+            "enabled": True,
+            "chunks": len(chunks),
+            "corpus_source": {
+                "backend": "guidance_chunks",
+                "uri": self.store.corpus_uri,
+                "signature": self._signature,
+            },
+            "retrieval_mode": backend,
+            "retrieval_backend": self._retrieval_runtime_backend(),
+        }
+        if backend in {"semantic", "hybrid"}:
+            status["vector_index"] = {
+                "backend": "chroma",
+                "persist_dir": str(self.options.chroma_persist_dir),
+                "collection_name": self.options.chroma_collection_name,
+                "embedding_provider": self.options.embedding_provider or "ollama",
+                "embedding_model": self.options.embedding_model or "nomic-embed-text:latest",
+            }
+        if backend in {"lexical", "hybrid"}:
+            status["lexical_index"] = {"backend": "rank_bm25"}
+        return status
+
+    def _retrieval_runtime_backend(self) -> str:
+        backend = self._normalized_retrieval_backend()
+        if backend == "semantic":
+            return "chroma"
+        if backend == "hybrid":
+            return "chroma+rank_bm25"
+        if backend == "lexical":
+            return "rank_bm25"
+        return backend
 
     def _retrieve(
             self,
@@ -246,24 +281,30 @@ class VisRAGEngine:
         backend = self._normalized_retrieval_backend()
         if backend == "hybrid":
             return (
-                f"chunk_guidance:{self.store.backend_name}:hybrid:{self.options.hybrid_method}:"
-                f"semantic={self.options.embedding_model}:weight={self.options.hybrid_weight}:top_k={self.options.top_k_chunks}"
+                f"chunk_guidance:hybrid:chroma+rank_bm25:{self.options.hybrid_method}:"
+                f"collection={self.options.chroma_collection_name}:"
+                f"embedding={self.options.embedding_model}:weight={self.options.hybrid_weight}:top_k={self.options.top_k_chunks}"
             )
         if backend == "semantic":
-            return f"chunk_guidance:{self.store.backend_name}:semantic:{self.options.embedding_model}:top_k={self.options.top_k_chunks}"
+            return (
+                f"chunk_guidance:semantic:chroma:"
+                f"collection={self.options.chroma_collection_name}:"
+                f"embedding={self.options.embedding_model}:top_k={self.options.top_k_chunks}"
+            )
         if backend == "lexical":
-            return f"chunk_guidance:{self.store.backend_name}:lexical:top_k={self.options.top_k_chunks}"
-        return f"chunk_guidance:{self.store.backend_name}:{backend}"
+            return f"chunk_guidance:lexical:rank_bm25:top_k={self.options.top_k_chunks}"
+        return f"chunk_guidance:{backend}"
 
-    @staticmethod
-    def _metadata_weight(chunk: VisRAGGuidanceChunk) -> float:
+    def _metadata_weight(self, chunk: VisRAGGuidanceChunk) -> float:
         metadata = chunk.metadata or {}
         weight = float(metadata.get("priority", 1.0) or 1.0)
         if chunk.source_kind in {"manual_feedback", "vlm_feedback"}:
-            weight *= 1.5
+            weight *= self.options.metadata_weight_manual_feedback
         if chunk.source_kind == "scientific_figure_guidance":
-            weight *= 1.2
-        return max(0.1, min(weight, 4.0))
+            weight *= self.options.metadata_weight_scientific_figure
+        lower = float(self.options.metadata_weight_min)
+        upper = max(lower, float(self.options.metadata_weight_max))
+        return max(lower, min(weight, upper))
 
     def _generate_response(
             self,
@@ -321,13 +362,22 @@ class VisRAGEngine:
                 for chunk in chunks
             ],
         }
-        prompt = (
-            "Generate final VisRAG guidance for Vega-Lite spec generation. "
-            "Use only the retrieved chunks and the given data/query context. "
-            "If selected_analytical_subtask is provided, treat it as fixed: do not replace it with another task. "
-            "Do not output Vega-Lite code or examples. Return concrete practical guidance.\n\n"
-            f"Context JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
-        )
+        stage = str((task_context or {}).get("stage") or "spec_generation").strip().lower()
+        if stage == "planning":
+            instruction = (
+                "Generate VisRAG guidance for analysis planning. "
+                "Use only the retrieved chunks and the given data/query context. "
+                "Return practical constraints for selecting subtasks, fields, metric semantics, ranking strategy, scale strategy and visual constraints. "
+                "Do not output Vega-Lite code or examples."
+            )
+        else:
+            instruction = (
+                "Generate final VisRAG guidance for Vega-Lite spec generation. "
+                "Use only the retrieved chunks and the given data/query context. "
+                "If selected_analytical_subtask is provided, treat it as fixed: do not replace it with another task. "
+                "Do not output Vega-Lite code or examples. Return concrete practical guidance."
+            )
+        prompt = f"{instruction}\n\nContext JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
         parsed = invoke_structured(
             self.reasoning_llm,
             prompt,

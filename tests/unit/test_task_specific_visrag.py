@@ -126,7 +126,7 @@ def test_runtime_visrag_supports_explicit_semantic_backend(monkeypatch) -> None:
 
     result = engine.invoke(_analysis(), _profile())
 
-    assert result.retrieval_strategy.startswith("chunk_guidance:test:semantic")
+    assert result.retrieval_strategy.startswith("chunk_guidance:semantic:chroma")
     assert [chunk.chunk_id for chunk in result.debug_retrieval.retrieved_chunks] == ["c1"]
 
 
@@ -154,7 +154,7 @@ def test_runtime_visrag_supports_explicit_hybrid_backend(monkeypatch) -> None:
     )
     result = engine.invoke(_analysis(), _profile())
 
-    assert result.retrieval_strategy.startswith("chunk_guidance:test:hybrid:cc")
+    assert result.retrieval_strategy.startswith("chunk_guidance:hybrid:chroma+rank_bm25:cc")
     assert result.debug_retrieval.retrieved_chunks[0].chunk_id == "c1"
     assert result.debug_retrieval.retrieved_chunks[0].metadata["retrieval_score_kind"] == "hybrid"
 
@@ -175,6 +175,6 @@ def test_runtime_visrag_supports_explicit_lexical_backend_without_embeddings(mon
 
     result = engine.invoke(_analysis(), _profile())
 
-    assert result.retrieval_strategy.startswith("chunk_guidance:test:lexical")
+    assert result.retrieval_strategy.startswith("chunk_guidance:lexical:rank_bm25")
     assert [chunk.chunk_id for chunk in result.debug_retrieval.retrieved_chunks] == ["c1"]
     assert result.debug_retrieval.retrieved_chunks[0].metadata["retrieval_score_kind"] == "lexical"

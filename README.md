@@ -30,9 +30,7 @@ ViRAGE — система построения Vega-Lite графиков и а�
 Доступные backend-и:
 
 - `vegachat_codegen` — основной LLM backend генерации Vega-Lite спецификаций.
-- `template` — простой backend для тестов и проверки RAG-кандидатов.
-
-Внешние генераторы графиков не подключаются как зависимости проекта. Идеи VegaChat используются внутри собственного генератора ViRAGE: строгий контракт вывода, компактный контекст, учёт ошибок валидации, повторная генерация и детерминированное исправление частых ошибок спецификаций.
+- Внешние генераторы графиков не подключаются как зависимости проекта. Идеи VegaChat используются внутри собственного генератора ViRAGE: строгий контракт вывода, компактный контекст, учёт ошибок валидации, повторная генерация и детерминированное исправление частых ошибок спецификаций.
 
 ## Совместимость моделей
 
@@ -122,19 +120,17 @@ RAG-корпуса готовятся offline и больше не строят�
 
 Структура корпуса:
 
-    rag_corpus/raw          исходные датасеты и feedback
-    rag_corpus/extracted    унифицированные source records
-    rag_corpus/processed    LLM-нормализованные rule records
-    rag_corpus/autorag      parquet-файлы для AutoRAG
-    rag_corpus/runtime      компактный runtime export
+    rag_corpus/raw_external_rules   скачанные и очищенные реальные источники
+    rag_corpus/runtime              runtime guidance chunks
+    resources/chroma                индекс Chroma для semantic/hybrid поиска
 
-Подготовка выполняется через LLM-normalization с Ollama или OpenAI:
+Подготовка корпуса выполняется детерминированно:
 
-    python scripts/rag_corpus/run_prepare_corpus.py --provider ollama --model qwen2.5-coder:7b
-    python scripts/rag_corpus/run_export_autorag.py
-    python scripts/rag_corpus/export_guidance_chunks.py
+    python scripts/rag_corpus/loading/download_sources.py --sources wilke_fundamentals from_data_to_viz ft_visual_vocabulary uk_analysis_colours uk_charts_checklist urban_institute_style_guide chartability scientific_figure_guidance image_quality_metrics eda_best_practices
+    python scripts/rag_corpus/export_guidance_chunks.py --raw-root rag_corpus/raw_external_rules --output rag_corpus/runtime/guidance_chunks.jsonl --min-chars 220 --max-chars 1000 --overlap-chars 120
+    python scripts/rag_corpus/build_runtime_chroma_index.py --chunks rag_corpus/runtime/guidance_chunks.jsonl --persist-dir resources/chroma/virage_guidance_chunks_nomic_embed_text_latest --collection virage_guidance_chunks_nomic_embed_text_latest --embedding-provider ollama --embedding-model nomic-embed-text:latest --embedding-base-url http://localhost:11434 --recreate
 
-AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный config и компактный `guidance_chunks.jsonl`.
+AutoRAG используется offline для выбора retrieval-конфигурации. Runtime использует уже выбранный TOML и `guidance_chunks.jsonl`.
 
 
 ## Оркестратор аналитических задач
@@ -401,22 +397,18 @@ The runner writes reports to:
 
     artifacts/<run_id>/e2e_cases_report/
 
-EDA guidance is stored as a separate RAG source kind:
+EDA best-practice guidance is loaded from real external sources and exported as `eda_guidance` chunks:
 
-    eda_guidance
-
-Prepare it with:
-
-    python scripts/rag_corpus/loading/load_eda_guidance.py --refresh
+    python scripts/rag_corpus/loading/load_eda_best_practices.py --refresh
 
 Then rebuild runtime chunks and the Chroma index:
 
     python scripts/rag_corpus/export_guidance_chunks.py --max-chars 1000 --overlap-chars 120
 
-    python scripts/rag_corpus/build_runtime_chroma_index.py --chunks rag_corpus/runtime/guidance_chunks.jsonl --persist-dir resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest --collection virage_guidance_chunks_mxbai_embed_large_latest --embedding-provider ollama --embedding-model mxbai-embed-large:latest --embedding-base-url http://localhost:11434 --recreate
+    python scripts/rag_corpus/build_runtime_chroma_index.py --chunks rag_corpus/runtime/guidance_chunks.jsonl --persist-dir resources/chroma/virage_guidance_chunks_nomic_embed_text_latest --collection virage_guidance_chunks_nomic_embed_text_latest --embedding-provider ollama --embedding-model nomic-embed-text:latest --embedding-base-url http://localhost:11434 --recreate
 
 See also:
 
     docs/virage_benchmark_taxonomy.md
-    docs/virage_eda_guidance.md
+    docs/virage_eda_best_practices.md
 

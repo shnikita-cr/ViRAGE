@@ -128,10 +128,10 @@ def build_runtime_chroma_index(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build the ViRAGE runtime Chroma index from guidance chunks.")
     parser.add_argument("--chunks", default="rag_corpus/runtime/guidance_chunks.jsonl")
-    parser.add_argument("--persist-dir", default="resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest")
-    parser.add_argument("--collection", default="virage_guidance_chunks_mxbai_embed_large_latest")
+    parser.add_argument("--persist-dir", default="resources/chroma/virage_guidance_chunks_nomic_embed_text_latest")
+    parser.add_argument("--collection", default="virage_guidance_chunks_nomic_embed_text_latest")
     parser.add_argument("--embedding-provider", default="ollama")
-    parser.add_argument("--embedding-model", default="mxbai-embed-large:latest")
+    parser.add_argument("--embedding-model", default="nomic-embed-text:latest")
     parser.add_argument("--embedding-base-url", default="http://localhost:11434")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--max-input-chars", type=int, default=1600)

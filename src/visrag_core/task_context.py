@@ -10,6 +10,12 @@ _TASK_CONTEXT_KEYS = {
     "required_fields",
     "optional_fields",
     "constraints",
+    "metric_semantics",
+    "ranking_strategy",
+    "scale_strategy",
+    "visual_constraints",
+    "comparison_group_id",
+    "stage",
     "rationale",
 }
 
@@ -45,6 +51,18 @@ def task_context_from_user_context(user_context: dict[str, Any] | None) -> dict[
 def task_context_to_query_text(task_context: dict[str, Any] | None) -> str:
     if not task_context:
         return ""
+    if str(task_context.get("stage") or "").strip().lower() == "planning":
+        return " ".join(
+            part
+            for part in [
+                "analysis planning guidance",
+                str(task_context.get("input_type") or ""),
+                str(task_context.get("purpose") or ""),
+                _join_items(task_context.get("available_fields")),
+                _join_items(task_context.get("preferred_source_kinds")),
+            ]
+            if part.strip()
+        ).strip()
     fields = _join_items(task_context.get("required_fields"))
     optional = _join_items(task_context.get("optional_fields"))
     constraints = task_context.get("constraints") if isinstance(task_context.get("constraints"), dict) else {}
@@ -68,12 +86,32 @@ def task_context_to_query_text(task_context: dict[str, Any] | None) -> str:
 def task_context_prompt_block(task_context: dict[str, Any] | None) -> str:
     if not task_context:
         return ""
+    if str(task_context.get("stage") or "").strip().lower() == "planning":
+        lines = [
+            "Planning guidance context:",
+            f"- input_type: {task_context.get('input_type', '')}",
+            f"- purpose: {task_context.get('purpose', 'analysis planning')}",
+            "- Use these chunks to choose analytical subtasks, field groups, metric semantics, ranking strategy and visual constraints.",
+            "- Do not output Vega-Lite from planning guidance.",
+        ]
+        fields = _join_items(task_context.get("available_fields"))
+        if fields:
+            lines.append(f"- available_fields: {fields}")
+        preferred = _join_items(task_context.get("preferred_source_kinds"))
+        if preferred:
+            lines.append(f"- preferred_source_kinds: {preferred}")
+        return "\n".join(lines)
+
     lines = [
         "Selected analytical task contract:",
         f"- task_type: {task_context.get('task_type', '')}",
         f"- purpose: {task_context.get('purpose', '')}",
         f"- required_fields: {_join_items(task_context.get('required_fields')) or 'none'}",
         f"- optional_fields: {_join_items(task_context.get('optional_fields')) or 'none'}",
+        f"- metric_semantics: {task_context.get('metric_semantics', {})}",
+        f"- ranking_strategy: {task_context.get('ranking_strategy', '')}",
+        f"- scale_strategy: {task_context.get('scale_strategy', '')}",
+        f"- visual_constraints: {_join_items(task_context.get('visual_constraints')) or 'none'}",
         "- output_target: scientific_figure",
         "- The analytical task is already selected by the orchestrator.",
         "- Use RAG only as rules and constraints for this selected task.",

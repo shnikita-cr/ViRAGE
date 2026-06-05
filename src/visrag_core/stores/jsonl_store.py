@@ -51,16 +51,5 @@ class JsonlVisRAGStore(VisRAGStore):
                     continue
                 raw = json.loads(line)
                 raw.setdefault("metadata", {})["line_number"] = line_number
-                if "chunk_id" not in raw and "doc_id" in raw:
-                    raw = {
-                        "chunk_id": str(raw.get("doc_id") or ""),
-                        "source_id": str(raw.get("doc_id") or ""),
-                        "source_name": str((raw.get("metadata") or {}).get("source") or "runtime_rules"),
-                        "source_kind": str(raw.get("record_type") or "web_guidance"),
-                        "title": str(raw.get("title") or ""),
-                        "text": str(raw.get("prompt_text") or raw.get("retrieval_text") or ""),
-                        "metadata": {**(raw.get("metadata") or {}), "record_type": str(raw.get("record_type") or "")},
-                        "score": float(raw.get("score") or 0.0),
-                    }
                 chunks.append(VisRAGGuidanceChunk.model_validate(raw))
         return chunks

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 class ViRAGESettings(BaseModel):
     artifact_root: Path = Field(default=Path("./artifacts"))
     project_name: str = Field(default="ViRAGE")
-    default_figure_dpi: int = Field(default=144)
+    default_figure_dpi: int = Field(default=192)
     graph_recursion_limit: int = Field(default=100, ge=25)
 
     visrag_enabled: bool = Field(default=True)
@@ -21,14 +21,19 @@ class ViRAGESettings(BaseModel):
     visrag_hybrid_weight: float = Field(default=0.1, ge=0.0, le=1.0)
     visrag_hybrid_rrf_k: float = Field(default=60.0, gt=0.0)
     visrag_candidate_pool_size: int = Field(default=64, ge=1)
+    visrag_metadata_weight_manual_feedback: float = Field(default=1.5, ge=0.0)
+    visrag_metadata_weight_scientific_figure: float = Field(default=1.2, ge=0.0)
+    visrag_metadata_weight_min: float = Field(default=0.1, ge=0.0)
+    visrag_metadata_weight_max: float = Field(default=4.0, ge=0.0)
     visrag_embedding_provider: str | None = Field(default="ollama")
-    visrag_embedding_model: str | None = Field(default="mxbai-embed-large:latest")
+    visrag_embedding_model: str | None = Field(default="nomic-embed-text:latest")
     visrag_embedding_base_url: str | None = Field(default="http://localhost:11434")
     visrag_embedding_timeout_seconds: float = Field(default=60.0)
-    visrag_chroma_persist_dir: Path = Field(default=Path("./resources/chroma/virage_guidance_chunks_mxbai_embed_large_latest"))
-    visrag_chroma_collection_name: str = Field(default="virage_guidance_chunks_mxbai_embed_large_latest")
+    visrag_chroma_persist_dir: Path = Field(default=Path("./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"))
+    visrag_chroma_collection_name: str = Field(default="virage_guidance_chunks_nomic_embed_text_latest")
 
     vega_output_format: str = Field(default="png")
+    vega_export_scale: float = Field(default=2.0, ge=1.0, le=4.0)
     enable_scenegraph_check: bool = Field(default=True)
     enable_empty_chart_check: bool = Field(default=True)
     enable_spec_score: bool = Field(default=True)
@@ -54,6 +59,7 @@ class ViRAGESettings(BaseModel):
     data_profile_sample_strategy: str = Field(default="random")
     data_profile_sample_seed: int = Field(default=42)
     data_profile_sample_size: int = Field(default=5, ge=1)
+    problematic_item_top_n: int = Field(default=12, ge=1)
     semantic_feedback_loop_enabled: bool = Field(default=True)
     semantic_feedback_max_attempts: int = Field(default=2, ge=1)
     semantic_feedback_min_accept_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
@@ -84,6 +90,10 @@ class ViRAGESettings(BaseModel):
             "hybrid_weight": self.visrag_hybrid_weight,
             "hybrid_rrf_k": self.visrag_hybrid_rrf_k,
             "candidate_pool_size": self.visrag_candidate_pool_size,
+            "metadata_weight_manual_feedback": self.visrag_metadata_weight_manual_feedback,
+            "metadata_weight_scientific_figure": self.visrag_metadata_weight_scientific_figure,
+            "metadata_weight_min": self.visrag_metadata_weight_min,
+            "metadata_weight_max": self.visrag_metadata_weight_max,
             "embedding_provider": self.visrag_embedding_provider,
             "embedding_model": self.visrag_embedding_model,
             "embedding_base_url": self.visrag_embedding_base_url,
