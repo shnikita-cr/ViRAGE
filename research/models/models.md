@@ -1,18 +1,57 @@
-| Компонент агента | Название модели в Ollama | Размер | Главная фишка для Vega-Lite |
-|---|---|---|---|
-| 1. Оркестратор / Планирование | deepseek-r1:8b | ~5.2 GB | Использует скрытый этап рассуждений <think> для логического проектирования схемы. |
-| | qwen3.5:latest | ~6.6 GB | Новейшая базовая модель с эталонным удержанием системного промта и Function Calling. |
-| | gemma3:4b | ~3.3 GB | Легковесный агент, выдающий максимальную скорость (TPS) и экономящий видеопамять. |
-| | llama3.1:8b | ~4.7 GB | Базовый индустриальный стандарт, на котором отлаживается большинство фреймворков. |
-| | hermes3:8b | ~4.7 GB | Специализированный файнтюн, обученный строго следовать сложным инструкциям. |
-| 2. Кодогенерация JSON | qwen2.5-coder:7b | ~4.7 GB | Лучшая модель в своем классе для сборки глубоко вложенных структур JSON. |
-| | deepseek-coder:6.7b | ~3.8 GB | Проверенная временем кодовая база, отлично знающая типы данных и декларации. |
-| | qwen2.5-coder:3b | ~1.9 GB | Компактный кодер для быстрой параллельной генерации мелких блоков разметки. |
-| | codegemma:7b | ~4.8 GB | Модель с математическим уклоном, сильна в агрегации данных (fold, filter). |
-| | granite-code:8b | ~4.6 GB | Разработка IBM, обученная выдавать строгий синтаксис без пропущенных кавычек. |
-| 3. Критик / Валидация (VLM) | qwen2.5vl:7b | ~4.7 GB | Абсолютный лидер среди открытых VLM по считыванию мелкого текста и осей координат. |
-| | gemma3:12b | ~7.5 GB | Самая умная мультимодальная модель от Google, пролезающая на грани лимита 8 ГБ. |
-| | openbmb/minicpm-v4.5 | ~5.5 GB | Специализируется на OCR и инфографике, идеальна для сверки легенды с датасетом. |
-| | phi3.5-vision:latest | ~3.6 GB | Быстрая модель от Microsoft для мгновенного анализа картинок высокого разрешения. |
-| | moondream:latest | ~1.7 GB | Микро-модель для моментального выявления критических багов (например, пустого экрана). |
+### All-in-one: планирование + VLM + простая генерация JSON
 
+| Модель                 | Источник | Размер / вес | Вход       |
+| ---------------------- | -------- | -----------: | ---------- |
+| `qwen3.5:latest`       | Ollama   |      ~6.6 GB | Text/Image |
+| `qwen3.5:4b`           | Ollama   |      ~3.4 GB | Text/Image |
+| `gemma3:4b`            | Ollama   |      ~3.3 GB | Text/Image |
+| `qwen2.5vl:latest`     | Ollama   |      ~6.0 GB | Text/Image |
+| `gemma3:12b-it-q4_K_M` | Ollama   |      ~8.1 GB | Text/Image |
+
+### Планирование / reasoning
+
+| Модель           | Источник | Размер / вес | Вход       |
+| ---------------- | -------- | -----------: | ---------- |
+| `qwen3.5:latest` | Ollama   |      ~6.6 GB | Text/Image |
+| `deepseek-r1:8b` | Ollama   |      ~5.2 GB | Text       |
+| `gemma3:4b`      | Ollama   |      ~3.3 GB | Text/Image |
+| `llama3.1:8b`    | Ollama   |      ~4.9 GB | Text       |
+| `hermes3:8b`     | Ollama   |      ~4.7 GB | Text       |
+
+### Генерация Vega-Lite / JSON / code
+
+| Модель                | Источник |       Размер / вес | Вход |
+| --------------------- | -------- | -----------------: | ---- |
+| `qwen2.5-coder:7b`    | Ollama   |            ~4.7 GB | Text |
+| `qwen2.5-coder:3b`    | Ollama   |            ~1.9 GB | Text |
+| `deepseek-coder:6.7b` | Ollama   |            ~3.8 GB | Text |
+| `granite-code:8b`     | Ollama   |            ~4.6 GB | Text |
+| `codegemma:7b`        | Ollama   | проверить локально | Text |
+
+### VLM: судья графика + финальный визуальный анализ
+
+| Модель                        | Источник                   | Размер / вес | Вход       |
+| ----------------------------- | -------------------------- | -----------: | ---------- |
+| `qwen2.5vl:latest`            | Ollama                     |      ~6.0 GB | Text/Image |
+| `minicpm-v:latest`            | Ollama                     |      ~5.5 GB | Text/Image |
+| `openbmb/minicpm-v4.5:latest` | Ollama / registry-зависимо |      ~6.1 GB | Text/Image |
+| `gemma3:12b-it-q4_K_M`        | Ollama                     |      ~8.1 GB | Text/Image |
+| `moondream:latest`            | Ollama                     |      ~1.7 GB | Text/Image |
+
+### RAG-эмбеддинги
+
+| Модель                     | Источник | Размер / вес | Вход |
+| -------------------------- | -------- | -----------: | ---- |
+| `nomic-embed-text:latest`  | Ollama   |      ~274 MB | Text |
+| `mxbai-embed-large:latest` | Ollama   |      ~669 MB | Text |
+| `bge-m3:latest`            | Ollama   |      ~1.2 GB | Text |
+
+### Image-text cosine: PNG + TaskText
+
+| Модель                                  | Источник     |            Размер / вес | Вход       |
+| --------------------------------------- | ------------ | ----------------------: | ---------- |
+| `openai/clip-vit-base-patch32`          | Hugging Face | ~0.151B / ~0.30 GB FP16 | Image/Text |
+| `openai/clip-vit-large-patch14`         | Hugging Face | ~0.428B / ~0.86 GB FP16 | Image/Text |
+| `laion/CLIP-ViT-H-14-laion2B-s32B-b79K` | Hugging Face | ~0.986B / ~1.97 GB FP16 | Image/Text |
+| `google/siglip-so400m-patch14-384`      | Hugging Face | ~0.900B / ~1.80 GB FP16 | Image/Text |
+| `jinaai/jina-clip-v2`                   | Hugging Face | ~0.865B / ~1.73 GB FP16 | Image/Text |
