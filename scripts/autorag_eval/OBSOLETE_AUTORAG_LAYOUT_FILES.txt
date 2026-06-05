@@ -1,8 +1,0 @@
-Delete these older AutoRAG layout files if they exist. The current AutoRAG workspace is rag_corpus/autorag.
-
-configs/autorag/virage_retrieval_eval.yaml
-configs/autorag/virage_retrieval_eval.manifest.json
-data/autorag_eval/retrieval_queries.jsonl
-artifacts/autorag_eval/dataset
-artifacts/autorag_eval/trials
-artifacts/autorag_eval/report

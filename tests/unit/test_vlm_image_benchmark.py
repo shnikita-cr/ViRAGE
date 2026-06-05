@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from scripts.benchmarks.run_vlm_image_benchmark import iter_image_paths, summarize_results
+from scripts.benchmark.run_vlm_image_benchmark import iter_image_paths, summarize_results
 from src.domain.models import ImageOnlyChartJudgeResult, VLMImageBenchmarkImageResult
 from src.services.visual_feedback.image_only_chart_judge import compute_overall_visual_score
 
