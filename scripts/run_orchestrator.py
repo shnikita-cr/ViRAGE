@@ -13,13 +13,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.application.project_config import load_project_config
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.factory import build_chat_model
-from src.orchestrator import (
-    AnalysisPlanner,
-    FinalSummaryBuilder,
-    ImageFolderPreprocessor,
-    OrchestratorReport,
-    OrchestratorSubtaskRunner,
-)
+from src.orchestrator.analysis_planner import AnalysisPlanner
+from src.orchestrator.final_summary_builder import FinalSummaryBuilder
+from src.orchestrator.image_folder_preprocessor import ImageFolderPreprocessor
+from src.orchestrator.models import OrchestratorReport
+from src.orchestrator.subtask_runner import OrchestratorSubtaskRunner
 from src.services.data_profiler import DataProfilerService
 
 
