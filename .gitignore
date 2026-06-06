@@ -100,3 +100,4 @@ external_datasets
 /rag_corpus/autorag/trials
 /rag_corpus/autorag/report
 /resources
+/rag_corpus/autorag/datasets
