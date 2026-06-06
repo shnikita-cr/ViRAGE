@@ -1,43 +1,51 @@
-mode = "streamlit"
+mode = "benchmark"
 
 [settings]
 gpu_ram_gb = 8.0
 visrag_enabled = true
-artifact_root = "./artifacts/local_test/local_test_gemma3_4b_extended"
-analytics_tail_enabled = false
-enable_evaluation_summary = false
+visrag_retrieval_backend = "hybrid"
+visrag_top_k_chunks = 8
+visrag_hybrid_method = "cc"
+visrag_hybrid_weight = 0.1
+visrag_hybrid_rrf_k = 60.0
+visrag_candidate_pool_size = 64
+visrag_embedding_provider = "ollama"
+visrag_embedding_model = "nomic-embed-text:latest"
+visrag_embedding_base_url = "http://localhost:11434"
+visrag_chroma_persist_dir = "./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"
+visrag_chroma_collection_name = "virage_guidance_chunks_nomic_embed_text_latest"
 spec_generation_max_attempts = 20
 spec_generation_response_parse_retries = 20
 semantic_feedback_loop_enabled = true
 semantic_feedback_max_attempts = 20
-semantic_feedback_mode = "strict"
-semantic_feedback_min_accept_confidence = 0.75
-semantic_feedback_save_rejected_specs = true
+analytics_tail_enabled = false
+enable_evaluation_summary = false
+strict_image_only_analysis = true
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_local_test.jsonl"
 
 [reasoning_model]
 provider = "ollama"
 model = "gemma3:4b"
-base_url = "http://localhost:11434"
 temperature = 0.0
-timeout_seconds = 180.0
+base_url = "http://localhost:11434"
+timeout_seconds = 120.0
 num_ctx = 8192
 max_output_tokens = 1000
 
 [spec_model]
 provider = "ollama"
 model = "gemma3:4b"
-base_url = "http://localhost:11434"
 temperature = 0.0
-timeout_seconds = 180.0
+base_url = "http://localhost:11434"
+timeout_seconds = 120.0
 num_ctx = 8192
 max_output_tokens = 1000
 
 [vlm_model]
 provider = "ollama"
 model = "gemma3:4b"
-base_url = "http://localhost:11434"
 temperature = 0.0
-timeout_seconds = 180.0
+base_url = "http://localhost:11434"
+timeout_seconds = 120.0
 num_ctx = 4096
 max_output_tokens = 1000

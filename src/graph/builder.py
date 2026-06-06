@@ -30,21 +30,29 @@ def _route_semantic_gate(state: PipelineState) -> str:
     return "strict"
 
 
+def _route_semantic_decision(state: PipelineState, *, runtime: RuntimeContext) -> str:
+    status = str(state.get("semantic_status") or "")
+    if status == "retry":
+        return "retry"
+    tail_enabled = bool(getattr(runtime.settings, "analytics_tail_enabled", True))
+    if status == "failed":
+        return "failed_tail" if tail_enabled else "failed_done"
+    return "accepted_tail" if tail_enabled else "accepted_done"
+
+
+
+
+def _route_analytics_tail(state: PipelineState, *, runtime: RuntimeContext) -> str:
+    if bool(getattr(runtime.settings, "analytics_tail_enabled", True)):
+        return "enabled"
+    return "disabled"
+
 def _route_after_spec_score(state: PipelineState, *, runtime: RuntimeContext) -> str:
     if bool(getattr(runtime.settings, "semantic_feedback_loop_enabled", True)):
         return "semantic_loop"
     if bool(getattr(runtime.settings, "analytics_tail_enabled", True)):
         return "analytics_tail"
     return "completed"
-
-
-def _route_after_semantic_decision(state: PipelineState, *, runtime: RuntimeContext) -> str:
-    status = str(state.get("semantic_status") or "")
-    if status == "retry":
-        return "retry"
-    if status == "failed":
-        return "failed_tail" if bool(getattr(runtime.settings, "analytics_tail_enabled", True)) else "failed_done"
-    return "accepted_tail" if bool(getattr(runtime.settings, "analytics_tail_enabled", True)) else "accepted_done"
 
 
 def build_pipeline_graph(runtime: RuntimeContext):
@@ -118,7 +126,7 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph.add_edge("chart_answer_judge", "semantic_decision")
     graph.add_conditional_edges(
         "semantic_decision",
-        lambda state: _route_after_semantic_decision(state, runtime=runtime),
+        lambda state: _route_semantic_decision(state, runtime=runtime),
         {
             "retry": "feedback_corpus_writer",
             "accepted_tail": "vlm_analysis",

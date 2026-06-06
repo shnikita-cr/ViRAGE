@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import random
 import time
 from pathlib import Path
 from typing import Iterable
@@ -45,18 +46,22 @@ class VegaChatBenchmarkRunner:
             nlv_mode: str = "single_turn",
             config_path: str | Path | None = None,
             run_options: dict[str, object] | None = None,
+            shuffle: bool = False,
+            seed: int = 42,
     ) -> BenchmarkAggregateReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
         cases = load_benchmark_cases(source, nlv_mode=nlv_mode)
+        if shuffle:
+            random.Random(seed).shuffle(cases)
         write_benchmark_manifest(
             output_dir=output,
             cases_path=source,
             config_path=config_path,
             corpus_root=getattr(getattr(self.pipeline, "settings", None), "visrag_corpus_root", None),
-            run_options={"nlv_mode": nlv_mode, **(run_options or {})},
+            run_options={"nlv_mode": nlv_mode, "shuffle": shuffle, "seed": seed, **(run_options or {})},
         )
         if limit is not None:
             cases = cases[: max(0, limit)]

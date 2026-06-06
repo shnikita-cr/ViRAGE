@@ -16,8 +16,8 @@ class ModelRoleConfig(BaseModel):
     temperature: float = 0.0
     base_url: str | None = None
     timeout_seconds: float = 60.0
-    num_ctx: int | None = None
-    max_output_tokens: int | None = None
+    num_ctx: int | None = Field(default=None, ge=512)
+    max_output_tokens: int | None = Field(default=None, ge=1)
 
 
 class StreamlitConfig(BaseModel):
