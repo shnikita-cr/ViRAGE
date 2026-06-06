@@ -67,10 +67,11 @@ def repeat_field_title(fields: list[str]) -> str:
     return _join_labels(labels, limit=4)
 
 
-def repeat_axis_title(*, aggregate: str | None = None, value_role: str = "value") -> str:
-    prefix = _aggregate_label(aggregate)
+def repeat_axis_title(aggregate: str | None = None, value_role: str = "value") -> str:
+    prefix = _aggregate_label(aggregate).strip()
     role = value_role.strip() or "value"
-    return f"{prefix}Panel metric {role}" if prefix else f"Panel metric {role}"
+    base = f"{role.title()} of metric named in panel header"
+    return f"{prefix} {base}" if prefix else base
 
 
 def repeat_chart_title(*, repeated_fields: list[str], group_labels: list[str], mark_type: str, aggregate: str | None) -> str:

@@ -28,7 +28,7 @@ class ChartFactSummaryService(BaseService):
         if runtime.reasoning_llm is None:
             raise RuntimeError("Chart fact summary requires runtime.reasoning_llm.")
         prompt = (
-            "You are ChartFactSummaryAI. Convert the chart description into structured facts.\n"
+            "You are a chart fact extractor. Describe only facts visible in the chart image. Convert the chart description into structured facts.\n"
             "You must not use or ask for the user request. Use only this visual description.\n\n"
             f"VLM chart description JSON:\n{json.dumps(description.model_dump(), ensure_ascii=False, indent=2)}\n"
         )

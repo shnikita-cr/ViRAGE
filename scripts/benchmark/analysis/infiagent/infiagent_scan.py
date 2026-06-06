@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 ROOT = Path('.').resolve()
-from src.benchmark.datasets.datasets.infiagent_dataset import DEFAULT_SOURCE_ROOT, scan_source_root
+from src.benchmark.datasets.infiagent_dataset import DEFAULT_SOURCE_ROOT, scan_source_root
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Scan the local InfiAgent-DABench/DAEval dataset structure.')

@@ -30,7 +30,7 @@ class VLMChartDescriptionService(BaseService):
             raise RuntimeError("Semantic VLM loop requires runtime.vlm. No multimodal model was provided.")
 
         prompt = (
-            "You are VLMChartDescriptionAI. Analyze only the attached chart image.\n"
+            "You are a chart-image description expert. Summarize the chart content without inventing source data. Analyze only the attached chart image.\n"
             "You do not have access to the user request, Vega-Lite spec, source table, or data profile.\n"
             "Do not infer anything that is not visible in the image.\n"
             "Describe the chart as completely as possible: chart type, visible axes, legends, labels, trends, "

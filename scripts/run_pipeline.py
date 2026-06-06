@@ -4,22 +4,13 @@ logger = logging.getLogger(__name__)
 import argparse
 import json
 from pathlib import Path
+
+from scripts.common.json_io import load_user_context as _load_user_context, write_json
 from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
 from src.application.config.project_config import load_project_config
-
-def _load_user_context(value: str | None, file_path: str | None) -> dict[str, Any]:
-    if value and file_path:
-        raise ValueError('Use either --user-context-json or --user-context-file, not both.')
-    if not value and (not file_path):
-        return {}
-    raw = Path(file_path).read_text(encoding='utf-8') if file_path else str(value)
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise ValueError('User context must be a JSON object.')
-    return payload
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Run one ViRAGE pipeline request and save reproducible artifacts.')

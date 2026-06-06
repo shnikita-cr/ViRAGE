@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+
+from src.benchmark.core.paths import resolve_path_from_root
 from typing import Any
+
+from src.benchmark.core.statistics import mean as _mean, mean_bool as _mean_bool, percentile as _percentile
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -28,8 +32,7 @@ class AnalysisBenchmarkCase(BaseModel):
         return text
 
     def resolved_data_path(self, root: Path) -> str:
-        path = Path(self.data_path)
-        return path.as_posix() if path.is_absolute() else (root / path).resolve().as_posix()
+        return resolve_path_from_root(self.data_path, root)
 
 
 class AnalysisBenchmarkResult(BaseModel):
@@ -158,22 +161,7 @@ class AnalysisBenchmarkReport(BaseModel):
         )
 
 
-def _mean(values: list[float]) -> float | None:
-    return round(sum(values) / len(values), 6) if values else None
 
-
-def _mean_bool(values: list[bool]) -> float | None:
-    return round(sum(1 for value in values if value) / len(values), 6) if values else None
-
-
-def _percentile(values: list[float], percentile: float) -> float | None:
-    if not values:
-        return None
-    if len(values) == 1:
-        return round(values[0], 6)
-    ordered = sorted(values)
-    index = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * percentile))))
-    return round(ordered[index], 6)
 
 
 def _stratified_metrics(results: list[AnalysisBenchmarkResult]) -> dict[str, dict[str, float | int | None]]:

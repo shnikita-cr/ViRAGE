@@ -51,7 +51,7 @@ class VegaLitePlotDrawingService(BaseService):
         spec = deepcopy(spec_validation.validated_spec)
         data_url = self._extract_data_url(spec)
         df = read_dataframe(data_url)
-        spec_with_data = self._spec_add_data(spec, df)
+        spec_with_data = spec_with_inline_data(spec, df)
         quality_pipeline = self.quality_pipeline.apply(spec_with_data, data=df)
         spec_with_data, render_policy = self._apply_render_policy(
             quality_pipeline.spec,

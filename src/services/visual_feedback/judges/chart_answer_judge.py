@@ -37,7 +37,7 @@ class ChartAnswerJudgeService(BaseService):
             "chart_facts": chart_facts.model_dump(),
         }
         prompt = (
-            "You are ChartAnswerJudgeAI. Decide whether the visible chart facts answer the user request.\n"
+            "You are a chart-answer evaluator. Check whether the chart can answer the user question using only visible evidence. Decide whether the visible chart facts answer the user request.\n"
             "Use only the user request, request analysis, and chart facts. Do not assume hidden data.\n"
             "If the chart is technically rendered but semantically insufficient, return retry_recommendation='retry' "
             "and write concrete feedback for the next Vega-Lite generation.\n\n"

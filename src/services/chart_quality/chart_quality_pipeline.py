@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 
 from src.services.chart_quality.chart_presentation_policy import ChartPresentationPolicy
-from src.services.chart_quality.chart_quality_types import ChartQualityIssue
+from src.services.chart_quality.chart_quality_types import ChartQualityIssue, issue_dicts
 from src.services.chart_quality.chart_semantic_policy import ChartSemanticPolicy
 
 
@@ -17,7 +17,7 @@ class ChartQualityPipelineResult:
     changes: list[str] = field(default_factory=list)
 
     def issue_dicts(self) -> list[dict[str, Any]]:
-        return [issue.to_dict() for issue in self.issues]
+        return issue_dicts(self.issues)
 
 
 class ChartQualityPipeline:

@@ -10,6 +10,7 @@ from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.data import read_dataframe
+from src.services.spec.data_injection import spec_with_inline_data
 from src.services.spec.repair import SpecRepairService
 
 VEGA_LITE_SCHEMA_URL = 'https://vega.github.io/schema/vega-lite/v5.json'

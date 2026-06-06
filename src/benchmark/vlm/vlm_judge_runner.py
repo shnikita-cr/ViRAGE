@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from src.benchmark.core.statistics import mean as _mean, mean_bool as _mean_bool
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -308,9 +310,3 @@ class VLMJudgeBenchmarkRunner:
         )
 
 
-def _mean(values: list[float]) -> float | None:
-    return round(sum(values) / len(values), 6) if values else None
-
-
-def _mean_bool(values: list[bool]) -> float | None:
-    return round(sum(1 for value in values if value) / len(values), 6) if values else None

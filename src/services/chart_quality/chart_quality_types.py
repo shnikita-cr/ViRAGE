@@ -23,6 +23,10 @@ class ChartQualityIssue:
         }
 
 
+def issue_dicts(issues: list["ChartQualityIssue"]) -> list[dict[str, Any]]:
+    return [issue.to_dict() for issue in issues]
+
+
 @dataclass(frozen=True)
 class ChartPolicyResult:
     spec: dict[str, Any]
@@ -30,7 +34,7 @@ class ChartPolicyResult:
     changes: list[str] = field(default_factory=list)
 
     def issue_dicts(self) -> list[dict[str, Any]]:
-        return [issue.to_dict() for issue in self.issues]
+        return issue_dicts(self.issues)
 
 
 @dataclass(frozen=True)

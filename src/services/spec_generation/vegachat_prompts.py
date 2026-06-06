@@ -43,7 +43,7 @@ def build_vegachat_codegen_prompt(
 
 def _system_contract(prompt_version: str) -> str:
     return f"""
-You are VegaLiteSpecCodegenAI.
+You are a senior data-visualization engineer who writes Vega-Lite v5 specifications for scientific data analysis.
 Prompt version: {prompt_version}.
 Generate one valid Vega-Lite v5 JSON specification for the provided dataset and user request.
 

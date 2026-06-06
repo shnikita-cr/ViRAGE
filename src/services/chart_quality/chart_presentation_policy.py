@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.services.spec.repeat_labels import title_text
+
 import pandas as pd
 
 from src.services.chart_quality.common.spec_utils import (
@@ -45,7 +47,7 @@ class ChartPresentationPolicy:
     ) -> list[str]:
         changes: list[str] = []
         title = unit.get("title")
-        if not self._title_text(title):
+        if not self.title_text(title):
             axis_fields = [channel_field(encoding.get(channel)) for channel in ("x", "y")]
             axis_fields = [field for field in axis_fields if field]
             if axis_fields:
@@ -135,7 +137,7 @@ class ChartPresentationPolicy:
             mark_type=self._repeat_mark_type(spec),
             aggregate=aggregate,
         )
-        if not self._title_text(spec.get("title")) or title_is_generic_repeat(spec.get("title")):
+        if not self.title_text(spec.get("title")) or title_is_generic_repeat(spec.get("title")):
             spec["title"] = title
             changes.append("set_repeat_chart_title")
         changes.extend(self._normalize_repeat_axis_titles(spec, aggregate))
@@ -163,7 +165,7 @@ class ChartPresentationPolicy:
                 if not isinstance(axis, dict):
                     continue
                 label = repeat_axis_title(aggregate=channel_def.get("aggregate") or aggregate)
-                if self._title_text(axis.get("title")).strip().lower() in {"", "value", "values", "metric", "measure", "repeated metric", "repeated metric value"}:
+                if self.title_text(axis.get("title")).strip().lower() in {"", "value", "values", "metric", "measure", "repeated metric", "repeated metric value"}:
                     axis["title"] = label
                     changes.append(f"set_repeat_{channel_name}_axis_title")
         return changes
@@ -208,7 +210,7 @@ class ChartPresentationPolicy:
         return max(len(str(field or "")), max(len(label) for label in labels)), len(set(labels))
 
     @staticmethod
-    def _title_text(value: Any) -> str:
+    def title_text(value: Any) -> str:
         if isinstance(value, str):
             return value.strip()
         if isinstance(value, dict):

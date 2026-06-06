@@ -5,6 +5,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.services.spec.repeat_labels import title_text
+
 from src.services.spec.repeat_labels import (
     ensure_repeat_header_config,
     repeat_axis_title,
@@ -257,7 +259,7 @@ class SpecPresentationConsistencyService:
         if not title:
             return
         target_view = root if cls._is_repeat_root(root) and view is not root else view
-        current_title = cls._title_text(target_view.get("title"))
+        current_title = cls.title_text(target_view.get("title"))
         if current_title and not cls._should_replace_chart_title(current_title, encoding, root=root, view=view):
             return
         cls._set_view_title(target_view, title, changes=changes)
@@ -743,7 +745,7 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _set_view_title(cls, view: dict[str, Any], title: str, *, changes: list[str]) -> None:
-        current = cls._title_text(view.get("title"))
+        current = cls.title_text(view.get("title"))
         if current == title:
             return
         if isinstance(view.get("title"), dict):
@@ -753,7 +755,7 @@ class SpecPresentationConsistencyService:
         changes.append(f"Set chart title to {title!r}.")
 
     @staticmethod
-    def _title_text(title: Any) -> str:
+    def title_text(title: Any) -> str:
         if isinstance(title, str):
             return title.strip()
         if isinstance(title, dict):

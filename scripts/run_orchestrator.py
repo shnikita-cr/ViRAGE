@@ -4,6 +4,8 @@ logger = logging.getLogger(__name__)
 import argparse
 import json
 from pathlib import Path
+
+from scripts.common.json_io import load_user_context as _load_user_context, write_json
 from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 from src.application.config.project_config import load_project_config
@@ -15,17 +17,6 @@ from src.orchestrator.image_folder_preprocessor import ImageFolderPreprocessor
 from src.orchestrator.contracts.models import OrchestratorReport
 from src.orchestrator.subtask_runner import OrchestratorSubtaskRunner
 from src.services.data.profile.data_profiler import DataProfilerService
-
-def _load_user_context(value: str | None, file_path: str | None) -> dict[str, Any]:
-    if value and file_path:
-        raise ValueError('Use either --user-context-json or --user-context-file, not both.')
-    if not value and (not file_path):
-        return {}
-    raw = Path(file_path).read_text(encoding='utf-8') if file_path else str(value)
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise ValueError('User context must be a JSON object.')
-    return payload
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Plan and optionally execute up to three ViRAGE analytical subtasks for one dataset.')
@@ -62,10 +53,6 @@ def _orchestrator_run_id(value: str | None) -> str:
     from uuid import uuid4
     return datetime.now().strftime('%Y-%m-%dT%H-%M-%S') + '_orchestrator_' + uuid4().hex
 
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
-
 def main(argv: list[str] | None=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -78,16 +65,16 @@ def main(argv: list[str] | None=None) -> int:
     input_type = _resolve_input_type(args.input_type, args.data_path)
     effective_data_path, preprocessing_payload = _prepare_input_data(input_type=input_type, data_path=args.data_path, run_dir=run_dir)
     request_payload = {'run_id': run_id, 'query': args.query, 'input_type': input_type, 'original_data_path': args.data_path, 'data_path': effective_data_path, 'max_charts': args.max_charts, 'execute': bool(args.execute), 'preprocessing': preprocessing_payload, 'user_context': _load_user_context(args.user_context_json, args.user_context_file)}
-    _write_json(run_dir / 'orchestrator_request.json', request_payload)
+    write_json(run_dir / 'orchestrator_request.json', request_payload)
     reasoning_llm = build_chat_model(config.reasoning_model)
     planning_runtime = RuntimeContext(settings=config.settings, reasoning_llm=reasoning_llm)
     planning_runtime.current_run_id = run_id
     data_profile = DataProfilerService().invoke(effective_data_path, planning_runtime)
     data_profile_path = run_dir / 'data_profile.json'
-    _write_json(data_profile_path, data_profile.model_dump())
+    write_json(data_profile_path, data_profile.model_dump())
     plan = AnalysisPlanner(max_charts=args.max_charts).plan(user_query=args.query, data_path=effective_data_path, data_profile=data_profile, runtime=planning_runtime, user_context=request_payload['user_context'], input_type=input_type, original_input_path=args.data_path if input_type != 'table' else None, preprocessing_report_path=preprocessing_payload.get('preprocessing_report_path'))
     plan_path = run_dir / 'chart_plan.json'
-    _write_json(plan_path, plan.model_dump())
+    write_json(plan_path, plan.model_dump())
     report = OrchestratorReport(run_id=run_id, user_query=args.query, data_path=effective_data_path, input_type=input_type, original_input_path=args.data_path if input_type != 'table' else None, preprocessing_report_path=preprocessing_payload.get('preprocessing_report_path'), plan_path=plan_path.as_posix(), data_profile_path=data_profile_path.as_posix(), executed=bool(args.execute))
     if args.execute:
         subruns = OrchestratorSubtaskRunner(config).run(parent_run_id=run_id, plan=plan)
@@ -97,7 +84,7 @@ def main(argv: list[str] | None=None) -> int:
     summary_path.write_text(final_summary, encoding='utf-8')
     report.final_summary_path = summary_path.as_posix()
     report_path = run_dir / 'orchestrator_report.json'
-    _write_json(report_path, report.model_dump())
+    write_json(report_path, report.model_dump())
     logger.info(json.dumps({'run_id': run_id, 'status': 'completed', 'executed': bool(args.execute), 'input_type': input_type, 'run_dir': run_dir.as_posix(), 'chart_plan': plan_path.as_posix(), 'orchestrator_report': report_path.as_posix(), 'subtask_count': len(plan.subtasks)}, ensure_ascii=False, indent=2))
     return 0
 if __name__ == '__main__':

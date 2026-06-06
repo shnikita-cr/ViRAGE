@@ -9,8 +9,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BENCHMARK_RUNNER = PROJECT_ROOT / 'scripts' / 'benchmark' / 'run_vegachat_compatible_benchmark.py'
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+BENCHMARK_RUNNER = PROJECT_ROOT / 'scripts' / 'benchmark' / 'runners' / 'chart' / 'run_vegachat_compatible_benchmark.py'
 DEFAULT_BASE_CONFIG = PROJECT_ROOT / 'ui' / 'config' / 'benchmark' / 'project-gemma3_local-bench_rag.toml'
 DEFAULT_CASES_PATH = PROJECT_ROOT / 'external_datasets' / 'nlv_corpus'
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / 'artifacts' / 'model_nlv'

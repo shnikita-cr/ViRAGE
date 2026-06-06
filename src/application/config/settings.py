@@ -14,7 +14,6 @@ class ViRAGESettings(BaseModel):
 
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/runtime"))
-    visrag_corpus_source: Literal["jsonl"] = Field(default="jsonl")
     visrag_vector_index: Literal["chroma"] = Field(default="chroma")
     visrag_retrieval_backend: Literal["semantic", "hybrid", "lexical"] = Field(default="hybrid")
     visrag_top_k_chunks: int = Field(default=8, ge=1)
@@ -22,14 +21,9 @@ class ViRAGESettings(BaseModel):
     visrag_hybrid_weight: float = Field(default=0.1, ge=0.0, le=1.0)
     visrag_hybrid_rrf_k: float = Field(default=60.0, gt=0.0)
     visrag_candidate_pool_size: int = Field(default=64, ge=1)
-    visrag_metadata_weight_manual_feedback: float = Field(default=1.5, ge=0.0)
-    visrag_metadata_weight_scientific_figure: float = Field(default=1.2, ge=0.0)
-    visrag_metadata_weight_min: float = Field(default=0.1, ge=0.0)
-    visrag_metadata_weight_max: float = Field(default=4.0, ge=0.0)
     visrag_embedding_provider: str | None = Field(default="ollama")
     visrag_embedding_model: str | None = Field(default="nomic-embed-text:latest")
     visrag_embedding_base_url: str | None = Field(default="http://localhost:11434")
-    visrag_embedding_timeout_seconds: float = Field(default=60.0)
     visrag_chroma_persist_dir: Path = Field(default=Path("./resources/chroma/virage_guidance_chunks_nomic_embed_text_latest"))
     visrag_chroma_collection_name: str = Field(default="virage_guidance_chunks_nomic_embed_text_latest")
 
@@ -58,7 +52,6 @@ class ViRAGESettings(BaseModel):
 
 
     vega_export_scale: float = Field(default=2.0, ge=1.0, le=4.0)
-    enable_empty_chart_check: bool = Field(default=True)
     enable_spec_score: bool = Field(default=True)
     analytics_tail_enabled: bool = Field(default=True)
     enable_vision_score: bool = Field(default=True)
@@ -74,7 +67,6 @@ class ViRAGESettings(BaseModel):
     spec_generation_prompt_version: str = Field(default="vega_chat_v1")
     spec_generation_include_visrag_context: bool = Field(default=True)
     spec_generation_max_context_chars: int = Field(default=3000, ge=256)
-    spec_generation_use_compact_profile: bool = Field(default=True)
     spec_generation_max_profile_columns: int = Field(default=30, ge=3)
     spec_generation_max_quality_notes: int = Field(default=10, ge=0)
     spec_generation_max_sample_values: int = Field(default=3, ge=0)
@@ -104,7 +96,6 @@ class ViRAGESettings(BaseModel):
         return {
             "enabled": self.visrag_enabled,
             "corpus_root": self.visrag_corpus_root,
-            "corpus_source": self.visrag_corpus_source,
             "vector_index": self.visrag_vector_index,
             "retrieval_backend": self.visrag_retrieval_backend,
             "top_k_chunks": self.visrag_top_k_chunks,
@@ -112,10 +103,6 @@ class ViRAGESettings(BaseModel):
             "hybrid_weight": self.visrag_hybrid_weight,
             "hybrid_rrf_k": self.visrag_hybrid_rrf_k,
             "candidate_pool_size": self.visrag_candidate_pool_size,
-            "metadata_weight_manual_feedback": self.visrag_metadata_weight_manual_feedback,
-            "metadata_weight_scientific_figure": self.visrag_metadata_weight_scientific_figure,
-            "metadata_weight_min": self.visrag_metadata_weight_min,
-            "metadata_weight_max": self.visrag_metadata_weight_max,
             "embedding_provider": self.visrag_embedding_provider,
             "embedding_model": self.visrag_embedding_model,
             "embedding_base_url": self.visrag_embedding_base_url,

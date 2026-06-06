@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.services.spec.repeat_labels import title_text
+
 from src.domain.models import (
     DataPreparationResult,
     DataProfile,
@@ -113,7 +115,7 @@ class ChartGeneratorService(BaseService):
         if not isinstance(spec, dict):
             return {}
         return {
-            "title": ChartGeneratorService._title_text(spec.get("title")),
+            "title": ChartGeneratorService.title_text(spec.get("title")),
             "encoding_titles": ChartGeneratorService._collect_encoding_titles(spec),
         }
 
@@ -130,17 +132,17 @@ class ChartGeneratorService(BaseService):
                             if not isinstance(item, dict):
                                 continue
                             entry: dict[str, str] = {"path": f"{path}.encoding.{channel}", "channel": str(channel)}
-                            title = ChartGeneratorService._title_text(item.get("title"))
+                            title = ChartGeneratorService.title_text(item.get("title"))
                             if title:
                                 entry["title"] = title
                             axis = item.get("axis")
                             if isinstance(axis, dict):
-                                axis_title = ChartGeneratorService._title_text(axis.get("title"))
+                                axis_title = ChartGeneratorService.title_text(axis.get("title"))
                                 if axis_title:
                                     entry["axis_title"] = axis_title
                             legend = item.get("legend")
                             if isinstance(legend, dict):
-                                legend_title = ChartGeneratorService._title_text(legend.get("title"))
+                                legend_title = ChartGeneratorService.title_text(legend.get("title"))
                                 if legend_title:
                                     entry["legend_title"] = legend_title
                             if len(entry) > 2:
@@ -157,7 +159,7 @@ class ChartGeneratorService(BaseService):
         return titles
 
     @staticmethod
-    def _title_text(title: Any) -> str:
+    def title_text(title: Any) -> str:
         if isinstance(title, str):
             return title.strip()
         if isinstance(title, dict):

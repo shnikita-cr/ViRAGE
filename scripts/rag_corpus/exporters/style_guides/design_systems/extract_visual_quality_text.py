@@ -5,8 +5,6 @@ _CURRENT_FILE_FOR_IMPORTS = _PathForImports(__file__).resolve()
 PROJECT_ROOT_FOR_IMPORTS = next((parent for parent in _CURRENT_FILE_FOR_IMPORTS.parents if (parent / 'src').exists() and (parent / 'scripts').exists()), _PathForImports.cwd())
 
 
-import csv
-import io
 import json
 from pathlib import Path
 from typing import Any
@@ -18,6 +16,7 @@ except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, Attr
 
 from scripts.rag_corpus.common.models.schemas import SourceRecord
 from scripts.rag_corpus.common.text.normalization import compact_text
+from scripts.rag_corpus.exporters.common.tabular import load_delimited_records
 from scripts.rag_corpus.exporters.common.external_rules import (
     DATA_SUFFIXES,
     TEXT_SUFFIXES,
@@ -94,12 +93,6 @@ _TEXT_RECORD_KEYS = (
     "section",
 )
 
-
-def _load_tabular_records(path: Path) -> list[dict[str, Any]]:
-    text = read_text_strict(path)
-    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-    return [dict(row) for row in reader]
 
 
 def _load_json_records(path: Path) -> list[dict[str, Any]]:
@@ -239,7 +232,7 @@ def extract_visual_quality_text_source(
     data_files = filter_candidate_paths(data_files, base_dir=input_dir, include_paths=include_paths, exclude_paths=exclude_paths)
     for path in data_files:
         try:
-            loaded = _load_tabular_records(path) if path.suffix.lower() in {".csv", ".tsv"} else _load_json_records(path)
+            loaded = load_delimited_records(path) if path.suffix.lower() in {".csv", ".tsv"} else _load_json_records(path)
         except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
             raise RuntimeError(f"Cannot parse structured source file {path}: {exc}") from exc
         kept_in_file = 0

@@ -131,8 +131,12 @@ def _unwrap_spec_payload(payload: Any) -> Any:
     return payload
 
 
-def _is_vega_lite_spec_payload(payload: Any) -> bool:
+def is_vega_lite_spec_payload(payload: Any) -> bool:
     return isinstance(payload, dict) and any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
+
+
+def _is_vega_lite_spec_payload(payload: Any) -> bool:
+    return is_vega_lite_spec_payload(payload)
 
 
 def _dedupe_candidates(candidates: list[tuple[str, str]]) -> list[tuple[str, str]]:

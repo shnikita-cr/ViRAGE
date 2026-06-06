@@ -26,6 +26,7 @@ _CHART_ALIASES = {
     "box": "boxplot",
     "box_plot": "boxplot",
     "heatmap": "rect",
+    "heat map": "rect",
     "heat_map": "rect",
     "matshow": "rect",
     "imshow": "rect",

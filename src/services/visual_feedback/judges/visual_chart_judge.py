@@ -184,7 +184,7 @@ class VisualChartJudgeService(BaseService):
             )
             chartsquared_rules = block.text
         return (
-            "You are VisualChartJudgeAI. Judge only the attached chart image.\n"
+            "You are a visual chart quality and answerability evaluator. Judge only the attached chart image.\n"
             "Do not infer from the source table, Vega-Lite specification, hidden data, tooltip, or intended code. "
             "If a required element is not visible in the PNG, mark it as missing and request a retry.\n"
             f"{chartsquared_rules}\n"

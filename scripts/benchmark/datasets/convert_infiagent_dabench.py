@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 import argparse
 from pathlib import Path
 ROOT = Path('.').resolve()
-from src.benchmark.datasets.datasets.infiagent_dataset import DEFAULT_SOURCE_ROOT, convert_da_agent_dataset
+from src.benchmark.datasets.infiagent_dataset import DEFAULT_SOURCE_ROOT, convert_da_agent_dataset
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Convert local InfiAgent-DABench/DAEval files into ViRAGE chart-grounded benchmark JSONL.')

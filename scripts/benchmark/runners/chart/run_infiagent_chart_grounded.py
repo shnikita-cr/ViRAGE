@@ -7,7 +7,7 @@ ROOT = Path('.').resolve()
 from src.application.config.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.analysis.analysis_runner import ChartGroundedAnalysisBenchmarkRunner
-from src.benchmark.datasets.datasets.infiagent_dataset import DEFAULT_SOURCE_ROOT, convert_da_agent_dataset, default_paths
+from src.benchmark.datasets.infiagent_dataset import DEFAULT_SOURCE_ROOT, convert_da_agent_dataset, default_paths
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Run ViRAGE on InfiAgent-DABench as a chart-grounded analytical agent.')

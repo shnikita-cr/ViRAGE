@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from src.services.spec.repeat_labels import title_text
+
 import pandas as pd
 
 from src.services.chart_quality.common.spec_utils import get_encoding, iter_unit_specs, mark_type
@@ -200,7 +202,7 @@ class ChartQualityEvaluator:
         repeated = ChartQualityEvaluator._repeat_fields(spec)
         if not repeated:
             return True
-        visible_text = " ".join([ChartQualityEvaluator._title_text(spec.get("title")), ChartQualityEvaluator._axis_titles(spec)]).lower()
+        visible_text = " ".join([ChartQualityEvaluator.title_text(spec.get("title")), ChartQualityEvaluator._axis_titles(spec)]).lower()
         return any(field.replace("_", " ").lower() in visible_text for field in repeated)
 
     @staticmethod
@@ -231,7 +233,7 @@ class ChartQualityEvaluator:
         return " ".join(titles)
 
     @staticmethod
-    def _title_text(value: Any) -> str:
+    def title_text(value: Any) -> str:
         if isinstance(value, str):
             return value.strip()
         if isinstance(value, dict):

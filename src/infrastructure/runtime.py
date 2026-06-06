@@ -61,6 +61,7 @@ class RuntimeContext:
     spec_llm: Any | None = None
     vlm: Any | None = None
     model_call_logs: list[ModelCallLog] = field(default_factory=list)
+    visrag_corpus_cache: dict[str, Any] = field(default_factory=dict)
     stage_execution_logs: list[StageExecutionLog] = field(default_factory=list)
     artifact_indices: dict[str, int] = field(default_factory=dict)
     current_run_id: str | None = None

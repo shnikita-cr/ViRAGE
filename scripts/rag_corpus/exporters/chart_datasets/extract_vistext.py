@@ -5,14 +5,13 @@ _CURRENT_FILE_FOR_IMPORTS = _PathForImports(__file__).resolve()
 PROJECT_ROOT_FOR_IMPORTS = next((parent for parent in _CURRENT_FILE_FOR_IMPORTS.parents if (parent / 'src').exists() and (parent / 'scripts').exists()), _PathForImports.cwd())
 
 
-import csv
-import io
 import json
 from pathlib import Path
 from typing import Any
 
 from scripts.rag_corpus.common.models.schemas import SourceRecord
 from scripts.rag_corpus.common.text.normalization import compact_text
+from scripts.rag_corpus.exporters.common.tabular import load_delimited_records
 from scripts.rag_corpus.exporters.common.external_rules import (
     flatten_json,
     is_relevant_visualization_source,
@@ -222,12 +221,6 @@ def _load_json_records(path: Path) -> list[dict[str, Any]]:
     return _flatten_nested_json_records(payload)
 
 
-def _load_tabular_records(path: Path) -> list[dict[str, Any]]:
-    text = read_text_strict(path)
-    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-    return [dict(row) for row in reader]
-
 
 def _load_parquet_records(path: Path) -> list[dict[str, Any]]:
     try:
@@ -246,7 +239,7 @@ def _load_records(path: Path) -> list[dict[str, Any]]:
     if suffix in {".json", ".jsonl"}:
         return _load_json_records(path)
     if suffix in {".csv", ".tsv"}:
-        return _load_tabular_records(path)
+        return load_delimited_records(path)
     if suffix == ".parquet":
         return _load_parquet_records(path)
     if suffix in _TEXT_SPLIT_SUFFIXES:

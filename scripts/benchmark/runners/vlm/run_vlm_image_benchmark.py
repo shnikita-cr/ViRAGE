@@ -7,11 +7,14 @@ import json
 import statistics
 from datetime import datetime
 from pathlib import Path
+
+from scripts.common.json_io import write_json
 from typing import Any
 from uuid import uuid4
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 from src.application.config.project_config import load_project_config
 from src.benchmark.core.progress import ConsoleProgressBar
+from src.benchmark.core.statistics import mean as _mean, median as _median
 from src.domain.models import VLMImageBenchmarkImageResult, VLMImageBenchmarkSummary
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.factory import build_chat_model
@@ -49,12 +52,6 @@ def benchmark_run_id(value: str | None) -> str:
 def _is_publication_pass(payload: dict[str, Any], threshold: float) -> bool:
     return float(payload.get('overall_visual_score', 0.0) or 0.0) >= threshold and float(payload.get('publication_layout_score', 0.0) or 0.0) >= threshold and (float(payload.get('non_empty_score', 0.0) or 0.0) >= threshold)
 
-def _mean(values: list[float]) -> float | None:
-    return round(statistics.fmean(values), 6) if values else None
-
-def _median(values: list[float]) -> float | None:
-    return round(statistics.median(values), 6) if values else None
-
 def _std(values: list[float]) -> float | None:
     return round(statistics.pstdev(values), 6) if len(values) > 1 else 0.0 if values else None
 
@@ -77,10 +74,6 @@ def summarize_results(*, run_id: str, input_dir: str, results: list[VLMImageBenc
             issue_counts[key] = issue_counts.get(key, 0) + 1
     total_ok = len(ok_results)
     return VLMImageBenchmarkSummary(run_id=run_id, input_dir=str(input_dir), total_images=len(results), evaluated_images=total_ok, failed_images=len(failed), publication_threshold=publication_threshold, pass_rate_publication_threshold=round(passed / total_ok, 6) if total_ok else 0.0, mean_overall_visual_score=_mean(values_by_field['overall_visual_score']), median_overall_visual_score=_median(values_by_field['overall_visual_score']), std_overall_visual_score=_std(values_by_field['overall_visual_score']), mean_non_empty_score=_mean(values_by_field['non_empty_score']), mean_readability_score=_mean(values_by_field['readability_score']), mean_plot_area_usage_score=_mean(values_by_field['plot_area_usage_score']), mean_axis_domain_score=_mean(values_by_field['axis_domain_score']), mean_layout_compactness_score=_mean(values_by_field['layout_compactness_score']), mean_repeat_axis_label_score=_mean(values_by_field['repeat_axis_label_score']), mean_publication_layout_score=_mean(values_by_field['publication_layout_score']), issue_counts_by_type=dict(sorted(issue_counts.items(), key=lambda pair: (-pair[1], pair[0]))), output_files=output_files or {})
-
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,7 +114,7 @@ def main(argv: list[str] | None=None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     image_paths = iter_image_paths(args.images, max_images=args.max_images)
     request_payload = {'run_id': run_id, 'input_dir': str(args.images), 'image_count': len(image_paths), 'supported_extensions': sorted(SUPPORTED_IMAGE_EXTENSIONS), 'publication_threshold': args.publication_threshold, 'scope': 'image_only_chart_visual_quality'}
-    _write_json(run_dir / 'benchmark_request.json', request_payload)
+    write_json(run_dir / 'benchmark_request.json', request_payload)
     runtime = RuntimeContext(settings=config.settings, vlm=build_chat_model(config.vlm_model))
     runtime.current_run_id = run_id
     runtime.ensure_run_dir(run_id)
@@ -152,7 +145,7 @@ def main(argv: list[str] | None=None) -> int:
     summary = summarize_results(run_id=run_id, input_dir=str(args.images), results=results, publication_threshold=args.publication_threshold, output_files=output_files)
     _write_csv(csv_path, results)
     _write_jsonl(jsonl_path, [item.model_dump() for item in results])
-    _write_json(summary_path, summary.model_dump())
+    write_json(summary_path, summary.model_dump())
     _write_report(report_path, summary)
     runtime.save_model_log_artifacts(run_id=run_id)
     logger.info(json.dumps({'run_id': run_id, 'status': 'completed', **summary.model_dump()}, ensure_ascii=False, indent=2, default=str))

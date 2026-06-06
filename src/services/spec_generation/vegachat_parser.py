@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any, Literal
 
-from src.llm.structured_response import extract_json_text
+from src.llm.structured_response import extract_json_text, is_vega_lite_spec_payload
 
 _EXPLAIN_RE = re.compile(r"<explain>\s*(.*?)\s*</explain>", re.IGNORECASE | re.DOTALL)
 _JSON_TAG_RE = re.compile(r"<json>\s*(.*?)\s*</json>", re.IGNORECASE | re.DOTALL)
@@ -86,7 +86,7 @@ def _loads_json_object(text: str) -> dict[str, Any]:
 
 
 def _is_vega_lite_spec_payload(payload: Any) -> bool:
-    return isinstance(payload, dict) and any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
+    return is_vega_lite_spec_payload(payload)
 
 
 def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:

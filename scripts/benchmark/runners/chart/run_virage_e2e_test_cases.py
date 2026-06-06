@@ -4,15 +4,17 @@ logger = logging.getLogger(__name__)
 import argparse
 import csv
 import json
-import statistics
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from scripts.common.json_io import write_json
 from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 from scripts.run_orchestrator import main as run_orchestrator_main
 from src.application.config.project_config import load_project_config
 from src.benchmark.core.progress import BenchmarkStatusBar
+from src.benchmark.core.statistics import mean as _mean, mean_bool as _rate
 DEFAULT_CASES_DIR = Path('benchmarks/cases')
 DEFAULT_SUITES_PATH = Path('benchmarks/benchmark_suites.json')
 _FLOAT_METRIC_FIELDS = ('spec_score', 'vision_score', 'plot_area_usage_score', 'axis_domain_score', 'layout_compactness_score', 'repeat_axis_label_score', 'publication_layout_score', 'chart_quality_score', 'chart_quality_critical_count', 'chart_quality_warning_count', 'duration_seconds')
@@ -168,12 +170,6 @@ def _maybe_bool(value: Any) -> bool | None:
             return False
     return bool(value)
 
-def _mean(values: list[float]) -> float | None:
-    return float(statistics.mean(values)) if values else None
-
-def _rate(values: list[bool]) -> float | None:
-    return float(sum((1 for value in values if value)) / len(values)) if values else None
-
 def _aggregate_subrun_metrics(reports: list[dict[str, Any]]) -> dict[str, Any]:
     metrics: dict[str, Any] = {'subrun_count': len(reports)}
     for field in _FLOAT_METRIC_FIELDS:
@@ -195,10 +191,6 @@ def _aggregate_subrun_metrics(reports: list[dict[str, Any]]) -> dict[str, Any]:
         metrics['error_subrun_count'] = 0
         metrics['partial_success_rate'] = None
     return metrics
-
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -348,7 +340,7 @@ def main(argv: list[str] | None=None) -> int:
     report_dir = config.settings.artifact_root / args.run_id / 'e2e_cases_report'
     report_dir.mkdir(parents=True, exist_ok=True)
     request = {'run_id': args.run_id, 'config': args.config, 'cases_dir': str(args.cases_dir), 'suites_file': str(args.suites_file), 'selected_suites': sorted(selected_suites or []), 'selected_case_ids': sorted(selected_case_ids or []), 'execute': bool(args.execute), 'image_folder_override': args.image_folder, 'case_count': len(cases)}
-    _write_json(report_dir / 'benchmark_request.json', request)
+    write_json(report_dir / 'benchmark_request.json', request)
     progress = BenchmarkStatusBar(total=len(cases), title='ViRAGE E2E cases', enabled=not args.no_progress)
     rows: list[dict[str, Any]] = []
     ok = 0
@@ -366,7 +358,7 @@ def main(argv: list[str] | None=None) -> int:
         progress.update(index, ok=ok, errors=errors, stage='case', label=case.case_id)
     progress.close(label='completed')
     summary = _benchmark_summary(rows)
-    _write_json(report_dir / 'benchmark_summary.json', summary)
+    write_json(report_dir / 'benchmark_summary.json', summary)
     _write_jsonl(report_dir / 'per_case_results.jsonl', rows)
     _write_csv(report_dir / 'per_case_results.csv', rows)
     _write_report(report_dir / 'benchmark_report.md', rows=rows, summary=summary, execute=bool(args.execute))

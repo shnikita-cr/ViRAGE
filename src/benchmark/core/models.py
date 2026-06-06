@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+
+from src.benchmark.core.paths import resolve_path_from_root
 from typing import Any
+
+from src.benchmark.core.statistics import mean as _mean, mean_bool as _mean_bool, median as _median, percentile as _percentile
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,14 +34,12 @@ class BenchmarkCase(BaseModel):
         return cleaned
 
     def resolved_data_path(self, root: Path) -> str:
-        path = Path(self.data_path)
-        return path.as_posix() if path.is_absolute() else (root / path).resolve().as_posix()
+        return resolve_path_from_root(self.data_path, root)
 
     def resolved_reference_image_path(self, root: Path) -> str | None:
         if not self.reference_image_path:
             return None
-        path = Path(self.reference_image_path)
-        return path.as_posix() if path.is_absolute() else (root / path).resolve().as_posix()
+        return resolve_path_from_root(self.reference_image_path, root)
 
 
 class BenchmarkCaseResult(BaseModel):
@@ -161,32 +163,8 @@ class BenchmarkAggregateReport(BaseModel):
         )
 
 
-def _mean(values: list[float]) -> float | None:
-    return round(sum(values) / len(values), 6) if values else None
 
 
-def _median(values: list[float]) -> float | None:
-    if not values:
-        return None
-    ordered = sorted(values)
-    middle = len(ordered) // 2
-    if len(ordered) % 2:
-        return round(ordered[middle], 6)
-    return round((ordered[middle - 1] + ordered[middle]) / 2.0, 6)
-
-
-def _percentile(values: list[float], percentile: float) -> float | None:
-    if not values:
-        return None
-    if len(values) == 1:
-        return round(values[0], 6)
-    ordered = sorted(values)
-    index = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * percentile))))
-    return round(ordered[index], 6)
-
-
-def _mean_bool(values: list[bool]) -> float | None:
-    return round(sum(1 for value in values if value) / len(values), 6) if values else None
 
 
 def _mean_metrics(metrics: list[dict[str, float]]) -> dict[str, float]:
