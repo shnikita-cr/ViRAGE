@@ -56,7 +56,7 @@ def test_repeat_metrics_with_different_ranges_get_independent_scale_issue() -> N
     assert any(issue.code == "multi_metric_shared_scale_risk" for issue in result.issues)
 
 
-def test_presentation_policy_adds_room_for_rotated_x_labels_without_y_rotation() -> None:
+def test_presentation_policy_does_not_force_x_label_rotation_before_layout() -> None:
     df = pd.DataFrame({"file": [f"very_long_file_name_{i:02d}" for i in range(10)], "value": range(10)})
     spec = {
         "mark": "bar",
@@ -69,9 +69,9 @@ def test_presentation_policy_adds_room_for_rotated_x_labels_without_y_rotation()
     result = ChartPresentationPolicy().apply(spec, data=df)
     axis = result.spec["encoding"]["x"]["axis"]
 
-    assert axis["labelAngle"] == -90
+    assert "labelAngle" not in axis
     assert axis["labelBound"] is True
-    assert any(change == "set_x_label_angle_for_fit" for change in result.changes)
+    assert axis["labelOverlap"] == "greedy"
 
 
 def test_render_policy_uses_padding_for_long_x_labels() -> None:

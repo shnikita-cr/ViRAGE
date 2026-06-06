@@ -32,7 +32,7 @@ class ProjectConfig(BaseModel):
     vlm_model: ModelRoleConfig
 
 
-DEFAULT_CONFIG_PATH = Path("ui/config/app/project-gemma4.toml")
+DEFAULT_CONFIG_PATH = Path("ui/config/app/project.toml")
 EXAMPLE_CONFIG_PATH = Path("ui/config/app/project.example.toml")
 
 

@@ -105,9 +105,9 @@ def test_presentation_consistency_uses_repeat_safe_labels() -> None:
     assert result.spec["title"] == "Average PSNR, SSIM and LPIPS by Model"
     assert "title" not in inner
     assert inner["encoding"]["x"]["axis"]["title"] == "Model"
-    assert inner["encoding"]["y"]["axis"]["title"] == "Average Repeated Metric"
+    assert inner["encoding"]["y"]["axis"]["title"] == "Average Panel metric value"
     assert "title" not in inner["encoding"]["y"]
-    assert inner["encoding"]["tooltip"][0]["title"] == "Average Repeated Metric"
+    assert inner["encoding"]["tooltip"][0]["title"] == "Average Panel metric value"
     assert inner["encoding"]["y"]["field"] == {"repeat": "column"}
 
 
@@ -163,4 +163,4 @@ def test_presentation_consistency_uses_repeat_distribution_title_for_repeat_boxp
     result = SpecPresentationConsistencyService().normalize(spec)
 
     assert result.spec["title"] == "PSNR, SSIM and LPIPS Distributions by Method"
-    assert result.spec["spec"]["encoding"]["y"]["axis"]["title"] == "Repeated Metric"
+    assert result.spec["spec"]["encoding"]["y"]["axis"]["title"] == "Panel metric value"

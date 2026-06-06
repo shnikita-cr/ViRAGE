@@ -5,6 +5,14 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.services.spec.repeat_labels import (
+    ensure_repeat_header_config,
+    repeat_axis_title,
+    repeat_chart_title,
+    repeat_field_title,
+    repeat_fields,
+)
+
 
 @dataclass(frozen=True)
 class PresentationLabelKey:
@@ -124,6 +132,8 @@ class SpecPresentationConsistencyService:
         normalized = deepcopy(spec)
         changes: list[str] = []
         self._normalize_node(normalized, root=normalized, changes=changes)
+        if ensure_repeat_header_config(normalized):
+            changes.append("Set repeat header configuration for dynamic metric labels.")
 
         # Keep the older consistency pass for cases with nested user-provided titles that do not
         # match the deterministic labels exactly. This is a compatibility pass for nested user-provided titles.
@@ -412,15 +422,14 @@ class SpecPresentationConsistencyService:
             repeat_channel_def: dict[str, Any] | None,
             dimension_channel_def: dict[str, Any] | None,
     ) -> str:
-        repeated_label = cls._repeated_measure_group_label(root)
+        repeated = repeat_fields(root)
         dimension_label = cls._field_display_label(cls._field_from_channel(dimension_channel_def), root=root)
-        aggregate_label = cls._aggregate_label(cls._aggregate_from_channel(repeat_channel_def))
-
-        if mark_type == "boxplot":
-            return cls._join_title(repeated_label, "Distributions", [dimension_label])
-        if aggregate_label:
-            return cls._join_title(f"{aggregate_label} {repeated_label}", "", [dimension_label])
-        return cls._join_title(repeated_label, "", [dimension_label])
+        return repeat_chart_title(
+            repeated_fields=repeated,
+            group_labels=[dimension_label] if dimension_label else [],
+            mark_type=mark_type,
+            aggregate=cls._aggregate_from_channel(repeat_channel_def),
+        )
 
     @classmethod
     def _boxplot_measure(cls, encoding: dict[str, Any]) -> dict[str, Any] | None:
@@ -595,8 +604,8 @@ class SpecPresentationConsistencyService:
             return "Count of Records"
         if isinstance(field, RepeatFieldReference):
             if aggregate_label == "Count":
-                return "Count"
-            return f"{aggregate_label} Repeated Metric"
+                return "Count of panel records"
+            return repeat_axis_title(aggregate=aggregate, value_role="value")
         return f"{aggregate_label} {field_label}".strip()
 
     @classmethod
@@ -610,7 +619,7 @@ class SpecPresentationConsistencyService:
         if field is None:
             return ""
         if isinstance(field, RepeatFieldReference):
-            return "Repeated Metric"
+            return "Panel metric value"
         if field == "*":
             return "Records"
         if time_unit:
@@ -621,13 +630,7 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _repeated_measure_group_label(cls, root: dict[str, Any]) -> str:
-        repeat_fields = cls._all_repeat_fields(root)
-        labels = [cls._humanize_field_name(field) for field in repeat_fields if str(field).strip()]
-        if 1 <= len(labels) <= 4:
-            return cls._join_labels(labels)
-        if labels:
-            return f"{cls._join_labels(labels[:3])} and {len(labels) - 3} More Metrics"
-        return "Repeated Metrics"
+        return repeat_field_title(repeat_fields(root))
 
     @staticmethod
     def _all_repeat_fields(root: dict[str, Any]) -> list[str]:

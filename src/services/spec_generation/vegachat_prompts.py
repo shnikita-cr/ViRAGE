@@ -74,6 +74,8 @@ Generation rules adapted from VegaChat-style correction loops:
 16. Do not compare different-scale raw metrics on a shared quantitative axis; use normalized severity, independent facets, or separate views.
 17. If overall_severity is available and ranking_strategy=top_n_highest_severity, the main visible quantitative channel must use overall_severity and must sort by highest severity.
 18. Raw source metrics for severity-based tasks should be shown in tooltip or separate details, not as the main shared-axis grouped chart.
+19. When using Vega-Lite repeat, keep repeat dynamic: top-level repeat lists define panel fields, encoding.field={{"repeat":"column"}} or {{"repeat":"row"}} is replaced by Vega-Lite at render time, and panel headers name the concrete metric. Do not replace repeat references with fixed field names inside the nested spec. Do not create generic repeated titles such as "Repeated metrics" or "Metric"; the chart title must name the repeated fields or the analytical role, while axis titles should say that the panel header identifies the metric.
+20. Do not force x-axis label rotation. Leave labelAngle unset unless labels demonstrably cannot fit; runtime layout policies may rotate only after measuring available width.
 """
 
 

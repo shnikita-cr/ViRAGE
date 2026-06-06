@@ -16,6 +16,13 @@ from src.services.chart_quality.common.spec_utils import (
     set_axis_property,
 )
 from src.services.chart_quality.chart_quality_types import ChartPolicyResult, ChartQualityIssue
+from src.services.spec.repeat_labels import (
+    ensure_repeat_header_config,
+    repeat_axis_title,
+    repeat_chart_title,
+    repeat_fields,
+    title_is_generic_repeat,
+)
 
 
 class ChartPresentationPolicy:
@@ -85,13 +92,8 @@ class ChartPresentationPolicy:
             field = channel_field(x_def)
             longest, cardinality = self._label_stats(data, field)
             if longest >= 14 or cardinality >= 8:
-                angle = self._x_label_angle(longest=longest, cardinality=cardinality)
-                if angle is not None and set_axis_property(x_def, "labelAngle", angle, overwrite=False):
-                    changes.append("set_x_label_angle_for_fit")
-                if angle is not None:
-                    set_axis_property(x_def, "labelAlign", "right", overwrite=False)
-                    set_axis_property(x_def, "labelBaseline", "middle", overwrite=False)
                 set_axis_property(x_def, "labelPadding", 8, overwrite=False)
+                set_axis_property(x_def, "labelOverlap", "greedy", overwrite=False)
                 set_axis_property(x_def, "labelLimit", max(180, min(420, longest * 9)), overwrite=False)
                 set_axis_property(x_def, "labelBound", True, overwrite=False)
             elif cardinality >= 4:
@@ -118,52 +120,25 @@ class ChartPresentationPolicy:
                 ))
         return changes
 
-    @staticmethod
-    def _x_label_angle(*, longest: int, cardinality: int) -> int | None:
-        if cardinality <= 3 and longest <= 28:
-            return None
-        if cardinality <= 8 and longest <= 18:
-            return -35
-        return -90
-
     def _fix_repeat_headers(self, spec: dict[str, Any], issues: list[ChartQualityIssue]) -> list[str]:
         changes: list[str] = []
-        repeat = spec.get("repeat")
-        repeated_fields: list[str] = []
-        if isinstance(repeat, dict):
-            for key in ("column", "row"):
-                values = repeat.get(key)
-                if isinstance(values, list):
-                    repeated_fields.extend(str(value) for value in values if value)
-        elif isinstance(repeat, list):
-            repeated_fields.extend(str(value) for value in repeat if value)
+        repeated_fields = repeat_fields(spec)
         if not repeated_fields:
             return changes
-        header_title = self._repeat_title(repeated_fields)
-        if not self._title_text(spec.get("title")):
-            spec["title"] = header_title
+        if ensure_repeat_header_config(spec):
+            changes.append("set_repeat_header_config")
+        aggregate = self._repeat_aggregate(spec)
+        groups = self._repeat_group_labels(spec)
+        title = repeat_chart_title(
+            repeated_fields=repeated_fields,
+            group_labels=groups,
+            mark_type=self._repeat_mark_type(spec),
+            aggregate=aggregate,
+        )
+        if not self._title_text(spec.get("title")) or title_is_generic_repeat(spec.get("title")):
+            spec["title"] = title
             changes.append("set_repeat_chart_title")
-        for unit in iter_unit_specs(spec):
-            encoding = get_encoding(unit)
-            for channel_name in ("x", "y"):
-                channel_def = encoding.get(channel_name)
-                if not isinstance(channel_def, dict):
-                    continue
-                field = channel_def.get("field")
-                if isinstance(field, dict) and "repeat" in field:
-                    axis = channel_def.setdefault("axis", {})
-                    if isinstance(axis, dict):
-                        current = str(axis.get("title") or "").strip().lower()
-                        if current in {"", "value", "values", "metric", "measure"}:
-                            axis["title"] = "Repeated metric value"
-                            changes.append(f"set_repeat_{channel_name}_axis_title")
-        if self._repeat_axis_title_is_generic(spec):
-            issues.append(ChartQualityIssue(
-                code="repeat_axis_title_generic",
-                severity="warning",
-                message="repeat chart axis title must explain that panel headers define the metric",
-                details={"fields": repeated_fields},
-            ))
+        changes.extend(self._normalize_repeat_axis_titles(spec, aggregate))
         if not spec.get("resolve"):
             issues.append(ChartQualityIssue(
                 code="repeat_scale_resolution_unspecified",
@@ -173,24 +148,8 @@ class ChartPresentationPolicy:
             ))
         return changes
 
-    @staticmethod
-    def _repeat_title(repeated_fields: list[str]) -> str:
-        labels = [ChartPresentationPolicy._humanize(field) for field in repeated_fields if str(field).strip()]
-        if len(labels) <= 4:
-            return f"Repeated metrics: {ChartPresentationPolicy._join_labels(labels)}"
-        return f"Repeated metrics: {ChartPresentationPolicy._join_labels(labels[:3])} and {len(labels) - 3} more"
-
-    @staticmethod
-    def _join_labels(labels: list[str]) -> str:
-        if not labels:
-            return ""
-        if len(labels) == 1:
-            return labels[0]
-        return f"{', '.join(labels[:-1])} and {labels[-1]}"
-
-    @staticmethod
-    def _repeat_axis_title_is_generic(spec: dict[str, Any]) -> bool:
-        generic = {"", "value", "values", "metric", "measure", "значение"}
+    def _normalize_repeat_axis_titles(self, spec: dict[str, Any], aggregate: str | None) -> list[str]:
+        changes: list[str] = []
         for unit in iter_unit_specs(spec):
             encoding = get_encoding(unit)
             for channel_name in ("x", "y"):
@@ -198,11 +157,47 @@ class ChartPresentationPolicy:
                 if not isinstance(channel_def, dict):
                     continue
                 field = channel_def.get("field")
-                axis = channel_def.get("axis")
-                if isinstance(field, dict) and "repeat" in field and isinstance(axis, dict):
-                    if str(axis.get("title") or "").strip().lower() in generic:
-                        return True
-        return False
+                if not isinstance(field, dict) or "repeat" not in field:
+                    continue
+                axis = channel_def.setdefault("axis", {})
+                if not isinstance(axis, dict):
+                    continue
+                label = repeat_axis_title(aggregate=channel_def.get("aggregate") or aggregate)
+                if self._title_text(axis.get("title")).strip().lower() in {"", "value", "values", "metric", "measure", "repeated metric", "repeated metric value"}:
+                    axis["title"] = label
+                    changes.append(f"set_repeat_{channel_name}_axis_title")
+        return changes
+
+    @staticmethod
+    def _repeat_aggregate(spec: dict[str, Any]) -> str | None:
+        for unit in iter_unit_specs(spec):
+            for channel_def in get_encoding(unit).values():
+                if isinstance(channel_def, dict) and isinstance(channel_def.get("field"), dict):
+                    aggregate = channel_def.get("aggregate")
+                    if isinstance(aggregate, str) and aggregate.strip():
+                        return aggregate.strip().lower()
+        return None
+
+    @staticmethod
+    def _repeat_group_labels(spec: dict[str, Any]) -> list[str]:
+        labels: list[str] = []
+        for unit in iter_unit_specs(spec):
+            encoding = get_encoding(unit)
+            for channel_name in ("x", "y", "color", "shape", "row", "column", "xOffset", "yOffset"):
+                field = channel_field(encoding.get(channel_name))
+                if field:
+                    labels.append(ChartPresentationPolicy._humanize(field))
+        return list(dict.fromkeys(labels))
+
+    @staticmethod
+    def _repeat_mark_type(spec: dict[str, Any]) -> str:
+        for unit in iter_unit_specs(spec):
+            mark = unit.get("mark")
+            if isinstance(mark, str):
+                return mark.strip().lower()
+            if isinstance(mark, dict):
+                return str(mark.get("type") or "").strip().lower()
+        return ""
 
     @staticmethod
     def _label_stats(data: pd.DataFrame | None, field: str | None) -> tuple[int, int]:

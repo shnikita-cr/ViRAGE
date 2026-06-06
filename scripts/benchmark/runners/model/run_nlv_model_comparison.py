@@ -12,7 +12,7 @@ from typing import Sequence
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK_RUNNER = PROJECT_ROOT / 'scripts' / 'benchmark' / 'run_vegachat_compatible_benchmark.py'
 DEFAULT_BASE_CONFIG = PROJECT_ROOT / 'ui' / 'config' / 'benchmark' / 'project-gemma3_local-bench_rag.toml'
-DEFAULT_CASES_PATH = PROJECT_ROOT / 'datasets' / 'nlv_corpus'
+DEFAULT_CASES_PATH = PROJECT_ROOT / 'external_datasets' / 'nlv_corpus'
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / 'artifacts' / 'model_nlv'
 DEFAULT_MODELS: tuple[str, ...] = ('qwen3.5:latest', 'qwen3.5:4b', 'gemma3:4b', 'qwen2.5vl:latest', 'gemma3:12b-it-q4_K_M')
 MODEL_SECTIONS: tuple[str, ...] = ('reasoning_model', 'spec_model', 'vlm_model')

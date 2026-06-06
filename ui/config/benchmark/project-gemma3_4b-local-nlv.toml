@@ -2,7 +2,7 @@ mode = "streamlit"
 
 [settings]
 visrag_enabled = false
-artifact_root = "./artifacts-nlv-5b"
+artifact_root = "./artifacts-nlv-4b"
 analytics_tail_enabled = false
 semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_nlv.jsonl"
 

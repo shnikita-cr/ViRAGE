@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import streamlit as st
 
 from src.application.config.bootstrap import bootstrap_project_environment
+from src.application.config.project_config import ProjectConfig, load_project_config
 from src.application.contracts import PipelineRequest
-from src.application.config.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
 from src.domain.models import ModelCallLog, StepLog
+from src.infrastructure.runtime import RuntimeContext
+from src.orchestrator.analysis_planner import AnalysisPlanner
+from src.services.data.profile.data_profiler import DataProfilerService
 from ui.app_components import (
     CHART_MODE_OPTIONS,
     CONFIG_DIR,
@@ -20,22 +25,16 @@ from ui.app_components import (
     METRICS_ENABLED,
     METRICS_OPTIONS,
     apply_streamlit_run_overrides,
-    append_live_chart_preview_once,
     build_pending_run_payload,
     config_label,
     discover_config_files,
-    final_data_path,
     init_session_state,
-    live_chart_preview_from_step,
     path_from_config_label,
     read_table_preview_from_bytes,
     read_table_preview_from_path,
     render_chart,
-    render_live,
-    render_live_chart_previews,
-    render_loading_status,
-    render_manual_feedback_form,
     render_metrics,
+    render_model_calls,
     render_spec_generation_validation_details,
     render_table_preview,
     render_token_usage_cards,
@@ -51,32 +50,28 @@ def run_app() -> None:
     bootstrap_project_environment()
     _configure_page()
     init_session_state()
-
     config_files = _load_config_files()
     pending_run = st.session_state.pending_run
     controls_disabled = bool(st.session_state.pipeline_running)
     controls = _render_sidebar_controls(config_files, pending_run, controls_disabled)
     uploaded_file, query, run_clicked = _render_input_controls(controls_disabled)
-
     if run_clicked:
         _lock_pending_run(controls, uploaded_file, query)
-
     if not pending_run:
-        _render_previous_result(config_files)
+        _render_previous_orchestrator_result()
         st.stop()
-
     locked = _locked_run_context(pending_run, config_files)
-    pipeline = _load_pipeline(locked)
     data_path, temp_dir = _resolve_data_path(locked)
     _render_input_preview(data_path)
-    result = _execute_pipeline(pipeline, locked, data_path, temp_dir)
-    _store_completed_run(result, locked)
-    _render_completed_run(result, locked, config_files)
+    outcome = _execute_orchestrator(locked, data_path, temp_dir)
+    _store_completed_run(outcome, locked)
+    _render_orchestrator_outcome(outcome, locked)
 
 
 def _configure_page() -> None:
-    st.set_page_config(page_title="ViRAGE", layout="wide")
-    st.title("ViRAGE")
+    st.set_page_config(page_title="ViRAGE Orchestrator", layout="wide")
+    st.title("ViRAGE Orchestrator")
+    st.caption("Один запрос проекта → до трёх аналитических подзадач → графики, спецификации и вызовы моделей по мере готовности.")
 
 
 def _load_config_files() -> list[Path]:
@@ -112,20 +107,14 @@ def _render_sidebar_controls(
     controls_disabled: bool,
 ) -> dict[str, Any]:
     labels = [config_label(path) for path in config_files]
-    selected_config_index, selected_chart_index, selected_metrics_index = _selected_indices(config_files, pending_run)
+    config_index, chart_index, metrics_index = _selected_indices(config_files, pending_run)
     selected_settings = run_setting_defaults_from_pending(pending_run)
     with st.sidebar:
-        st.header("Run configuration")
-        selected_label = st.radio("Configuration file", labels, index=selected_config_index, disabled=controls_disabled)
+        st.header("Project run")
+        selected_label = st.radio("Configuration file", labels, index=config_index, disabled=controls_disabled)
         selected_path = path_from_config_label(selected_label, config_files)
         selected_settings = _settings_for_sidebar(selected_path, pending_run, selected_settings)
-        controls = _render_run_controls(
-            selected_label,
-            selected_chart_index,
-            selected_metrics_index,
-            selected_settings,
-            controls_disabled,
-        )
+        controls = _render_run_controls(selected_label, chart_index, metrics_index, selected_settings, controls_disabled)
         _render_locked_settings_notice(controls_disabled, pending_run)
     return controls
 
@@ -138,10 +127,9 @@ def _settings_for_sidebar(
     if pending_run:
         return selected_settings
     try:
-        selected_config_defaults = load_project_config(selected_config_path)
+        return run_setting_defaults_from_config(load_project_config(selected_config_path))
     except RecoverableUiError:
-        selected_config_defaults = None
-    return run_setting_defaults_from_config(selected_config_defaults)
+        return selected_settings
 
 
 def _render_run_controls(
@@ -153,11 +141,16 @@ def _render_run_controls(
 ) -> dict[str, Any]:
     chart_mode = st.radio("Chart output", CHART_MODE_OPTIONS, index=selected_chart_index, disabled=controls_disabled)
     metrics_mode = st.radio("Compute metrics", METRICS_OPTIONS, index=selected_metrics_index, disabled=controls_disabled)
-    semantic_loop = st.checkbox("Enable semantic VLM loop", value=bool(settings["semantic_feedback_loop_enabled"]), disabled=controls_disabled)
+    semantic_loop = st.checkbox(
+        "Enable semantic VLM loop",
+        value=bool(settings["semantic_feedback_loop_enabled"]),
+        disabled=controls_disabled,
+    )
     return {
         "selected_config_label": selected_config_label,
         "chart_mode": chart_mode,
         "compute_metrics": metrics_mode == METRICS_ENABLED,
+        "max_charts": st.slider("Maximum subtasks", 1, 3, 3, 1, disabled=controls_disabled),
         "visrag_enabled": st.checkbox("Enable RAG / VisRAG context", value=bool(settings["visrag_enabled"]), disabled=controls_disabled),
         "analytics_tail_enabled": st.checkbox("Enable analytics tail", value=bool(settings["analytics_tail_enabled"]), disabled=controls_disabled),
         "spec_generation_max_attempts": st.slider("Spec generation attempts", 1, 8, max(1, min(8, int(settings["spec_generation_max_attempts"]))), 1, disabled=controls_disabled),
@@ -173,7 +166,7 @@ def _render_locked_settings_notice(controls_disabled: bool, pending_run: dict[st
     if controls_disabled and pending_run:
         st.info(_locked_settings_text(pending_run))
         return
-    st.caption("Settings are locked after pressing Run pipeline.")
+    st.caption("Settings are locked after pressing Run orchestrator.")
 
 
 def _locked_settings_text(pending_run: dict[str, Any]) -> str:
@@ -181,12 +174,10 @@ def _locked_settings_text(pending_run: dict[str, Any]) -> str:
     return (
         "Run settings are locked:\n\n"
         f"- `{pending_run['config_label']}`\n"
-        f"- `{pending_run['chart_mode']}`\n"
+        f"- subtasks: `{pending_run.get('max_charts', 3)}`\n"
         f"- metrics: `{metrics}`\n"
         f"- RAG enabled: `{pending_run.get('visrag_enabled', True)}`\n"
-        f"- analytics tail: `{pending_run.get('analytics_tail_enabled', True)}`\n"
         f"- spec attempts: `{pending_run.get('spec_generation_max_attempts', 3)}`\n"
-        f"- semantic loop: `{pending_run.get('semantic_feedback_loop_enabled', False)}`\n"
         f"- semantic attempts: `{pending_run.get('semantic_feedback_max_attempts', 2)}`"
     )
 
@@ -195,8 +186,13 @@ def _render_input_controls(controls_disabled: bool) -> tuple[Any, str, bool]:
     uploaded_file = st.file_uploader("Upload a table", type=["csv", "xlsx"], disabled=controls_disabled)
     if uploaded_file is not None and not controls_disabled:
         _render_uploaded_preview(uploaded_file)
-    query = st.text_area("Request", height=120, placeholder="Например: Покажи тренд продаж по датам и дай основные инсайты", disabled=controls_disabled)
-    run_clicked = st.button("Run pipeline", type="primary", disabled=controls_disabled)
+    query = st.text_area(
+        "Project task",
+        height=140,
+        placeholder="Например: Проанализируй качество изображений, покажи основные проблемные случаи и сравни методы.",
+        disabled=controls_disabled,
+    )
+    run_clicked = st.button("Run orchestrator", type="primary", disabled=controls_disabled)
     return uploaded_file, query, run_clicked
 
 
@@ -214,54 +210,11 @@ def _lock_pending_run(controls: dict[str, Any], uploaded_file: Any, query: str) 
         st.error("Upload a dataset first.")
         st.stop()
     if not query.strip():
-        st.error("Enter a query first.")
+        st.error("Enter a project task first.")
         st.stop()
     st.session_state.pending_run = build_pending_run_payload(uploaded_file=uploaded_file, query=query, **controls)
     st.session_state.pipeline_running = True
     st.rerun()
-
-
-def _render_previous_result(config_files: list[Path]) -> None:
-    if not st.session_state.last_result or not st.session_state.last_run_settings:
-        return
-    st.success("Last pipeline run completed.")
-    result = st.session_state.last_result
-    run_settings = st.session_state.last_run_settings
-    _render_result_main_columns(result, run_settings)
-    _render_prepared_preview(result)
-    render_manual_feedback_form(result, run_settings, config_files)
-    render_metrics(result, run_settings["compute_metrics"])
-
-
-def _render_result_main_columns(result: Any, run_settings: dict[str, Any]) -> None:
-    top_left, top_right = st.columns([1.2, 1])
-    with top_left:
-        render_chart(result, run_settings["chart_mode"])
-        _render_insights(result)
-    with top_right:
-        st.subheader("Run settings")
-        st.json(run_settings)
-        st.subheader("Token usage summary")
-        render_token_usage_cards(result.token_usage_summary)
-        with st.expander("Token usage summary JSON", expanded=False):
-            st.json(result.token_usage_summary.model_dump())
-
-
-def _render_insights(result: Any) -> None:
-    st.subheader("Insights")
-    if result.insights and result.insights.final_insights:
-        for item in result.insights.final_insights:
-            st.markdown(f"- {item}")
-        return
-    st.info("No final insights were produced.")
-
-
-def _render_prepared_preview(result: Any) -> None:
-    try:
-        with st.expander("Prepared table preview", expanded=False):
-            render_table_preview("Prepared table preview", read_table_preview_from_path(final_data_path(result)))
-    except RecoverableUiError as exc:
-        st.warning(f"Could not preview prepared table: {exc}")
 
 
 def _locked_run_context(pending_run: dict[str, Any], config_files: list[Path]) -> dict[str, Any]:
@@ -270,6 +223,7 @@ def _locked_run_context(pending_run: dict[str, Any], config_files: list[Path]) -
         "config_path": path_from_config_label(pending_run["config_label"], config_files),
         "chart_mode": pending_run["chart_mode"],
         "compute_metrics": bool(pending_run["compute_metrics"]),
+        "max_charts": max(1, min(3, int(pending_run.get("max_charts", 3)))),
         "visrag_enabled": bool(pending_run.get("visrag_enabled", True)),
         "analytics_tail_enabled": bool(pending_run.get("analytics_tail_enabled", True)),
         "spec_generation_max_attempts": int(pending_run.get("spec_generation_max_attempts", 3)),
@@ -280,50 +234,31 @@ def _locked_run_context(pending_run: dict[str, Any], config_files: list[Path]) -
         "query": pending_run["query"],
         "uploaded_file_name": pending_run.get("uploaded_file_name", "uploaded.csv"),
         "uploaded_file_bytes": pending_run.get("uploaded_file_bytes"),
-        "data_path": pending_run.get("data_path"),
-        "manual_feedback": str(pending_run.get("manual_feedback") or "").strip(),
     }
 
 
-def _load_pipeline(locked: dict[str, Any]) -> ViRAGEPipeline:
-    try:
-        project_config = load_project_config(locked["config_path"])
-        project_config = apply_streamlit_run_overrides(project_config=project_config, **_override_values(locked))
-        return ViRAGEPipeline.from_project_config(project_config)
-    except RecoverableUiError as exc:
-        st.session_state.pipeline_running = False
-        st.session_state.pending_run = None
-        st.exception(exc)
-        st.stop()
-
-
 def _override_values(locked: dict[str, Any]) -> dict[str, Any]:
-    keys = [
-        "compute_metrics",
-        "visrag_enabled",
-        "analytics_tail_enabled",
-        "spec_generation_max_attempts",
-        "semantic_feedback_loop_enabled",
-        "semantic_feedback_max_attempts",
-        "semantic_feedback_min_accept_confidence",
-        "semantic_feedback_save_rejected_specs",
-    ]
-    return {key: locked[key] for key in keys}
+    return {
+        key: locked[key]
+        for key in [
+            "compute_metrics",
+            "visrag_enabled",
+            "analytics_tail_enabled",
+            "spec_generation_max_attempts",
+            "semantic_feedback_loop_enabled",
+            "semantic_feedback_max_attempts",
+            "semantic_feedback_min_accept_confidence",
+            "semantic_feedback_save_rejected_specs",
+        ]
+    }
 
 
 def _resolve_data_path(locked: dict[str, Any]) -> tuple[Path, Path | None]:
-    if locked["uploaded_file_bytes"] is not None:
-        suffix = Path(locked["uploaded_file_name"]).suffix or ".csv"
-        temp_dir = Path(tempfile.mkdtemp(prefix="virage_streamlit_"))
-        data_path = temp_dir / f"uploaded{suffix}"
-        data_path.write_bytes(locked["uploaded_file_bytes"])
-        return data_path, temp_dir
-    if locked["data_path"]:
-        return resolve_project_path(locked["data_path"]), None
-    st.session_state.pipeline_running = False
-    st.session_state.pending_run = None
-    st.error("No dataset is available for this run.")
-    st.stop()
+    suffix = Path(locked["uploaded_file_name"]).suffix or ".csv"
+    temp_dir = Path(tempfile.mkdtemp(prefix="virage_orchestrator_"))
+    data_path = temp_dir / f"uploaded{suffix}"
+    data_path.write_bytes(locked["uploaded_file_bytes"])
+    return data_path, temp_dir
 
 
 def _render_input_preview(data_path: Path) -> None:
@@ -334,118 +269,239 @@ def _render_input_preview(data_path: Path) -> None:
         st.warning(f"Could not preview input table: {exc}")
 
 
-def _execute_pipeline(pipeline: ViRAGEPipeline, locked: dict[str, Any], data_path: Path, temp_dir: Path | None) -> Any:
-    top_left, _ = st.columns([1.2, 1])
-    slots = _live_slots(top_left)
-    live_steps: list[StepLog] = []
-    live_model_calls: list[ModelCallLog] = []
-    live_chart_previews: list[dict[str, Any]] = []
-    _render_start_status(slots["status"], locked)
+def _execute_orchestrator(locked: dict[str, Any], data_path: Path, temp_dir: Path | None) -> dict[str, Any]:
+    status_slot = st.empty()
+    steps_slot = st.empty()
+    aggregate_calls_slot = st.empty()
+    result_area = st.container()
+    steps: list[StepLog] = []
+    aggregate_calls: list[ModelCallLog] = []
+    results: list[dict[str, Any]] = []
     try:
-        return pipeline.invoke(
-            PipelineRequest(query=locked["query"], data_path=data_path.as_posix(), user_context=_user_context(locked)),
-            step_callback=_step_callback(slots, live_steps, live_model_calls, live_chart_previews),
-            model_call_callback=_model_call_callback(slots, live_steps, live_model_calls),
-        )
+        config = _load_project_config(locked)
+        pipeline = ViRAGEPipeline.from_project_config(config)
+        run_id = _orchestrator_run_id()
+        status_slot.info("Profiling dataset and planning analytical subtasks...")
+        plan = _plan_subtasks(pipeline, locked, data_path, run_id, aggregate_calls)
+        _append_project_step(steps, "planning", "Analytical plan built", f"{len(plan.subtasks)} subtask(s) selected.")
+        _render_project_steps(steps_slot, steps)
+        for index, subtask in enumerate(plan.subtasks, start=1):
+            result = _run_subtask(
+                pipeline=pipeline,
+                locked=locked,
+                data_path=data_path,
+                parent_run_id=run_id,
+                index=index,
+                subtask=subtask,
+                steps=steps,
+                aggregate_calls=aggregate_calls,
+                steps_slot=steps_slot,
+                aggregate_calls_slot=aggregate_calls_slot,
+                result_area=result_area,
+            )
+            results.append(result)
+        status_slot.success("Orchestrator completed.")
+        _render_model_call_summary(aggregate_calls_slot, aggregate_calls)
+        return {"run_id": run_id, "plan": plan, "subtasks": results, "model_calls": aggregate_calls, "steps": steps}
     except RecoverableUiError as exc:
-        _render_live_state(slots, live_steps, live_model_calls)
         st.session_state.pipeline_running = False
         st.session_state.pending_run = None
         st.exception(exc)
-        _cleanup_temp_dir(temp_dir)
         st.stop()
     finally:
         _cleanup_temp_dir(temp_dir)
 
 
-def _live_slots(top_left: Any) -> dict[str, Any]:
-    return {
-        "chart": top_left.empty(),
-        "insights": top_left.empty(),
-        "status": st.empty(),
-        "progress": st.empty(),
-        "model_calls": st.empty(),
-    }
+def _load_project_config(locked: dict[str, Any]) -> ProjectConfig:
+    config = load_project_config(locked["config_path"])
+    return apply_streamlit_run_overrides(project_config=config, **_override_values(locked))
 
 
-def _render_start_status(status_slot: Any, locked: dict[str, Any]) -> None:
-    with status_slot.container():
-        render_loading_status(status_slot, _start_status_text(locked))
-
-
-def _start_status_text(locked: dict[str, Any]) -> str:
-    return (
-        "Pipeline started with locked settings: "
-        f"<code>{locked['config_label']}</code> · <code>{locked['chart_mode']}</code> · "
-        f"metrics <code>{METRICS_ENABLED if locked['compute_metrics'] else METRICS_DISABLED}</code> · "
-        f"RAG <code>{locked['visrag_enabled']}</code> · analytics tail <code>{locked['analytics_tail_enabled']}</code> · "
-        f"spec attempts <code>{locked['spec_generation_max_attempts']}</code> · semantic loop <code>{locked['semantic_feedback_loop_enabled']}</code>"
+def _plan_subtasks(
+    pipeline: ViRAGEPipeline,
+    locked: dict[str, Any],
+    data_path: Path,
+    run_id: str,
+    aggregate_calls: list[ModelCallLog],
+) -> Any:
+    pipeline.runtime.current_run_id = run_id
+    data_profile = DataProfilerService().invoke(data_path.as_posix(), pipeline.runtime)
+    plan = AnalysisPlanner(max_charts=locked["max_charts"], reasoning_llm=pipeline.runtime.reasoning_llm).plan(
+        user_query=locked["query"],
+        data_path=data_path.as_posix(),
+        data_profile=data_profile,
+        runtime=pipeline.runtime,
+        user_context={"source": "streamlit_orchestrator"},
+        input_type="table",
     )
+    aggregate_calls.extend(list(pipeline.runtime.model_call_logs))
+    return plan
 
 
-def _step_callback(slots: dict[str, Any], steps: list[StepLog], calls: list[ModelCallLog], previews: list[dict[str, Any]]) -> Any:
+def _run_subtask(
+    *,
+    pipeline: ViRAGEPipeline,
+    locked: dict[str, Any],
+    data_path: Path,
+    parent_run_id: str,
+    index: int,
+    subtask: Any,
+    steps: list[StepLog],
+    aggregate_calls: list[ModelCallLog],
+    steps_slot: Any,
+    aggregate_calls_slot: Any,
+    result_area: Any,
+) -> dict[str, Any]:
+    local_steps: list[StepLog] = []
+    local_calls: list[ModelCallLog] = []
+    subrun_id = f"{parent_run_id}/subruns/{index:02d}_{_safe_slug(subtask.id)}"
+    _append_project_step(steps, f"subtask_{index}", f"Started: {subtask.id}", subtask.purpose)
+    _render_project_steps(steps_slot, steps)
+    result = pipeline.invoke(
+        PipelineRequest(
+            query=subtask.query,
+            data_path=data_path.as_posix(),
+            run_id=subrun_id,
+            user_context={
+                "orchestrator_parent_run_id": parent_run_id,
+                "analysis_subtask": subtask.model_dump(),
+                "original_user_query": locked["query"],
+            },
+        ),
+        step_callback=_subtask_step_callback(index, steps, local_steps, steps_slot),
+        model_call_callback=_subtask_call_callback(local_calls, aggregate_calls, aggregate_calls_slot),
+    )
+    _append_project_step(steps, f"subtask_{index}", f"Completed: {subtask.id}", "Chart and specification are available.")
+    _render_project_steps(steps_slot, steps)
+    _render_subtask_result(result_area, index, subtask, result, locked, local_calls)
+    return {"subtask": subtask, "result": result, "model_calls": local_calls, "steps": local_steps}
+
+
+def _subtask_step_callback(index: int, global_steps: list[StepLog], local_steps: list[StepLog], slot: Any) -> Any:
     def on_step(step: StepLog) -> None:
-        steps.append(step)
-        duration = f" · {step.duration_seconds:.2f}s" if getattr(step, "duration_seconds", 0.0) else ""
-        render_loading_status(slots["status"], f"Current step: <code>{step.stage}</code> — {step.title}{duration}")
-        preview = live_chart_preview_from_step(step)
-        if preview is not None:
-            append_live_chart_preview_once(previews, preview)
-            render_live_chart_previews(slots["chart"], previews)
-        _render_live_state(slots, steps, calls)
+        local_steps.append(step)
+        global_steps.append(step.model_copy(update={"stage": f"subtask_{index}.{step.stage}"}))
+        _render_project_steps(slot, global_steps)
     return on_step
 
 
-def _model_call_callback(slots: dict[str, Any], steps: list[StepLog], calls: list[ModelCallLog]) -> Any:
-    def on_model_call(call: ModelCallLog) -> None:
-        calls.append(call)
-        _render_live_state(slots, steps, calls)
-    return on_model_call
+def _subtask_call_callback(local_calls: list[ModelCallLog], aggregate_calls: list[ModelCallLog], slot: Any) -> Any:
+    def on_call(call: ModelCallLog) -> None:
+        local_calls.append(call)
+        aggregate_calls.append(call)
+        _render_model_call_summary(slot, aggregate_calls)
+    return on_call
 
 
-def _render_live_state(slots: dict[str, Any], steps: list[StepLog], calls: list[ModelCallLog]) -> None:
-    render_live(progress_slot=slots["progress"], model_calls_slot=slots["model_calls"], steps=steps, model_calls=calls)
+def _render_subtask_result(area: Any, index: int, subtask: Any, result: Any, locked: dict[str, Any], calls: list[ModelCallLog]) -> None:
+    with area.container():
+        st.markdown(f"## Subtask {index}: {subtask.id}")
+        st.caption(subtask.purpose)
+        left, right = st.columns([1.25, 1])
+        with left:
+            render_chart(result, locked["chart_mode"])
+        with right:
+            st.markdown("#### Model calls")
+            render_model_calls(calls)
+            st.markdown("#### Token usage")
+            render_token_usage_cards(result.token_usage_summary)
+        render_spec_generation_validation_details(result)
+        render_metrics(result, locked["compute_metrics"])
+        st.divider()
 
 
-def _user_context(locked: dict[str, Any]) -> dict[str, Any]:
-    feedback = locked["manual_feedback"]
-    return {
-        "manual_semantic_feedback": [feedback] if feedback else [],
-        "feedback_source": "manual_user_comment" if feedback else "",
-        "rerun_from_user_feedback": bool(feedback),
-    }
+def _render_project_steps(slot: Any, steps: list[StepLog]) -> None:
+    with slot.container():
+        st.subheader("Project steps")
+        if not steps:
+            st.info("No completed project steps yet.")
+            return
+        rows = [
+            {
+                "idx": index,
+                "stage": step.stage,
+                "title": step.title,
+                "summary": step.summary,
+                "duration_s": round(float(step.duration_seconds or 0.0), 2),
+            }
+            for index, step in enumerate(steps, start=1)
+        ]
+        st.dataframe(rows, width="stretch", hide_index=True)
+
+
+def _render_model_call_summary(slot: Any, calls: list[ModelCallLog]) -> None:
+    with slot.container():
+        st.subheader("Total model calls")
+        if not calls:
+            st.info("No model calls completed yet.")
+            return
+        rows = []
+        total_prompt = 0
+        total_completion = 0
+        total_duration = 0.0
+        for index, call in enumerate(calls, start=1):
+            usage = call.token_usage
+            prompt_tokens = int(usage.prompt_tokens or 0)
+            completion_tokens = int(usage.completion_tokens or 0)
+            total_prompt += prompt_tokens
+            total_completion += completion_tokens
+            total_duration += float(call.duration_seconds or 0.0)
+            rows.append({
+                "idx": index,
+                "stage": call.stage,
+                "role": call.model_role,
+                "model": call.model_name,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": int(usage.total_tokens or prompt_tokens + completion_tokens),
+                "duration_s": round(float(call.duration_seconds or 0.0), 2),
+                "parser_errors": len(call.parser_errors),
+            })
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Calls", len(calls))
+        c2.metric("Input tokens", total_prompt)
+        c3.metric("Output tokens", total_completion)
+        c4.metric("Duration, s", round(total_duration, 2))
+        st.dataframe(rows, width="stretch", hide_index=True)
+
+
+def _append_project_step(steps: list[StepLog], stage: str, title: str, summary: str) -> None:
+    steps.append(StepLog(stage=stage, title=title, summary=summary))
+
+
+def _store_completed_run(outcome: dict[str, Any], locked: dict[str, Any]) -> None:
+    st.session_state.pipeline_running = False
+    st.session_state.pending_run = None
+    st.session_state.last_orchestrator_results = outcome
+    st.session_state.last_run_settings = {"config_path": locked["config_label"], **_override_values(locked), "chart_mode": locked["chart_mode"]}
+
+
+def _render_orchestrator_outcome(outcome: dict[str, Any], locked: dict[str, Any]) -> None:
+    st.success("Project task completed.")
+    with st.expander("Analytical plan", expanded=False):
+        st.json(outcome["plan"].model_dump())
+    _render_model_call_summary(st.empty(), outcome["model_calls"])
+
+
+def _render_previous_orchestrator_result() -> None:
+    outcome = st.session_state.get("last_orchestrator_results")
+    if not outcome:
+        return
+    st.success("Last orchestrator run completed.")
+    with st.expander("Last analytical plan", expanded=False):
+        st.json(outcome["plan"].model_dump())
+    _render_project_steps(st.empty(), outcome.get("steps", []))
+    _render_model_call_summary(st.empty(), outcome.get("model_calls", []))
+
+
+def _orchestrator_run_id() -> str:
+    return datetime.now().strftime("%Y-%m-%dT%H-%M-%S") + "_orchestrator_" + uuid4().hex
+
+
+def _safe_slug(value: str) -> str:
+    return "".join(char if char.isalnum() or char in {"_", "-"} else "_" for char in value).strip("_") or "subtask"
 
 
 def _cleanup_temp_dir(temp_dir: Path | None) -> None:
     if temp_dir is not None:
         shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-def _store_completed_run(result: Any, locked: dict[str, Any]) -> None:
-    st.session_state.pipeline_running = False
-    st.session_state.pending_run = None
-    st.session_state.last_result = result
-    st.session_state.last_run_settings = _last_run_settings(locked)
-
-
-def _last_run_settings(locked: dict[str, Any]) -> dict[str, Any]:
-    return {"config_path": locked["config_label"], **_override_values(locked)} | {"chart_mode": locked["chart_mode"]}
-
-
-def _render_completed_run(result: Any, locked: dict[str, Any], config_files: list[Path]) -> None:
-    st.success("Pipeline completed successfully.")
-    top_left, top_right = st.columns([1.2, 1])
-    with top_left:
-        render_chart(result, locked["chart_mode"])
-        _render_insights(result)
-    with top_right:
-        st.subheader("Run settings")
-        st.json(st.session_state.last_run_settings)
-        render_spec_generation_validation_details(result)
-        _render_prepared_preview(result)
-        st.subheader("Token usage summary")
-        render_token_usage_cards(result.token_usage_summary)
-        with st.expander("Token usage summary JSON", expanded=False):
-            st.json(result.token_usage_summary.model_dump())
-    render_manual_feedback_form(result, st.session_state.last_run_settings, config_files)
-    render_metrics(result, locked["compute_metrics"])

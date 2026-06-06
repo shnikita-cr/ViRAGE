@@ -56,21 +56,13 @@ class ViRAGESettings(BaseModel):
         ]
     )
 
-    image_text_alignment_enabled: bool = Field(default=False)
-    image_text_alignment_models: list[str] = Field(default_factory=lambda: ["openai/clip-vit-large-patch14"])
-    image_text_alignment_device: str = Field(default="cuda")
-    image_text_alignment_dtype: Literal["float32", "float16", "bfloat16"] = Field(default="float16")
-    image_text_alignment_batch_size: int = Field(default=1, ge=1)
 
-    vega_output_format: str = Field(default="png")
     vega_export_scale: float = Field(default=2.0, ge=1.0, le=4.0)
-    enable_scenegraph_check: bool = Field(default=True)
     enable_empty_chart_check: bool = Field(default=True)
     enable_spec_score: bool = Field(default=True)
     analytics_tail_enabled: bool = Field(default=True)
     enable_vision_score: bool = Field(default=True)
     enable_evaluation_summary: bool = Field(default=True)
-    benchmark_output_dir: Path = Field(default=Path("./artifacts/benchmarks"))
     strict_image_only_analysis: bool = Field(default=True)
 
     streamlit_compute_metrics: bool = Field(default=True)
@@ -95,7 +87,6 @@ class ViRAGESettings(BaseModel):
     semantic_feedback_min_accept_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
     semantic_feedback_save_rejected_specs: bool = Field(default=True)
     semantic_feedback_corpus_path: Path = Field(default=Path("./rag_corpus/feedback/visual_feedback.jsonl"))
-    semantic_feedback_include_png_path: bool = Field(default=True)
     semantic_feedback_mode: Literal["strict", "debug_full_chain"] = Field(default="strict")
     visual_judge_use_chartsquared: bool = Field(default=True)
     chartsquared_project_root: Path | None = Field(default=None)

@@ -1014,6 +1014,7 @@ def init_session_state() -> None:
     st.session_state.setdefault("pending_run", None)
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("last_run_settings", None)
+    st.session_state.setdefault("last_orchestrator_results", None)
 
 
 def build_pending_run_payload(
@@ -1028,6 +1029,7 @@ def build_pending_run_payload(
     semantic_feedback_max_attempts: int,
     semantic_feedback_min_accept_confidence: float,
     semantic_feedback_save_rejected_specs: bool,
+    max_charts: int,
     uploaded_file: Any,
     query: str,
 ) -> dict[str, Any]:
@@ -1042,6 +1044,7 @@ def build_pending_run_payload(
         "semantic_feedback_max_attempts": semantic_feedback_max_attempts,
         "semantic_feedback_min_accept_confidence": semantic_feedback_min_accept_confidence,
         "semantic_feedback_save_rejected_specs": semantic_feedback_save_rejected_specs,
+        "max_charts": max(1, min(3, int(max_charts))),
         "uploaded_file_name": uploaded_file.name,
         "uploaded_file_bytes": uploaded_file.getvalue(),
         "query": query,

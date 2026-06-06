@@ -1,13 +1,19 @@
 mode = "streamlit"
 
+[settings]
+analytics_tail_enabled = false
+
 [reasoning_model]
 provider = "ollama"
-model = "qwen2.5:7b-instruct"
+model = "gemma3:4b"
+base_url = "http://localhost:11434"
 
 [spec_model]
 provider = "ollama"
-model = "qwen2.5-coder:7b"
+model = "gemma3:4b"
+base_url = "http://localhost:11434"
 
 [vlm_model]
-provider = "openai"
-model = "gpt-4.1-mini"
+provider = "ollama"
+model = "gemma3:4b"
+base_url = "http://localhost:11434"

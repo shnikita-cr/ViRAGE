@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from math import ceil, log10, sqrt
 from typing import Any
@@ -104,7 +105,7 @@ class ChartRenderPolicy:
             default_dpi: int = 192,
             export_scale: float | None = None,
     ) -> tuple[dict[str, Any], ChartRenderPolicyResult]:
-        clone = cls._deepcopy_jsonish(spec)
+        clone = deepcopy(spec)
         semantic_result = AxisDomainPolicy.apply(clone, data=data)
         noninformative_result = NonInformativeMarkPolicy.apply(clone, data=data)
         result = cls.compute(spec=clone, data=data, target=target, default_dpi=default_dpi, export_scale=export_scale)
@@ -136,14 +137,6 @@ class ChartRenderPolicy:
         for key, value in result.legend_config.items():
             legend_config.setdefault(key, value)
         return clone, result
-
-    @staticmethod
-    def _deepcopy_jsonish(value: Any) -> Any:
-        if isinstance(value, dict):
-            return {key: ChartRenderPolicy._deepcopy_jsonish(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [ChartRenderPolicy._deepcopy_jsonish(item) for item in value]
-        return value
 
     @staticmethod
     def _encoding(spec: dict[str, Any]) -> dict[str, Any]:
@@ -342,23 +335,23 @@ class ChartRenderPolicy:
     def _padding(cls, axis_stats: dict[str, dict[str, Any]], *, width: int, height: int) -> dict[str, int]:
         x = axis_stats.get("x", {})
         y = axis_stats.get("y", {})
-        bottom = 40
-        left = 54
+        bottom = 30
+        left = 48
         if x.get("is_discrete"):
             x_longest = int(x.get("longest_label", 0))
             x_categories = max(1, int(x.get("cardinality", 1)))
             slot_width = max(1.0, width / x_categories)
             estimated_label_width = x_longest * 6.4
             if estimated_label_width > slot_width * 1.45:
-                bottom = cls._clamp(40 + x_longest * 5, 80, 190)
+                bottom = cls._clamp(34 + x_longest * 5, 70, 170)
             elif estimated_label_width > slot_width * 0.95:
-                bottom = cls._clamp(34 + x_longest * 3, 56, 120)
+                bottom = cls._clamp(30 + x_longest * 3, 48, 105)
             else:
-                bottom = cls._clamp(32 + x_longest, 38, 68)
+                bottom = cls._clamp(24 + x_longest, 30, 58)
         if y.get("is_discrete"):
             y_longest = int(y.get("longest_label", 0))
-            left = cls._clamp(46 + y_longest * 6, 64, 230)
-        return {"left": left, "right": 24, "top": 36, "bottom": bottom}
+            left = cls._clamp(40 + y_longest * 6, 56, 210)
+        return {"left": left, "right": 18, "top": 28, "bottom": bottom}
 
     @staticmethod
     def _legend_config(legend_budget: int) -> dict[str, Any]:

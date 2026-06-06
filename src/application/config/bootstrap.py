@@ -14,7 +14,6 @@ def load_environment(dotenv_path: str | Path = ".env") -> None:
 
 
 def bootstrap_observability() -> None:
-    load_environment()
     if os.getenv("LANGSMITH_TRACING", "").lower() in {"1", "true", "yes"}:
         os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
     if os.getenv("LANGSMITH_API_KEY"):
