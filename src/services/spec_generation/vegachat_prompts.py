@@ -7,6 +7,14 @@ from src.domain.models import DataPreparationResult, DataProfile, SpecGeneration
 from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
 from src.services.spec_generation.vegachat_contract import VEGA_LITE_SCHEMA_URL, vegachat_output_contract
 
+_CODEGEN_PROMPT_CHAR_BUDGET = 12000
+_PREVIOUS_RESPONSE_CHAR_BUDGET = 1200
+_REQUEST_ANALYSIS_CHAR_BUDGET = 2200
+_CHECKLIST_CHAR_BUDGET = 1400
+_VALIDATION_FEEDBACK_CHAR_BUDGET = 1400
+_SEMANTIC_FEEDBACK_CHAR_BUDGET = 1200
+_VISRAG_CONTEXT_CHAR_BUDGET = 1500
+
 
 def build_vegachat_codegen_prompt(
         request: SpecGenerationRequest,
@@ -29,74 +37,54 @@ def build_vegachat_codegen_prompt(
         if include_visrag_context else "",
         _output_contract(),
     ]
-
     if previous_error:
-        parts.append(
-            "Previous attempt failed. Generate a corrected full response.\n"
-            f"Error:\n{previous_error}\n"
-        )
+        parts.append("Previous attempt failed. Correct the full response.\nError:\n" + previous_error)
     if previous_response:
-        parts.append(f"Previous response:\n{previous_response[:4000]}\n")
-
-    return "\n\n".join(part.strip() for part in parts if part.strip())
+        parts.append("Previous response:\n" + _truncate_text(previous_response, _PREVIOUS_RESPONSE_CHAR_BUDGET))
+    return _truncate_text("\n\n".join(part.strip() for part in parts if part.strip()), _CODEGEN_PROMPT_CHAR_BUDGET)
 
 
 def _system_contract(prompt_version: str) -> str:
     return f"""
-You are a senior data-visualization engineer who writes Vega-Lite v5 specifications for scientific data analysis.
+Role: senior data-visualization engineer. Task: write one valid Vega-Lite v5 JSON spec for scientific data analysis.
 Prompt version: {prompt_version}.
-Generate one valid Vega-Lite v5 JSON specification for the provided dataset and user request.
 
-Output rules:
-1. Return only <explain>...</explain><json>...</json>; no text outside these tags.
-2. The <explain> block must be concise English.
-3. The <json> block must contain exactly one Vega-Lite object, not a wrapper object.
-4. Do not include data or datasets. Runtime attaches data.url.
-5. Set $schema exactly to "{VEGA_LITE_SCHEMA_URL}".
-6. Do not include markdown or code fences.
+Output contract:
+- Return only <explain>...</explain><json>...</json>.
+- <explain>: one concise English sentence.
+- <json>: exactly one Vega-Lite object; no wrapper keys; no markdown.
+- Do not include data or datasets; runtime attaches data.url.
+- Set $schema exactly to "{VEGA_LITE_SCHEMA_URL}".
 
-Generation rules adapted from VegaChat-style correction loops:
-1. Use only safe field names listed in the schema block; never invent fields.
-2. Use the requested fields before visually similar alternatives.
-3. Choose the visual encoding from the selected analytical task, data profile, and RAG guidance; do not rely on an upstream chart-family recommendation.
-4. If the request says against/versus/relationship between two numeric fields, preserve both fields on visible quantitative channels.
-5. If the request says split by, grouped by, broken down by, for each, or by category, make that grouping visible through color, row, column, facet, shape, or xOffset; tooltip-only grouping is not enough.
-6. Prefer channel-level aggregate/bin/timeUnit/sort/stack over unnecessary transform objects.
-7. Use row/column encoding for simple faceting; use view-level facet only when a full nested spec is required.
-8. For grouped bars, prefer xOffset, column, or facet when side-by-side comparison is requested.
-9. For temporal trends, use a temporal or ordered x-axis and a readable time unit when needed.
-10. For high-cardinality categories, avoid unreadable color legends; prefer top-k, facet, horizontal bars, filtering, or larger layout.
-11. Axis and legend titles must name the source field and aggregation/time unit when used.
-12. Add informative tooltips, but do not rely on tooltip for required visual meaning.
-13. If previous technical validation feedback is provided, fix those exact errors.
-14. If previous PNG-only visual feedback is provided, change the visible chart so the missing requirement is visible.
-15. If Query request analysis includes ranking_strategy or scale_strategy=normalized_severity and prepared severity fields are available, use severity fields for ranking/problem detection while keeping original metrics in tooltip.
-16. Do not compare different-scale raw metrics on a shared quantitative axis; use normalized severity, independent facets, or separate views.
-17. If overall_severity is available and ranking_strategy=top_n_highest_severity, the main visible quantitative channel must use overall_severity and must sort by highest severity.
-18. Raw source metrics for severity-based tasks should be shown in tooltip or separate details, not as the main shared-axis grouped chart.
-19. When using Vega-Lite repeat, keep repeat dynamic: top-level repeat lists define panel fields, encoding.field={{"repeat":"column"}} or {{"repeat":"row"}} is replaced by Vega-Lite at render time, and panel headers name the concrete metric. Do not replace repeat references with fixed field names inside the nested spec. Do not create generic repeated titles such as "Repeated metrics" or "Metric"; the chart title must name the repeated fields or the analytical role, while axis titles should say that the panel header identifies the metric.
-20. Do not force x-axis label rotation. Leave labelAngle unset unless labels demonstrably cannot fit; runtime layout policies may rotate only after measuring available width.
+Core generation rules:
+1. Use only safe field names from the schema block; never invent fields.
+2. Preserve requested fields on visible channels; tooltip-only evidence is not enough.
+3. Use channel aggregate/bin/timeUnit/sort/stack instead of unnecessary transforms.
+4. Show requested grouping through color, row, column, facet, shape, xOffset, or an axis.
+5. Avoid shared raw axes for incompatible metrics; use normalized severity, independent panels, or separate views.
+6. If overall_severity is available for top-problem requests, rank by it and keep raw metrics in tooltip/details.
+7. For repeat/facet, keep Vega-Lite dynamic: repeat.field is substituted by Vega-Lite at render time. Do not replace repeat references with fixed fields inside the nested spec. Titles and headers must be informative, not "Repeated metrics", "Metric", or "Value" alone.
+8. Do not force x-axis labelAngle; leave it unset unless labels demonstrably cannot fit.
 """
 
 
 def _dataset_contract(data_profile: DataProfile | None, prepared: DataPreparationResult) -> str:
     lines = ["Dataset schema and safe field names:"]
     if data_profile is not None:
-        lines.append(DataProfilePromptFormatter.for_chart_generation(data_profile))
+        lines.append(DataProfilePromptFormatter.for_chart_generation(data_profile, max_columns=18))
     else:
-        for safe in prepared.safe_columns:
+        for safe in prepared.safe_columns[:18]:
             original = prepared.reverse_column_name_map.get(safe, safe)
             lines.append(f"- original={original!r}; safe={safe!r}; type=unknown; role=unknown")
     if prepared.column_name_map:
         compact_mapping = {original: safe for original, safe in prepared.column_name_map.items() if original != safe}
         if compact_mapping:
             lines.append("Column mapping original -> safe:")
-            lines.append(json.dumps(compact_mapping, ensure_ascii=False, indent=2))
+            lines.append(json.dumps(compact_mapping, ensure_ascii=False, separators=(",", ":")))
     derived_fields = [field for field in prepared.safe_columns if field not in set(prepared.reverse_column_name_map)]
     if derived_fields:
-        lines.append("Prepared derived fields available for chart generation:")
-        for field in derived_fields:
-            lines.append(f"- safe={field!r}; role=derived_metric")
+        lines.append("Prepared derived fields:")
+        lines.extend(f"- {field!r}" for field in derived_fields[:18])
     return "\n".join(lines)
 
 
@@ -106,51 +94,42 @@ def _request_contract(request: SpecGenerationRequest) -> str:
     if analysis is not None:
         safe_selected = [_to_safe(field, request.prepared) for field in analysis.selected_fields]
         payload = {
-            "normalized_query": analysis.normalized_query,
             "analysis_task": analysis.analysis_task,
-            "selected_original_fields": analysis.selected_fields,
             "selected_safe_fields": safe_selected,
-            "field_bindings": {key: value.model_dump() for key, value in analysis.field_bindings.items()},
             "aggregation_plan": analysis.aggregation_plan,
             "metric_semantics": analysis.metric_semantics,
             "ranking_strategy": analysis.ranking_strategy,
             "scale_strategy": analysis.scale_strategy,
-            "visual_constraints": analysis.visual_constraints,
-            "comparison_group_id": analysis.comparison_group_id,
+            "visual_constraints": analysis.visual_constraints[:8],
             "chart_answerability": analysis.chart_answerability,
-            "assumptions": analysis.assumptions,
-            "ambiguity": analysis.ambiguity.model_dump(),
         }
-        lines.append("Query request analysis:")
-        lines.append(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+        lines.append("Query request analysis JSON:")
+        lines.append(_truncate_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str),
+            _REQUEST_ANALYSIS_CHAR_BUDGET,
+        ))
     return "\n".join(lines)
 
 
 def _chartsquared_generation_contract(request: SpecGenerationRequest) -> str:
-    """Add ChartSquared-style pre-generation criteria without adding a new runtime module."""
     requirements = dict(getattr(request, "visual_judge_requirements", {}) or {})
     analysis = request.query_request_analysis
     payload = {
         "analysis_task": analysis.analysis_task if analysis is not None else None,
         "aggregation_plan": analysis.aggregation_plan if analysis is not None else {},
-        "chart_answerability": analysis.chart_answerability if analysis is not None else {},
-        "must_be_visible": requirements.get("must_be_visible", []),
+        "must_be_visible": requirements.get("must_be_visible", [])[:8],
         "acceptable_visual_encodings": requirements.get("acceptable_visual_encodings", {}),
-        "critical_failures_to_avoid": requirements.get("critical_failures", []),
-        "yes_no_questions_to_satisfy_visually": requirements.get("yes_no_questions", [])[:8],
+        "critical_failures": requirements.get("critical_failures", [])[:8],
+        "yes_no_questions": requirements.get("yes_no_questions", [])[:6],
     }
     if not any(payload.values()):
         return (
-            "ChartSquared-style pre-generation checklist:\n"
-            "Before writing the JSON, derive a visual checklist from the user request and make the static chart "
-            "satisfy it: required fields must be visible, required grouping must be visible, and the chosen chart "
-            "family must match the analytical task. Do not hide required meaning only in tooltip."
+            "Pre-generation visual checklist: required fields and grouping must be visible; "
+            "the chart family must fit the analytical task; tooltip-only meaning is insufficient."
         )
     return (
-            "ChartSquared-style pre-generation checklist. The generated static PNG must satisfy these visible criteria; "
-            "avoid every critical failure before relying on retry loops. If VisRAG includes a selected analytical task contract, "
-            "do not replace that task with another task:\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        "Pre-generation visual checklist JSON. Satisfy these visible criteria before retry loops:\n"
+        + _truncate_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str), _CHECKLIST_CHAR_BUDGET)
     )
 
 
@@ -164,35 +143,31 @@ def _validation_feedback_contract(request: SpecGenerationRequest) -> str:
             f"Generation attempt: {request.generation_attempt_number} of {request.max_generation_attempts}.\n"
             "No previous validation errors for this attempt."
         )
-
     payload: dict[str, Any] = {
-        "generation_attempt_number": request.generation_attempt_number,
-        "max_generation_attempts": request.max_generation_attempts,
-        "previous_validation_errors": request.previous_validation_errors,
-        "previous_repair_hints": request.previous_repair_hints,
-        "previous_invalid_spec_without_large_data": _strip_data(request.previous_invalid_spec or {}),
+        "attempt": request.generation_attempt_number,
+        "max_attempts": request.max_generation_attempts,
+        "errors": request.previous_validation_errors,
+        "repair_hints": request.previous_repair_hints,
+        "invalid_spec": _strip_data(request.previous_invalid_spec or {}),
     }
     return (
-            "Previous spec validation failed. Generate a corrected Vega-Lite spec.\n"
-            "Validation feedback for this retry:\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        "Previous spec validation failed. Correct the exact technical errors:\n"
+        + _truncate_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str), _VALIDATION_FEEDBACK_CHAR_BUDGET)
     )
 
 
 def _semantic_feedback_contract(request: SpecGenerationRequest) -> str:
     if not request.previous_semantic_feedback and not request.previous_chart_facts:
         return "No previous semantic visual feedback for this attempt."
-
     payload: dict[str, Any] = {
-        "generation_attempt_number": request.generation_attempt_number,
-        "max_generation_attempts": request.max_generation_attempts,
-        "previous_semantic_feedback": request.previous_semantic_feedback,
-        "previous_chart_facts": request.previous_chart_facts[-3:],
+        "attempt": request.generation_attempt_number,
+        "max_attempts": request.max_generation_attempts,
+        "semantic_feedback": request.previous_semantic_feedback,
+        "chart_facts": request.previous_chart_facts[-3:],
     }
     return (
-            "Previous rendered chart was technically valid but did not sufficiently answer the user request. "
-            "Generate a new Vega-Lite spec that addresses the semantic feedback below.\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        "Previous rendered chart was technically valid but did not sufficiently answer the user request. Address this feedback:\n"
+        + _truncate_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str), _SEMANTIC_FEEDBACK_CHAR_BUDGET)
     )
 
 
@@ -202,14 +177,8 @@ def _visrag_context(visrag, *, max_context_chars: int) -> str:
     text = visrag.generation_guidance.prompt_text.strip()
     if not text:
         return "No VisRAG guidance was retrieved for this generation run."
-    header = (
-        "Retrieved VisRAG guidance. Use it as rules and constraints only; "
-        "do not copy any external Vega-Lite specification from RAG.\n"
-    )
-    payload = header + text
-    if len(payload) > max_context_chars:
-        return payload[:max_context_chars] + "\n[VisRAG guidance truncated]"
-    return payload
+    header = "Retrieved VisRAG guidance: use as constraints only; do not copy external specs.\n"
+    return _truncate_text(header + text, min(max_context_chars, _VISRAG_CONTEXT_CHAR_BUDGET))
 
 
 def _strip_data(value: Any) -> Any:
@@ -218,6 +187,15 @@ def _strip_data(value: Any) -> Any:
     if isinstance(value, list):
         return [_strip_data(item) for item in value]
     return value
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    value = text or ""
+    if len(value) <= max_chars:
+        return value
+    return value[: max(0, max_chars - 24)].rstrip() + "\n[truncated]"
 
 
 def _output_contract() -> str:

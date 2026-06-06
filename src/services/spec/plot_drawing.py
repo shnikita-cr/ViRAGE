@@ -14,6 +14,7 @@ from src.services.base import BaseService
 from src.services.data import read_dataframe
 from src.services.chart_quality import ChartQualityEvaluator, ChartQualityPipeline, ChartQualityThresholds
 from src.services.rendering import ChartRenderPolicy
+from src.services.spec.data_injection import spec_with_inline_data
 
 
 @dataclass(frozen=True)
@@ -119,11 +120,6 @@ class VegaLitePlotDrawingService(BaseService):
             raise RuntimeError('Validated Vega-Lite spec must contain a non-empty data.url.')
         return data_url
 
-    @staticmethod
-    def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
-        clone = deepcopy(spec)
-        clone['data'] = {'values': df.where(pd.notna(df), None).to_dict(orient='records')}
-        return clone
 
     @staticmethod
     def _apply_render_policy(

@@ -17,6 +17,11 @@ from src.services.planning.planning_guidance import PlanningGuidanceService
 
 logger = logging.getLogger(__name__)
 
+_PROMPT_CHAR_BUDGET = 12000
+_PLANNING_GUIDANCE_CHAR_BUDGET = 1800
+_DATA_PROFILE_CHAR_BUDGET = 4200
+_USER_CONTEXT_CHAR_BUDGET = 800
+
 
 @dataclass(frozen=True)
 class _ParsedAnalysisPlan:
@@ -194,12 +199,22 @@ class AnalysisPlanner:
             data_profile=data_profile,
             input_type=input_type,
         )
+        compact_schema = {
+            "required_top_level_keys": ["subtasks", "skipped_candidates", "rationale"],
+            "subtask_required_keys": [
+                "id", "task_type", "query", "purpose", "required_fields", "optional_fields",
+                "priority", "constraints", "rationale",
+            ],
+            "allowed_task_types": allowed_analysis_task_types(),
+            "field_rule": "required_fields and optional_fields must use exact available_fields values only",
+            "max_charts": self.max_charts,
+        }
         return (
-            "\nStrict JSON schema requirements for AnalysisPlan:\n"
-            "Return one raw JSON object matching this Pydantic schema. No markdown. No XML. No comments.\n"
-            f"{json.dumps(AnalysisPlan.model_json_schema(), ensure_ascii=False, indent=2)}\n\n"
-            "Example shape using available fields only:\n"
-            f"{json.dumps(example, ensure_ascii=False, indent=2, default=str)}\n"
+            "Strict AnalysisPlan JSON contract:\n"
+            "Return one raw JSON object. No markdown, XML, comments, or prose.\n"
+            f"{json.dumps(compact_schema, ensure_ascii=False, separators=(',', ':'))}\n"
+            "Example using available fields only:\n"
+            f"{json.dumps(example, ensure_ascii=False, separators=(',', ':'), default=str)}\n"
         )
 
     def _prompt(
@@ -225,30 +240,25 @@ class AnalysisPlanner:
             "allowed_controlled_values": analysis_plan_contract_metadata(),
             "available_fields": [column.name for column in data_profile.columns],
         }
-        return (
-            "You are a scientific data analysis planner. Build one strict AnalysisPlan JSON object for one dataset.\n"
-            "The plan will be executed directly. Return raw JSON only: no markdown fences, no comments, no XML, no explanatory text.\n"
-            "Use the user request and compact DataProfile only. Do not infer fields that are not listed.\n\n"
-            "Planning contract:\n"
-            f"1. Produce between 1 and {self.max_charts} subtasks. Never produce more than max_charts.\n"
-            "2. Every subtask.required_fields must be non-empty and must contain only exact field names from available_fields.\n"
-            "3. Every optional_fields entry must also be an exact available field name.\n"
-            "4. task_type must be one of the allowed task types.\n"
-            "5. skipped_candidates is mandatory. Use it to document relevant task types considered but not selected.\n"
-            "6. skipped_candidates.required_fields may be empty when no concrete existing field combination supports the skipped task.\n"
-            "7. Do not choose chart families. Do not recommend chart types. Select analytical subtasks and fields only.\n"
-            "8. For image_folder input, use only columns generated in the image metrics table. If every IQA metric column is unusable or absent, do not select it.\n"
-            "9. If the request is broad EDA, select the most useful complementary subtasks, not duplicate views.\n"
-            "10. If the request is specific, prioritize the requested analytical task and include other subtasks only when they are clearly useful.\n"
-            "11. Use retrieved planning guidance to define metric_semantics, ranking_strategy, scale_strategy and visual_constraints when relevant. metric_semantics keys must be exact available field names.\n"
-            "12. For problematic-item or quality requests, plan ranking/severity views instead of raw all-items multi-metric charts.\n"
-            "13. Do not put different-scale metrics on one shared quantitative axis. Plan normalized severity or independent panels.\n\n"
-            f"Authoritative metadata JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}\n\n"
+        prompt = (
+            "Role: scientific data analysis planner. Select 1-3 executable analytical subtasks for one dataset.\n"
+            "Output: raw AnalysisPlan JSON only. No markdown fences, no comments, no prose.\n"
+            "Use only listed fields. Do not infer missing columns. Do not choose chart families.\n\n"
+            "Rules:\n"
+            f"1. Produce 1..{self.max_charts} subtasks.\n"
+            "2. required_fields must be non-empty and must use exact available_fields values.\n"
+            "3. optional_fields must also use exact available_fields values.\n"
+            "4. task_type must be allowed. skipped_candidates is mandatory.\n"
+            "5. Prefer complementary subtasks; avoid duplicate views.\n"
+            "6. For quality/problem requests, plan ranking or normalized severity instead of raw mixed-scale axes.\n\n"
+            f"Metadata JSON:\n{json.dumps(payload, ensure_ascii=False, separators=(',', ':'), default=str)}\n\n"
             f"User request:\n{user_query.strip()}\n\n"
-            f"User context:\n{context_lines}\n\n"
-            f"Retrieved planning guidance:\n{planning_guidance or 'No planning guidance retrieved.'}\n\n"
-            f"Compact DataProfile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile, max_columns=40)}\n"
+            f"User context:\n{_truncate_text(context_lines, _USER_CONTEXT_CHAR_BUDGET)}\n\n"
+            f"Planning guidance:\n{_truncate_text(planning_guidance or 'No planning guidance retrieved.', _PLANNING_GUIDANCE_CHAR_BUDGET)}\n\n"
+            "Compact DataProfile:\n"
+            f"{_truncate_text(DataProfilePromptFormatter.for_query_analysis(data_profile, max_columns=24), _DATA_PROFILE_CHAR_BUDGET)}\n"
         )
+        return _truncate_text(prompt, _PROMPT_CHAR_BUDGET)
 
     def _example_payload(
             self,
@@ -295,3 +305,12 @@ class AnalysisPlanner:
             ],
             "rationale": ["The plan uses exact DataProfile fields and stays within max_charts."],
         }
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    normalized = text or ""
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max(0, max_chars - 24)].rstrip() + "\n[truncated]"

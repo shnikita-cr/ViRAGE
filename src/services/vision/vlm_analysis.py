@@ -73,18 +73,14 @@ class VLMAnalysisService(BaseService):
 
     @staticmethod
     def _prompt(analysis_rubric: AnalysisRubric) -> str:
+        rubric_json = analysis_rubric.model_dump_json()
+        if len(rubric_json) > 1800:
+            rubric_json = rubric_json[:1776].rstrip() + "\n[truncated]"
         return (
-            "You are VLMChartAnalysisAI. Analyze only the accepted rendered chart image. "
-            "Do not decide whether the chart must be regenerated; that is handled by VisualChartJudgeAI. "
-            "Do not assume access to the source table. Extract useful, chart-grounded insights for the user.\n\n"
-            f"Analysis rubric JSON:\n{analysis_rubric.model_dump_json(indent=2)}\n\n"
-            "Return structured JSON with:\n"
-            "- summary: one concise overview of what the chart shows;\n"
-            "- key_findings: useful findings grounded in visible chart evidence;\n"
-            "- caveats: limits of interpretation from the chart only;\n"
-            "- suggested_followup_questions: useful next analytical questions;\n"
-            "- visual_observations: neutral visible observations;\n"
-            "- extracted_visual_facts: facts visible in the chart;\n"
-            "- confidence: 0..1.\n"
-            "If labels, legends, or axes are unreadable, mention this as a caveat, but do not request retry."
+            "Role: expert scientific chart analyst. Analyze only the attached accepted chart image. "
+            "You cannot see the source table, hidden data, or tooltips. Do not request regeneration.\n\n"
+            f"Rubric JSON:\n{rubric_json}\n\n"
+            "Return structured JSON: summary, key_findings, caveats, suggested_followup_questions, "
+            "visual_observations, extracted_visual_facts, confidence. Ground every finding in visible chart evidence. "
+            "If labels, legends, or axes are unreadable, state that as a caveat."
         )

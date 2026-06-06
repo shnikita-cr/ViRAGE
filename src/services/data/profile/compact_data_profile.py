@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from src.application.config.settings import ViRAGESettings
-from src.domain.models import DataPreparationResult, DataProfile, RequestAnalysisResult
+from src.domain.models import DataPreparationResult, DataProfile, QueryRequestAnalysisResult
 from src.services.base import BaseService
 
 _SERVICE_COLUMN_RE = re.compile(
@@ -24,7 +24,7 @@ class CompactDataProfileService(BaseService):
             self,
             data_profile: DataProfile,
             prepared: DataPreparationResult | None = None,
-            request_analysis: RequestAnalysisResult | None = None,
+            request_analysis: QueryRequestAnalysisResult | None = None,
             *,
             settings: ViRAGESettings,
     ) -> dict[str, Any]:

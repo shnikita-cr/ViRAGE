@@ -172,8 +172,9 @@ class VisualChartJudgeService(BaseService):
             },
         }
         payload_text = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
-        if len(payload_text) > prompt_max_chars:
-            payload_text = payload_text[:prompt_max_chars] + "\n... truncated ..."
+        payload_limit = min(prompt_max_chars, 2400)
+        if len(payload_text) > payload_limit:
+            payload_text = payload_text[:payload_limit] + "\n... truncated ..."
 
         chartsquared_rules = ""
         if use_chartsquared:
@@ -182,25 +183,16 @@ class VisualChartJudgeService(BaseService):
                 requirements=requirements,
                 max_questions=chartsquared_max_eval_questions,
             )
-            chartsquared_rules = block.text
+            chartsquared_rules = block.text[:1400]
         return (
-            "You are a visual chart quality and answerability evaluator. Judge only the attached chart image.\n"
-            "Do not infer from the source table, Vega-Lite specification, hidden data, tooltip, or intended code. "
-            "If a required element is not visible in the PNG, mark it as missing and request a retry.\n"
+            "Role: visual chart quality evaluator. Judge only the attached PNG. "
+            "Do not infer from source tables, Vega-Lite specs, hidden data, or tooltips.\n"
             f"{chartsquared_rules}\n"
-            "Set retry_recommendation='accept' only when the image visibly answers the user request and no critical "
-            "visual requirement fails. Set retry_recommendation='retry' when the chart can be repaired. "
-            "Set retry_recommendation='reject' only when the image is unusable.\n"
-            "Critical rules: required axes, fields, legends, facet/grouping, trend/comparison/distribution/relationship "
-            "must be visible and readable. Tooltip-only evidence is not acceptable for this static-image judge.\n"
-            "Also judge publication-oriented layout quality with separate 0..1 scores: "
-            "plot_area_usage_score, axis_domain_score, layout_compactness_score, repeat_axis_label_score, "
-            "and publication_layout_score. Penalize charts where data occupy only a small visible part of the plot, "
-            "axis domains create excessive empty area or hide variation, a small number of categories is spread across "
-            "an unnecessarily wide canvas, repeat/facet panels lack clear metric or panel labels, or the static figure "
-            "would require manual cropping/relabeling before use in a paper. "
-            "List concrete issues in the matching *_issues fields.\n"
-            "Return concrete feedback for the next chart generation whenever retry is needed.\n\n"
+            "Decision: accept only if the image visibly answers the request and no critical visual requirement fails; "
+            "retry if repairable; reject only if unusable. Required axes, fields, legends, grouping/facet, trends, "
+            "comparisons, distributions, and relationships must be visible and readable. Tooltip-only evidence is not acceptable.\n"
+            "Score plot_area_usage_score, axis_domain_score, layout_compactness_score, repeat_axis_label_score, publication_layout_score from 0..1. "
+            "List concrete *_issues and feedback_for_next_generation when retry is needed.\n\n"
             f"PNG-only judge payload:\n{payload_text}\n"
         )
 

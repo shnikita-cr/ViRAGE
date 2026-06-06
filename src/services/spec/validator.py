@@ -239,7 +239,7 @@ class SpecValidatorService(BaseService):
 
         try:
             import altair as alt
-            alt.Chart.from_dict(cls._spec_add_data(spec, df.head()))
+            alt.Chart.from_dict(spec_with_inline_data(spec, df.head()))
             is_valid_schema = True
         except ImportError as exc:
             schema_error = f'Altair is unavailable; schema validation skipped: {exc}'
@@ -248,7 +248,7 @@ class SpecValidatorService(BaseService):
             schema_error = str(exc)
 
         try:
-            scenegraph = vlc.vegalite_to_scenegraph(vl_spec=cls._spec_add_data(spec, df), show_warnings=False)
+            scenegraph = vlc.vegalite_to_scenegraph(vl_spec=spec_with_inline_data(spec, df), show_warnings=False)
             is_valid_scenegraph = True
             is_empty_scenegraph = cls._is_chart_empty_scenegraph(scenegraph)
         except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
@@ -263,11 +263,6 @@ class SpecValidatorService(BaseService):
             'repair_hints': repair_hints,
         }
 
-    @staticmethod
-    def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
-        clone = deepcopy(spec)
-        clone['data'] = {'values': df.where(pd.notna(df), None).to_dict(orient='records')}
-        return clone
 
     @staticmethod
     def _get_scenegraph_field(scenegraph: dict, key: str, value: str) -> list[dict[str, Any]]:
