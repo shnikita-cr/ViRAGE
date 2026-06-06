@@ -15,6 +15,8 @@ from src.domain.models import (
 from src.infrastructure.runtime import RuntimeContext
 from src.orchestrator.contracts.planning_contract import MetricSemantic, RankingStrategy, ScaleStrategy, VisualConstraint
 from src.llm.helpers import invoke_structured
+from src.llm.model_runtime import runtime_profile_from_model
+from src.llm.prompt_budget import PromptSection, build_budgeted_prompt
 from src.services.base import BaseService
 from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
 
@@ -79,8 +81,7 @@ class _AmbiguitySchema(BaseModel):
 
 class _QueryRequestAnalysisSchema(BaseModel):
     normalized_query: str = Field(
-        default="dataset analysis request",
-        min_length=1,
+        default="",
         validation_alias=AliasChoices("normalized_query", "canonical_query", "intent", "analytic_intent",
                                       "user_intent"),
     )
@@ -108,34 +109,25 @@ class _QueryRequestAnalysisSchema(BaseModel):
         if not isinstance(value, dict):
             return value
         data = dict(value)
+        if "field_bindings" not in data:
+            field_bindings = _field_binding_payloads(data)
+            if field_bindings:
+                data["field_bindings"] = field_bindings
         if "normalized_query" not in data:
-            for key in ("canonical_query", "intent", "analytic_intent", "user_intent"):
+            for key in ("canonical_query", "intent", "analytic_intent", "user_intent", "query"):
                 if isinstance(data.get(key), str) and data[key].strip():
                     data["normalized_query"] = data[key]
                     break
-
-        if "field_bindings" not in data:
-            inferred_bindings = {}
-            reserved = {
-                "normalized_query", "canonical_query", "intent", "analytic_intent", "user_intent",
-                "analysis_task", "selected_fields", "grounded_fields", "field_mappings", "mappings",
-                "aggregation_plan", "metric_semantics", "ranking_strategy", "scale_strategy",
-                "visual_constraints", "comparison_group_id", "visual_judge_requirements",
-                "query_variants", "chart_answerability", "assumptions", "ambiguity", "confidence",
-            }
-            for key, item in data.items():
-                if key in reserved or not isinstance(item, dict):
-                    continue
-                field_name = item.get("field")
-                if isinstance(field_name, str) and field_name.strip():
-                    inferred_bindings[str(key)] = item
-            if inferred_bindings:
-                data["field_bindings"] = inferred_bindings
-                data.setdefault("selected_fields", [item["field"] for item in inferred_bindings.values()])
         if "field_mappings" not in data and "mappings" in data:
             data["field_mappings"] = data["mappings"]
         if "selected_fields" not in data and "grounded_fields" in data:
             data["selected_fields"] = data.get("grounded_fields") or []
+        if "selected_fields" not in data and isinstance(data.get("field_bindings"), dict):
+            data["selected_fields"] = [
+                str(item.get("field", "")).strip()
+                for item in data["field_bindings"].values()
+                if isinstance(item, dict) and str(item.get("field", "")).strip()
+            ]
         if "ambiguity" not in data:
             data["ambiguity"] = {
                 "missing_fields": data.get("missing_fields") or [],
@@ -145,6 +137,64 @@ class _QueryRequestAnalysisSchema(BaseModel):
         data.setdefault("confidence", 0.65)
         return data
 
+    @model_validator(mode="after")
+    def _require_meaningful_payload(self) -> "_QueryRequestAnalysisSchema":
+        has_content = any(
+            [
+                self.normalized_query.strip(),
+                self.selected_fields,
+                self.field_bindings,
+                self.field_mappings,
+                self.aggregation_plan,
+                self.metric_semantics,
+                self.query_variants,
+            ]
+        )
+        if not has_content:
+            raise ValueError("Query analysis response must contain query intent or schema-grounded fields.")
+        return self
+
+
+
+def _field_binding_payloads(data: dict[str, Any]) -> dict[str, Any]:
+    reserved_keys = {
+        "normalized_query",
+        "canonical_query",
+        "intent",
+        "analytic_intent",
+        "user_intent",
+        "query",
+        "analysis_task",
+        "selected_fields",
+        "grounded_fields",
+        "field_bindings",
+        "field_mappings",
+        "mappings",
+        "aggregation_plan",
+        "metric_semantics",
+        "ranking_strategy",
+        "scale_strategy",
+        "visual_constraints",
+        "comparison_group_id",
+        "visual_judge_requirements",
+        "query_variants",
+        "chart_answerability",
+        "assumptions",
+        "ambiguity",
+        "missing_fields",
+        "ambiguity_notes",
+        "ambiguity_report",
+        "confidence",
+    }
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        key_text = str(key).strip()
+        if not key_text or key_text in reserved_keys or not isinstance(value, dict):
+            continue
+        field = str(value.get("field") or value.get("column_name") or "").strip()
+        if field:
+            result[key_text] = {**value, "field": field, "role": str(value.get("role") or key_text).strip()}
+    return result
 
 def _merge_dicts(*values: Any) -> dict[str, Any]:
     result: dict[str, Any] = {}
@@ -175,7 +225,7 @@ class QueryRequestAnalyzerService(BaseService):
             raise RuntimeError("QueryRequestAnalyzerService requires runtime.reasoning_llm.")
         parsed = invoke_structured(
             runtime.reasoning_llm,
-            self._prompt(query, user_context, data_profile),
+            self._prompt(query, user_context, data_profile, runtime),
             _QueryRequestAnalysisSchema,
             runtime=runtime,
             stage="query_request_analysis",
@@ -185,25 +235,44 @@ class QueryRequestAnalyzerService(BaseService):
         )
         return self._build_result(parsed, query, user_context)
 
-    def _prompt(self, query: str, user_context: dict[str, Any], data_profile: DataProfile) -> str:
-        context_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(user_context.items())) or "- none"
-        return (
-            "You analyze one NL2VIS/data-visual-analysis request and ground it to the real dataset schema.\n"
-            "Return one strict JSON object matching the schema. Use exact original field names for selected_fields, "
-            "field_bindings.*.field, field_mappings.column_name, and ambiguity.missing_fields. Do not invent fields.\n"
-            "Do not generate Vega-Lite. Do not create rag_queries. Do not include generic chart-quality boilerplate.\n"
-            "The result must describe only the user intent: analysis_task, selected_fields, "
-            "field_bindings, aggregation_plan, metric_semantics, ranking_strategy, scale_strategy, visual_constraints, "
-            "visual_judge_requirements, query_variants, chart_answerability, assumptions, and ambiguity. "
-            "visual_judge_requirements must contain only criteria that can be checked from a static PNG chart. "
-            "Tooltip-only information is not visible.\n"
-            "query_variants are only for retrieval/debug. Prefer kinds: canonical, chart_pattern_retrieval, repair_rule_retrieval, analysis_rule_retrieval.\n"
-            "chart_answerability.status must be one of: answerable_by_chart, requires_computation, uncertain.\n"
-            "If user_context contains analysis_subtask, preserve its required fields, metric semantics, ranking strategy, scale strategy, and visual constraints unless they reference absent fields.\n\n"
-            f"User request:\n{query}\n\n"
-            f"User context:\n{context_lines}\n\n"
-            f"Dataset profile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile)}\n"
+    def _prompt(
+            self,
+            query: str,
+            user_context: dict[str, Any],
+            data_profile: DataProfile,
+            runtime: RuntimeContext,
+    ) -> str:
+        context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
+        profile = runtime_profile_from_model(runtime.reasoning_llm)
+        prompt, _ = build_budgeted_prompt(
+            [
+                PromptSection(
+                    "contract",
+                    (
+                        "You are a data analysis request interpreter. Ground one user request to the dataset schema. "
+                        "Return one strict JSON object only. Use exact field names. Do not invent fields. "
+                        "Do not generate Vega-Lite or RAG queries. visual_judge_requirements must describe only "
+                        "criteria visible in a static PNG chart; tooltip-only data is not visible. "
+                        "chart_answerability.status: answerable_by_chart, requires_computation, or uncertain. "
+                        "If analysis_subtask is present, preserve its valid fields, metric semantics, ranking strategy, "
+                        "scale strategy, and visual constraints."
+                    ),
+                    min_tokens=180,
+                    priority=0,
+                ),
+                PromptSection("user_request", f"User request:\n{query}", min_tokens=128, priority=0),
+                PromptSection("user_context", f"User context:\n{context_lines}", min_tokens=128, priority=2),
+                PromptSection(
+                    "dataset_profile",
+                    f"Dataset profile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile)}",
+                    min_tokens=512,
+                    priority=3,
+                ),
+            ],
+            profile=profile,
+            budget_tokens=profile.section_budget("query_request"),
         )
+        return prompt
 
     def _build_result(self, parsed: _QueryRequestAnalysisSchema, original_query: str, user_context: dict[str, Any]) -> QueryRequestAnalysisResult:
         subtask = user_context.get("analysis_subtask") if isinstance(user_context, dict) else None
@@ -215,7 +284,7 @@ class QueryRequestAnalyzerService(BaseService):
             confidence=parsed.ambiguity.confidence,
         )
         return QueryRequestAnalysisResult(
-            normalized_query=(parsed.normalized_query.strip() if parsed.normalized_query.strip() != "dataset analysis request" else original_query.strip()),
+            normalized_query=parsed.normalized_query.strip() or original_query.strip(),
             analysis_task=parsed.analysis_task.strip() or "descriptive_analytics",
             selected_fields=selected_fields,
             field_bindings={

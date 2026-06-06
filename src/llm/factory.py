@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.application.config.bootstrap import bootstrap_project_environment
 from src.application.config.project_config import ModelRoleConfig
 from src.application.config.settings import ViRAGESettings
-from src.llm.model_runtime import build_model_runtime_profile
+from src.llm.model_runtime import attach_runtime_profile, build_model_runtime_profile
 
 
 def build_chat_model(config: ModelRoleConfig, settings: ViRAGESettings | None = None, *, role: str = "reasoning") -> object:
@@ -12,7 +12,7 @@ def build_chat_model(config: ModelRoleConfig, settings: ViRAGESettings | None = 
     if provider == "ollama":
         return _build_ollama_model(config, settings, role=role)
     if provider == "openai":
-        return _build_openai_model(config)
+        return _build_openai_model(config, settings, role=role)
     if provider == "huggingface":
         return _build_huggingface_model(config)
     raise ValueError(f"Unsupported model provider: {config.provider}")
@@ -41,10 +41,10 @@ def _build_ollama_model(config: ModelRoleConfig, settings: ViRAGESettings | None
     }
     if config.base_url:
         kwargs["base_url"] = config.base_url
-    return ChatOllama(**kwargs)
+    return attach_runtime_profile(ChatOllama(**kwargs), runtime_profile)
 
 
-def _build_openai_model(config: ModelRoleConfig) -> object:
+def _build_openai_model(config: ModelRoleConfig, settings: ViRAGESettings | None, *, role: str) -> object:
     try:
         from langchain_openai import ChatOpenAI
     except ImportError as exc:
@@ -62,12 +62,12 @@ def _build_openai_model(config: ModelRoleConfig) -> object:
         "model": config.model,
         "temperature": config.temperature,
         "timeout": config.timeout_seconds,
-        "num_ctx": runtime_profile.num_ctx,
-        "num_predict": runtime_profile.max_output_tokens,
     }
+    if config.max_output_tokens is not None:
+        kwargs["max_tokens"] = config.max_output_tokens
     if config.base_url:
         kwargs["base_url"] = config.base_url
-    return ChatOpenAI(**kwargs)
+    return attach_runtime_profile(ChatOpenAI(**kwargs), runtime_profile)
 
 
 def _build_huggingface_model(config: ModelRoleConfig) -> object:
