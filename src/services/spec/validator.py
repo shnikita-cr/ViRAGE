@@ -4,7 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable
 
-import pandas as pd
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.infrastructure.runtime import RuntimeContext
@@ -244,15 +244,15 @@ class SpecValidatorService(BaseService):
         except ImportError as exc:
             schema_error = f'Altair is unavailable; schema validation skipped: {exc}'
             repair_hints.append(schema_error)
-        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
-            schema_error = str(exc)
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError, JsonSchemaValidationError) as exc:
+            schema_error = f"Vega-Lite schema validation failed: {exc}"
 
         try:
             scenegraph = vlc.vegalite_to_scenegraph(vl_spec=spec_with_inline_data(spec, df), show_warnings=False)
             is_valid_scenegraph = True
             is_empty_scenegraph = cls._is_chart_empty_scenegraph(scenegraph)
-        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
-            scenegraph_error = str(exc)
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError, JsonSchemaValidationError) as exc:
+            scenegraph_error = f"Vega-Lite runtime validation failed: {exc}"
 
         return {
             'is_valid_schema': is_valid_schema,
@@ -262,7 +262,6 @@ class SpecValidatorService(BaseService):
             'scenegraph_error': scenegraph_error,
             'repair_hints': repair_hints,
         }
-
 
     @staticmethod
     def _get_scenegraph_field(scenegraph: dict, key: str, value: str) -> list[dict[str, Any]]:

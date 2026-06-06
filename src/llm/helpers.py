@@ -13,6 +13,8 @@ from pydantic import BaseModel, ValidationError
 
 from src.domain.models import ModelCallLog, TokenUsage
 from src.llm.structured_response import extract_json_text, structured_json_payload
+from src.llm.model_runtime import runtime_profile_from_model
+from src.llm.prompt_budget import compact_text_to_tokens, prompt_budget_report
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -123,6 +125,11 @@ def _record(
         return
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
     structured_input = structured_json_payload(prompt_text)
+    profile = runtime_profile_from_model(llm)
+    budget_report = prompt_budget_report(prompt_text, profile)
+    structured_input["prompt_budget"] = budget_report.as_dict()
+    if profile is not None:
+        structured_input["model_runtime_profile"] = profile.as_dict()
     structured_output = structured_json_payload(raw_text, parsed_preview)
     runtime.add_model_call_log(
         ModelCallLog(
@@ -139,6 +146,11 @@ def _record(
             attempt_number=max(1, attempt_number),
             parser_errors=list(parser_errors),
             token_usage=usage,
+            num_ctx=budget_report.num_ctx,
+            prompt_budget_tokens=budget_report.prompt_budget_tokens,
+            estimated_prompt_tokens=budget_report.estimated_prompt_tokens,
+            was_compressed=budget_report.was_compressed,
+            compression_notes=budget_report.compression_notes,
             duration_ms=duration_ms,
             duration_seconds=round(duration_ms / 1000, 6),
             started_at=started_at,

@@ -15,6 +15,8 @@ from src.domain.models import (
 from src.infrastructure.runtime import RuntimeContext
 from src.orchestrator.contracts.planning_contract import MetricSemantic, RankingStrategy, ScaleStrategy, VisualConstraint
 from src.llm.helpers import invoke_structured
+from src.llm.model_runtime import runtime_profile_from_model
+from src.llm.prompt_budget import PromptSection, build_budgeted_prompt
 from src.services.base import BaseService
 from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
 
@@ -155,7 +157,7 @@ class QueryRequestAnalyzerService(BaseService):
             raise RuntimeError("QueryRequestAnalyzerService requires runtime.reasoning_llm.")
         parsed = invoke_structured(
             runtime.reasoning_llm,
-            self._prompt(query, user_context, data_profile),
+            self._prompt(query, user_context, data_profile, runtime),
             _QueryRequestAnalysisSchema,
             runtime=runtime,
             stage="query_request_analysis",

@@ -1,6 +1,7 @@
 mode = "streamlit"
 
 [settings]
+gpu_ram_gb = 8.0
 analytics_tail_enabled = false
 
 [reasoning_model]

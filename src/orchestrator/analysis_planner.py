@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
-from dataclasses import dataclass
 from typing import Any
 
 from pydantic import ValidationError
@@ -10,24 +8,12 @@ from pydantic import ValidationError
 from src.domain.models import DataProfile
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_text
+from src.llm.model_runtime import runtime_profile_from_model
+from src.llm.prompt_budget import PromptSection, build_budgeted_prompt, compact_text_to_tokens
 from src.llm.structured_response import extract_structured_json
 from src.orchestrator.contracts.models import AnalysisPlan, analysis_plan_contract_metadata, allowed_analysis_task_types
-from src.orchestrator.contracts.planning_contract import requires_severity_fields, supports_severity_scale
 from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
 from src.services.planning.planning_guidance import PlanningGuidanceService
-
-logger = logging.getLogger(__name__)
-
-_PROMPT_CHAR_BUDGET = 12000
-_PLANNING_GUIDANCE_CHAR_BUDGET = 1800
-_DATA_PROFILE_CHAR_BUDGET = 4200
-_USER_CONTEXT_CHAR_BUDGET = 800
-
-
-@dataclass(frozen=True)
-class _ParsedAnalysisPlanPayload:
-    payload: dict[str, Any]
-    parse_mode: str
 
 
 class AnalysisPlanner:
@@ -75,6 +61,7 @@ class AnalysisPlanner:
             runtime=runtime,
             input_type=input_type,
         )
+        profile = runtime_profile_from_model(llm)
         prompt = self._prompt(
             user_query=user_query,
             data_path=data_path,
@@ -84,6 +71,7 @@ class AnalysisPlanner:
             original_input_path=original_input_path,
             preprocessing_report_path=preprocessing_report_path,
             planning_guidance=planning_guidance,
+            prompt_profile=profile,
         )
         available_fields = {column.name for column in data_profile.columns}
         errors: list[str] = []
@@ -97,20 +85,20 @@ class AnalysisPlanner:
                 role="reasoning",
             )
             try:
-                parsed = self._parse_plan_json(raw_response)
-                self._log_parse_mode(parsed.parse_mode)
-                plan_payload = self._prepare_plan_payload(
-                    payload=parsed.payload,
+                plan_payload = self._parse_plan_payload(raw_response)
+                plan_payload = self._normalize_plan_payload(
+                    plan_payload,
                     user_query=user_query,
                     data_path=data_path,
                     input_type=input_type,
                     original_input_path=original_input_path,
                     preprocessing_report_path=preprocessing_report_path,
+                    max_charts=self.max_charts,
                 )
                 plan = AnalysisPlan.model_validate(plan_payload)
                 plan.validate_against_available_fields(available_fields)
                 return plan
-            except (ValidationError, ValueError) as exc:
+            except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                 errors.append(f"attempt {attempt_number}: {type(exc).__name__}: {exc}")
                 if attempt_number >= self.max_attempts:
                     break
@@ -143,115 +131,47 @@ class AnalysisPlanner:
         ).text
 
     @staticmethod
-    def _parse_plan_json(raw_response: str) -> _ParsedAnalysisPlanPayload:
-        text = (raw_response or "").strip()
-        if not text:
-            raise ValueError("Empty analysis planner response.")
-        try:
-            payload = json.loads(text)
-        except json.JSONDecodeError as strict_error:
-            return AnalysisPlanner._parse_extracted_plan(text, strict_error)
-        return _ParsedAnalysisPlanPayload(
-            payload=AnalysisPlanner._validate_plan_payload(payload),
-            parse_mode="raw",
-        )
-
-    @staticmethod
-    def _parse_extracted_plan(text: str, strict_error: json.JSONDecodeError) -> _ParsedAnalysisPlanPayload:
-        extraction = extract_structured_json(text)
+    def _parse_plan_payload(raw_response: str) -> dict[str, Any]:
+        extraction = extract_structured_json(raw_response)
         if extraction.error is not None:
-            raise ValueError(
-                "Analysis planner response is not raw JSON and no valid JSON object could be extracted. "
-                f"Strict JSON error: {strict_error}. Extraction error: {extraction.error}"
-            )
-        return _ParsedAnalysisPlanPayload(
-            payload=AnalysisPlanner._validate_plan_payload(extraction.payload),
-            parse_mode=extraction.mode,
-        )
+            raise ValueError(f"Analysis planner response does not contain valid JSON: {extraction.error}")
+        if not isinstance(extraction.payload, dict):
+            raise ValueError("Analysis planner response must be one JSON object.")
+        return dict(extraction.payload)
 
     @staticmethod
-    def _validate_plan_payload(payload: Any) -> dict[str, Any]:
-        if not isinstance(payload, dict):
-            raise ValueError("Analysis planner response must be one JSON object.")
-        return dict(payload)
-
-    def _prepare_plan_payload(
-            self,
-            *,
+    def _normalize_plan_payload(
             payload: dict[str, Any],
+            *,
             user_query: str,
             data_path: str,
             input_type: str,
             original_input_path: str | None,
             preprocessing_report_path: str | None,
+            max_charts: int,
     ) -> dict[str, Any]:
-        normalized = dict(payload)
-        normalized.update(
-            {
-                "user_query": user_query.strip(),
-                "data_path": data_path,
-                "input_type": input_type,
-                "original_input_path": original_input_path,
-                "preprocessing_report_path": preprocessing_report_path,
-                "max_charts": self.max_charts,
-            }
-        )
-        normalized["rationale"] = self._normalize_rationale(normalized.get("rationale"))
-        normalized.setdefault("skipped_candidates", [])
-        normalized["subtasks"] = self._normalize_subtasks(normalized.get("subtasks"))
-        return normalized
-
-    @staticmethod
-    def _normalize_rationale(value: Any) -> list[str]:
-        if isinstance(value, list):
-            items = [str(item).strip() for item in value if str(item).strip()]
-            return items or ["The plan was generated from the user request and available DataProfile fields."]
-        if isinstance(value, str) and value.strip():
-            return [value.strip()]
-        return ["The plan was generated from the user request and available DataProfile fields."]
-
-    @staticmethod
-    def _normalize_subtasks(value: Any) -> list[Any]:
-        if not isinstance(value, list):
-            return value
-        return [AnalysisPlanner._normalize_subtask_payload(item, index) for index, item in enumerate(value, start=1)]
-
-    @staticmethod
-    def _normalize_subtask_payload(value: Any, index: int) -> Any:
-        if not isinstance(value, dict):
-            return value
-        subtask = dict(value)
-        subtask.setdefault("optional_fields", [])
-        subtask.setdefault("constraints", {})
-        subtask.setdefault("metric_semantics", {})
-        subtask.setdefault("visual_constraints", [])
-        subtask.setdefault("priority", index)
-        subtask["required_fields"] = _normalize_string_list(subtask.get("required_fields"))
-        subtask["optional_fields"] = _normalize_string_list(subtask.get("optional_fields"))
-        if isinstance(subtask.get("rationale"), list):
-            subtask["rationale"] = "; ".join(str(item).strip() for item in subtask["rationale"] if str(item).strip())
-        AnalysisPlanner._normalize_severity_scale(subtask)
-        return subtask
-
-    @staticmethod
-    def _normalize_severity_scale(subtask: dict[str, Any]) -> None:
-        ranking_strategy = subtask.get("ranking_strategy")
-        scale_strategy = subtask.get("scale_strategy")
-        if not requires_severity_fields(ranking_strategy) or supports_severity_scale(scale_strategy):
-            return
-        subtask["scale_strategy"] = "normalized_severity"
-        constraints = _normalize_string_list(subtask.get("visual_constraints"))
-        constraints.append("use_normalized_severity_for_problem_ranking")
-        subtask["visual_constraints"] = list(dict.fromkeys(constraints))
-
-    @staticmethod
-    def _log_parse_mode(parse_mode: str) -> None:
-        if parse_mode == "raw":
-            return
-        logger.warning(
-            "Analysis planner response violated the raw JSON contract; parsed via %s.",
-            parse_mode,
-        )
+        data = dict(payload)
+        data.update({
+            "user_query": user_query.strip(),
+            "data_path": data_path,
+            "input_type": input_type,
+            "original_input_path": original_input_path,
+            "preprocessing_report_path": preprocessing_report_path,
+            "max_charts": max_charts,
+        })
+        if isinstance(data.get("rationale"), str):
+            data["rationale"] = [data["rationale"]]
+        for subtask in data.get("subtasks") or []:
+            if not isinstance(subtask, dict):
+                continue
+            ranking = str(subtask.get("ranking_strategy") or "")
+            scale = str(subtask.get("scale_strategy") or "")
+            if ranking in {"top_n_highest_severity", "top_n_lowest_quality", "problematic_items"} and scale == "raw_values":
+                subtask["scale_strategy"] = "normalized_severity"
+                constraints = dict(subtask.get("constraints") or {})
+                constraints.setdefault("visual_constraint", "use_normalized_severity_for_problem_ranking")
+                subtask["constraints"] = constraints
+        return data
 
     def _strict_json_schema_block(
             self,
@@ -266,22 +186,12 @@ class AnalysisPlanner:
             data_profile=data_profile,
             input_type=input_type,
         )
-        compact_schema = {
-            "required_top_level_keys": ["subtasks", "skipped_candidates", "rationale"],
-            "subtask_required_keys": [
-                "id", "task_type", "query", "purpose", "required_fields", "optional_fields",
-                "priority", "constraints", "rationale",
-            ],
-            "allowed_task_types": allowed_analysis_task_types(),
-            "field_rule": "required_fields and optional_fields must use exact available_fields values only",
-            "max_charts": self.max_charts,
-        }
         return (
-            "Strict AnalysisPlan JSON contract:\n"
-            "Return one raw JSON object. No markdown, XML, comments, or prose.\n"
-            f"{json.dumps(compact_schema, ensure_ascii=False, separators=(',', ':'))}\n"
-            "Example using available fields only:\n"
-            f"{json.dumps(example, ensure_ascii=False, separators=(',', ':'), default=str)}\n"
+            "\nStrict JSON schema requirements for AnalysisPlan:\n"
+            "Return one raw JSON object matching this Pydantic schema. No markdown. No XML. No comments.\n"
+            f"{json.dumps(AnalysisPlan.model_json_schema(), ensure_ascii=False, indent=2)}\n\n"
+            "Example shape using available fields only:\n"
+            f"{json.dumps(example, ensure_ascii=False, indent=2, default=str)}\n"
         )
 
     def _prompt(
@@ -295,6 +205,7 @@ class AnalysisPlanner:
             original_input_path: str | None,
             preprocessing_report_path: str | None,
             planning_guidance: str,
+            prompt_profile,
     ) -> str:
         context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
         payload = {
@@ -307,25 +218,30 @@ class AnalysisPlanner:
             "allowed_controlled_values": analysis_plan_contract_metadata(),
             "available_fields": [column.name for column in data_profile.columns],
         }
-        prompt = (
-            "Role: scientific data analysis planner. Select 1-3 executable analytical subtasks for one dataset.\n"
-            "Output: raw AnalysisPlan JSON only. No markdown fences, no comments, no prose.\n"
-            "Use only listed fields. Do not infer missing columns. Do not choose chart families.\n\n"
-            "Rules:\n"
-            f"1. Produce 1..{self.max_charts} subtasks.\n"
-            "2. required_fields must be non-empty and must use exact available_fields values.\n"
-            "3. optional_fields must also use exact available_fields values.\n"
-            "4. task_type must be allowed. skipped_candidates is mandatory.\n"
-            "5. Prefer complementary subtasks; avoid duplicate views.\n"
-            "6. For quality/problem requests, plan ranking or normalized severity instead of raw mixed-scale axes.\n\n"
-            f"Metadata JSON:\n{json.dumps(payload, ensure_ascii=False, separators=(',', ':'), default=str)}\n\n"
+        return (
+            "You are the ViRAGE LLM analysis orchestrator. Build one strict AnalysisPlan JSON object for one dataset.\n"
+            "The plan will be executed directly, so do not output markdown, code fences, comments, or explanatory text.\n"
+            "Use the user request and compact DataProfile only. Do not infer fields that are not listed.\n\n"
+            "Planning contract:\n"
+            f"1. Produce between 1 and {self.max_charts} subtasks. Never produce more than max_charts.\n"
+            "2. Every subtask.required_fields must be non-empty and must contain only exact field names from available_fields.\n"
+            "3. Every optional_fields entry must also be an exact available field name.\n"
+            "4. task_type must be one of the allowed task types.\n"
+            "5. skipped_candidates is mandatory. Use it to document relevant task types considered but not selected.\n"
+            "6. skipped_candidates.required_fields may be empty when no concrete existing field combination supports the skipped task.\n"
+            "7. Do not choose chart families. Do not recommend chart types. Select analytical subtasks and fields only.\n"
+            "8. For image_folder input, use only columns generated in the image metrics table. If every IQA metric column is unusable or absent, do not select it.\n"
+            "9. If the request is broad EDA, select the most useful complementary subtasks, not duplicate views.\n"
+            "10. If the request is specific, prioritize the requested analytical task and include other subtasks only when they are clearly useful.\n"
+            "11. Use retrieved planning guidance to define metric_semantics, ranking_strategy, scale_strategy and visual_constraints when relevant. metric_semantics keys must be exact available field names.\n"
+            "12. For problematic-item or quality requests, plan ranking/severity views instead of raw all-items multi-metric charts.\n"
+            "13. Do not put different-scale metrics on one shared quantitative axis. Plan normalized severity or independent panels.\n\n"
+            f"Authoritative metadata JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}\n\n"
             f"User request:\n{user_query.strip()}\n\n"
-            f"User context:\n{_truncate_text(context_lines, _USER_CONTEXT_CHAR_BUDGET)}\n\n"
-            f"Planning guidance:\n{_truncate_text(planning_guidance or 'No planning guidance retrieved.', _PLANNING_GUIDANCE_CHAR_BUDGET)}\n\n"
-            "Compact DataProfile:\n"
-            f"{_truncate_text(DataProfilePromptFormatter.for_query_analysis(data_profile, max_columns=24), _DATA_PROFILE_CHAR_BUDGET)}\n"
+            f"User context:\n{context_lines}\n\n"
+            f"Retrieved planning guidance:\n{planning_guidance or 'No planning guidance retrieved.'}\n\n"
+            f"Compact DataProfile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile, max_columns=40)}\n"
         )
-        return _truncate_text(prompt, _PROMPT_CHAR_BUDGET)
 
     def _example_payload(
             self,
@@ -372,24 +288,3 @@ class AnalysisPlanner:
             ],
             "rationale": ["The plan uses exact DataProfile fields and stays within max_charts."],
         }
-
-
-def _truncate_text(text: str, max_chars: int) -> str:
-    if max_chars <= 0:
-        return ""
-    normalized = text or ""
-    if len(normalized) <= max_chars:
-        return normalized
-    return normalized[: max(0, max_chars - 24)].rstrip() + "\n[truncated]"
-
-
-def _normalize_string_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        normalized = value.strip()
-        return [normalized] if normalized else []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    normalized = str(value).strip()
-    return [normalized] if normalized else []

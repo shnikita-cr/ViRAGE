@@ -30,6 +30,11 @@ class ModelCallLog(BaseModel):
     started_at: str | None = None
     finished_at: str | None = None
     parser_errors: list[str] = Field(default_factory=list)
+    num_ctx: int | None = None
+    prompt_budget_tokens: int | None = None
+    estimated_prompt_tokens: int | None = None
+    was_compressed: bool = False
+    compression_notes: list[str] = Field(default_factory=list)
 
 
 class StepLog(BaseModel):

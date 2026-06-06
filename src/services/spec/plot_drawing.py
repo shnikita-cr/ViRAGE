@@ -120,6 +120,11 @@ class VegaLitePlotDrawingService(BaseService):
             raise RuntimeError('Validated Vega-Lite spec must contain a non-empty data.url.')
         return data_url
 
+    @staticmethod
+    def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
+        clone = deepcopy(spec)
+        clone['data'] = {'values': df.where(pd.notna(df), None).to_dict(orient='records')}
+        return clone
 
     @staticmethod
     def _apply_render_policy(

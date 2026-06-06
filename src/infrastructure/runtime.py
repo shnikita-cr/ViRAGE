@@ -31,6 +31,10 @@ _MODEL_CALL_CSV_COLUMNS = [
     "attempt_number",
     "parser_error_count",
     "has_error",
+    "num_ctx",
+    "prompt_budget_tokens",
+    "estimated_prompt_tokens",
+    "was_compressed",
 ]
 
 _STAGE_CSV_COLUMNS = [
@@ -311,6 +315,10 @@ class RuntimeContext:
             "attempt_number": log.attempt_number,
             "parser_error_count": len(log.parser_errors),
             "has_error": bool(log.parser_errors),
+            "num_ctx": log.num_ctx or "",
+            "prompt_budget_tokens": log.prompt_budget_tokens or "",
+            "estimated_prompt_tokens": log.estimated_prompt_tokens or "",
+            "was_compressed": bool(log.was_compressed),
         }
 
     @staticmethod
