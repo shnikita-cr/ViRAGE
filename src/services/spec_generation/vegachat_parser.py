@@ -4,10 +4,10 @@ import json
 import re
 from typing import Any, Literal
 
+from src.llm.structured_response import extract_json_text
+
 _EXPLAIN_RE = re.compile(r"<explain>\s*(.*?)\s*</explain>", re.IGNORECASE | re.DOTALL)
 _JSON_TAG_RE = re.compile(r"<json>\s*(.*?)\s*</json>", re.IGNORECASE | re.DOTALL)
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.IGNORECASE | re.DOTALL)
-
 ParserMode = Literal["strict", "tolerant"]
 
 
@@ -114,33 +114,7 @@ def _extract_json_text_tolerant(raw_response: str) -> str:
     text = (raw_response or "").strip()
     if not text:
         raise VegaChatResponseParseError("Empty model response.")
-
-    tag_match = _JSON_TAG_RE.search(text)
-    if tag_match:
-        return _strip_json_fence(tag_match.group(1).strip())
-
-    fence_match = _FENCE_RE.search(text)
-    if fence_match:
-        return fence_match.group(1).strip()
-
-    return _extract_first_json_object(text)
-
-
-def _strip_json_fence(text: str) -> str:
-    fence_match = _FENCE_RE.search(text)
-    if fence_match:
-        return fence_match.group(1).strip()
-    return text.strip()
-
-
-def _extract_first_json_object(text: str) -> str:
-    decoder = json.JSONDecoder()
-    for index, char in enumerate(text):
-        if char != "{":
-            continue
-        try:
-            _, end = decoder.raw_decode(text[index:])
-        except json.JSONDecodeError:
-            continue
-        return text[index:index + end]
-    raise VegaChatResponseParseError("No JSON object found in model response.")
+    json_text = extract_json_text(text, unwrap_spec_payload=True)
+    if not json_text or not json_text.strip().startswith("{"):
+        raise VegaChatResponseParseError("No JSON object found in model response.")
+    return json_text

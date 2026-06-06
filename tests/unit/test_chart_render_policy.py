@@ -150,8 +150,8 @@ def test_render_policy_protects_long_x_labels_with_padding() -> None:
 
     rendered, _ = ChartRenderPolicy.apply(spec, data=df, target="artifact", default_dpi=192)
 
-    assert rendered["encoding"]["x"]["axis"]["labelAngle"] == -90
-    assert rendered["padding"]["bottom"] >= 120
+    assert "labelAngle" not in rendered["encoding"]["x"]["axis"]
+    assert 40 <= rendered["padding"]["bottom"] <= 80
 
 
 def test_render_policy_filters_zero_missingness_fields_when_some_fields_have_missing_values() -> None:

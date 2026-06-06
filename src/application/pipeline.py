@@ -18,6 +18,8 @@ from src.llm.factory import build_chat_model
 from src.llm.healthcheck import check_required_models, raise_for_failed_health_checks
 from src.observability import traceable
 
+_PIPELINE_ERRORS = (RuntimeError, ValueError, TypeError, OSError)
+
 
 def _classify_error(exc: BaseException) -> str:
     text = f"{type(exc).__name__}: {exc}".lower()
@@ -48,59 +50,46 @@ class ViRAGEPipeline:
     ) -> None:
         bootstrap_project_environment()
         self.settings = settings or ViRAGESettings()
-        self.runtime = RuntimeContext(
-            settings=self.settings,
-            reasoning_llm=reasoning_llm,
-            spec_llm=spec_llm,
-            vlm=vlm,
-        )
+        self.runtime = RuntimeContext(settings=self.settings, reasoning_llm=reasoning_llm, spec_llm=spec_llm, vlm=vlm)
         self.graph = build_pipeline_graph(self.runtime)
 
     @classmethod
     def from_project_config(cls, config: ProjectConfig) -> 'ViRAGEPipeline':
         settings = config.settings.model_copy(deep=True)
+        cls._apply_streamlit_mode(settings, config)
+        models = {
+            "reasoning": build_chat_model(config.reasoning_model),
+            "spec": build_chat_model(config.spec_model),
+            "vlm": build_chat_model(config.vlm_model),
+        }
+        cls._check_models(settings, models)
+        return cls(settings=settings, reasoning_llm=models["reasoning"], spec_llm=models["spec"], vlm=models["vlm"])
+
+    @staticmethod
+    def _apply_streamlit_mode(settings: ViRAGESettings, config: ProjectConfig) -> None:
         if config.mode == 'streamlit' and not config.streamlit.compute_metrics:
             settings.enable_spec_score = False
             settings.enable_vision_score = False
             settings.enable_evaluation_summary = False
         settings.streamlit_compute_metrics = config.streamlit.compute_metrics
         settings.streamlit_show_step_logs = config.streamlit.show_step_logs
-        models = {
-            "reasoning": build_chat_model(config.reasoning_model),
-            "spec": build_chat_model(config.spec_model),
-            "vlm": build_chat_model(config.vlm_model),
-        }
-        if bool(getattr(settings, "model_health_check_enabled", False)):
-            required_roles = set(getattr(settings, "model_health_check_required_roles", []) or [])
-            active_models = {role: model for role, model in models.items() if
-                             not required_roles or role in required_roles}
-            results = check_required_models(
-                active_models,
-                timeout_seconds=float(getattr(settings, "model_health_check_timeout_seconds", 10.0)),
-            )
-            raise_for_failed_health_checks(results)
-        return cls(
-            settings=settings,
-            reasoning_llm=models["reasoning"],
-            spec_llm=models["spec"],
-            vlm=models["vlm"],
+
+    @staticmethod
+    def _check_models(settings: ViRAGESettings, models: dict[str, object]) -> None:
+        if not bool(getattr(settings, "model_health_check_enabled", False)):
+            return
+        required_roles = set(getattr(settings, "model_health_check_required_roles", []) or [])
+        active_models = {role: model for role, model in models.items() if not required_roles or role in required_roles}
+        results = check_required_models(
+            active_models,
+            timeout_seconds=float(getattr(settings, "model_health_check_timeout_seconds", 10.0)),
         )
+        raise_for_failed_health_checks(results)
 
     def _save_input_artifacts(self, request: PipelineRequest) -> dict[str, str]:
-        query_path = self.runtime.save_text_artifact(
-            "input/query.txt",
-            request.query,
-            run_id=request.run_id,
-        )
-        context_path = self.runtime.save_json_artifact(
-            "input/context.json",
-            request.user_context or {},
-            run_id=request.run_id,
-        )
-        return {
-            "input_query": query_path,
-            "input_context": context_path,
-        }
+        query_path = self.runtime.save_text_artifact("input/query.txt", request.query, run_id=request.run_id)
+        context_path = self.runtime.save_json_artifact("input/context.json", request.user_context or {}, run_id=request.run_id)
+        return {"input_query": query_path, "input_context": context_path}
 
     @traceable(name='virage.pipeline.invoke')
     def invoke(
@@ -110,6 +99,22 @@ class ViRAGEPipeline:
             step_callback: Callable[[StepLog], None] | None = None,
             model_call_callback: Callable[[ModelCallLog], None] | None = None,
     ) -> PipelineResult:
+        self._initialize_run(request, step_callback, model_call_callback)
+        try:
+            final_state = self._run_graph(self._initial_state(request))
+        except _PIPELINE_ERRORS as exc:
+            self._handle_failure(request, exc)
+            raise
+        finally:
+            self._clear_callbacks()
+        return self._finalize_success(request, final_state)
+
+    def _initialize_run(
+            self,
+            request: PipelineRequest,
+            step_callback: Callable[[StepLog], None] | None,
+            model_call_callback: Callable[[ModelCallLog], None] | None,
+    ) -> None:
         self.runtime.current_run_id = request.run_id
         self.runtime.reset_model_logs()
         self.runtime.reset_stage_execution_logs()
@@ -117,16 +122,12 @@ class ViRAGEPipeline:
         self.runtime.step_callback = step_callback
         self.runtime.model_call_callback = model_call_callback
         self.runtime.ensure_run_dir(request.run_id)
-        task_request_path = save_task_request(self.runtime, request)
-        input_artifact_paths = self._save_input_artifacts(request)
-        input_artifact_paths["task_request"] = task_request_path
-        self.runtime.save_run_status(
-            run_id=request.run_id,
-            status="running",
-            final_stage="initialized",
-            extra={"query": request.query, "data_path": request.data_path},
-        )
-        initial_state: PipelineState = {
+
+    def _initial_state(self, request: PipelineRequest) -> PipelineState:
+        artifact_paths = self._save_input_artifacts(request)
+        artifact_paths["task_request"] = save_task_request(self.runtime, request)
+        self._save_running_status(request)
+        return {
             'run_id': request.run_id,
             'query': request.query,
             'data_path': request.data_path,
@@ -137,51 +138,56 @@ class ViRAGEPipeline:
             'step_logs': [],
             'model_call_logs': [],
             'stage_execution_logs': [],
-            'artifact_paths': input_artifact_paths,
+            'artifact_paths': artifact_paths,
         }
-        try:
-            final_state: PipelineState = self.graph.invoke(
-                initial_state,
-                config={"recursion_limit": int(self.settings.graph_recursion_limit)},
-            )
-            final_state['stage'] = PipelineStage.COMPLETED
-        except Exception as exc:
-            tb = traceback.format_exc()
-            error_type = _classify_error(exc)
-            self.runtime.save_text_artifact('errors/fatal_error.txt', tb, run_id=request.run_id, numbered=True)
-            error_text = f"{type(exc).__name__}: {exc}"
-            self.runtime.save_run_status(
-                run_id=request.run_id,
-                status="failed",
-                final_stage="exception",
-                semantic_status=None,
-                error_type=error_type,
-                error=error_text,
-            )
-            save_error_report(
-                self.runtime,
-                request=request,
-                error_type=error_type,
-                error=error_text,
-                traceback_text=tb,
-            )
-            save_run_report(
-                self.runtime,
-                request=request,
-                result=None,
-                status="failed",
-                error_type=error_type,
-                error=error_text,
-            )
-            self.runtime.save_model_log_artifacts(run_id=request.run_id)
-            raise
-        finally:
-            self.runtime.step_callback = None
-            self.runtime.model_call_callback = None
+
+    def _save_running_status(self, request: PipelineRequest) -> None:
+        self.runtime.save_run_status(
+            run_id=request.run_id,
+            status="running",
+            final_stage="initialized",
+            extra={"query": request.query, "data_path": request.data_path},
+        )
+
+    def _run_graph(self, initial_state: PipelineState) -> PipelineState:
+        final_state: PipelineState = self.graph.invoke(
+            initial_state,
+            config={"recursion_limit": int(self.settings.graph_recursion_limit)},
+        )
+        final_state['stage'] = PipelineStage.COMPLETED
+        return final_state
+
+    def _handle_failure(self, request: PipelineRequest, exc: BaseException) -> None:
+        traceback_text = traceback.format_exc()
+        error_type = _classify_error(exc)
+        error_text = f"{type(exc).__name__}: {exc}"
+        self.runtime.save_text_artifact('errors/fatal_error.txt', traceback_text, run_id=request.run_id, numbered=True)
+        self._save_failed_status(request, error_type=error_type, error_text=error_text)
+        save_error_report(self.runtime, request=request, error_type=error_type, error=error_text, traceback_text=traceback_text)
+        save_run_report(self.runtime, request=request, result=None, status="failed", error_type=error_type, error=error_text)
+        self.runtime.save_model_log_artifacts(run_id=request.run_id)
+
+    def _save_failed_status(self, request: PipelineRequest, *, error_type: str, error_text: str) -> None:
+        self.runtime.save_run_status(
+            run_id=request.run_id,
+            status="failed",
+            final_stage="exception",
+            semantic_status=None,
+            error_type=error_type,
+            error=error_text,
+        )
+
+    def _finalize_success(self, request: PipelineRequest, final_state: PipelineState) -> PipelineResult:
         final_state['model_call_logs'] = list(self.runtime.model_call_logs)
         final_state['stage_execution_logs'] = list(self.runtime.stage_execution_logs)
         final_state['token_usage_summary'] = self.runtime.token_usage_summary()
         self.runtime.save_model_log_artifacts(run_id=request.run_id)
+        self._save_completed_status(request, final_state)
+        result = PipelineResultFactory.from_state(final_state, self.runtime)
+        save_run_report(self.runtime, request=request, result=result, status="completed")
+        return result
+
+    def _save_completed_status(self, request: PipelineRequest, final_state: PipelineState) -> None:
         self.runtime.save_run_status(
             run_id=request.run_id,
             status="completed",
@@ -195,11 +201,7 @@ class ViRAGEPipeline:
                 "has_token_summary": True,
             },
         )
-        result = PipelineResultFactory.from_state(final_state, self.runtime)
-        save_run_report(
-            self.runtime,
-            request=request,
-            result=result,
-            status="completed",
-        )
-        return result
+
+    def _clear_callbacks(self) -> None:
+        self.runtime.step_callback = None
+        self.runtime.model_call_callback = None

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
 
 from src.services.rendering.chart_render_policy_types import ChartRenderPolicyResult
+from src.services.rendering.spec_traversal import iter_unit_specs
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ class LabelFitPolicy:
     ) -> LabelFitPolicyResult:
         padding = {"left": 20, "right": 16, "top": 18, "bottom": 24}
         changes: list[str] = []
-        for unit in cls._iter_unit_specs(spec):
+        for unit in iter_unit_specs(spec):
             encoding = unit.get("encoding")
             if not isinstance(encoding, dict):
                 continue
@@ -51,17 +52,17 @@ class LabelFitPolicy:
 
                 if channel == "x" and cls._is_discrete(channel_def, field, data):
                     slot_width = max(1.0, render_policy.width / max(1, cardinality))
-                    estimated_label_width = longest * 6.4
-                    if (estimated_label_width > slot_width * 0.9 or longest > 16) and "labelAngle" not in axis:
-                        axis["labelAngle"] = -90
-                        changes.append("Set encoding.x.axis.labelAngle=-90 to prevent crowded category labels.")
+                    label_angle = cls._x_label_angle(longest=longest, slot_width=slot_width)
+                    if label_angle is not None and "labelAngle" not in axis:
+                        axis["labelAngle"] = label_angle
+                        changes.append(f"Set encoding.x.axis.labelAngle={label_angle} for crowded category labels.")
                     angle = int(axis.get("labelAngle") or 0)
                     if abs(angle) >= 80:
-                        padding["bottom"] = max(padding["bottom"], min(150, 44 + longest * 6))
+                        padding["bottom"] = max(padding["bottom"], min(150, 40 + longest * 5))
                     elif abs(angle) > 0:
-                        padding["bottom"] = max(padding["bottom"], min(120, 34 + longest * 4))
+                        padding["bottom"] = max(padding["bottom"], min(112, 32 + longest * 3))
                     else:
-                        padding["bottom"] = max(padding["bottom"], 42 if longest > 10 else 30)
+                        padding["bottom"] = max(padding["bottom"], 40 if longest > 10 else 28)
                 if channel == "y" and cls._is_discrete(channel_def, field, data):
                     padding["left"] = max(padding["left"], min(220, 44 + longest * 6))
                 if channel == "y" and cls._is_count_like(channel_def):
@@ -69,20 +70,14 @@ class LabelFitPolicy:
                     changes.append("Set encoding.y.axis.tickMinStep=1 for count-like quantitative axis.")
         return LabelFitPolicyResult(padding=padding, changes=changes)
 
-    @classmethod
-    def _iter_unit_specs(cls, spec: Any) -> Iterable[dict[str, Any]]:
-        if not isinstance(spec, dict):
-            return
-        if isinstance(spec.get("encoding"), dict) or "mark" in spec:
-            yield spec
-        for key in ("layer", "hconcat", "vconcat", "concat"):
-            value = spec.get(key)
-            if isinstance(value, list):
-                for item in value:
-                    yield from cls._iter_unit_specs(item)
-        nested = spec.get("spec")
-        if isinstance(nested, dict):
-            yield from cls._iter_unit_specs(nested)
+    @staticmethod
+    def _x_label_angle(*, longest: int, slot_width: float) -> int | None:
+        estimated_label_width = max(1, longest) * 6.4
+        if estimated_label_width <= slot_width * 0.95:
+            return None
+        if estimated_label_width <= slot_width * 1.45:
+            return -35
+        return -90
 
     @classmethod
     def _is_discrete(cls, channel_def: dict[str, Any], field: str | None, data: pd.DataFrame | None) -> bool:

@@ -85,10 +85,12 @@ class ChartPresentationPolicy:
             field = channel_field(x_def)
             longest, cardinality = self._label_stats(data, field)
             if longest >= 14 or cardinality >= 8:
-                if set_axis_property(x_def, "labelAngle", -90, overwrite=False):
+                angle = self._x_label_angle(longest=longest, cardinality=cardinality)
+                if angle is not None and set_axis_property(x_def, "labelAngle", angle, overwrite=False):
                     changes.append("set_x_label_angle_for_fit")
-                set_axis_property(x_def, "labelAlign", "right", overwrite=False)
-                set_axis_property(x_def, "labelBaseline", "middle", overwrite=False)
+                if angle is not None:
+                    set_axis_property(x_def, "labelAlign", "right", overwrite=False)
+                    set_axis_property(x_def, "labelBaseline", "middle", overwrite=False)
                 set_axis_property(x_def, "labelPadding", 8, overwrite=False)
                 set_axis_property(x_def, "labelLimit", max(180, min(420, longest * 9)), overwrite=False)
                 set_axis_property(x_def, "labelBound", True, overwrite=False)
@@ -116,6 +118,14 @@ class ChartPresentationPolicy:
                 ))
         return changes
 
+    @staticmethod
+    def _x_label_angle(*, longest: int, cardinality: int) -> int | None:
+        if cardinality <= 3 and longest <= 28:
+            return None
+        if cardinality <= 8 and longest <= 18:
+            return -35
+        return -90
+
     def _fix_repeat_headers(self, spec: dict[str, Any], issues: list[ChartQualityIssue]) -> list[str]:
         changes: list[str] = []
         repeat = spec.get("repeat")
@@ -129,9 +139,7 @@ class ChartPresentationPolicy:
             repeated_fields.extend(str(value) for value in repeat if value)
         if not repeated_fields:
             return changes
-        header_title = ", ".join(self._humanize(field) for field in repeated_fields[:3])
-        if len(repeated_fields) > 3:
-            header_title += f" and {len(repeated_fields) - 3} more"
+        header_title = self._repeat_title(repeated_fields)
         if not self._title_text(spec.get("title")):
             spec["title"] = header_title
             changes.append("set_repeat_chart_title")
@@ -147,7 +155,7 @@ class ChartPresentationPolicy:
                     if isinstance(axis, dict):
                         current = str(axis.get("title") or "").strip().lower()
                         if current in {"", "value", "values", "metric", "measure"}:
-                            axis["title"] = "Значение метрики"
+                            axis["title"] = "Repeated metric value"
                             changes.append(f"set_repeat_{channel_name}_axis_title")
         if self._repeat_axis_title_is_generic(spec):
             issues.append(ChartQualityIssue(
@@ -165,6 +173,20 @@ class ChartPresentationPolicy:
             ))
         return changes
 
+    @staticmethod
+    def _repeat_title(repeated_fields: list[str]) -> str:
+        labels = [ChartPresentationPolicy._humanize(field) for field in repeated_fields if str(field).strip()]
+        if len(labels) <= 4:
+            return f"Repeated metrics: {ChartPresentationPolicy._join_labels(labels)}"
+        return f"Repeated metrics: {ChartPresentationPolicy._join_labels(labels[:3])} and {len(labels) - 3} more"
+
+    @staticmethod
+    def _join_labels(labels: list[str]) -> str:
+        if not labels:
+            return ""
+        if len(labels) == 1:
+            return labels[0]
+        return f"{', '.join(labels[:-1])} and {labels[-1]}"
 
     @staticmethod
     def _repeat_axis_title_is_generic(spec: dict[str, Any]) -> bool:

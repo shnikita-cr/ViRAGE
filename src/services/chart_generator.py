@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.domain.models import (
@@ -15,6 +16,8 @@ from src.services.base import BaseService
 from src.services.spec_generation import VegaChatCodegenBackend
 from src.services.spec_generation.base import SpecGenerationBackend
 from src.services.spec_presentation_consistency import SpecPresentationConsistencyService
+
+logger = logging.getLogger(__name__)
 
 
 class ChartGeneratorService(BaseService):
@@ -101,7 +104,8 @@ class ChartGeneratorService(BaseService):
                 },
                 numbered=True,
             )
-        except Exception:
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not save presentation consistency report: %s", exc)
             return None
 
     @staticmethod

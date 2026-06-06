@@ -126,7 +126,7 @@ class SpecPresentationConsistencyService:
         self._normalize_node(normalized, root=normalized, changes=changes)
 
         # Keep the older consistency pass for cases with nested user-provided titles that do not
-        # match the deterministic labels exactly. This is now a fallback, not the main label source.
+        # match the deterministic labels exactly. This is a compatibility pass for nested user-provided titles.
         label_uses: dict[PresentationLabelKey, list[PresentationLabelUse]] = {}
         self._collect_label_uses(normalized, label_uses, path=())
         replacements: dict[str, str] = {}
@@ -417,8 +417,7 @@ class SpecPresentationConsistencyService:
         aggregate_label = cls._aggregate_label(cls._aggregate_from_channel(repeat_channel_def))
 
         if mark_type == "boxplot":
-            distribution_subject = "Metric" if repeated_label == "Metrics" else "Repeated Measure"
-            return cls._join_title(distribution_subject, "Distributions", [dimension_label])
+            return cls._join_title(repeated_label, "Distributions", [dimension_label])
         if aggregate_label:
             return cls._join_title(f"{aggregate_label} {repeated_label}", "", [dimension_label])
         return cls._join_title(repeated_label, "", [dimension_label])
@@ -597,7 +596,7 @@ class SpecPresentationConsistencyService:
         if isinstance(field, RepeatFieldReference):
             if aggregate_label == "Count":
                 return "Count"
-            return f"{aggregate_label} Value"
+            return f"{aggregate_label} Repeated Metric"
         return f"{aggregate_label} {field_label}".strip()
 
     @classmethod
@@ -611,7 +610,7 @@ class SpecPresentationConsistencyService:
         if field is None:
             return ""
         if isinstance(field, RepeatFieldReference):
-            return "Value"
+            return "Repeated Metric"
         if field == "*":
             return "Records"
         if time_unit:
@@ -623,11 +622,12 @@ class SpecPresentationConsistencyService:
     @classmethod
     def _repeated_measure_group_label(cls, root: dict[str, Any]) -> str:
         repeat_fields = cls._all_repeat_fields(root)
-        if not repeat_fields:
-            return "Repeated Measures"
-        if cls._fields_look_like_metrics(repeat_fields):
-            return "Metrics"
-        return "Repeated Measures"
+        labels = [cls._humanize_field_name(field) for field in repeat_fields if str(field).strip()]
+        if 1 <= len(labels) <= 4:
+            return cls._join_labels(labels)
+        if labels:
+            return f"{cls._join_labels(labels[:3])} and {len(labels) - 3} More Metrics"
+        return "Repeated Metrics"
 
     @staticmethod
     def _all_repeat_fields(root: dict[str, Any]) -> list[str]:
@@ -643,18 +643,6 @@ class SpecPresentationConsistencyService:
         elif isinstance(repeat, list):
             fields.extend(str(item) for item in repeat if isinstance(item, str) and item.strip())
         return fields
-
-    @staticmethod
-    def _fields_look_like_metrics(fields: list[str]) -> bool:
-        if len(fields) < 2:
-            return False
-        metric_tokens = {
-            "score", "rate", "ratio", "value", "metric", "measure", "psnr", "ssim", "lpips",
-            "rmse", "mae", "mse", "accuracy", "precision", "recall", "runtime", "memory", "params",
-            "sales", "profit", "revenue", "cost", "count", "total", "mean", "average",
-        }
-        normalized = " ".join(fields).replace("_", " ").replace("-", " ").lower()
-        return any(token in normalized for token in metric_tokens)
 
     @staticmethod
     def _field_from_channel(channel_def: dict[str, Any] | None) -> str | RepeatFieldReference | None:
@@ -728,7 +716,7 @@ class SpecPresentationConsistencyService:
         for word in words:
             if word.isupper() or any(char.isdigit() for char in word):
                 result.append(word)
-            elif len(word) <= 4 and word.lower() in {"psnr", "ssim", "lpips", "rmse", "mae", "mse"}:
+            elif word.lower() in {"psnr", "ssim", "lpips", "rmse", "mae", "mse"}:
                 result.append(word.upper())
             else:
                 result.append(word[:1].upper() + word[1:])

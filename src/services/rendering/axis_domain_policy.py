@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from math import isfinite
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
+
+from src.services.rendering.spec_traversal import iter_unit_specs
 
 
 @dataclass(frozen=True)
@@ -30,7 +32,7 @@ class AxisDomainPolicy:
     @classmethod
     def apply(cls, spec: dict[str, Any], *, data: pd.DataFrame | None) -> AxisDomainPolicyResult:
         changes: list[str] = []
-        for unit in cls._iter_unit_specs(spec):
+        for unit in iter_unit_specs(spec):
             mark_type = cls._mark_type(unit)
             encoding = unit.get("encoding")
             if not isinstance(encoding, dict):
@@ -93,21 +95,6 @@ class AxisDomainPolicy:
         same_positive_side = min_value > 0 and max_value > 0
         same_negative_side = min_value < 0 and max_value < 0
         return bool((same_positive_side or same_negative_side) and span / magnitude < 0.65)
-
-    @classmethod
-    def _iter_unit_specs(cls, spec: Any) -> Iterable[dict[str, Any]]:
-        if not isinstance(spec, dict):
-            return
-        if isinstance(spec.get("encoding"), dict) or "mark" in spec:
-            yield spec
-        for key in ("layer", "hconcat", "vconcat", "concat"):
-            value = spec.get(key)
-            if isinstance(value, list):
-                for item in value:
-                    yield from cls._iter_unit_specs(item)
-        nested = spec.get("spec")
-        if isinstance(nested, dict):
-            yield from cls._iter_unit_specs(nested)
 
     @staticmethod
     def _mark_type(unit: dict[str, Any]) -> str:

@@ -30,7 +30,7 @@ def check_chat_model(role: str, llm: Any, *, timeout_seconds: float = 10.0) -> M
         except FutureTimeoutError:
             return ModelHealthCheckResult(role=role, ok=False,
                                           error=f"health check timed out after {timeout_seconds:.1f}s")
-        except Exception as exc:  # noqa: BLE001 - error is reported to UI/runner.
+        except (RuntimeError, ValueError, TypeError, OSError) as exc:
             return ModelHealthCheckResult(role=role, ok=False, error=f"{type(exc).__name__}: {exc}")
     return ModelHealthCheckResult(role=role, ok=True)
 

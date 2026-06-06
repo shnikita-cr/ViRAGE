@@ -1,26 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from math import ceil, log10, sqrt
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
 
 from src.services.rendering.axis_domain_policy import AxisDomainPolicy
+from src.services.rendering.chart_render_policy_types import ChartRenderPolicyResult
 from src.services.rendering.label_fit_policy import LabelFitPolicy
+from src.services.rendering.spec_traversal import iter_unit_specs
 from src.services.rendering.noninformative_mark_policy import NonInformativeMarkPolicy
-
-
-@dataclass(frozen=True)
-class ChartRenderPolicyResult:
-    width: int
-    height: int
-    scale: float
-    autosize: dict[str, str]
-    axis_config: dict[str, Any]
-    legend_config: dict[str, Any]
-    padding: dict[str, int]
-    reasoning: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -58,10 +48,9 @@ class ChartRenderPolicy:
             export_scale: float | None = None,
     ) -> ChartRenderPolicyResult:
         options = ChartRenderPolicyOptions(target=target, default_dpi=default_dpi, export_scale=export_scale)
-        structures = list(cls._iter_unit_specs(spec)) or [spec]
+        structures = list(iter_unit_specs(spec)) or [spec]
         panel_columns, panel_rows = cls._panel_shape(spec)
         panel_count = max(1, panel_columns * panel_rows)
-        primary = structures[0]
         encodings = [cls._encoding(unit) for unit in structures]
         axis_stats = cls._axis_stats(encodings, data)
         visual_units = cls._visual_unit_count(axis_stats, data)
@@ -155,21 +144,6 @@ class ChartRenderPolicy:
         if isinstance(value, list):
             return [ChartRenderPolicy._deepcopy_jsonish(item) for item in value]
         return value
-
-    @classmethod
-    def _iter_unit_specs(cls, spec: Any) -> Iterable[dict[str, Any]]:
-        if not isinstance(spec, dict):
-            return
-        if isinstance(spec.get("encoding"), dict) or "mark" in spec:
-            yield spec
-        for key in ("layer", "hconcat", "vconcat", "concat"):
-            value = spec.get(key)
-            if isinstance(value, list):
-                for item in value:
-                    yield from cls._iter_unit_specs(item)
-        nested = spec.get("spec")
-        if isinstance(nested, dict):
-            yield from cls._iter_unit_specs(nested)
 
     @staticmethod
     def _encoding(spec: dict[str, Any]) -> dict[str, Any]:
@@ -368,20 +342,23 @@ class ChartRenderPolicy:
     def _padding(cls, axis_stats: dict[str, dict[str, Any]], *, width: int, height: int) -> dict[str, int]:
         x = axis_stats.get("x", {})
         y = axis_stats.get("y", {})
-        bottom = 52
-        left = 62
+        bottom = 40
+        left = 54
         if x.get("is_discrete"):
             x_longest = int(x.get("longest_label", 0))
-            x_categories = int(x.get("cardinality", 1))
-            # Rotated labels need vertical room. This protects compact canvases from clipped labels.
-            if x_longest >= 14 or x_categories >= 8:
-                bottom = cls._clamp(56 + x_longest * 7, 84, 230)
+            x_categories = max(1, int(x.get("cardinality", 1)))
+            slot_width = max(1.0, width / x_categories)
+            estimated_label_width = x_longest * 6.4
+            if estimated_label_width > slot_width * 1.45:
+                bottom = cls._clamp(40 + x_longest * 5, 80, 190)
+            elif estimated_label_width > slot_width * 0.95:
+                bottom = cls._clamp(34 + x_longest * 3, 56, 120)
             else:
-                bottom = cls._clamp(48 + x_longest * 2, 52, 96)
+                bottom = cls._clamp(32 + x_longest, 38, 68)
         if y.get("is_discrete"):
             y_longest = int(y.get("longest_label", 0))
-            left = cls._clamp(58 + y_longest * 7, 72, 260)
-        return {"left": left, "right": 34, "top": 44, "bottom": bottom}
+            left = cls._clamp(46 + y_longest * 6, 64, 230)
+        return {"left": left, "right": 24, "top": 36, "bottom": bottom}
 
     @staticmethod
     def _legend_config(legend_budget: int) -> dict[str, Any]:

@@ -4,7 +4,6 @@ import asyncio
 import base64
 import json
 import mimetypes
-import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,16 +12,16 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from src.domain.models import ModelCallLog, TokenUsage
+from src.llm.structured_response import extract_json_text, structured_json_payload
 
 T = TypeVar("T", bound=BaseModel)
-_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def is_langchain_available() -> bool:
     try:
         import langchain_core  # noqa: F401
         return True
-    except Exception:
+    except ImportError:
         return False
 
 
@@ -123,8 +122,8 @@ def _record(
     if runtime is None or stage is None or role is None:
         return
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
-    structured_input = _structured_json_payload(prompt_text)
-    structured_output = _structured_json_payload(raw_text, parsed_preview)
+    structured_input = structured_json_payload(prompt_text)
+    structured_output = structured_json_payload(raw_text, parsed_preview)
     runtime.add_model_call_log(
         ModelCallLog(
             stage=stage,
@@ -181,15 +180,7 @@ def invoke_text(
 ) -> str:
     started_at = _utc_now_iso()
     started_monotonic = time.perf_counter()
-    try:
-        result = llm.invoke(_normalize_prompt_input(prompt_text))
-    except Exception as exc:
-        finished_at = _utc_now_iso()
-        duration_ms = _elapsed_ms(started_monotonic)
-        usage = _extract_usage(None, prompt_text, "")
-        _record(runtime, stage, role, llm, prompt_text, "", None, 1, [str(exc)], usage,
-                attempt_number=1, duration_ms=duration_ms, started_at=started_at, finished_at=finished_at)
-        raise
+    result = llm.invoke(_normalize_prompt_input(prompt_text))
     finished_at = _utc_now_iso()
     duration_ms = _elapsed_ms(started_monotonic)
     raw_text = _coerce_result_text(result)
@@ -210,142 +201,8 @@ async def ainvoke_text(
     return await asyncio.to_thread(invoke_text, llm, prompt_text, runtime=runtime, stage=stage, role=role)
 
 
-_VEGA_LITE_TOP_LEVEL_KEYS = {
-    "$schema",
-    "mark",
-    "encoding",
-    "transform",
-    "data",
-    "datasets",
-    "layer",
-    "facet",
-    "repeat",
-    "concat",
-    "hconcat",
-    "vconcat",
-}
-
-
-def _is_vega_lite_spec_payload(payload: Any) -> bool:
-    if not isinstance(payload, dict):
-        return False
-    return any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
-
-
-def _strip_json_wrapper(payload: Any) -> Any:
-    if not isinstance(payload, dict):
-        return payload
-    if _is_vega_lite_spec_payload(payload):
-        return payload
-    for key in ("json", "spec", "vega_lite_spec", "vegalite_spec", "chart_spec"):
-        value = payload.get(key)
-        if isinstance(value, dict):
-            if _is_vega_lite_spec_payload(value):
-                return value
-            return _strip_json_wrapper(value)
-    return payload
-
-
-def _iter_balanced_json_candidates(text: str) -> list[str]:
-    candidates: list[str] = []
-    stack = 0
-    in_string = False
-    escaped = False
-    start_index: int | None = None
-    for index, char in enumerate(text):
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-            continue
-        if char == "{":
-            if stack == 0:
-                start_index = index
-            stack += 1
-        elif char == "}" and stack > 0:
-            stack -= 1
-            if stack == 0 and start_index is not None:
-                candidates.append(text[start_index:index + 1])
-                start_index = None
-    return candidates
-
-
 def extract_json_block(raw_text: str) -> str:
-    text = raw_text.strip()
-    if not text:
-        return text
-
-    tag_match = re.search(r"<json[^>]*>(.*?)</json>", text, flags=re.IGNORECASE | re.DOTALL)
-    if tag_match:
-        candidate = tag_match.group(1).strip()
-        try:
-            payload = _strip_json_wrapper(json.loads(candidate))
-            return json.dumps(payload, ensure_ascii=False)
-        except Exception:
-            return candidate
-
-    if "```" in text:
-        parts = text.split("```")
-        for block in parts:
-            cleaned = block.strip()
-            if not cleaned:
-                continue
-            lowered = cleaned.lower()
-            if lowered.startswith("json"):
-                candidate = cleaned[4:].strip()
-            elif lowered.startswith(("python", "xml", "html", "text")):
-                continue
-            else:
-                candidate = cleaned
-            try:
-                payload = _strip_json_wrapper(json.loads(candidate))
-                return json.dumps(payload, ensure_ascii=False)
-            except Exception:
-                if candidate.startswith("{"):
-                    return candidate
-
-    for candidate in _iter_balanced_json_candidates(text):
-        try:
-            payload = _strip_json_wrapper(json.loads(candidate))
-            return json.dumps(payload, ensure_ascii=False)
-        except Exception:
-            continue
-
-    match = _JSON_BLOCK_RE.search(text)
-    if match:
-        return match.group(0)
-    return text
-
-
-def _structured_json_payload(text: str, fallback_payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    if fallback_payload is not None:
-        return {
-            "raw": text,
-            "parsed_json": fallback_payload,
-            "parsed_json_available": True,
-            "parse_error": None,
-        }
-    try:
-        parsed = json.loads(extract_json_block(text)) if text else None
-        return {
-            "raw": text,
-            "parsed_json": parsed,
-            "parsed_json_available": parsed is not None,
-            "parse_error": None,
-        }
-    except Exception as exc:
-        return {
-            "raw": text,
-            "parsed_json": None,
-            "parsed_json_available": False,
-            "parse_error": f"{type(exc).__name__}: {exc}",
-        }
+    return extract_json_text(raw_text, unwrap_spec_payload=True)
 
 
 def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
@@ -384,23 +241,13 @@ def _invoke_structured_with_message_builder(
         if hasattr(llm, "invoke"):
             started_at = _utc_now_iso()
             started_monotonic = time.perf_counter()
-            try:
-                result = llm.invoke(message_builder(current_prompt))
-            except Exception as exc:
-                finished_at = _utc_now_iso()
-                duration_ms = _elapsed_ms(started_monotonic)
-                current_errors = [*parser_errors, str(exc)]
-                usage = _extract_usage(None, prompt_for_log, "")
-                _record(runtime, stage, role, llm, prompt_for_log, "", None, attempts, current_errors, usage,
-                        attempt_number=attempts, duration_ms=duration_ms,
-                        started_at=started_at, finished_at=finished_at)
-                raise
+            result = llm.invoke(message_builder(current_prompt))
             finished_at = _utc_now_iso()
             duration_ms = _elapsed_ms(started_monotonic)
             raw_text = _coerce_result_text(result)
             usage = _extract_usage(result, prompt_for_log, raw_text)
             try:
-                payload = json.loads(extract_json_block(raw_text))
+                payload = json.loads(extract_json_text(raw_text))
                 parsed = schema.model_validate(payload)
                 _record(runtime, stage, role, llm, prompt_for_log, raw_text, parsed.model_dump(), attempts,
                         parser_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
@@ -422,20 +269,8 @@ def _invoke_structured_with_message_builder(
         if hasattr(llm, "with_structured_output"):
             started_at = _utc_now_iso()
             started_monotonic = time.perf_counter()
-            try:
-                runnable = llm.with_structured_output(schema)
-                parsed = runnable.invoke(message_builder(current_prompt))
-            except Exception as exc:
-                finished_at = _utc_now_iso()
-                duration_ms = _elapsed_ms(started_monotonic)
-                current_errors = [*parser_errors, str(exc)]
-                usage = _extract_usage(None, prompt_for_log, "")
-                _record(runtime, stage, role, llm, prompt_for_log, "", None, attempts,
-                        current_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
-                        started_at=started_at, finished_at=finished_at)
-                parser_errors.append(str(exc))
-                current_prompt = _json_prompt(prompt_text, schema, examples) + f"\nStructured parsing failed:\n{exc}\n"
-                continue
+            runnable = llm.with_structured_output(schema)
+            parsed = runnable.invoke(message_builder(current_prompt))
             finished_at = _utc_now_iso()
             duration_ms = _elapsed_ms(started_monotonic)
             raw_text = parsed.model_dump_json()

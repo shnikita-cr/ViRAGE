@@ -4,35 +4,13 @@ import os
 import warnings
 from pathlib import Path
 
-_LOADED = False
-
-
-def _simple_load_dotenv(dotenv_path: Path) -> None:
-    if not dotenv_path.exists():
-        return
-    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
 
 def load_environment(dotenv_path: str | Path = ".env") -> None:
-    global _LOADED
-    if _LOADED:
-        return
-    path = Path(dotenv_path)
     try:
-        from dotenv import load_dotenv  # type: ignore
-    except Exception:
-        _simple_load_dotenv(path)
-    else:
-        load_dotenv(path, override=False)
-    _LOADED = True
+        from dotenv import load_dotenv
+    except ImportError as exc:
+        raise RuntimeError("python-dotenv is required for environment loading.") from exc
+    load_dotenv(Path(dotenv_path), override=False)
 
 
 def bootstrap_observability() -> None:
