@@ -16,6 +16,20 @@ class FakeLLMResult:
         self.usage_metadata = {"input_tokens": 1, "output_tokens": 1}
 
 
+
+
+class FakePlannerTextLLM:
+    model = "fake-planner"
+
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.prompts: list[str] = []
+
+    def invoke(self, messages: Any) -> FakeLLMResult:
+        self.prompts.append(str(messages))
+        return FakeLLMResult(self.content)
+
+
 class FakePlannerLLM:
     model = "fake-planner"
 
@@ -163,3 +177,38 @@ def test_llm_planner_prompt_contains_no_rules_mode() -> None:
     assert llm.prompts
     assert "rules planner has been removed" not in llm.prompts[0]
     assert re.search(r"available_fields", llm.prompts[0])
+
+def test_llm_planner_accepts_markdown_fenced_json_from_local_model() -> None:
+    content = "```json\n" + json.dumps(_valid_payload(), ensure_ascii=False) + "\n```"
+
+    plan = AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerTextLLM(content), max_attempts=1).plan(
+        user_query="Проанализируй данные",
+        data_path="data.csv",
+        data_profile=_profile(),
+    )
+
+    assert len(plan.subtasks) == 2
+    assert plan.subtasks[0].required_fields == ["condition", "score"]
+
+
+def test_llm_planner_accepts_json_embedded_in_text_from_local_model() -> None:
+    content = "Here is the plan:\n" + json.dumps(_valid_payload(), ensure_ascii=False)
+
+    plan = AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerTextLLM(content), max_attempts=1).plan(
+        user_query="Проанализируй данные",
+        data_path="data.csv",
+        data_profile=_profile(),
+    )
+
+    assert plan.subtasks[1].task_type == "temporal_trend"
+    assert plan.subtasks[1].required_fields == ["date", "score"]
+
+
+def test_llm_planner_rejects_text_without_valid_json() -> None:
+    with pytest.raises(RuntimeError, match="no valid JSON object could be extracted"):
+        AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerTextLLM("I cannot build this plan."), max_attempts=1).plan(
+            user_query="Проанализируй данные",
+            data_path="data.csv",
+            data_profile=_profile(),
+        )
+

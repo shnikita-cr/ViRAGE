@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import ValidationError
@@ -8,9 +10,18 @@ from pydantic import ValidationError
 from src.domain.models import DataProfile
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_text
+from src.llm.structured_response import extract_structured_json
 from src.orchestrator.contracts.models import AnalysisPlan, analysis_plan_contract_metadata, allowed_analysis_task_types
 from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
 from src.services.planning.planning_guidance import PlanningGuidanceService
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ParsedAnalysisPlan:
+    plan: AnalysisPlan
+    parse_mode: str
 
 
 class AnalysisPlanner:
@@ -80,8 +91,9 @@ class AnalysisPlanner:
                 role="reasoning",
             )
             try:
-                parsed = self._parse_strict_plan_json(raw_response)
-                plan_payload = parsed.model_dump()
+                parsed = self._parse_plan_json(raw_response)
+                self._log_parse_mode(parsed.parse_mode)
+                plan_payload = parsed.plan.model_dump()
                 plan_payload.update(
                     {
                         "user_query": user_query.strip(),
@@ -95,7 +107,7 @@ class AnalysisPlanner:
                 plan = AnalysisPlan.model_validate(plan_payload)
                 plan.validate_against_available_fields(available_fields)
                 return plan
-            except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+            except (ValidationError, ValueError) as exc:
                 errors.append(f"attempt {attempt_number}: {type(exc).__name__}: {exc}")
                 if attempt_number >= self.max_attempts:
                     break
@@ -128,16 +140,46 @@ class AnalysisPlanner:
         ).text
 
     @staticmethod
-    def _parse_strict_plan_json(raw_response: str) -> AnalysisPlan:
+    def _parse_plan_json(raw_response: str) -> _ParsedAnalysisPlan:
         text = (raw_response or "").strip()
         if not text:
             raise ValueError("Empty analysis planner response.")
-        if "```" in text:
-            raise ValueError("Analysis planner response must be raw JSON without markdown fences.")
-        payload = json.loads(text)
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as strict_error:
+            return AnalysisPlanner._parse_extracted_plan(text, strict_error)
+        return _ParsedAnalysisPlan(
+            plan=AnalysisPlanner._validate_plan_payload(payload),
+            parse_mode="raw",
+        )
+
+    @staticmethod
+    def _parse_extracted_plan(text: str, strict_error: json.JSONDecodeError) -> _ParsedAnalysisPlan:
+        extraction = extract_structured_json(text)
+        if extraction.error is not None:
+            raise ValueError(
+                "Analysis planner response is not raw JSON and no valid JSON object could be extracted. "
+                f"Strict JSON error: {strict_error}. Extraction error: {extraction.error}"
+            )
+        return _ParsedAnalysisPlan(
+            plan=AnalysisPlanner._validate_plan_payload(extraction.payload),
+            parse_mode=extraction.mode,
+        )
+
+    @staticmethod
+    def _validate_plan_payload(payload: Any) -> AnalysisPlan:
         if not isinstance(payload, dict):
             raise ValueError("Analysis planner response must be one JSON object.")
         return AnalysisPlan.model_validate(payload)
+
+    @staticmethod
+    def _log_parse_mode(parse_mode: str) -> None:
+        if parse_mode == "raw":
+            return
+        logger.warning(
+            "Analysis planner response violated the raw JSON contract; parsed via %s.",
+            parse_mode,
+        )
 
     def _strict_json_schema_block(
             self,
@@ -184,8 +226,8 @@ class AnalysisPlanner:
             "available_fields": [column.name for column in data_profile.columns],
         }
         return (
-            "You are the ViRAGE LLM analysis orchestrator. Build one strict AnalysisPlan JSON object for one dataset.\n"
-            "The plan will be executed directly, so do not output markdown, code fences, comments, or explanatory text.\n"
+            "You are a scientific data analysis planner. Build one strict AnalysisPlan JSON object for one dataset.\n"
+            "The plan will be executed directly. Return raw JSON only: no markdown fences, no comments, no XML, no explanatory text.\n"
             "Use the user request and compact DataProfile only. Do not infer fields that are not listed.\n\n"
             "Planning contract:\n"
             f"1. Produce between 1 and {self.max_charts} subtasks. Never produce more than max_charts.\n"
