@@ -212,3 +212,50 @@ def test_llm_planner_rejects_text_without_valid_json() -> None:
             data_profile=_profile(),
         )
 
+
+
+def test_llm_planner_fills_runtime_fields_and_normalizes_rationale_string() -> None:
+    payload = json.loads(json.dumps(_valid_payload(), ensure_ascii=False))
+    payload.pop("user_query")
+    payload.pop("data_path")
+    payload["rationale"] = "The plan uses existing fields."
+
+    plan = AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(payload), max_attempts=1).plan(
+        user_query="Сравни score между condition",
+        data_path="runtime.csv",
+        data_profile=_profile(),
+    )
+
+    assert plan.user_query == "Сравни score между condition"
+    assert plan.data_path == "runtime.csv"
+    assert plan.rationale == ["The plan uses existing fields."]
+
+
+def test_llm_planner_normalizes_invalid_severity_scale_from_local_model() -> None:
+    payload = json.loads(json.dumps(_valid_payload(), ensure_ascii=False))
+    payload["subtasks"] = [
+        {
+            "id": "analysis_001",
+            "task_type": "ranking",
+            "query": "Rank the worst outliers by severity.",
+            "purpose": "Find the most problematic quality issues.",
+            "required_fields": ["condition", "score"],
+            "optional_fields": [],
+            "priority": 1,
+            "constraints": {"output_target": "scientific_figure"},
+            "metric_semantics": {"score": "higher_is_worse"},
+            "ranking_strategy": "top_n_highest_severity",
+            "scale_strategy": "raw_values",
+            "visual_constraints": [],
+            "rationale": "The user asked for problematic outliers.",
+        }
+    ]
+
+    plan = AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(payload), max_attempts=1).plan(
+        user_query="Покажи худшие выбросы",
+        data_path="data.csv",
+        data_profile=_profile(),
+    )
+
+    assert plan.subtasks[0].scale_strategy == "normalized_severity"
+    assert "use_normalized_severity_for_problem_ranking" in plan.subtasks[0].visual_constraints
