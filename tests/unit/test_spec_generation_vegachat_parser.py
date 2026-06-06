@@ -18,11 +18,13 @@ def test_parse_vegachat_response_extracts_explain_and_json_tags() -> None:
     assert spec["mark"] == "bar"
 
 
-def test_strict_parse_rejects_fenced_json() -> None:
-    with pytest.raises(VegaChatResponseParseError, match="code fences"):
-        parse_vegachat_response(
-            "Here is the spec:\n```json\n{\"mark\":\"point\",\"encoding\":{}}\n```"
-        )
+def test_strict_parse_accepts_fenced_json_returned_by_local_model() -> None:
+    explanation, spec = parse_vegachat_response(
+        "Here is the spec:\n```json\n{\"mark\":\"point\",\"encoding\":{}}\n```"
+    )
+
+    assert explanation is None
+    assert spec["mark"] == "point"
 
 
 def test_tolerant_parse_accepts_fenced_json_for_diagnostics() -> None:
@@ -61,3 +63,13 @@ def test_tolerant_parse_unwraps_wrapper_to_full_repeat_spec() -> None:
 
     assert spec["repeat"] == {"column": ["PSNR", "SSIM"]}
     assert spec["spec"]["encoding"]["y"]["field"] == {"repeat": "column"}
+
+
+def test_strict_parse_accepts_markdown_wrapped_vegachat_contract() -> None:
+    explanation, spec = parse_vegachat_response(
+        "```xml\n<explain>Use a scatter plot.</explain>"
+        "<json>{\"mark\":\"point\",\"encoding\":{}}</json>\n```"
+    )
+
+    assert explanation == "Use a scatter plot."
+    assert spec["mark"] == "point"
