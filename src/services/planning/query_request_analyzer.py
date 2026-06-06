@@ -81,7 +81,7 @@ class _AmbiguitySchema(BaseModel):
 
 class _QueryRequestAnalysisSchema(BaseModel):
     normalized_query: str = Field(
-        min_length=1,
+        default="",
         validation_alias=AliasChoices("normalized_query", "canonical_query", "intent", "analytic_intent",
                                       "user_intent"),
     )
@@ -109,8 +109,12 @@ class _QueryRequestAnalysisSchema(BaseModel):
         if not isinstance(value, dict):
             return value
         data = dict(value)
+        if "field_bindings" not in data:
+            field_bindings = _field_binding_payloads(data)
+            if field_bindings:
+                data["field_bindings"] = field_bindings
         if "normalized_query" not in data:
-            for key in ("canonical_query", "intent", "analytic_intent", "user_intent"):
+            for key in ("canonical_query", "intent", "analytic_intent", "user_intent", "query"):
                 if isinstance(data.get(key), str) and data[key].strip():
                     data["normalized_query"] = data[key]
                     break
@@ -118,6 +122,12 @@ class _QueryRequestAnalysisSchema(BaseModel):
             data["field_mappings"] = data["mappings"]
         if "selected_fields" not in data and "grounded_fields" in data:
             data["selected_fields"] = data.get("grounded_fields") or []
+        if "selected_fields" not in data and isinstance(data.get("field_bindings"), dict):
+            data["selected_fields"] = [
+                str(item.get("field", "")).strip()
+                for item in data["field_bindings"].values()
+                if isinstance(item, dict) and str(item.get("field", "")).strip()
+            ]
         if "ambiguity" not in data:
             data["ambiguity"] = {
                 "missing_fields": data.get("missing_fields") or [],
@@ -127,6 +137,64 @@ class _QueryRequestAnalysisSchema(BaseModel):
         data.setdefault("confidence", 0.65)
         return data
 
+    @model_validator(mode="after")
+    def _require_meaningful_payload(self) -> "_QueryRequestAnalysisSchema":
+        has_content = any(
+            [
+                self.normalized_query.strip(),
+                self.selected_fields,
+                self.field_bindings,
+                self.field_mappings,
+                self.aggregation_plan,
+                self.metric_semantics,
+                self.query_variants,
+            ]
+        )
+        if not has_content:
+            raise ValueError("Query analysis response must contain query intent or schema-grounded fields.")
+        return self
+
+
+
+def _field_binding_payloads(data: dict[str, Any]) -> dict[str, Any]:
+    reserved_keys = {
+        "normalized_query",
+        "canonical_query",
+        "intent",
+        "analytic_intent",
+        "user_intent",
+        "query",
+        "analysis_task",
+        "selected_fields",
+        "grounded_fields",
+        "field_bindings",
+        "field_mappings",
+        "mappings",
+        "aggregation_plan",
+        "metric_semantics",
+        "ranking_strategy",
+        "scale_strategy",
+        "visual_constraints",
+        "comparison_group_id",
+        "visual_judge_requirements",
+        "query_variants",
+        "chart_answerability",
+        "assumptions",
+        "ambiguity",
+        "missing_fields",
+        "ambiguity_notes",
+        "ambiguity_report",
+        "confidence",
+    }
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        key_text = str(key).strip()
+        if not key_text or key_text in reserved_keys or not isinstance(value, dict):
+            continue
+        field = str(value.get("field") or value.get("column_name") or "").strip()
+        if field:
+            result[key_text] = {**value, "field": field, "role": str(value.get("role") or key_text).strip()}
+    return result
 
 def _merge_dicts(*values: Any) -> dict[str, Any]:
     result: dict[str, Any] = {}
@@ -216,7 +284,7 @@ class QueryRequestAnalyzerService(BaseService):
             confidence=parsed.ambiguity.confidence,
         )
         return QueryRequestAnalysisResult(
-            normalized_query=parsed.normalized_query.strip(),
+            normalized_query=parsed.normalized_query.strip() or original_query.strip(),
             analysis_task=parsed.analysis_task.strip() or "descriptive_analytics",
             selected_fields=selected_fields,
             field_bindings={
