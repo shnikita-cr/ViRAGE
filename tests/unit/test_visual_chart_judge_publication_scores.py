@@ -1,5 +1,5 @@
-from src.domain.visual_feedback_models import VisualChartJudgeResult
-from src.services.visual_feedback.visual_chart_judge import VisualChartJudgeAdapters, VisualChartJudgeService
+from src.domain.feedback.visual_feedback_models import VisualChartJudgeResult
+from src.services.visual_feedback.judges.visual_chart_judge import VisualChartJudgeAdapters, VisualChartJudgeService
 
 
 def test_visual_chart_judge_prompt_requests_publication_scores() -> None:

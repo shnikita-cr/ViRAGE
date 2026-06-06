@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
-from src.graph.pipeline_nodes.common import (
+from src.application.runtime.state import PipelineState
+from src.domain.common.enums import PipelineStage
+from src.graph.pipeline_nodes.shared.common import (
     _manual_feedback_items,
     _merge_unique_texts,
     _vega_spec_artifact_payload,
 )
 from src.observability import traceable
-from src.visrag_core.task_context import task_context_from_user_context
+from src.visrag_core.models.task_context import task_context_from_user_context
 
 
 class GenerationPipelineNodesMixin:

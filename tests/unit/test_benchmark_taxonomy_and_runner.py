@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.benchmark.run_virage_e2e_test_cases import BenchmarkCase, load_cases, main
-from scripts.rag_corpus.loading import load_eda_best_practices as eda_loader
-from scripts.rag_corpus.export_guidance_chunks import source_kind_for
+from scripts.benchmark.runners.chart.run_virage_e2e_test_cases import BenchmarkCase, load_cases, main
+from scripts.rag_corpus.loading.datasets import load_eda_best_practices as eda_loader
+from scripts.rag_corpus.export.export_guidance_chunks import source_kind_for
 
 
 def _write_config(path: Path, artifact_root: Path) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.infrastructure.runtime import RuntimeContext
 
 

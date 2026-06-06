@@ -7,8 +7,8 @@ from typing import Any
 
 from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
-from src.application.project_config import ProjectConfig
-from src.orchestrator.models import AnalysisPlan, OrchestratorSubrunResult
+from src.application.config.project_config import ProjectConfig
+from src.orchestrator.contracts.models import AnalysisPlan, OrchestratorSubrunResult
 
 _SAFE_RE = re.compile(r"[^A-Za-z0-9_-]+")
 

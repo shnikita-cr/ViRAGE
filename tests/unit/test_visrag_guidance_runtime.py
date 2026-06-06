@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import DataColumnProfile, DataProfile, FieldBinding, QueryRequestAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
-from src.services.visrag import VisRAGService
+from src.services.rag.visrag import VisRAGService
 
 
 def _write_runtime_rules(root: Path) -> None:

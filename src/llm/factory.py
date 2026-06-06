@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.application.bootstrap import bootstrap_project_environment
-from src.application.project_config import ModelRoleConfig
+from src.application.config.bootstrap import bootstrap_project_environment
+from src.application.config.project_config import ModelRoleConfig
 
 
 def build_chat_model(config: ModelRoleConfig) -> object:

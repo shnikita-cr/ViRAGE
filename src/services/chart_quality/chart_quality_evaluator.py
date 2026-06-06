@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.services.chart_quality._spec_utils import get_encoding, iter_unit_specs, mark_type
+from src.services.chart_quality.common.spec_utils import get_encoding, iter_unit_specs, mark_type
 from src.services.chart_quality.chart_quality_types import ChartQualityIssue, ChartQualityReport, ChartQualityThresholds
 
 

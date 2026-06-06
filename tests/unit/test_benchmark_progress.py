@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.benchmark.progress import ConsoleProgressBar
+from src.benchmark.core.progress import ConsoleProgressBar
 
 
 def test_console_progress_bar_prints_shared_status_fields(capsys) -> None:

@@ -60,7 +60,7 @@ class ImageFolderPreprocessor:
         for image_path in image_paths:
             try:
                 rows.append(self._process_image(folder, image_path))
-            except Exception as exc:  # noqa: BLE001 - file-level failure must be reported, not hidden.
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:  # noqa: BLE001 - file-level failure must be reported, not hidden.
                 failed_rows.append(
                     {
                         "file_path": image_path.as_posix(),
@@ -287,7 +287,7 @@ class _PyIQARunner:
         for metric_name in ("brisque", "niqe", "piqe"):
             try:
                 metrics[metric_name] = pyiqa.create_metric(metric_name, device="cpu")
-            except Exception as exc:  # noqa: BLE001 - external metric availability must be reported.
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:  # noqa: BLE001 - external metric availability must be reported.
                 failures.append(f"{metric_name}: {type(exc).__name__}: {exc}")
         if not metrics:
             return cls(
@@ -320,7 +320,7 @@ class _PyIQARunner:
                 elif isinstance(value, (list, tuple)):
                     value = value[0]
                 scores[column] = _safe_float(float(value))
-            except Exception:  # noqa: BLE001 - a failed external metric must not break base feature extraction.
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):  # noqa: BLE001 - a failed external metric must not break base feature extraction.
                 scores[column] = None
         return scores
 

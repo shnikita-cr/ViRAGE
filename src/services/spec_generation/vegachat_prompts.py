@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from src.domain.models import DataPreparationResult, DataProfile, SpecGenerationRequest
-from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
+from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
 from src.services.spec_generation.vegachat_contract import VEGA_LITE_SCHEMA_URL, vegachat_output_contract
 
 

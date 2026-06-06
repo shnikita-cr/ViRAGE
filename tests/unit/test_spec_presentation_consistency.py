@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.services.spec_presentation_consistency import SpecPresentationConsistencyService
+from src.services.spec.presentation_consistency import SpecPresentationConsistencyService
 
 
 def test_presentation_consistency_builds_field_aware_aggregate_labels() -> None:

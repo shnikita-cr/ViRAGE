@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
+from src.benchmark.evaluation.evaluator import VegaChatBenchmarkEvaluator
 from src.domain.models import VisualQualityMetric
-from src.services.vision_score import compute_vegachat_vision_score
+from src.services.evaluation.chart.vision_score import compute_vegachat_vision_score
 
 
 def test_vegachat_vision_score_uses_expected_weights() -> None:

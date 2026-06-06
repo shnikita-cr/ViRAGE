@@ -7,9 +7,9 @@ from typing import Any
 import pandas as pd
 
 from src.services.rendering.axis_domain_policy import AxisDomainPolicy
-from src.services.rendering.chart_render_policy_types import ChartRenderPolicyResult
+from src.services.rendering.common.chart_render_policy_types import ChartRenderPolicyResult
 from src.services.rendering.label_fit_policy import LabelFitPolicy
-from src.services.rendering.spec_traversal import iter_unit_specs
+from src.services.rendering.common.spec_traversal import iter_unit_specs
 from src.services.rendering.noninformative_mark_policy import NonInformativeMarkPolicy
 
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import (
     DataPreparationResult,
     SpecValidationResult,

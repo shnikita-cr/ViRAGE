@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.domain.visrag_models import (
+from src.domain.rag.visrag_models import (
     VisRAGDebugRetrieval,
     VisRAGDiagnostics,
     VisRAGGenerationGuidance,

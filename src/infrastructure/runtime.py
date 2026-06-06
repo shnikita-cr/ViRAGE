@@ -11,7 +11,7 @@ from typing import Any, Callable
 import pandas as pd
 
 from src.application.dataset_context import read_dataframe_cached
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import ModelCallLog, StageExecutionLog, StepLog, TokenUsage
 
 _MODEL_CALL_CSV_COLUMNS = [
@@ -91,7 +91,7 @@ class RuntimeContext:
         self.model_call_logs.clear()
         try:
             run_dir = self.ensure_run_dir()
-        except Exception:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):
             return
         self._remove_paths([
             run_dir / "model_calls",
@@ -105,7 +105,7 @@ class RuntimeContext:
         self.stage_execution_logs.clear()
         try:
             run_dir = self.ensure_run_dir()
-        except Exception:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):
             return
         self._remove_paths([
             run_dir / "stages.csv",
@@ -130,7 +130,7 @@ class RuntimeContext:
         self.model_call_logs.append(enriched_log)
         try:
             run_dir = self.ensure_run_dir()
-        except Exception:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):
             run_dir = None
         if run_dir is not None:
             calls_dir = run_dir / "model_calls"
@@ -147,7 +147,7 @@ class RuntimeContext:
         self.stage_execution_logs.append(enriched_log)
         try:
             run_dir = self.ensure_run_dir()
-        except Exception:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):
             run_dir = None
         if run_dir is not None:
             self._write_stage_execution_csvs(run_dir)

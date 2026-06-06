@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.domain.models import DataColumnProfile, DataProfile, FieldBinding, QueryRequestAnalysisResult, VisRAGRuleDocument
-from src.visrag_core.filters import rerank_by_compatibility
+from src.visrag_core.retrieval.rules.filters import rerank_by_compatibility
 
 
 def _profile() -> DataProfile:

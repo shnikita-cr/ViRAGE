@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("pyarrow")
 
-from scripts.rag_corpus.export_autorag_chunks import export_autorag_chunks
+from scripts.rag_corpus.autorag.export.export_autorag_chunks import export_autorag_chunks
 
 
 def _write_chunks(path: Path, count: int = 6) -> None:

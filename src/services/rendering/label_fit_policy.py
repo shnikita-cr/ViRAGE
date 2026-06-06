@@ -5,8 +5,8 @@ from typing import Any
 
 import pandas as pd
 
-from src.services.rendering.chart_render_policy_types import ChartRenderPolicyResult
-from src.services.rendering.spec_traversal import iter_unit_specs
+from src.services.rendering.common.chart_render_policy_types import ChartRenderPolicyResult
+from src.services.rendering.common.spec_traversal import iter_unit_specs
 
 
 @dataclass(frozen=True)

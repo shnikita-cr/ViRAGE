@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
+from src.application.runtime.state import PipelineState
+from src.domain.common.enums import PipelineStage
 from src.domain.models import PlotImageArtifact, SemanticFeedbackLoopSummary
-from src.graph.pipeline_nodes.common import (
+from src.graph.pipeline_nodes.shared.common import (
     _actionable_semantic_feedback,
     _semantic_feedback_text,
     _semantic_retry_reasons,
@@ -323,7 +323,7 @@ class VisualFeedbackPipelineNodesMixin:
             final_examples.append(final_example)
             if self.runtime.settings.semantic_feedback_save_rejected_specs:
                 final_corpus_path = self.feedback_corpus_writer.append_to_corpus(final_example, self.runtime)
-        except Exception as exc:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
             artifact_paths = self._save_into(
                 artifact_paths,
                 state["run_id"],

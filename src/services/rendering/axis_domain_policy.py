@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.services.rendering.spec_traversal import iter_unit_specs
+from src.services.rendering.common.spec_traversal import iter_unit_specs
 
 
 @dataclass(frozen=True)

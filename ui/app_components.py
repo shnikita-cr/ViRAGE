@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 import tempfile
 from io import BytesIO
 from collections import OrderedDict
@@ -14,16 +13,14 @@ import pandas as pd
 import streamlit as st
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.application.bootstrap import bootstrap_project_environment
+from src.application.config.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
-from src.application.project_config import DEFAULT_CONFIG_PATH, ProjectConfig, load_project_config
+from src.application.config.project_config import DEFAULT_CONFIG_PATH, ProjectConfig, load_project_config
 from src.domain.models import ModelCallLog, StepLog
 from src.infrastructure.runtime import RuntimeContext
-from src.services.visual_feedback.feedback_corpus_writer import FeedbackCorpusWriterService
+from src.services.visual_feedback.corpus.feedback_corpus_writer import FeedbackCorpusWriterService
 
 
 CONFIG_DIR = PROJECT_ROOT / "ui" / "config"
@@ -567,7 +564,7 @@ def render_interactive_vegalite_chart(result: Any) -> bool:
 
         return True
 
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
         st.warning("Interactive Vega-Lite rendering failed. Falling back to PNG if available.")
         st.exception(exc)
         return False
@@ -900,7 +897,7 @@ def read_text_artifact(path_value: str, *, max_chars: int = 30000) -> str:
     try:
         path = Path(path_value)
         text = path.read_text(encoding="utf-8", errors="replace")
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
         return f"Could not read artifact {path_value!r}: {exc}"
     if len(text) > max_chars:
         return text[:max_chars] + "\n\n[artifact truncated in UI]"

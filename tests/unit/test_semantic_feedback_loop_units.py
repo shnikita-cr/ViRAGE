@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import (
     ChartAnswerJudgeResult,
     ChartFactSummaryResult,
@@ -11,10 +11,10 @@ from src.domain.models import (
     VLMChartDescriptionResult,
     VegaLiteSpecArtifact,
 )
-from src.domain.spec_generation_models import SpecGenerationRequest
+from src.domain.chart.spec_generation_models import SpecGenerationRequest
 from src.infrastructure.runtime import RuntimeContext
 from src.services.spec_generation.vegachat_prompts import build_vegachat_codegen_prompt
-from src.services.visual_feedback.feedback_corpus_writer import FeedbackCorpusWriterService
+from src.services.visual_feedback.corpus.feedback_corpus_writer import FeedbackCorpusWriterService
 
 
 def test_semantic_feedback_is_injected_into_spec_generation_prompt() -> None:
@@ -77,7 +77,7 @@ def test_feedback_corpus_writer_appends_visual_feedback_jsonl(tmp_path: Path) ->
 
 
 def test_chart_answer_judge_accepts_common_no_retry_tokens() -> None:
-    from src.services.visual_feedback.chart_answer_judge import _normalize_retry_recommendation
+    from src.services.visual_feedback.judges.chart_answer_judge import _normalize_retry_recommendation
 
     for token in ["no_retry", "none", "ok", "accepted", "do not retry"]:
         assert _normalize_retry_recommendation(
@@ -91,7 +91,7 @@ def test_chart_answer_judge_accepts_common_no_retry_tokens() -> None:
 
 
 def test_chart_answer_judge_keeps_retry_when_actionable_feedback_exists() -> None:
-    from src.services.visual_feedback.chart_answer_judge import _normalize_retry_recommendation
+    from src.services.visual_feedback.judges.chart_answer_judge import _normalize_retry_recommendation
 
     assert _normalize_retry_recommendation(
         "retry",
@@ -133,7 +133,7 @@ def test_feedback_corpus_writer_appends_user_feedback_with_high_weight(tmp_path:
 
 
 def test_semantic_chart_judge_prompt_is_png_only_and_omits_spec_data() -> None:
-    from src.services.visual_feedback.semantic_chart_judge import SemanticChartJudgeService
+    from src.services.visual_feedback.judges.semantic_chart_judge import SemanticChartJudgeService
 
     prompt = SemanticChartJudgeService._prompt(
         query="compare values",

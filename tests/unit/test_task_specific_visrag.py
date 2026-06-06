@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from src.domain.models import DataColumnProfile, DataProfile, QueryRequestAnalysisResult, VisRAGGuidanceChunk
 from src.visrag_core.engine import VisRAGCoreOptions, VisRAGEngine
-from src.visrag_core.query_builder import build_visrag_query
-from src.visrag_core.task_context import task_context_from_user_context
+from src.visrag_core.retrieval.rules.query_builder import build_visrag_query
+from src.visrag_core.models.task_context import task_context_from_user_context
 from src.visrag_core.stores.base import VisRAGStore
 
 

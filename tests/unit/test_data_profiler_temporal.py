@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.infrastructure.runtime import RuntimeContext
-from src.services.data_profiler import DataProfilerService
+from src.services.data.profile.data_profiler import DataProfilerService
 
 
 def test_numeric_year_column_is_temporal(tmp_path):

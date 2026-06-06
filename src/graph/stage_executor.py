@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
+from src.application.runtime.state import PipelineState
+from src.domain.common.enums import PipelineStage
 from src.domain.models import StageExecutionLog, StepLog, TokenUsage
 from src.infrastructure.runtime import RuntimeContext
 
@@ -131,7 +131,7 @@ class StageExecutor:
                 raise TypeError(
                     f"Pipeline node {self.name!r} must return a dict, got {type(output).__name__}."
                 )
-        except Exception as exc:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
             status = "failed"
             error = f"{type(exc).__name__}: {exc}"
             raise

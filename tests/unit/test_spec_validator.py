@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.domain.models import VegaLiteSpecArtifact
-from src.services.spec_validator import SpecValidatorService
+from src.services.spec.validator import SpecValidatorService
 
 
 def test_scatter_mark_is_normalized_to_point(tmp_path):

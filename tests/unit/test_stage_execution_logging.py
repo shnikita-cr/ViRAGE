@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import ModelCallLog, StageExecutionLog, TokenUsage
 from src.infrastructure.runtime import RuntimeContext
 
@@ -79,7 +79,7 @@ def test_model_call_logs_are_saved_to_single_model_calls_csv(tmp_path: Path) -> 
 
 
 def test_wrapped_graph_node_records_stage_execution_log(tmp_path: Path) -> None:
-    from src.domain.enums import PipelineStage
+    from src.domain.common.enums import PipelineStage
     from src.graph.stage_executor import wrap_stage_node
 
     runtime = RuntimeContext(settings=ViRAGESettings(artifact_root=tmp_path))

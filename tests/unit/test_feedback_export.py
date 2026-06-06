@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.services.visual_feedback.feedback_normalizer import FeedbackNormalizerService
-from scripts.rag_corpus.export_feedback_chunks import export_feedback_chunks
+from src.services.visual_feedback.corpus.feedback_normalizer import FeedbackNormalizerService
+from scripts.rag_corpus.export.export_feedback_chunks import export_feedback_chunks
 
 
 def _raw_feedback() -> dict:

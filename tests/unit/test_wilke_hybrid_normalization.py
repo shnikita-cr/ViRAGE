@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripts.rag_corpus.exporters.extract_wilke_fundamentals import extract_wilke_fundamentals
+from scripts.rag_corpus.exporters.academic.extract_wilke_fundamentals import extract_wilke_fundamentals
 
 
 def test_wilke_exporter_filters_non_guidance_chapters_and_sets_metadata(tmp_path: Path) -> None:

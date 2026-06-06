@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import (
     DataColumnProfile,
     DataPreparationResult,
@@ -13,7 +13,7 @@ from src.domain.models import (
     VisRAGResult,
 )
 from src.infrastructure.runtime import RuntimeContext
-from src.services.chart_generator import ChartGeneratorService
+from src.services.spec_generation.generator.chart_generator import ChartGeneratorService
 
 
 @dataclass

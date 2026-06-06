@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.graph.builder import _route_analytics_tail
 
 

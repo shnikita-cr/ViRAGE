@@ -3,14 +3,14 @@ from __future__ import annotations
 import traceback
 from typing import Callable
 
-from src.application.bootstrap import bootstrap_project_environment
+from src.application.config.bootstrap import bootstrap_project_environment
 from src.application.contracts import PipelineRequest, PipelineResult
-from src.application.pipeline_result_factory import PipelineResultFactory
-from src.application.project_config import ProjectConfig
-from src.application.run_report import save_error_report, save_run_report, save_task_request
-from src.application.settings import ViRAGESettings
-from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
+from src.application.results.pipeline_result_factory import PipelineResultFactory
+from src.application.config.project_config import ProjectConfig
+from src.application.results.run_report import save_error_report, save_run_report, save_task_request
+from src.application.config.settings import ViRAGESettings
+from src.application.runtime.state import PipelineState
+from src.domain.common.enums import PipelineStage
 from src.domain.models import ModelCallLog, StepLog
 from src.graph.builder import build_pipeline_graph
 from src.infrastructure.runtime import RuntimeContext

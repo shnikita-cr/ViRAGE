@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.rag_corpus.export_guidance_chunks import chunk_text, export_chunks
-from src.visrag_core.chroma_index import chunk_embedding_text
+from scripts.rag_corpus.export.export_guidance_chunks import chunk_text, export_chunks
+from src.visrag_core.indexing.chroma_index import chunk_embedding_text
 from src.domain.models import VisRAGGuidanceChunk
 
 

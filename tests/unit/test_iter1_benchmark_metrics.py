@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.benchmark.analysis_models import AnalysisBenchmarkReport, AnalysisBenchmarkResult
-from src.benchmark.datasets import load_benchmark_cases
-from src.benchmark.models import BenchmarkAggregateReport, BenchmarkCaseResult
-from src.benchmark.chart_text_metrics import chart_text_consistency_score
+from src.benchmark.analysis.analysis_models import AnalysisBenchmarkReport, AnalysisBenchmarkResult
+from src.benchmark.datasets.datasets import load_benchmark_cases
+from src.benchmark.core.models import BenchmarkAggregateReport, BenchmarkCaseResult
+from src.benchmark.evaluation.chart_text_metrics import chart_text_consistency_score
 
 
 def test_nlv_loader_keeps_only_single_turn_cases_and_uses_stable_ids(tmp_path: Path) -> None:

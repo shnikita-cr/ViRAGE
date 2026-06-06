@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
+from src.application.runtime.state import PipelineState
+from src.domain.common.enums import PipelineStage
 from src.domain.models import InsightsResult, PlotImageArtifact, VLMAnalysisResult
 from src.observability import traceable
 
@@ -41,7 +41,7 @@ class AnalysisPipelineNodesMixin:
         plot_image = PlotImageArtifact(**state["plot_image"])
         try:
             result = self.vlm_analysis.invoke(plot_image, state["analysis_rubric"], runtime=self.runtime)
-        except Exception as exc:
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
             if not bool(getattr(self.runtime.settings, "vlm_fail_soft", False)):
                 raise
             result = VLMAnalysisResult(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.orchestrator.models import AnalysisPlan, OrchestratorReport
+from src.orchestrator.contracts.models import AnalysisPlan, OrchestratorReport
 
 
 class FinalSummaryBuilder:

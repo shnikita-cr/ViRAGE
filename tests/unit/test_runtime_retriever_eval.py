@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.rag_corpus.apply_runtime_retrieval_config import apply_config
-from scripts.rag_corpus.run_evaluate_runtime_retrievers import _hit_at_k, _mrr_at_k, _ndcg_at_k, _precision_at_k, _recall_at_k
+from scripts.rag_corpus.runtime.apply_runtime_retrieval_config import apply_config
+from scripts.rag_corpus.evaluation.run_evaluate_runtime_retrievers import _hit_at_k, _mrr_at_k, _ndcg_at_k, _precision_at_k, _recall_at_k
 
 
 def test_retrieval_metric_helpers() -> None:

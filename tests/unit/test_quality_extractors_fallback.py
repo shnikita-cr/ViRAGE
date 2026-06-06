@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.rag_corpus.exporters.extract_from_data_to_viz import extract_from_data_to_viz
+from scripts.rag_corpus.exporters.academic.extract_from_data_to_viz import extract_from_data_to_viz
 
 
 @pytest.mark.parametrize(

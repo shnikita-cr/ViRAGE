@@ -8,9 +8,9 @@ from pydantic import ValidationError
 from src.domain.models import DataProfile
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_text
-from src.orchestrator.models import AnalysisPlan, analysis_plan_contract_metadata, allowed_analysis_task_types
-from src.services.data_profile_prompt_formatter import DataProfilePromptFormatter
-from src.services.planning_guidance import PlanningGuidanceService
+from src.orchestrator.contracts.models import AnalysisPlan, analysis_plan_contract_metadata, allowed_analysis_task_types
+from src.services.data.profile.data_profile_prompt_formatter import DataProfilePromptFormatter
+from src.services.planning.planning_guidance import PlanningGuidanceService
 
 
 class AnalysisPlanner:

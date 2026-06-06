@@ -19,13 +19,13 @@ from src.domain.models import (
     VisRAGRetrievedChunk,
 )
 from src.llm.helpers import invoke_structured
-from src.visrag_core.chroma_index import ChromaChunkRetriever, validate_chroma_manifest
-from src.visrag_core.hybrid_retrieval_scorer import HybridRetrievalScorer
-from src.visrag_core.lexical_retriever import RankBM25ChunkRetriever
-from src.visrag_core.metadata_weighting import MetadataWeightingPolicy
-from src.visrag_core.query_builder import build_visrag_query
+from src.visrag_core.indexing.chroma_index import ChromaChunkRetriever, validate_chroma_manifest
+from src.visrag_core.retrieval.search.hybrid_retrieval_scorer import HybridRetrievalScorer
+from src.visrag_core.retrieval.search.lexical_retriever import RankBM25ChunkRetriever
+from src.visrag_core.retrieval.rules.metadata_weighting import MetadataWeightingPolicy
+from src.visrag_core.retrieval.rules.query_builder import build_visrag_query
 from src.visrag_core.stores import JsonlVisRAGStore, VisRAGStore
-from src.visrag_core.task_context import task_context_prompt_block
+from src.visrag_core.models.task_context import task_context_prompt_block
 
 
 @dataclass(frozen=True)

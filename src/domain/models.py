@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.domain.analysis_models import (
+from src.domain.analysis.analysis_models import (
     AnalysisRubric,
     VLMAnalysisResult,
     VisualFact,
@@ -9,7 +9,7 @@ from src.domain.analysis_models import (
     InsightReasoningResult,
     InsightsResult,
 )
-from src.domain.chart_models import (
+from src.domain.chart.chart_models import (
     VegaLiteSpecArtifact,
     SpecValidationResult,
     ScenegraphCheckResult,
@@ -17,7 +17,7 @@ from src.domain.chart_models import (
     PlotImageArtifact,
     PlotRenderingResult,
 )
-from src.domain.data_models import (
+from src.domain.data.data_models import (
     DataColumnProfile,
     DataProfile,
     RequestFieldMapping,
@@ -26,30 +26,30 @@ from src.domain.data_models import (
     QueryRequestAnalysisResult,
     DataPreparationResult,
 )
-from src.domain.evaluation_models import (
+from src.domain.chart.evaluation_models import (
     StructuralSpecMetric,
     VisualQualityMetric,
     EvaluationSummaryResult,
 )
-from src.domain.feedback_models import (
+from src.domain.feedback.feedback_models import (
     NormalizedFeedbackRecord,
 )
-from src.domain.query_models import (
+from src.domain.data.query_models import (
     QueryVariant,
 )
-from src.domain.runtime_models import (
+from src.domain.runtime.runtime_models import (
     TokenUsage,
     ModelCallLog,
     StepLog,
     StageExecutionLog,
 )
-from src.domain.spec_generation_models import (
+from src.domain.chart.spec_generation_models import (
     SpecGenerationBackendName,
     SpecGenerationRequest,
     SpecGenerationAttempt,
     SpecGenerationResult,
 )
-from src.domain.visrag_models import (
+from src.domain.rag.visrag_models import (
     VisRAGChunkKind,
     VisRAGRuleDocument,
     VisRAGGuidanceChunk,
@@ -59,7 +59,7 @@ from src.domain.visrag_models import (
     VisRAGDiagnostics,
     VisRAGResult,
 )
-from src.domain.visual_feedback_models import (
+from src.domain.feedback.visual_feedback_models import (
     VLMChartDescriptionResult,
     ChartFactSummaryResult,
     ChartAnswerJudgeResult,
@@ -70,7 +70,7 @@ from src.domain.visual_feedback_models import (
     VisualFeedbackExample,
     SemanticFeedbackLoopSummary,
 )
-from src.domain.vlm_image_benchmark_models import (
+from src.domain.feedback.vlm_image_benchmark_models import (
     ImageOnlyChartJudgeResult,
     VLMImageBenchmarkImageResult,
     VLMImageBenchmarkSummary,

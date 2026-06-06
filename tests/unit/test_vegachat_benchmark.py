@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.benchmark.datasets import load_benchmark_cases
-from src.benchmark.evaluator import VegaChatBenchmarkEvaluator
-from src.benchmark.models import BenchmarkAggregateReport
+from src.benchmark.datasets.datasets import load_benchmark_cases
+from src.benchmark.evaluation.evaluator import VegaChatBenchmarkEvaluator
+from src.benchmark.core.models import BenchmarkAggregateReport
 
 
 def test_load_benchmark_cases_supports_flexible_vegachat_keys(tmp_path: Path) -> None:
@@ -34,7 +34,7 @@ def test_load_benchmark_cases_supports_flexible_vegachat_keys(tmp_path: Path) ->
 
 
 def test_aggregate_report_computes_vegachat_rates() -> None:
-    from src.benchmark.models import BenchmarkCaseResult
+    from src.benchmark.core.models import BenchmarkCaseResult
 
     report = BenchmarkAggregateReport.from_results([
         BenchmarkCaseResult(
@@ -115,7 +115,7 @@ def test_offline_benchmark_evaluator_scores_generated_spec(tmp_path: Path) -> No
 
 
 def test_vegachat_spec_score_matches_core_formula_for_empty_chart() -> None:
-    from src.services.vegachat_spec_metrics import compute_vegachat_spec_score
+    from src.services.spec.vegachat_metrics import compute_vegachat_spec_score
 
     reference_spec = {
         "mark": "bar",
@@ -208,8 +208,8 @@ def test_load_chart_llm_directory(tmp_path: Path) -> None:
 
 
 def test_benchmark_runner_resume_skips_existing_successful_cases(tmp_path: Path) -> None:
-    from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
-    from src.benchmark.runner import VegaChatBenchmarkRunner
+    from src.benchmark.core.models import BenchmarkCase, BenchmarkCaseResult
+    from src.benchmark.core.runner import VegaChatBenchmarkRunner
 
     data_path = tmp_path / "data.csv"
     data_path.write_text("category,value\nA,1\n", encoding="utf-8")
@@ -272,8 +272,8 @@ def test_benchmark_runner_resume_skips_existing_successful_cases(tmp_path: Path)
 
 
 def test_benchmark_runner_resume_can_retry_failed_cases(tmp_path: Path) -> None:
-    from src.benchmark.models import BenchmarkCase, BenchmarkCaseResult
-    from src.benchmark.runner import VegaChatBenchmarkRunner
+    from src.benchmark.core.models import BenchmarkCase, BenchmarkCaseResult
+    from src.benchmark.core.runner import VegaChatBenchmarkRunner
 
     data_path = tmp_path / "data.csv"
     data_path.write_text("category,value\nA,1\n", encoding="utf-8")

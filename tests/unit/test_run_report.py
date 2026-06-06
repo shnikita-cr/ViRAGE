@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.application.contracts import PipelineRequest, PipelineResult
-from src.application.run_report import build_run_report, save_error_report, save_run_report, save_task_request
-from src.application.settings import ViRAGESettings
+from src.application.results.run_report import build_run_report, save_error_report, save_run_report, save_task_request
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import (
     EmptyChartCheckResult,
     PlotImageArtifact,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.application.pipeline_result_factory import PipelineResultFactory
-from src.application.state import PipelineState
+from src.application.results.pipeline_result_factory import PipelineResultFactory
+from src.application.runtime.state import PipelineState
 from src.domain.models import InsightsResult, TokenUsage
 
 

@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 
-from scripts.rag_corpus.loading.common import LoaderConfig, _extract_links
-from scripts.rag_corpus.loading.urls import matches_allowed_scope, normalise_candidate_url
+from scripts.rag_corpus.loading.core.common import LoaderConfig, _extract_links
+from scripts.rag_corpus.loading.core.urls import matches_allowed_scope, normalise_candidate_url
 
 
 def test_extract_links_skips_invalid_feed_links_with_spaces() -> None:
@@ -69,7 +69,7 @@ def test_data_to_viz_html_file_seed_is_allowed() -> None:
 
 
 def test_download_html_pages_skips_dead_discovered_links_but_keeps_seed_strict(tmp_path, monkeypatch) -> None:
-    from scripts.rag_corpus.loading import common as loading_common
+    from scripts.rag_corpus.loading.core import common as loading_common
 
     pages = {
         "https://www.data-to-viz.com/": (
@@ -143,7 +143,7 @@ def test_extract_links_uses_full_document_when_selected_scope_misses_useful_link
 
 
 def test_fetch_clean_page_accepts_failed_like_html_when_required_marker_is_present(monkeypatch) -> None:
-    from scripts.rag_corpus.loading import common as loading_common
+    from scripts.rag_corpus.loading.core import common as loading_common
 
     html = b"""
     <html><body><main>
@@ -180,7 +180,7 @@ def test_fetch_clean_page_accepts_failed_like_html_when_required_marker_is_prese
 
 
 def test_fetch_clean_page_rejects_failed_like_html_without_required_marker(monkeypatch) -> None:
-    from scripts.rag_corpus.loading import common as loading_common
+    from scripts.rag_corpus.loading.core import common as loading_common
 
     html = b"<html><body><main><p>Please enable javascript. Access denied.</p></main></body></html>"
 
@@ -213,7 +213,7 @@ def test_fetch_clean_page_rejects_failed_like_html_without_required_marker(monke
 
 
 def test_fetch_clean_page_uses_marker_guided_extraction_for_component_pages(monkeypatch) -> None:
-    from scripts.rag_corpus.loading import common as loading_common
+    from scripts.rag_corpus.loading.core import common as loading_common
 
     html = b"""
     <html><head><title>Preparing figures - our specifications</title></head>
@@ -257,7 +257,7 @@ def test_fetch_clean_page_uses_marker_guided_extraction_for_component_pages(monk
 
 
 def test_fetch_bytes_retries_cookie_not_supported_page(monkeypatch) -> None:
-    from scripts.rag_corpus.loading import fetch as loading_fetch
+    from scripts.rag_corpus.loading.core import fetch as loading_fetch
 
     calls: list[dict[str, str]] = []
 

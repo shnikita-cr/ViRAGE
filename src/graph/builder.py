@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.state import PipelineState
-from src.domain.enums import PipelineStage
+from src.application.runtime.state import PipelineState
+from src.domain.common.enums import PipelineStage
 from src.graph.nodes import PipelineNodes
 from src.graph.stage_executor import wrap_stage_node
 from src.infrastructure.runtime import RuntimeContext

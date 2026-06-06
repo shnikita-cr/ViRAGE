@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.benchmark.run_virage_e2e_test_cases import (
+from scripts.benchmark.runners.chart.run_virage_e2e_test_cases import (
     VirageE2ETestCase,
     load_cases,
     resolve_case_data_path,

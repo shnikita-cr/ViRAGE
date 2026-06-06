@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 try:
     from langsmith import traceable as _traceable  # type: ignore
-except Exception:  # pragma: no cover
+except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):  # pragma: no cover
     def traceable(*args: Any, **kwargs: Any):
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             return func

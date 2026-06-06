@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.services.chart_quality._spec_utils import (
+from src.services.chart_quality.common.spec_utils import (
     channel_field,
     clone_jsonish,
     get_encoding,

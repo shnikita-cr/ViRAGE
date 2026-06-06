@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.application.settings import ViRAGESettings
+from src.application.config.settings import ViRAGESettings
 from src.domain.models import DataColumnProfile, DataProfile, QueryRequestAnalysisResult
 from src.infrastructure.runtime import RuntimeContext
-from src.services.data_preparation import DataPreparationService
+from src.services.data.preparation.data_preparation import DataPreparationService
 
 
 def test_data_preparation_preserves_duplicate_rows_by_default(tmp_path):
