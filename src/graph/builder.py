@@ -30,19 +30,21 @@ def _route_semantic_gate(state: PipelineState) -> str:
     return "strict"
 
 
-def _route_semantic_decision(state: PipelineState) -> str:
+def _route_after_spec_score(state: PipelineState, *, runtime: RuntimeContext) -> str:
+    if bool(getattr(runtime.settings, "semantic_feedback_loop_enabled", True)):
+        return "semantic_loop"
+    if bool(getattr(runtime.settings, "analytics_tail_enabled", True)):
+        return "analytics_tail"
+    return "completed"
+
+
+def _route_after_semantic_decision(state: PipelineState, *, runtime: RuntimeContext) -> str:
     status = str(state.get("semantic_status") or "")
     if status == "retry":
         return "retry"
     if status == "failed":
-        return "failed"
-    return "accepted"
-
-
-def _route_analytics_tail(state: PipelineState, *, runtime: RuntimeContext) -> str:
-    if bool(getattr(runtime.settings, "analytics_tail_enabled", True)):
-        return "enabled"
-    return "disabled"
+        return "failed_tail" if bool(getattr(runtime.settings, "analytics_tail_enabled", True)) else "failed_done"
+    return "accepted_tail" if bool(getattr(runtime.settings, "analytics_tail_enabled", True)) else "accepted_done"
 
 
 def build_pipeline_graph(runtime: RuntimeContext):
@@ -102,8 +104,8 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph.add_edge("empty_chart_check", "spec_score")
     graph.add_conditional_edges(
         "spec_score",
-        lambda state: _route_analytics_tail(state, runtime=runtime),
-        {"enabled": "semantic_loop_gate", "disabled": "completed"},
+        lambda state: _route_after_spec_score(state, runtime=runtime),
+        {"semantic_loop": "semantic_loop_gate", "analytics_tail": "vlm_analysis", "completed": "completed"},
     )
     graph.add_conditional_edges(
         "semantic_loop_gate",
@@ -116,8 +118,14 @@ def build_pipeline_graph(runtime: RuntimeContext):
     graph.add_edge("chart_answer_judge", "semantic_decision")
     graph.add_conditional_edges(
         "semantic_decision",
-        _route_semantic_decision,
-        {"retry": "feedback_corpus_writer", "accepted": "vlm_analysis", "failed": "evaluation_summary"},
+        lambda state: _route_after_semantic_decision(state, runtime=runtime),
+        {
+            "retry": "feedback_corpus_writer",
+            "accepted_tail": "vlm_analysis",
+            "accepted_done": "completed",
+            "failed_tail": "evaluation_summary",
+            "failed_done": "completed",
+        },
     )
     graph.add_edge("feedback_corpus_writer", "chart_generator")
 

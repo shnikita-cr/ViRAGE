@@ -25,11 +25,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         if runtime.spec_llm is None:
             raise RuntimeError("VegaChat codegen backend requires RuntimeContext.spec_llm.")
 
-        max_attempts = max(
-            1,
-            int(runtime.settings.spec_generation_response_parse_retries) + 1,
-            int(request.max_generation_attempts) - int(request.generation_attempt_number) + 1,
-        )
+        max_attempts = max(1, int(runtime.settings.spec_generation_max_attempts))
         prompt_version = runtime.settings.spec_generation_prompt_version
         max_context_chars = int(runtime.settings.spec_generation_max_context_chars)
         attempts: list[SpecGenerationAttempt] = []

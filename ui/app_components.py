@@ -30,6 +30,10 @@ CHART_MODE_INTERACTIVE = "Interactive plot"
 CHART_MODE_PNG = "PNG plot"
 CHART_MODE_OPTIONS = [CHART_MODE_INTERACTIVE, CHART_MODE_PNG]
 
+RUN_MODE_ORCHESTRATOR = "Orchestrator: up to 3 charts"
+RUN_MODE_SINGLE_PIPELINE = "Single ViRAGE pipeline"
+RUN_MODE_OPTIONS = [RUN_MODE_ORCHESTRATOR, RUN_MODE_SINGLE_PIPELINE]
+
 METRICS_ENABLED = "Enabled"
 METRICS_DISABLED = "Disabled"
 METRICS_OPTIONS = [METRICS_ENABLED, METRICS_DISABLED]
@@ -1022,6 +1026,7 @@ def build_pending_run_payload(
     selected_config_label: str,
     chart_mode: str,
     compute_metrics: bool,
+    run_mode: str,
     visrag_enabled: bool,
     analytics_tail_enabled: bool,
     spec_generation_max_attempts: int,
@@ -1037,6 +1042,7 @@ def build_pending_run_payload(
         "config_label": selected_config_label,
         "chart_mode": chart_mode,
         "compute_metrics": compute_metrics,
+        "run_mode": run_mode,
         "visrag_enabled": visrag_enabled,
         "analytics_tail_enabled": analytics_tail_enabled,
         "spec_generation_max_attempts": spec_generation_max_attempts,

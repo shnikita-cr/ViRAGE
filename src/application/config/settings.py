@@ -11,8 +11,7 @@ class ViRAGESettings(BaseModel):
     project_name: str = Field(default="ViRAGE")
     default_figure_dpi: int = Field(default=192)
     graph_recursion_limit: int = Field(default=100, ge=25)
-    gpu_ram_gb: float = Field(default=8.0, ge=1.0)
-
+    gpu_ram_gb: float = Field(default=8.0, gt=0.0)
 
     visrag_enabled: bool = Field(default=True)
     visrag_corpus_root: Path | None = Field(default=Path("./rag_corpus/runtime"))

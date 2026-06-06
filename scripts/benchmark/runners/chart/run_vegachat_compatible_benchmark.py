@@ -26,7 +26,6 @@ def main() -> None:
         config.settings.semantic_feedback_loop_enabled = False
     if args.disable_analytics_tail:
         config.settings.analytics_tail_enabled = False
-        config.settings.semantic_feedback_loop_enabled = False
         config.settings.enable_evaluation_summary = False
     pipeline = ViRAGEPipeline.from_project_config(config)
     report = VegaChatBenchmarkRunner(pipeline).run_dataset(cases_path=Path(args.cases), output_dir=Path(args.output_dir), limit=args.limit, resume=args.resume, retry_failed=args.retry_failed, nlv_mode=args.nlv_mode, config_path=Path(args.config), run_options={'disable_vlm_loop': args.disable_vlm_loop, 'disable_analytics_tail': args.disable_analytics_tail, 'analytics_tail_enabled': not args.disable_analytics_tail})
