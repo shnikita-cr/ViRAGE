@@ -12,7 +12,6 @@ class ViRAGESettings(BaseModel):
     default_figure_dpi: int = Field(default=192)
     graph_recursion_limit: int = Field(default=100, ge=25)
     gpu_ram_gb: float = Field(default=8.0, ge=1.0)
-    prompt_budget_safety_tokens: int = Field(default=256, ge=64)
 
 
     visrag_enabled: bool = Field(default=True)
@@ -70,8 +69,6 @@ class ViRAGESettings(BaseModel):
     spec_generation_prompt_version: str = Field(default="vega_chat_v1")
     spec_generation_include_visrag_context: bool = Field(default=True)
     spec_generation_max_context_chars: int = Field(default=3000, ge=256)
-    query_analysis_profile_budget_tokens: int = Field(default=1000, ge=256)
-    spec_generation_profile_budget_tokens: int = Field(default=1200, ge=256)
     spec_generation_max_profile_columns: int = Field(default=30, ge=3)
     spec_generation_max_quality_notes: int = Field(default=10, ge=0)
     spec_generation_max_sample_values: int = Field(default=3, ge=0)

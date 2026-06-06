@@ -4,75 +4,94 @@ import json
 import re
 from typing import Any, Literal
 
-from src.llm.structured_response import extract_structured_json, is_vega_lite_spec_payload
+from src.llm.structured_response import extract_json_text, is_vega_lite_spec_payload
 
 _EXPLAIN_RE = re.compile(r"<explain>\s*(.*?)\s*</explain>", re.IGNORECASE | re.DOTALL)
 _JSON_TAG_RE = re.compile(r"<json>\s*(.*?)\s*</json>", re.IGNORECASE | re.DOTALL)
-ParserMode = Literal["auto", "strict", "tolerant"]
+ParserMode = Literal["strict", "tolerant"]
 
 
 class VegaChatResponseParseError(ValueError):
     pass
 
 
-def parse_vegachat_response(raw_response: str, *, mode: ParserMode = "auto") -> tuple[str | None, dict[str, Any]]:
-    if mode == "auto":
-        return parse_vegachat_response_auto(raw_response)
+_VEGA_LITE_TOP_LEVEL_KEYS = {
+    "$schema",
+    "mark",
+    "encoding",
+    "transform",
+    "data",
+    "datasets",
+    "layer",
+    "facet",
+    "repeat",
+    "concat",
+    "hconcat",
+    "vconcat",
+}
+
+
+def parse_vegachat_response(raw_response: str, *, mode: ParserMode = "strict") -> tuple[str | None, dict[str, Any]]:
     if mode == "strict":
-        return parse_vegachat_response_strict(raw_response)
+        try:
+            return parse_vegachat_response_strict(raw_response)
+        except VegaChatResponseParseError:
+            return parse_vegachat_response_tolerant(raw_response)
     if mode == "tolerant":
         return parse_vegachat_response_tolerant(raw_response)
     raise VegaChatResponseParseError(f"Unsupported VegaChat parser mode: {mode!r}.")
-
-
-def parse_vegachat_response_auto(raw_response: str) -> tuple[str | None, dict[str, Any]]:
-    try:
-        return parse_vegachat_response_strict(raw_response)
-    except VegaChatResponseParseError as strict_error:
-        explanation = _extract_explanation(raw_response)
-        extraction = extract_structured_json(raw_response or "", unwrap_spec_payload=False)
-        if extraction.error is not None:
-            raise strict_error
-        if not isinstance(extraction.payload, dict):
-            raise VegaChatResponseParseError("Parsed Vega-Lite JSON must be an object.") from strict_error
-        if not is_vega_lite_spec_payload(extraction.payload):
-            raise VegaChatResponseParseError("Strict VegaChat <json> block must contain a Vega-Lite object, not a wrapper.") from strict_error
-        return explanation, dict(extraction.payload)
 
 
 def parse_vegachat_response_strict(raw_response: str) -> tuple[str | None, dict[str, Any]]:
     text = (raw_response or "").strip()
     if not text:
         raise VegaChatResponseParseError("Empty model response.")
-    if "```" in text:
-        raise VegaChatResponseParseError("Strict VegaChat response must not contain markdown code fences.")
-    explain_matches = list(_EXPLAIN_RE.finditer(text))
-    json_matches = list(_JSON_TAG_RE.finditer(text))
-    if len(explain_matches) != 1:
-        raise VegaChatResponseParseError("Strict VegaChat response must contain exactly one <explain>...</explain> block.")
-    if len(json_matches) != 1:
-        raise VegaChatResponseParseError("Strict VegaChat response must contain exactly one <json>...</json> block.")
-    remainder = _EXPLAIN_RE.sub("", text)
-    remainder = _JSON_TAG_RE.sub("", remainder).strip()
-    if remainder:
-        raise VegaChatResponseParseError("Strict VegaChat response contains text outside <explain> and <json> blocks.")
-    explanation = explain_matches[0].group(1).strip() or None
-    payload = _loads_json_object(json_matches[0].group(1).strip())
-    if not is_vega_lite_spec_payload(payload):
-        raise VegaChatResponseParseError("Strict VegaChat <json> block must contain a Vega-Lite object, not a wrapper.")
-    return explanation, payload
+
+    if _has_complete_tagged_response(text):
+        return _parse_tagged_response(text)
+    return _parse_structured_model_response(text)
 
 
 def parse_vegachat_response_tolerant(raw_response: str) -> tuple[str | None, dict[str, Any]]:
     explanation = _extract_explanation(raw_response)
-    extraction = extract_structured_json(raw_response or "", unwrap_spec_payload=True)
-    if extraction.error is not None:
-        raise VegaChatResponseParseError(f"No valid Vega-Lite JSON object found in model response: {extraction.error}")
-    if not isinstance(extraction.payload, dict):
-        raise VegaChatResponseParseError("Parsed Vega-Lite JSON must be an object.")
-    if not is_vega_lite_spec_payload(extraction.payload):
+    json_text = _extract_json_text_tolerant(raw_response)
+    payload = _loads_json_object(json_text)
+    payload = _unwrap_spec_payload(payload)
+    if not _is_vega_lite_spec_payload(payload):
         raise VegaChatResponseParseError("Parsed JSON is not a Vega-Lite specification object.")
-    return explanation, dict(extraction.payload)
+    return explanation, payload
+
+
+def _has_complete_tagged_response(text: str) -> bool:
+    explain_matches = list(_EXPLAIN_RE.finditer(text))
+    json_matches = list(_JSON_TAG_RE.finditer(text))
+    if len(explain_matches) != 1 or len(json_matches) != 1:
+        return False
+    remainder = _EXPLAIN_RE.sub("", text)
+    remainder = _JSON_TAG_RE.sub("", remainder).strip()
+    return not remainder
+
+
+def _parse_tagged_response(text: str) -> tuple[str | None, dict[str, Any]]:
+    explain_match = _EXPLAIN_RE.search(text)
+    json_match = _JSON_TAG_RE.search(text)
+    if explain_match is None or json_match is None:
+        raise VegaChatResponseParseError("Tagged VegaChat response is incomplete.")
+    explanation = explain_match.group(1).strip() or None
+    payload = _loads_json_object(json_match.group(1).strip())
+    if not _is_vega_lite_spec_payload(payload):
+        raise VegaChatResponseParseError("Strict VegaChat <json> block must contain a Vega-Lite object, not a wrapper.")
+    return explanation, payload
+
+
+def _parse_structured_model_response(text: str) -> tuple[str | None, dict[str, Any]]:
+    explanation = _extract_explanation(text)
+    json_text = _extract_json_text_tolerant(text)
+    payload = _loads_json_object(json_text)
+    payload = _unwrap_spec_payload(payload)
+    if not _is_vega_lite_spec_payload(payload):
+        raise VegaChatResponseParseError("Parsed JSON is not a Vega-Lite specification object.")
+    return explanation, payload
 
 
 def _loads_json_object(text: str) -> dict[str, Any]:
@@ -85,9 +104,67 @@ def _loads_json_object(text: str) -> dict[str, Any]:
     return payload
 
 
+def _is_vega_lite_spec_payload(payload: Any) -> bool:
+    return is_vega_lite_spec_payload(payload)
+
+
+def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if _is_vega_lite_spec_payload(payload):
+        return payload
+    direct_keys = (
+        "json",
+        "spec",
+        "specification",
+        "vega_lite_spec",
+        "vegalite_spec",
+        "vegaLiteSpec",
+        "vl_spec",
+        "vlSpec",
+        "chart_spec",
+        "chart",
+        "visualization",
+        "result",
+        "answer",
+    )
+    for key in direct_keys:
+        value = payload.get(key)
+        if isinstance(value, dict):
+            candidate = _unwrap_spec_payload(value)
+            if _is_vega_lite_spec_payload(candidate):
+                return candidate
+    nested = _find_nested_vega_lite_spec(payload)
+    return nested if nested is not None else payload
+
+
+def _find_nested_vega_lite_spec(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        if _is_vega_lite_spec_payload(value):
+            return value
+        for item in value.values():
+            found = _find_nested_vega_lite_spec(item)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _find_nested_vega_lite_spec(item)
+            if found is not None:
+                return found
+    return None
+
+
 def _extract_explanation(raw_response: str) -> str | None:
     match = _EXPLAIN_RE.search(raw_response or "")
     if not match:
         return None
     explanation = match.group(1).strip()
     return explanation or None
+
+
+def _extract_json_text_tolerant(raw_response: str) -> str:
+    text = (raw_response or "").strip()
+    if not text:
+        raise VegaChatResponseParseError("Empty model response.")
+    json_text = extract_json_text(text, unwrap_spec_payload=True)
+    if not json_text or not json_text.strip().startswith("{"):
+        raise VegaChatResponseParseError("No JSON object found in model response.")
+    return json_text

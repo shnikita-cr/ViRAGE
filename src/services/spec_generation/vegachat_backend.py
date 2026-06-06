@@ -6,7 +6,6 @@ from typing import Any
 from src.domain.models import SpecGenerationAttempt, SpecGenerationRequest, SpecGenerationResult
 from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_text
-from src.llm.model_runtime import runtime_profile_from_model
 from src.services.spec_generation.base import SpecGenerationBackend
 from src.services.spec_generation.vegachat_parser import VegaChatResponseParseError, parse_vegachat_response
 from src.services.spec_generation.vegachat_prompts import VEGA_LITE_SCHEMA_URL, build_vegachat_codegen_prompt
@@ -26,7 +25,11 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         if runtime.spec_llm is None:
             raise RuntimeError("VegaChat codegen backend requires RuntimeContext.spec_llm.")
 
-        max_attempts = max(1, int(runtime.settings.spec_generation_response_parse_retries) + 1)
+        max_attempts = max(
+            1,
+            int(runtime.settings.spec_generation_response_parse_retries) + 1,
+            int(request.max_generation_attempts) - int(request.generation_attempt_number) + 1,
+        )
         prompt_version = runtime.settings.spec_generation_prompt_version
         max_context_chars = int(runtime.settings.spec_generation_max_context_chars)
         attempts: list[SpecGenerationAttempt] = []
@@ -47,7 +50,6 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                 previous_error=previous_error,
                 previous_response=previous_response,
                 rag_prompt_top_k=int(getattr(runtime.settings, "visrag_prompt_top_k_examples", 2)),
-                runtime_profile=runtime_profile_from_model(runtime.spec_llm),
             )
             final_prompt = prompt
             try:
@@ -59,7 +61,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                     role="spec",
                 )
                 final_raw_response = raw_response
-                explanation, parsed_spec = parse_vegachat_response(raw_response, mode="tolerant")
+                explanation, parsed_spec = parse_vegachat_response(raw_response)
                 spec_without_data, policy_warnings = self._normalize_model_spec(parsed_spec)
                 warning_messages.extend(policy_warnings)
                 final_explanation = explanation

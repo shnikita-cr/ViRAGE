@@ -21,7 +21,7 @@ _VEGA_LITE_TOP_LEVEL_KEYS = {
     "hconcat",
     "vconcat",
 }
-_SPEC_WRAPPER_KEYS = ("json", "spec", "vega_lite_spec", "vegalite_spec", "vl_spec", "chart_spec")
+_SPEC_WRAPPER_KEYS = ("json", "spec", "specification", "vega_lite_spec", "vegalite_spec", "vegaLiteSpec", "vl_spec", "vlSpec", "chart_spec", "chart", "visualization", "result", "answer")
 
 
 @dataclass(frozen=True)
@@ -127,8 +127,27 @@ def _unwrap_spec_payload(payload: Any) -> Any:
     for key in _SPEC_WRAPPER_KEYS:
         value = payload.get(key)
         if isinstance(value, dict):
-            return _unwrap_spec_payload(value)
-    return payload
+            candidate = _unwrap_spec_payload(value)
+            if _is_vega_lite_spec_payload(candidate):
+                return candidate
+    nested = _find_nested_vega_lite_spec(payload)
+    return nested if nested is not None else payload
+
+
+def _find_nested_vega_lite_spec(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        if _is_vega_lite_spec_payload(value):
+            return value
+        for item in value.values():
+            found = _find_nested_vega_lite_spec(item)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _find_nested_vega_lite_spec(item)
+            if found is not None:
+                return found
+    return None
 
 
 def is_vega_lite_spec_payload(payload: Any) -> bool:

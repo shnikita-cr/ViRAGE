@@ -47,12 +47,13 @@ def test_parse_vegachat_response_preserves_top_level_repeat_spec() -> None:
     assert spec["spec"]["encoding"]["y"]["field"] == {"repeat": "column"}
 
 
-def test_strict_parse_rejects_wrapper_to_full_repeat_spec() -> None:
-    with pytest.raises(VegaChatResponseParseError, match="not a wrapper"):
-        parse_vegachat_response(
-            '<explain>Repeat metrics.</explain><json>{"spec":{"repeat":{"column":["PSNR","SSIM"]},'
-            '"spec":{"mark":"bar","encoding":{"y":{"field":{"repeat":"column"}}}}}}</json>'
-        )
+def test_default_parse_unwraps_wrapper_to_full_repeat_spec_from_local_model() -> None:
+    _, spec = parse_vegachat_response(
+        '<explain>Repeat metrics.</explain><json>{"spec":{"repeat":{"column":["PSNR","SSIM"]},'
+        '"spec":{"mark":"bar","encoding":{"y":{"field":{"repeat":"column"}}}}}}</json>'
+    )
+
+    assert spec["repeat"] == {"column": ["PSNR", "SSIM"]}
 
 
 def test_tolerant_parse_unwraps_wrapper_to_full_repeat_spec() -> None:
@@ -73,3 +74,11 @@ def test_strict_parse_accepts_markdown_wrapped_vegachat_contract() -> None:
 
     assert explanation == "Use a scatter plot."
     assert spec["mark"] == "point"
+
+
+def test_default_parse_finds_nested_specification_wrapper() -> None:
+    _, spec = parse_vegachat_response(
+        '{"explanation":"ok","result":{"specification":{"mark":"bar","encoding":{}}}}'
+    )
+
+    assert spec["mark"] == "bar"

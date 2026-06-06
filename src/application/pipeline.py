@@ -58,9 +58,9 @@ class ViRAGEPipeline:
         settings = config.settings.model_copy(deep=True)
         cls._apply_streamlit_mode(settings, config)
         models = {
-            "reasoning": build_chat_model(config.reasoning_model),
-            "spec": build_chat_model(config.spec_model),
-            "vlm": build_chat_model(config.vlm_model),
+            "reasoning": build_chat_model(config.reasoning_model, settings, role="reasoning"),
+            "spec": build_chat_model(config.spec_model, settings, role="spec"),
+            "vlm": build_chat_model(config.vlm_model, settings, role="vlm"),
         }
         cls._check_models(settings, models)
         return cls(settings=settings, reasoning_llm=models["reasoning"], spec_llm=models["spec"], vlm=models["vlm"])

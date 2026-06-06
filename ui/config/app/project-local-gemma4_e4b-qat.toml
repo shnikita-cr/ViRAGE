@@ -1,0 +1,29 @@
+mode = "streamlit"
+
+[settings]
+gpu_ram_gb = 8.0
+analytics_tail_enabled = false
+spec_generation_max_attempts = 5
+semantic_feedback_max_attempts = 2
+spec_generation_response_parse_retries = 1
+
+[reasoning_model]
+provider = "ollama"
+model = "gemma4:e4b-it-qat"
+base_url = "http://localhost:11434"
+num_ctx = 8192
+max_output_tokens = 1024
+
+[spec_model]
+provider = "ollama"
+model = "gemma4:e4b-it-qat"
+base_url = "http://localhost:11434"
+num_ctx = 8192
+max_output_tokens = 1536
+
+[vlm_model]
+provider = "ollama"
+model = "gemma3:4b"
+base_url = "http://localhost:11434"
+num_ctx = 4096
+max_output_tokens = 768
