@@ -8,19 +8,36 @@ from src.llm.structured_response import extract_structured_json, is_vega_lite_sp
 
 _EXPLAIN_RE = re.compile(r"<explain>\s*(.*?)\s*</explain>", re.IGNORECASE | re.DOTALL)
 _JSON_TAG_RE = re.compile(r"<json>\s*(.*?)\s*</json>", re.IGNORECASE | re.DOTALL)
-ParserMode = Literal["strict", "tolerant"]
+ParserMode = Literal["auto", "strict", "tolerant"]
 
 
 class VegaChatResponseParseError(ValueError):
     pass
 
 
-def parse_vegachat_response(raw_response: str, *, mode: ParserMode = "strict") -> tuple[str | None, dict[str, Any]]:
+def parse_vegachat_response(raw_response: str, *, mode: ParserMode = "auto") -> tuple[str | None, dict[str, Any]]:
+    if mode == "auto":
+        return parse_vegachat_response_auto(raw_response)
     if mode == "strict":
         return parse_vegachat_response_strict(raw_response)
     if mode == "tolerant":
         return parse_vegachat_response_tolerant(raw_response)
     raise VegaChatResponseParseError(f"Unsupported VegaChat parser mode: {mode!r}.")
+
+
+def parse_vegachat_response_auto(raw_response: str) -> tuple[str | None, dict[str, Any]]:
+    try:
+        return parse_vegachat_response_strict(raw_response)
+    except VegaChatResponseParseError as strict_error:
+        explanation = _extract_explanation(raw_response)
+        extraction = extract_structured_json(raw_response or "", unwrap_spec_payload=False)
+        if extraction.error is not None:
+            raise strict_error
+        if not isinstance(extraction.payload, dict):
+            raise VegaChatResponseParseError("Parsed Vega-Lite JSON must be an object.") from strict_error
+        if not is_vega_lite_spec_payload(extraction.payload):
+            raise VegaChatResponseParseError("Strict VegaChat <json> block must contain a Vega-Lite object, not a wrapper.") from strict_error
+        return explanation, dict(extraction.payload)
 
 
 def parse_vegachat_response_strict(raw_response: str) -> tuple[str | None, dict[str, Any]]:

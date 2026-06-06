@@ -37,6 +37,15 @@ class ModelRuntimeProfile:
             "compression_enabled": self.compression_enabled,
         }
 
+    def section_budget(self, section: str) -> int:
+        if section in {"data_profile", "query_request"}:
+            return self.data_profile_budget_tokens
+        if section in {"rag", "visrag"}:
+            return self.rag_budget_tokens
+        if section in {"validation", "validation_error"}:
+            return self.validation_error_budget_tokens
+        return self.prompt_budget_tokens
+
 
 def resolve_model_runtime_profile(
     *,

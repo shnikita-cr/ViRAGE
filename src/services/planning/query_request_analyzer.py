@@ -167,25 +167,44 @@ class QueryRequestAnalyzerService(BaseService):
         )
         return self._build_result(parsed, query, user_context)
 
-    def _prompt(self, query: str, user_context: dict[str, Any], data_profile: DataProfile) -> str:
-        context_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(user_context.items())) or "- none"
-        return (
-            "You analyze one NL2VIS/data-visual-analysis request and ground it to the real dataset schema.\n"
-            "Return one strict JSON object matching the schema. Use exact original field names for selected_fields, "
-            "field_bindings.*.field, field_mappings.column_name, and ambiguity.missing_fields. Do not invent fields.\n"
-            "Do not generate Vega-Lite. Do not create rag_queries. Do not include generic chart-quality boilerplate.\n"
-            "The result must describe only the user intent: analysis_task, selected_fields, "
-            "field_bindings, aggregation_plan, metric_semantics, ranking_strategy, scale_strategy, visual_constraints, "
-            "visual_judge_requirements, query_variants, chart_answerability, assumptions, and ambiguity. "
-            "visual_judge_requirements must contain only criteria that can be checked from a static PNG chart. "
-            "Tooltip-only information is not visible.\n"
-            "query_variants are only for retrieval/debug. Prefer kinds: canonical, chart_pattern_retrieval, repair_rule_retrieval, analysis_rule_retrieval.\n"
-            "chart_answerability.status must be one of: answerable_by_chart, requires_computation, uncertain.\n"
-            "If user_context contains analysis_subtask, preserve its required fields, metric semantics, ranking strategy, scale strategy, and visual constraints unless they reference absent fields.\n\n"
-            f"User request:\n{query}\n\n"
-            f"User context:\n{context_lines}\n\n"
-            f"Dataset profile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile)}\n"
+    def _prompt(
+            self,
+            query: str,
+            user_context: dict[str, Any],
+            data_profile: DataProfile,
+            runtime: RuntimeContext,
+    ) -> str:
+        context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(user_context.items())) or "- none"
+        profile = runtime_profile_from_model(runtime.reasoning_llm)
+        prompt, _ = build_budgeted_prompt(
+            [
+                PromptSection(
+                    "contract",
+                    (
+                        "You are a data analysis request interpreter. Ground one user request to the dataset schema. "
+                        "Return one strict JSON object only. Use exact field names. Do not invent fields. "
+                        "Do not generate Vega-Lite or RAG queries. visual_judge_requirements must describe only "
+                        "criteria visible in a static PNG chart; tooltip-only data is not visible. "
+                        "chart_answerability.status: answerable_by_chart, requires_computation, or uncertain. "
+                        "If analysis_subtask is present, preserve its valid fields, metric semantics, ranking strategy, "
+                        "scale strategy, and visual constraints."
+                    ),
+                    min_tokens=180,
+                    priority=0,
+                ),
+                PromptSection("user_request", f"User request:\n{query}", min_tokens=128, priority=0),
+                PromptSection("user_context", f"User context:\n{context_lines}", min_tokens=128, priority=2),
+                PromptSection(
+                    "dataset_profile",
+                    f"Dataset profile:\n{DataProfilePromptFormatter.for_query_analysis(data_profile)}",
+                    min_tokens=512,
+                    priority=3,
+                ),
+            ],
+            profile=profile,
+            budget_tokens=profile.section_budget("query_request"),
         )
+        return prompt
 
     def _build_result(self, parsed: _QueryRequestAnalysisSchema, original_query: str, user_context: dict[str, Any]) -> QueryRequestAnalysisResult:
         subtask = user_context.get("analysis_subtask") if isinstance(user_context, dict) else None
