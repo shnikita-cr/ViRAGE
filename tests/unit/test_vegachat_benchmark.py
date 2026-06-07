@@ -326,3 +326,49 @@ def test_benchmark_runner_resume_can_retry_failed_cases(tmp_path: Path) -> None:
     assert runner.ran_case_ids == ["case-a"]
     assert report.successful_cases == 1
     assert report.failed_cases == 0
+
+
+def test_aggregate_report_computes_attempt_metrics_for_comparison() -> None:
+    from src.benchmark.core.models import BenchmarkAggregateReport, BenchmarkCaseResult
+
+    report = BenchmarkAggregateReport.from_results([
+        BenchmarkCaseResult(
+            case_id="ok-one-shot",
+            query="q1",
+            data_path="data.csv",
+            technical_generation_attempts=1,
+            semantic_generation_attempts=0,
+            metadata={"chart_type": "bar"},
+        ),
+        BenchmarkCaseResult(
+            case_id="ok-repeat",
+            query="q2",
+            data_path="data.csv",
+            technical_generation_attempts=2,
+            semantic_generation_attempts=1,
+            metadata={"chart_type": "bar"},
+        ),
+        BenchmarkCaseResult(
+            case_id="failed-repeat",
+            query="q3",
+            data_path="data.csv",
+            technical_generation_attempts=3,
+            semantic_generation_attempts=0,
+            error="RuntimeError: failed",
+            metadata={"chart_type": "scatter"},
+        ),
+    ])
+
+    assert report.repeat_steps_rate == 0.666667
+    assert report.repeat_steps_rate_success == 0.5
+    assert report.mean_attempts_success == 2.0
+    assert report.mean_technical_attempts_success == 1.5
+    assert report.mean_semantic_attempts_success == 0.5
+    assert report.mean_technical_generation_attempts_success == 1.5
+    assert report.mean_semantic_generation_attempts_success == 0.5
+
+    bar_metrics = report.stratified_metrics["chart_type:bar"]
+    assert bar_metrics["successful_cases"] == 2
+    assert bar_metrics["repeat_steps_rate"] == 0.5
+    assert bar_metrics["repeat_steps_rate_success"] == 0.5
+    assert bar_metrics["mean_attempts_success"] == 2.0

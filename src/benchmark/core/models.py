@@ -67,6 +67,8 @@ class BenchmarkCaseResult(BaseModel):
     semantic_match_score: float | None = None
     technical_generation_attempts: int | None = None
     semantic_generation_attempts: int | None = None
+    total_generation_attempts: int | None = None
+    has_repeat_steps: bool | None = None
     spec_metric: StructuralSpecMetric | None = None
     vision_metric: VisualQualityMetric | None = None
     metrics: dict[str, float] = Field(default_factory=dict)
@@ -98,6 +100,8 @@ class BenchmarkCaseResult(BaseModel):
             "semantic_match_score": self.semantic_match_score,
             "technical_generation_attempts": self.technical_generation_attempts,
             "semantic_generation_attempts": self.semantic_generation_attempts,
+            "total_generation_attempts": self.effective_total_generation_attempts(),
+            "has_repeat_steps": self.effective_has_repeat_steps(),
             "duration_seconds": self.duration_seconds,
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
@@ -108,6 +112,19 @@ class BenchmarkCaseResult(BaseModel):
             **{f"metric.{key}": value for key, value in self.metrics.items()},
             **{f"metadata.{key}": value for key, value in self.metadata.items()},
         }
+
+    def effective_total_generation_attempts(self) -> int | None:
+        if self.total_generation_attempts is not None:
+            return self.total_generation_attempts
+        if self.technical_generation_attempts is None and self.semantic_generation_attempts is None:
+            return None
+        return int(self.technical_generation_attempts or 0) + int(self.semantic_generation_attempts or 0)
+
+    def effective_has_repeat_steps(self) -> bool | None:
+        total_attempts = self.effective_total_generation_attempts()
+        if total_attempts is None:
+            return None
+        return total_attempts > 1
 
 
 class BenchmarkAggregateReport(BaseModel):
@@ -130,6 +147,11 @@ class BenchmarkAggregateReport(BaseModel):
     median_semantic_match_score: float | None = None
     mean_technical_generation_attempts_success: float | None = None
     mean_semantic_generation_attempts_success: float | None = None
+    repeat_steps_rate: float | None = None
+    repeat_steps_rate_success: float | None = None
+    mean_attempts_success: float | None = None
+    mean_technical_attempts_success: float | None = None
+    mean_semantic_attempts_success: float | None = None
     mean_duration_seconds: float | None = None
     p95_duration_seconds: float | None = None
     mean_prompt_tokens: float | None = None
@@ -168,6 +190,11 @@ class BenchmarkAggregateReport(BaseModel):
         semantic_match_scores = [float(item.semantic_match_score) for item in results if item.semantic_match_score is not None]
         technical_success_attempts = [float(item.technical_generation_attempts) for item in results if item.error is None and item.technical_generation_attempts is not None]
         semantic_success_attempts = [float(item.semantic_generation_attempts) for item in results if item.error is None and item.semantic_generation_attempts is not None]
+        success_attempt_totals = [
+            float(total_attempts)
+            for item in results
+            if item.error is None and (total_attempts := item.effective_total_generation_attempts()) is not None
+        ]
         spec_scores_failure_as_zero = [
             float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0 for item in results]
         vision_scores_failure_as_zero = [
@@ -201,6 +228,11 @@ class BenchmarkAggregateReport(BaseModel):
             median_semantic_match_score=_median(semantic_match_scores),
             mean_technical_generation_attempts_success=_mean(technical_success_attempts),
             mean_semantic_generation_attempts_success=_mean(semantic_success_attempts),
+            repeat_steps_rate=_repeat_steps_rate(results, successful_only=False),
+            repeat_steps_rate_success=_repeat_steps_rate(results, successful_only=True),
+            mean_attempts_success=_mean(success_attempt_totals),
+            mean_technical_attempts_success=_mean(technical_success_attempts),
+            mean_semantic_attempts_success=_mean(semantic_success_attempts),
             mean_duration_seconds=_mean(durations),
             p95_duration_seconds=_percentile(durations, 0.95),
             mean_prompt_tokens=_mean([float(item.prompt_tokens) for item in results]),
@@ -284,11 +316,30 @@ def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[st
             groups.setdefault(f"{key}:{value}", []).append(item)
     out: dict[str, dict[str, float | int | None]] = {}
     for group, items in sorted(groups.items()):
+        successful_items = [item for item in items if item.error is None]
+        technical_success_attempts = [
+            float(item.technical_generation_attempts)
+            for item in successful_items
+            if item.technical_generation_attempts is not None
+        ]
+        semantic_success_attempts = [
+            float(item.semantic_generation_attempts)
+            for item in successful_items
+            if item.semantic_generation_attempts is not None
+        ]
+        success_attempt_totals = [
+            float(total_attempts)
+            for item in successful_items
+            if (total_attempts := item.effective_total_generation_attempts()) is not None
+        ]
         out[group] = {
             "cases": len(items),
+            "successful_cases": len(successful_items),
             "failed_cases": sum(1 for item in items if item.error is not None),
             "visualization_error_rate": _mean_bool([item.visualization_error_rate_item for item in items]),
             "empty_chart_rate": _mean_bool([item.empty_chart_rate_item for item in items]),
+            "mean_spec_score": _mean([float(item.spec_score) for item in items if item.spec_score is not None]),
+            "mean_vision_score": _mean([float(item.vision_score) for item in items if item.vision_score is not None]),
             "mean_spec_score_failure_as_zero": _mean([
                 float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0
                 for item in items
@@ -300,5 +351,17 @@ def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[st
             "mean_total_tokens": _mean([float(item.total_tokens) for item in items]),
             "mean_duration_seconds": _mean(
                 [float(item.duration_seconds) for item in items if item.duration_seconds is not None]),
+            "repeat_steps_rate": _repeat_steps_rate(items, successful_only=False),
+            "repeat_steps_rate_success": _repeat_steps_rate(items, successful_only=True),
+            "mean_attempts_success": _mean(success_attempt_totals),
+            "mean_technical_attempts_success": _mean(technical_success_attempts),
+            "mean_semantic_attempts_success": _mean(semantic_success_attempts),
         }
     return out
+
+
+def _repeat_steps_rate(results: list[BenchmarkCaseResult], *, successful_only: bool) -> float | None:
+    selected = [item for item in results if not successful_only or item.error is None]
+    if not selected:
+        return None
+    return _mean_bool([bool(item.effective_has_repeat_steps()) for item in selected])
