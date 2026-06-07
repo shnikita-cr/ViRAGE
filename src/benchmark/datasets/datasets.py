@@ -12,6 +12,7 @@ _CASE_LIST_KEYS = ("cases", "examples", "data", "items", "records")
 _QUERY_KEYS = ("query", "prompt", "utterance", "nl_query", "question", "instruction")
 _DATA_PATH_KEYS = ("data_path", "dataset_path", "csv_path", "table_path", "data")
 _REFERENCE_SPEC_KEYS = ("reference_spec", "ground_truth_spec", "gt_spec", "vl_spec", "spec", "vega_lite_spec")
+_REFERENCE_SPECS_KEYS = ("reference_specs", "ground_truth_specs", "gt_specs", "gold_answer")
 _REFERENCE_IMAGE_KEYS = ("reference_image_path", "gt_image_path", "image_path", "reference_png", "reference_image")
 _ID_KEYS = ("case_id", "id", "example_id", "uid", "index")
 
@@ -184,6 +185,9 @@ def _case_from_payload(payload: dict[str, Any], *, index: int, root: Path) -> Be
     query = _first_string(payload, _QUERY_KEYS)
     data_path = _extract_data_path(payload, root)
     reference_spec = _first_dict(payload, _REFERENCE_SPEC_KEYS)
+    reference_specs = _first_dict_list(payload, _REFERENCE_SPECS_KEYS)
+    if reference_specs and not reference_spec:
+        reference_spec = reference_specs[0]
     if not query:
         raise ValueError(f"Benchmark case #{index} has no query/prompt/utterance field.")
     if not data_path:
@@ -195,6 +199,7 @@ def _case_from_payload(payload: dict[str, Any], *, index: int, root: Path) -> Be
         query=query,
         data_path=data_path,
         reference_spec=reference_spec,
+        reference_specs=reference_specs,
         reference_image_path=reference_image_path,
         dataset_name=_first_string(payload, ("dataset_name", "dataset", "source")) or root.name or "unknown",
         difficulty=_first_string(payload, ("difficulty", "level")),
@@ -248,8 +253,23 @@ def _first_dict(payload: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any
     return {}
 
 
+def _first_dict_list(payload: dict[str, Any], keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+        if isinstance(value, str) and value.strip().startswith("["):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, list):
+                return [item for item in parsed if isinstance(item, dict)]
+    return []
+
+
 def _known_keys() -> set[str]:
-    return set(_QUERY_KEYS + _DATA_PATH_KEYS + _REFERENCE_SPEC_KEYS + _REFERENCE_IMAGE_KEYS + _ID_KEYS + (
+    return set(_QUERY_KEYS + _DATA_PATH_KEYS + _REFERENCE_SPEC_KEYS + _REFERENCE_SPECS_KEYS + _REFERENCE_IMAGE_KEYS + _ID_KEYS + (
         "dataset_name", "dataset", "source", "difficulty", "level", "utterance_type", "query_type", "type",
     ))
 

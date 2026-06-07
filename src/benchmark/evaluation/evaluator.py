@@ -55,23 +55,28 @@ class VegaChatBenchmarkEvaluator:
         visualization_error = not is_valid
         empty_chart_error = visualization_error or is_empty
 
-        spec_metric = None
-        if case.reference_spec and pipeline_result.spec_validation is not None:
-            spec_metric = self.spec_score.invoke(
-                pipeline_result.spec_validation,
-                case.reference_spec,
-                user_prompt=case.query,
-                empty_chart_check=pipeline_result.empty_chart_check,
-            )
+        reference_specs = case.effective_reference_specs()
+        spec_metric, best_reference_index = self._best_reference_spec_metric(
+            case=case,
+            spec_validation=pipeline_result.spec_validation,
+            empty_chart_check=pipeline_result.empty_chart_check,
+            reference_specs=reference_specs,
+        )
+        best_reference_spec = reference_specs[best_reference_index] if best_reference_index is not None else {}
 
         vision_metric = None
         reference_image_path = case.resolved_reference_image_path(case_root)
-        if generated_image_path and not reference_image_path and case.reference_spec:
-            reference_image_path = self.render_reference_image(
-                reference_spec=case.reference_spec,
-                data_path=case.resolved_data_path(case_root),
-                output_path=output_dir / "reference_images" / f"{case.case_id}.png",
-            )
+        reference_render_error_count = 0
+        if generated_image_path and not reference_image_path and best_reference_spec:
+            try:
+                reference_image_path = self.render_reference_image(
+                    reference_spec=best_reference_spec,
+                    data_path=case.resolved_data_path(case_root),
+                    output_path=output_dir / "reference_images" / f"{case.case_id}__ref_{best_reference_index or 0}.png",
+                )
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):
+                reference_render_error_count = 1
+                reference_image_path = None
         if reference_image_path and generated_image_path:
             vision_metric = self.vision_score.invoke(
                 PlotImageArtifact(image_path=generated_image_path),
@@ -89,7 +94,7 @@ class VegaChatBenchmarkEvaluator:
         attempt_metrics = self._attempt_metrics(pipeline_result)
         usage = pipeline_result.token_usage_summary
         metrics = self._case_metrics(
-            reference_spec=case.reference_spec,
+            reference_spec=best_reference_spec,
             generated_spec=generated_spec,
             user_prompt=case.query,
             is_valid=is_valid,
@@ -111,6 +116,11 @@ class VegaChatBenchmarkEvaluator:
             generated_spec=generated_spec,
             generated_image_path=generated_image_path,
             reference_image_path=reference_image_path,
+            reference_count=len(reference_specs) if reference_specs else None,
+            best_reference_index=best_reference_index,
+            reference_selection_method="argmax_spec_score" if len(reference_specs) > 1 and best_reference_index is not None else ("single_reference" if best_reference_index is not None else None),
+            reference_render_error_count=reference_render_error_count,
+            reference_render_error_rate=(float(reference_render_error_count) / len(reference_specs)) if reference_specs else None,
             is_valid_spec=is_valid,
             is_empty_chart=is_empty,
             visualization_error_rate_item=visualization_error,
@@ -135,10 +145,43 @@ class VegaChatBenchmarkEvaluator:
                 "difficulty": case.difficulty,
                 "utterance_type": case.utterance_type,
                 "retrieval_report": retrieval_report,
+                "reference_count": len(reference_specs) if reference_specs else None,
+                "best_reference_index": best_reference_index,
+                "reference_selection_method": "argmax_spec_score" if len(reference_specs) > 1 and best_reference_index is not None else ("single_reference" if best_reference_index is not None else None),
+                "reference_render_error_count": reference_render_error_count,
                 **case.metadata,
                 "chart_type": chart_type_from_case(case),
             },
         )
+
+
+    def _best_reference_spec_metric(
+            self,
+            *,
+            case: BenchmarkCase,
+            spec_validation: Any,
+            empty_chart_check: EmptyChartCheckResult | None,
+            reference_specs: list[dict[str, Any]],
+            user_prompt: str | None = None,
+    ) -> tuple[Any | None, int | None]:
+        if not reference_specs or spec_validation is None:
+            return None, None
+        best_metric = None
+        best_index: int | None = None
+        prompt = user_prompt or case.query
+        for index, reference_spec in enumerate(reference_specs):
+            if not reference_spec:
+                continue
+            metric = self.spec_score.invoke(
+                spec_validation,
+                reference_spec,
+                user_prompt=prompt,
+                empty_chart_check=empty_chart_check,
+            )
+            if best_metric is None or metric.score > best_metric.score:
+                best_metric = metric
+                best_index = index
+        return best_metric, best_index
 
 
     def _semantic_scores(self, *, image_path: str | None, query: str, judge: Any) -> dict[str, float | None]:
@@ -215,22 +258,28 @@ class VegaChatBenchmarkEvaluator:
         validation = self.spec_validator.invoke(
             VegaLiteSpecArtifact(spec_json=self._spec_with_data_url(generated_spec, data_path)))
         empty_check = EmptyChartCheckResult(empty_chart_signal=False, empty_chart_status="not_checked")
-        spec_metric = None
-        if case.reference_spec:
-            spec_metric = self.spec_score.invoke(
-                validation,
-                case.reference_spec,
-                user_prompt=user_prompt or case.query,
-                empty_chart_check=empty_check,
-            )
+        reference_specs = case.effective_reference_specs()
+        spec_metric, best_reference_index = self._best_reference_spec_metric(
+            case=case,
+            spec_validation=validation,
+            empty_chart_check=empty_check,
+            reference_specs=reference_specs,
+            user_prompt=user_prompt or case.query,
+        )
+        best_reference_spec = reference_specs[best_reference_index] if best_reference_index is not None else {}
         vision_metric = None
         reference_image_path = case.resolved_reference_image_path(case_root)
-        if runtime is not None and generated_image_path and not reference_image_path and case.reference_spec:
-            reference_image_path = self.render_reference_image(
-                reference_spec=case.reference_spec,
-                data_path=data_path,
-                output_path=output_dir / "reference_images" / f"{case.case_id}.png",
-            )
+        reference_render_error_count = 0
+        if runtime is not None and generated_image_path and not reference_image_path and best_reference_spec:
+            try:
+                reference_image_path = self.render_reference_image(
+                    reference_spec=best_reference_spec,
+                    data_path=data_path,
+                    output_path=output_dir / "reference_images" / f"{case.case_id}__ref_{best_reference_index or 0}.png",
+                )
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError):
+                reference_render_error_count = 1
+                reference_image_path = None
         if runtime is not None and reference_image_path and generated_image_path:
             vision_metric = self.vision_score.invoke(
                 PlotImageArtifact(image_path=generated_image_path),
@@ -246,7 +295,7 @@ class VegaChatBenchmarkEvaluator:
         attempt_metrics: dict[str, float | None] = {}
         visualization_error = not validation.is_valid
         metrics = self._case_metrics(
-            reference_spec=case.reference_spec,
+            reference_spec=best_reference_spec,
             generated_spec=validation.validated_spec,
             user_prompt=user_prompt or case.query,
             is_valid=validation.is_valid,
@@ -265,6 +314,11 @@ class VegaChatBenchmarkEvaluator:
             generated_spec=validation.validated_spec,
             generated_image_path=generated_image_path,
             reference_image_path=reference_image_path,
+            reference_count=len(reference_specs) if reference_specs else None,
+            best_reference_index=best_reference_index,
+            reference_selection_method="argmax_spec_score" if len(reference_specs) > 1 and best_reference_index is not None else ("single_reference" if best_reference_index is not None else None),
+            reference_render_error_count=reference_render_error_count,
+            reference_render_error_rate=(float(reference_render_error_count) / len(reference_specs)) if reference_specs else None,
             is_valid_spec=validation.is_valid,
             is_empty_chart=False,
             visualization_error_rate_item=visualization_error,
@@ -281,7 +335,16 @@ class VegaChatBenchmarkEvaluator:
             spec_metric=spec_metric,
             vision_metric=vision_metric,
             metrics=metrics,
-            metadata={"difficulty": case.difficulty, "utterance_type": case.utterance_type, **case.metadata, "chart_type": chart_type_from_case(case)},
+            metadata={
+                "difficulty": case.difficulty,
+                "utterance_type": case.utterance_type,
+                "reference_count": len(reference_specs) if reference_specs else None,
+                "best_reference_index": best_reference_index,
+                "reference_selection_method": "argmax_spec_score" if len(reference_specs) > 1 and best_reference_index is not None else ("single_reference" if best_reference_index is not None else None),
+                "reference_render_error_count": reference_render_error_count,
+                **case.metadata,
+                "chart_type": chart_type_from_case(case),
+            },
         )
 
     @staticmethod

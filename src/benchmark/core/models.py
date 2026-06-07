@@ -7,7 +7,7 @@ from typing import Any
 
 from src.benchmark.core.statistics import mean as _mean, mean_bool as _mean_bool, median as _median, percentile as _percentile
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.domain.models import StructuralSpecMetric, VisualQualityMetric
 
@@ -19,6 +19,7 @@ class BenchmarkCase(BaseModel):
     query: str
     data_path: str
     reference_spec: dict[str, Any] = Field(default_factory=dict)
+    reference_specs: list[dict[str, Any]] = Field(default_factory=list)
     reference_image_path: str | None = None
     dataset_name: str = "unknown"
     difficulty: str | None = None
@@ -32,6 +33,19 @@ class BenchmarkCase(BaseModel):
         if not cleaned:
             raise ValueError("must be a non-empty string")
         return cleaned
+
+    @model_validator(mode="after")
+    def _sync_reference_specs(self) -> "BenchmarkCase":
+        if not self.reference_specs and self.reference_spec:
+            self.reference_specs = [self.reference_spec]
+        if self.reference_specs and not self.reference_spec:
+            self.reference_spec = self.reference_specs[0]
+        return self
+
+    def effective_reference_specs(self) -> list[dict[str, Any]]:
+        if self.reference_specs:
+            return self.reference_specs
+        return [self.reference_spec] if self.reference_spec else []
 
     def resolved_data_path(self, root: Path) -> str:
         return resolve_path_from_root(self.data_path, root)
@@ -52,6 +66,11 @@ class BenchmarkCaseResult(BaseModel):
     generated_spec: dict[str, Any] = Field(default_factory=dict)
     generated_image_path: str | None = None
     reference_image_path: str | None = None
+    reference_count: int | None = None
+    best_reference_index: int | None = None
+    reference_selection_method: str | None = None
+    reference_render_error_count: int = 0
+    reference_render_error_rate: float | None = None
 
     is_valid_spec: bool = False
     is_empty_chart: bool = False
@@ -108,6 +127,11 @@ class BenchmarkCaseResult(BaseModel):
             "total_tokens": self.total_tokens,
             "generated_image_path": self.generated_image_path,
             "reference_image_path": self.reference_image_path,
+            "reference_count": self.reference_count,
+            "best_reference_index": self.best_reference_index,
+            "reference_selection_method": self.reference_selection_method,
+            "reference_render_error_count": self.reference_render_error_count,
+            "reference_render_error_rate": self.reference_render_error_rate,
             "error": self.error,
             **{f"metric.{key}": value for key, value in self.metrics.items()},
             **{f"metadata.{key}": value for key, value in self.metadata.items()},
@@ -159,6 +183,9 @@ class BenchmarkAggregateReport(BaseModel):
     mean_total_tokens: float | None = None
     total_tokens: int = 0
     chart_text_consistency_rate: float | None = None
+    mean_reference_count: float | None = None
+    reference_render_error_rate: float | None = None
+    best_reference_index_distribution: dict[str, int] = Field(default_factory=dict)
     stratified_metrics: dict[str, dict[str, float | int | None]] = Field(default_factory=dict)
     vegachat_metrics: dict[str, float] = Field(default_factory=dict)
     sampling_strategy: str | None = None
@@ -201,6 +228,8 @@ class BenchmarkAggregateReport(BaseModel):
             float(item.vision_score) if item.vision_score is not None and item.error is None else 0.0 for item in
             results]
         durations = [float(item.duration_seconds) for item in results if item.duration_seconds is not None]
+        reference_counts = [float(item.reference_count) for item in results if item.reference_count is not None]
+        reference_render_error_rates = [float(item.reference_render_error_rate) for item in results if item.reference_render_error_rate is not None]
         vegachat_metrics = _mean_metrics([item.metrics for item in results])
         text_consistency_values = [
             float(item.metrics["chart_text_consistency"])
@@ -240,6 +269,9 @@ class BenchmarkAggregateReport(BaseModel):
             mean_total_tokens=_mean([float(item.total_tokens) for item in results]),
             total_tokens=sum(item.total_tokens for item in results),
             chart_text_consistency_rate=_mean(text_consistency_values),
+            mean_reference_count=_mean(reference_counts),
+            reference_render_error_rate=_mean(reference_render_error_rates),
+            best_reference_index_distribution=_best_reference_index_distribution(results),
             stratified_metrics=_stratified_metrics(results),
             vegachat_metrics=vegachat_metrics,
             sampling_strategy=_maybe_str(sampling.get("sampling_strategy")),
@@ -309,7 +341,7 @@ def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[st
     groups: dict[str, list[BenchmarkCaseResult]] = {}
     for item in results:
         for key in (
-        "dataset_name", "utterance_type", "difficulty", "analysis_task", "chart_type"):
+        "dataset_name", "utterance_type", "difficulty", "analysis_task", "chart_type", "reference_count"):
             value = item.dataset_name if key == "dataset_name" else item.metadata.get(key)
             if value is None or value == "":
                 continue
@@ -358,6 +390,16 @@ def _stratified_metrics(results: list[BenchmarkCaseResult]) -> dict[str, dict[st
             "mean_semantic_attempts_success": _mean(semantic_success_attempts),
         }
     return out
+
+
+def _best_reference_index_distribution(results: list[BenchmarkCaseResult]) -> dict[str, int]:
+    distribution: dict[str, int] = {}
+    for item in results:
+        if item.best_reference_index is None:
+            continue
+        key = str(item.best_reference_index)
+        distribution[key] = distribution.get(key, 0) + 1
+    return distribution
 
 
 def _repeat_steps_rate(results: list[BenchmarkCaseResult], *, successful_only: bool) -> float | None:
