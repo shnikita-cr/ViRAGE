@@ -11,6 +11,7 @@ site.addsitedir(PROJECT_ROOT.as_posix())
 from src.application.config.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.core.runner import VegaChatBenchmarkRunner
+from src.benchmark.evaluation.image_text_cosine import ImageTextCosineEvaluator
 from src.benchmark.core.sampling import SAMPLING_RANDOM, SAMPLING_STRATIFIED_CHART_TYPE
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,8 @@ def main() -> None:
         config.settings.analytics_tail_enabled = False
         config.settings.enable_evaluation_summary = False
     pipeline = ViRAGEPipeline.from_project_config(config)
-    report = VegaChatBenchmarkRunner(pipeline).run_dataset(
+    image_text_evaluator = _image_text_evaluator(args)
+    report = VegaChatBenchmarkRunner(pipeline, image_text_evaluator=image_text_evaluator).run_dataset(
         cases_path=Path(args.cases),
         output_dir=Path(args.output_dir),
         limit=args.limit,
@@ -39,6 +41,8 @@ def main() -> None:
         seed=args.seed,
         sampling_strategy=args.sampling,
         max_per_chart_type=args.max_per_chart_type,
+        sampling_allocation=args.sampling_allocation,
+        cases_per_chart_type=args.cases_per_chart_type,
         run_options={
             "disable_vlm_loop": args.disable_vlm_loop,
             "disable_analytics_tail": args.disable_analytics_tail,
@@ -68,6 +72,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="Random seed used with --shuffle or stratified sampling.")
     parser.add_argument("--sampling", choices=[SAMPLING_RANDOM, SAMPLING_STRATIFIED_CHART_TYPE], default=SAMPLING_RANDOM, help="Case sampling strategy before benchmark execution.")
     parser.add_argument("--max-per-chart-type", type=int, default=None, help="Maximum cases per chart type for stratified sampling.")
+    parser.add_argument("--sampling-allocation", choices=["round_robin", "balanced"], default="round_robin", help="Stratified sampling allocation mode.")
+    parser.add_argument("--cases-per-chart-type", type=int, default=None, help="Balanced sampling target per chart type.")
+    parser.add_argument("--image-text-embedding-models", nargs="*", default=None, help="HF image-text models for embedding_score.")
+    parser.add_argument("--image-text-device", default="cuda", choices=["cuda", "cpu"], help="Device for image-text embeddings.")
+    parser.add_argument("--image-text-dtype", default="float16", choices=["float16", "bfloat16", "float32"], help="Torch dtype for image-text embeddings.")
     parser.add_argument("--continue-on-error", action="store_true", help="Accepted for CLI consistency; this runner already continues after per-case errors.")
     parser.add_argument("--resume", action="store_true", help="Continue from existing cases/<case_id>/result.json files in the output directory.")
     parser.add_argument("--retry-failed", action="store_true", help="Reuse successful existing cases and rerun only failed/missing cases.")
@@ -75,6 +84,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-vlm-loop", action="store_true", help="Disable only the semantic VLM retry loop.")
     parser.add_argument("--disable-analytics-tail", action="store_true", help="Skip final VLM analysis and evaluation summary. Semantic retry remains controlled by settings.semantic_feedback_loop_enabled.")
     return parser.parse_args()
+
+
+def _image_text_evaluator(args: argparse.Namespace) -> ImageTextCosineEvaluator | None:
+    if not args.image_text_embedding_models:
+        return None
+    return ImageTextCosineEvaluator(
+        model_names=args.image_text_embedding_models,
+        device=args.image_text_device,
+        dtype=args.image_text_dtype,
+    )
 
 
 if __name__ == "__main__":

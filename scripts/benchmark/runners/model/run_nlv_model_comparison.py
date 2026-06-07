@@ -58,6 +58,11 @@ def main() -> None:
             disable_analytics_tail=args.disable_analytics_tail,
             sampling=args.sampling,
             max_per_chart_type=args.max_per_chart_type,
+            sampling_allocation=args.sampling_allocation,
+            cases_per_chart_type=args.cases_per_chart_type,
+            image_text_embedding_models=args.image_text_embedding_models,
+            image_text_device=args.image_text_device,
+            image_text_dtype=args.image_text_dtype,
         )
         record = write_run_status(run=run, result=result)
         completed.append(record)
@@ -78,6 +83,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--sampling", choices=["random", "stratified_chart_type"], default="random")
     parser.add_argument("--max-per-chart-type", type=int, default=None)
+    parser.add_argument("--sampling-allocation", choices=["round_robin", "balanced"], default="round_robin")
+    parser.add_argument("--cases-per-chart-type", type=int, default=None)
+    parser.add_argument("--image-text-embedding-models", nargs="*", default=None)
+    parser.add_argument("--image-text-device", default="cuda", choices=["cuda", "cpu"])
+    parser.add_argument("--image-text-dtype", default="float16", choices=["float16", "bfloat16", "float32"])
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
@@ -134,6 +144,11 @@ def invoke_nlv_runner(
     disable_analytics_tail: bool,
     sampling: str,
     max_per_chart_type: int | None,
+    sampling_allocation: str,
+    cases_per_chart_type: int | None,
+    image_text_embedding_models: list[str] | None,
+    image_text_device: str,
+    image_text_dtype: str,
 ) -> ProcessResult:
     logs_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -152,6 +167,11 @@ def invoke_nlv_runner(
         disable_analytics_tail=disable_analytics_tail,
         sampling=sampling,
         max_per_chart_type=max_per_chart_type,
+        sampling_allocation=sampling_allocation,
+        cases_per_chart_type=cases_per_chart_type,
+        image_text_embedding_models=image_text_embedding_models,
+        image_text_device=image_text_device,
+        image_text_dtype=image_text_dtype,
     )
     logger.info("Command: %s", " ".join(command))
     completed = subprocess.run(
@@ -182,6 +202,11 @@ def build_runner_command(
     disable_analytics_tail: bool,
     sampling: str,
     max_per_chart_type: int | None,
+    sampling_allocation: str,
+    cases_per_chart_type: int | None,
+    image_text_embedding_models: list[str] | None,
+    image_text_device: str,
+    image_text_dtype: str,
 ) -> list[str]:
     command = [
         python_executable,
@@ -200,6 +225,13 @@ def build_runner_command(
     command.extend(["--sampling", sampling])
     if max_per_chart_type is not None:
         command.extend(["--max-per-chart-type", str(max_per_chart_type)])
+    command.extend(["--sampling-allocation", sampling_allocation])
+    if cases_per_chart_type is not None:
+        command.extend(["--cases-per-chart-type", str(cases_per_chart_type)])
+    if image_text_embedding_models:
+        command.append("--image-text-embedding-models")
+        command.extend(image_text_embedding_models)
+        command.extend(["--image-text-device", image_text_device, "--image-text-dtype", image_text_dtype])
     if resume:
         command.append("--resume")
     if retry_failed:

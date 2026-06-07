@@ -20,12 +20,20 @@ from src.services.evaluation.spec.spec_score import SpecScoreService
 from src.services.spec.validator import SpecValidatorService
 from src.services.spec.vegachat_metrics import compute_vegachat_spec_score
 from src.services.evaluation.chart.vision_score import VisionScoreService
+from src.benchmark.evaluation.image_text_cosine import ImageTextCosineEvaluator
+from src.benchmark.evaluation.semantic_match import (
+    embedding_score_from_model_scores,
+    normalize_cosine_to_unit,
+    semantic_match_score,
+    vlm_judge_score_from_result,
+)
 
 
 class VegaChatBenchmarkEvaluator:
     """Evaluate ViRAGE outputs with VegaChat-compatible metrics."""
 
-    def __init__(self) -> None:
+    def __init__(self, image_text_evaluator: ImageTextCosineEvaluator | None = None) -> None:
+        self.image_text_evaluator = image_text_evaluator
         self.spec_score = SpecScoreService()
         self.vision_score = VisionScoreService()
         self.spec_validator = SpecValidatorService()
@@ -73,6 +81,12 @@ class VegaChatBenchmarkEvaluator:
                 reference_image_path=reference_image_path,
             )
 
+        semantic_scores = self._semantic_scores(
+            image_path=generated_image_path,
+            query=case.query,
+            judge=pipeline_result.visual_chart_judge,
+        )
+        attempt_metrics = self._attempt_metrics(pipeline_result)
         usage = pipeline_result.token_usage_summary
         metrics = self._case_metrics(
             reference_spec=case.reference_spec,
@@ -85,6 +99,8 @@ class VegaChatBenchmarkEvaluator:
             vision_is_blank=vision_metric.is_blank if vision_metric else None,
             vision_metric=vision_metric,
         )
+        metrics.update({key: value for key, value in semantic_scores.items() if value is not None})
+        metrics.update({key: value for key, value in attempt_metrics.items() if value is not None})
         retrieval_report = self._retrieval_report(pipeline_result)
         return BenchmarkCaseResult(
             case_id=case.case_id,
@@ -101,6 +117,13 @@ class VegaChatBenchmarkEvaluator:
             empty_chart_rate_item=empty_chart_error,
             spec_score=spec_metric.score if spec_metric else None,
             vision_score=vision_metric.score if vision_metric else None,
+            vlm_judge_score=semantic_scores.get("vlm_judge_score"),
+            embedding_score=semantic_scores.get("embedding_score"),
+            clip_score=semantic_scores.get("clip_score"),
+            siglip_score=semantic_scores.get("siglip_score"),
+            semantic_match_score=semantic_scores.get("semantic_match_score"),
+            technical_generation_attempts=_maybe_int_metric(attempt_metrics.get("technical_generation_attempts")),
+            semantic_generation_attempts=_maybe_int_metric(attempt_metrics.get("semantic_generation_attempts")),
             spec_metric=spec_metric,
             vision_metric=vision_metric,
             metrics=metrics,
@@ -116,6 +139,36 @@ class VegaChatBenchmarkEvaluator:
                 "chart_type": chart_type_from_case(case),
             },
         )
+
+
+    def _semantic_scores(self, *, image_path: str | None, query: str, judge: Any) -> dict[str, float | None]:
+        vlm_score = vlm_judge_score_from_result(judge)
+        model_scores: dict[str, float | None] = {}
+        if self.image_text_evaluator is not None and image_path:
+            batch = self.image_text_evaluator.score(image_path=image_path, task_text=query)
+            for item in batch.results:
+                normalized = normalize_cosine_to_unit(item.cosine)
+                key = _image_text_metric_key(item.model_name)
+                model_scores[key] = normalized
+        embedding_score = embedding_score_from_model_scores(model_scores)
+        return {
+            "vlm_judge_score": vlm_score,
+            "embedding_score": embedding_score,
+            "clip_score": model_scores.get("clip_score"),
+            "siglip_score": model_scores.get("siglip_score"),
+            "semantic_match_score": semantic_match_score(vlm_judge_score=vlm_score, embedding_score=embedding_score),
+        }
+
+    @staticmethod
+    def _attempt_metrics(pipeline_result: PipelineResult) -> dict[str, float | None]:
+        technical = _technical_attempts_from_steps(pipeline_result.step_logs)
+        semantic = None
+        if pipeline_result.semantic_feedback_loop_summary is not None:
+            semantic = pipeline_result.semantic_feedback_loop_summary.attempt_count
+        return {
+            "technical_generation_attempts": float(technical) if technical is not None else None,
+            "semantic_generation_attempts": float(semantic) if semantic is not None else None,
+        }
 
     @staticmethod
     def _retrieval_report(pipeline_result: PipelineResult) -> dict[str, Any]:
@@ -185,6 +238,12 @@ class VegaChatBenchmarkEvaluator:
                 user_prompt=user_prompt or case.query,
                 reference_image_path=reference_image_path,
             )
+        semantic_scores = self._semantic_scores(
+            image_path=generated_image_path,
+            query=user_prompt or case.query,
+            judge=None,
+        )
+        attempt_metrics: dict[str, float | None] = {}
         visualization_error = not validation.is_valid
         metrics = self._case_metrics(
             reference_spec=case.reference_spec,
@@ -197,6 +256,7 @@ class VegaChatBenchmarkEvaluator:
             vision_is_blank=vision_metric.is_blank if vision_metric else None,
             vision_metric=vision_metric,
         )
+        metrics.update({key: value for key, value in semantic_scores.items() if value is not None})
         return BenchmarkCaseResult(
             case_id=case.case_id,
             dataset_name=case.dataset_name,
@@ -211,6 +271,13 @@ class VegaChatBenchmarkEvaluator:
             empty_chart_rate_item=visualization_error,
             spec_score=spec_metric.score if spec_metric else None,
             vision_score=vision_metric.score if vision_metric else None,
+            vlm_judge_score=semantic_scores.get("vlm_judge_score"),
+            embedding_score=semantic_scores.get("embedding_score"),
+            clip_score=semantic_scores.get("clip_score"),
+            siglip_score=semantic_scores.get("siglip_score"),
+            semantic_match_score=semantic_scores.get("semantic_match_score"),
+            technical_generation_attempts=_maybe_int_metric(attempt_metrics.get("technical_generation_attempts")),
+            semantic_generation_attempts=_maybe_int_metric(attempt_metrics.get("semantic_generation_attempts")),
             spec_metric=spec_metric,
             vision_metric=vision_metric,
             metrics=metrics,
@@ -313,3 +380,37 @@ class VegaChatBenchmarkEvaluator:
             clone["data"] = {"values": df.where(df.notna(), None).to_dict(orient="records")}
         policy_result = ChartQualityPipeline().apply(clone, data=df)
         return ChartRenderPolicy.apply(policy_result.spec, data=df, target="benchmark", default_dpi=192, export_scale=2.0)
+
+
+def _image_text_metric_key(model_name: str) -> str:
+    normalized = model_name.lower()
+    if "siglip" in normalized:
+        return "siglip_score"
+    if "clip" in normalized:
+        return "clip_score"
+    return normalized.replace("/", "_").replace(":", "_")
+
+
+def _technical_attempts_from_steps(step_logs: list[Any]) -> int | None:
+    values: list[int] = []
+    for step in step_logs:
+        if getattr(step, "stage", "") != "technical_decision":
+            continue
+        details = getattr(step, "details", {}) or {}
+        value = details.get("completed_generation_attempts")
+        if value is None:
+            continue
+        try:
+            values.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return max(values) if values else None
+
+
+def _maybe_int_metric(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

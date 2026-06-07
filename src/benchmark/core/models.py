@@ -60,6 +60,13 @@ class BenchmarkCaseResult(BaseModel):
 
     spec_score: float | None = None
     vision_score: float | None = None
+    vlm_judge_score: float | None = None
+    embedding_score: float | None = None
+    clip_score: float | None = None
+    siglip_score: float | None = None
+    semantic_match_score: float | None = None
+    technical_generation_attempts: int | None = None
+    semantic_generation_attempts: int | None = None
     spec_metric: StructuralSpecMetric | None = None
     vision_metric: VisualQualityMetric | None = None
     metrics: dict[str, float] = Field(default_factory=dict)
@@ -84,6 +91,13 @@ class BenchmarkCaseResult(BaseModel):
             "empty_chart_rate_item": self.empty_chart_rate_item,
             "spec_score": self.spec_score,
             "vision_score": self.vision_score,
+            "vlm_judge_score": self.vlm_judge_score,
+            "embedding_score": self.embedding_score,
+            "clip_score": self.clip_score,
+            "siglip_score": self.siglip_score,
+            "semantic_match_score": self.semantic_match_score,
+            "technical_generation_attempts": self.technical_generation_attempts,
+            "semantic_generation_attempts": self.semantic_generation_attempts,
             "duration_seconds": self.duration_seconds,
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
@@ -108,6 +122,14 @@ class BenchmarkAggregateReport(BaseModel):
     mean_vision_score_failure_as_zero: float | None = None
     median_spec_score: float | None = None
     median_vision_score: float | None = None
+    mean_vlm_judge_score: float | None = None
+    median_vlm_judge_score: float | None = None
+    mean_embedding_score: float | None = None
+    median_embedding_score: float | None = None
+    mean_semantic_match_score: float | None = None
+    median_semantic_match_score: float | None = None
+    mean_technical_generation_attempts_success: float | None = None
+    mean_semantic_generation_attempts_success: float | None = None
     mean_duration_seconds: float | None = None
     p95_duration_seconds: float | None = None
     mean_prompt_tokens: float | None = None
@@ -123,6 +145,10 @@ class BenchmarkAggregateReport(BaseModel):
     selected_case_ids: list[str] = Field(default_factory=list)
     selected_chart_types: list[str] = Field(default_factory=list)
     chart_type_distribution: dict[str, int] = Field(default_factory=dict)
+    sampling_allocation: str | None = None
+    cases_per_chart_type: int | None = None
+    case_ids_hash: str | None = None
+    sampling_warning: str | None = None
     results: list[BenchmarkCaseResult] = Field(default_factory=list)
 
     @classmethod
@@ -137,6 +163,11 @@ class BenchmarkAggregateReport(BaseModel):
         failed = total - successful
         spec_scores = [float(item.spec_score) for item in results if item.spec_score is not None]
         vision_scores = [float(item.vision_score) for item in results if item.vision_score is not None]
+        vlm_judge_scores = [float(item.vlm_judge_score) for item in results if item.vlm_judge_score is not None]
+        embedding_scores = [float(item.embedding_score) for item in results if item.embedding_score is not None]
+        semantic_match_scores = [float(item.semantic_match_score) for item in results if item.semantic_match_score is not None]
+        technical_success_attempts = [float(item.technical_generation_attempts) for item in results if item.error is None and item.technical_generation_attempts is not None]
+        semantic_success_attempts = [float(item.semantic_generation_attempts) for item in results if item.error is None and item.semantic_generation_attempts is not None]
         spec_scores_failure_as_zero = [
             float(item.spec_score) if item.spec_score is not None and item.error is None else 0.0 for item in results]
         vision_scores_failure_as_zero = [
@@ -162,6 +193,14 @@ class BenchmarkAggregateReport(BaseModel):
             mean_vision_score_failure_as_zero=_mean(vision_scores_failure_as_zero),
             median_spec_score=_median(spec_scores),
             median_vision_score=_median(vision_scores),
+            mean_vlm_judge_score=_mean(vlm_judge_scores),
+            median_vlm_judge_score=_median(vlm_judge_scores),
+            mean_embedding_score=_mean(embedding_scores),
+            median_embedding_score=_median(embedding_scores),
+            mean_semantic_match_score=_mean(semantic_match_scores),
+            median_semantic_match_score=_median(semantic_match_scores),
+            mean_technical_generation_attempts_success=_mean(technical_success_attempts),
+            mean_semantic_generation_attempts_success=_mean(semantic_success_attempts),
             mean_duration_seconds=_mean(durations),
             p95_duration_seconds=_percentile(durations, 0.95),
             mean_prompt_tokens=_mean([float(item.prompt_tokens) for item in results]),
@@ -177,6 +216,10 @@ class BenchmarkAggregateReport(BaseModel):
             selected_case_ids=_maybe_str_list(sampling.get("selected_case_ids")),
             selected_chart_types=_maybe_str_list(sampling.get("selected_chart_types")),
             chart_type_distribution=_maybe_int_dict(sampling.get("chart_type_distribution")),
+            sampling_allocation=_maybe_str(sampling.get("sampling_allocation")),
+            cases_per_chart_type=_maybe_int(sampling.get("cases_per_chart_type")),
+            case_ids_hash=_maybe_str(sampling.get("case_ids_hash")),
+            sampling_warning=_maybe_str(sampling.get("sampling_warning")),
             results=results,
         )
 

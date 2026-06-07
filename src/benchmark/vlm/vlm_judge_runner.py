@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.benchmark.core.statistics import mean as _mean, mean_bool as _mean_bool
+from src.benchmark.core.statistics import mean as _mean, mean_bool as _mean_bool, median as _median
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -15,12 +15,14 @@ from pydantic import BaseModel, Field
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.datasets.datasets import load_benchmark_cases
 from src.benchmark.core.models import BenchmarkCase
+from src.benchmark.core.sampling import SAMPLING_RANDOM, chart_type_from_case, select_benchmark_cases
 from src.benchmark.core.progress import ConsoleProgressBar
 from src.benchmark.core.resume import load_case_results, should_reuse_case
 from src.domain.models import SpecValidationResult, VegaLiteSpecArtifact
 from src.services.spec.validator import SpecValidatorService
 from src.services.spec.plot_drawing import VegaLitePlotDrawingService
 from src.services.visual_feedback.judges.visual_chart_judge import VisualChartJudgeService
+from src.benchmark.evaluation.semantic_match import vlm_judge_score_from_result, vlm_judge_score_from_values
 
 
 class VLMJudgeBenchmarkResult(BaseModel):
@@ -33,6 +35,7 @@ class VLMJudgeBenchmarkResult(BaseModel):
     judge_answers_user_query: bool = False
     judge_retry_recommendation: str = "retry"
     judge_confidence: float = 0.0
+    vlm_judge_score: float = 0.0
     detected_chart_type: str | None = None
     missing_requirements: list[str] = Field(default_factory=list)
     wrong_or_suspicious_parts: list[str] = Field(default_factory=list)
@@ -55,6 +58,7 @@ class VLMJudgeBenchmarkResult(BaseModel):
             "judge_answers_user_query": self.judge_answers_user_query,
             "judge_retry_recommendation": self.judge_retry_recommendation,
             "judge_confidence": self.judge_confidence,
+            "vlm_judge_score": self.vlm_judge_score,
             "detected_chart_type": self.detected_chart_type,
             "missing_requirements": " | ".join(self.missing_requirements),
             "wrong_or_suspicious_parts": " | ".join(self.wrong_or_suspicious_parts),
@@ -73,27 +77,43 @@ class VLMJudgeBenchmarkReport(BaseModel):
     successful_cases: int = 0
     failed_cases: int = 0
     accept_rate: float | None = None
+    retry_rate: float | None = None
+    reject_rate: float | None = None
     mean_confidence: float | None = None
+    mean_vlm_judge_score: float | None = None
+    median_vlm_judge_score: float | None = None
+    min_vlm_judge_score: float | None = None
+    max_vlm_judge_score: float | None = None
     mean_duration_seconds: float | None = None
     total_tokens: int = 0
+    sampling_metadata: dict[str, Any] = Field(default_factory=dict)
     results: list[VLMJudgeBenchmarkResult] = Field(default_factory=list)
 
     @classmethod
-    def from_results(cls, results: list[VLMJudgeBenchmarkResult]) -> "VLMJudgeBenchmarkReport":
+    def from_results(cls, results: list[VLMJudgeBenchmarkResult], *, sampling_metadata: dict[str, Any] | None = None) -> "VLMJudgeBenchmarkReport":
         total = len(results)
         successful = sum(1 for item in results if item.error is None)
         failed = total - successful
         valid = [item for item in results if item.error is None]
         confidences = [float(item.judge_confidence) for item in valid]
+        scores = [float(item.vlm_judge_score) for item in valid]
+        recommendations = [str(item.judge_retry_recommendation) for item in valid]
         durations = [float(item.duration_seconds) for item in results if item.duration_seconds is not None]
         return cls(
             total_cases=total,
             successful_cases=successful,
             failed_cases=failed,
-            accept_rate=_mean_bool([item.judge_answers_user_query for item in valid]),
+            accept_rate=_mean_bool([item.judge_answers_user_query and item.judge_retry_recommendation == "accept" for item in valid]),
+            retry_rate=_mean_bool([item == "retry" for item in recommendations]),
+            reject_rate=_mean_bool([item == "reject" for item in recommendations]),
             mean_confidence=_mean(confidences),
+            mean_vlm_judge_score=_mean(scores),
+            median_vlm_judge_score=_median(scores),
+            min_vlm_judge_score=min(scores) if scores else None,
+            max_vlm_judge_score=max(scores) if scores else None,
             mean_duration_seconds=_mean(durations),
             total_tokens=sum(item.total_tokens for item in results),
+            sampling_metadata=sampling_metadata or {},
             results=results,
         )
 
@@ -119,14 +139,32 @@ class VLMJudgeBenchmarkRunner:
             limit: int | None = None,
             resume: bool = False,
             retry_failed: bool = False,
+            shuffle: bool = False,
+            seed: int = 42,
+            sampling_strategy: str = SAMPLING_RANDOM,
+            max_per_chart_type: int | None = None,
+            sampling_allocation: str = "round_robin",
+            cases_per_chart_type: int | None = None,
     ) -> VLMJudgeBenchmarkReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
-        cases = load_benchmark_cases(source)
-        if limit is not None:
-            cases = cases[: max(0, limit)]
+        loaded_cases = load_benchmark_cases(source)
+        cases, sampling_summary = select_benchmark_cases(
+            loaded_cases,
+            limit=limit,
+            shuffle=shuffle,
+            seed=seed,
+            sampling_strategy=sampling_strategy,
+            max_per_chart_type=max_per_chart_type,
+            sampling_allocation=sampling_allocation,
+            cases_per_chart_type=cases_per_chart_type,
+        )
+        (output / "vlm_judge_sampling.json").write_text(
+            json.dumps(sampling_summary.as_report_payload(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
         existing_by_id = load_case_results(output, VLMJudgeBenchmarkResult) if (resume or retry_failed) else {}
         results_by_id: dict[str, VLMJudgeBenchmarkResult] = {}
@@ -180,7 +218,7 @@ class VLMJudgeBenchmarkRunner:
 
         results = self._ordered_results(cases, results_by_id)
         self._write_results(results, output)
-        report = VLMJudgeBenchmarkReport.from_results(results)
+        report = VLMJudgeBenchmarkReport.from_results(results, sampling_metadata=sampling_summary.as_report_payload())
         (output / "vlm_judge_benchmark_report.json").write_text(
             json.dumps(report.model_dump(mode="json"), ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -244,6 +282,7 @@ class VLMJudgeBenchmarkRunner:
                 judge_answers_user_query=judge_result.answers_user_query,
                 judge_retry_recommendation=judge_result.retry_recommendation,
                 judge_confidence=judge_result.confidence,
+                vlm_judge_score=vlm_judge_score_from_result(judge_result) or 0.0,
                 detected_chart_type=judge_result.detected_chart_type,
                 missing_requirements=judge_result.missing_requirements,
                 wrong_or_suspicious_parts=judge_result.wrong_or_suspicious_parts,
@@ -252,7 +291,7 @@ class VLMJudgeBenchmarkRunner:
                 prompt_tokens=token_usage.prompt_tokens,
                 completion_tokens=token_usage.completion_tokens,
                 total_tokens=token_usage.total_tokens,
-                metadata=case.metadata,
+                metadata={**case.metadata, "chart_type": chart_type_from_case(case)},
             )
             self._write_case_result(result, output_dir)
             return result
@@ -266,7 +305,7 @@ class VLMJudgeBenchmarkRunner:
                 run_id=run_id,
                 duration_seconds=round(time.perf_counter() - started, 6),
                 error=f"{type(exc).__name__}: {exc}",
-                metadata=case.metadata,
+                metadata={**case.metadata, "chart_type": chart_type_from_case(case)},
             )
             self._write_case_result(result, output_dir)
             return result

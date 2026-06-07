@@ -10,6 +10,7 @@ from src.application.contracts import PipelineRequest
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.datasets.datasets import load_benchmark_cases
 from src.benchmark.evaluation.evaluator import VegaChatBenchmarkEvaluator
+from src.benchmark.evaluation.image_text_cosine import ImageTextCosineEvaluator
 from src.benchmark.core.models import BenchmarkAggregateReport, BenchmarkCase, BenchmarkCaseResult
 from src.benchmark.core.progress import ConsoleProgressBar
 from src.benchmark.core.resume import load_case_results, should_reuse_case
@@ -31,9 +32,14 @@ def _classify_benchmark_error(exc: BaseException) -> str:
 class VegaChatBenchmarkRunner:
     """Run ViRAGE on VegaChat/NLV/ChartLLM-style benchmark cases and write evaluation artifacts."""
 
-    def __init__(self, pipeline: ViRAGEPipeline, evaluator: VegaChatBenchmarkEvaluator | None = None) -> None:
+    def __init__(
+        self,
+        pipeline: ViRAGEPipeline,
+        evaluator: VegaChatBenchmarkEvaluator | None = None,
+        image_text_evaluator: ImageTextCosineEvaluator | None = None,
+    ) -> None:
         self.pipeline = pipeline
-        self.evaluator = evaluator or VegaChatBenchmarkEvaluator()
+        self.evaluator = evaluator or VegaChatBenchmarkEvaluator(image_text_evaluator=image_text_evaluator)
 
     def run_dataset(
             self,
@@ -50,6 +56,8 @@ class VegaChatBenchmarkRunner:
             seed: int = 42,
             sampling_strategy: str = SAMPLING_RANDOM,
             max_per_chart_type: int | None = None,
+            sampling_allocation: str = "round_robin",
+            cases_per_chart_type: int | None = None,
     ) -> BenchmarkAggregateReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
@@ -63,6 +71,8 @@ class VegaChatBenchmarkRunner:
             seed=seed,
             sampling_strategy=sampling_strategy,
             max_per_chart_type=max_per_chart_type,
+            sampling_allocation=sampling_allocation,
+            cases_per_chart_type=cases_per_chart_type,
         )
         write_benchmark_manifest(
             output_dir=output,
@@ -76,6 +86,8 @@ class VegaChatBenchmarkRunner:
                 "loaded_case_count": len(loaded_cases),
                 "selected_case_count": len(cases),
                 "max_per_chart_type": max_per_chart_type,
+                "sampling_allocation": sampling_allocation,
+                "cases_per_chart_type": cases_per_chart_type,
                 **sampling_summary.as_report_payload(),
                 **(run_options or {}),
             },
@@ -246,12 +258,21 @@ class VegaChatBenchmarkRunner:
             f"Mean Spec Score (failure as zero): {report.mean_spec_score_failure_as_zero}",
             f"Mean Vision Score: {report.mean_vision_score}",
             f"Mean Vision Score (failure as zero): {report.mean_vision_score_failure_as_zero}",
+            f"Mean VLM judge score: {report.mean_vlm_judge_score}",
+            f"Mean embedding score: {report.mean_embedding_score}",
+            f"Mean semantic match score: {report.mean_semantic_match_score}",
+            f"Mean technical generation attempts (success): {report.mean_technical_generation_attempts_success}",
+            f"Mean semantic generation attempts (success): {report.mean_semantic_generation_attempts_success}",
             f"Chart text consistency rate: {report.chart_text_consistency_rate}",
             f"Median Spec Score: {report.median_spec_score}",
             f"Median Vision Score: {report.median_vision_score}",
             f"Mean duration seconds: {report.mean_duration_seconds}",
             f"Total tokens: {report.total_tokens}",
             f"Sampling strategy: {report.sampling_strategy}",
+            f"Sampling allocation: {report.sampling_allocation}",
+            f"Cases per chart type: {report.cases_per_chart_type}",
+            f"Case ids hash: {report.case_ids_hash}",
+            f"Sampling warning: {report.sampling_warning}",
             f"Seed: {report.seed}",
             f"Selected chart types: {', '.join(report.selected_chart_types)}",
             "",
