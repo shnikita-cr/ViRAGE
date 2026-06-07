@@ -5,18 +5,12 @@ from typing import Any, Literal, get_args
 from pydantic import BaseModel, Field, model_validator
 
 from src.orchestrator.contracts.planning_contract import (
-    MetricSemantic,
-    RankingStrategy,
-    ScaleStrategy,
-    VisualConstraint,
     allowed_metric_semantics,
     allowed_ranking_strategies,
     allowed_scale_strategies,
     allowed_visual_constraints,
     is_problem_ranking_strategy,
     requires_problem_ranking,
-    requires_severity_fields,
-    supports_severity_scale,
 )
 
 AnalysisTaskType = Literal[
@@ -43,19 +37,38 @@ class AnalysisSubtask(BaseModel):
     optional_fields: list[str] = Field(default_factory=list)
     priority: int = Field(default=100, ge=1)
     constraints: dict[str, Any] = Field(default_factory=dict)
-    metric_semantics: dict[str, MetricSemantic] = Field(default_factory=dict)
-    ranking_strategy: RankingStrategy | None = None
-    scale_strategy: ScaleStrategy | None = None
-    visual_constraints: list[VisualConstraint] = Field(default_factory=list)
+    metric_semantics: dict[str, Any] = Field(default_factory=dict)
+    ranking_strategy: str | None = None
+    scale_strategy: str | None = None
+    visual_constraints: list[str] = Field(default_factory=list)
     comparison_group_id: str | None = None
     rationale: str = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_controlled_fields(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        data["ranking_strategy"] = _normalize_controlled_value(
+            data.get("ranking_strategy"),
+            allowed=set(allowed_ranking_strategies()),
+        )
+        data["scale_strategy"] = _normalize_controlled_value(
+            data.get("scale_strategy"),
+            allowed=set(allowed_scale_strategies()),
+        )
+        data["metric_semantics"] = _normalize_metric_semantics(data.get("metric_semantics") or {})
+        return data
 
     @model_validator(mode="after")
     def _dedupe_fields(self) -> "AnalysisSubtask":
         self.required_fields = _dedupe(self.required_fields)
         self.optional_fields = [field for field in _dedupe(self.optional_fields) if field not in self.required_fields]
-        self.visual_constraints = _dedupe(self.visual_constraints)
-        self.metric_semantics = {str(key).strip(): value for key, value in dict(self.metric_semantics or {}).items() if str(key).strip()}
+        self.visual_constraints = _dedupe_allowed(self.visual_constraints, allowed=set(allowed_visual_constraints()))
+        self.metric_semantics = _normalize_metric_semantics(self.metric_semantics)
+        self.ranking_strategy = _normalize_controlled_value(self.ranking_strategy, allowed=set(allowed_ranking_strategies()))
+        self.scale_strategy = _normalize_controlled_value(self.scale_strategy, allowed=set(allowed_scale_strategies()))
         if not self.required_fields:
             raise ValueError(f"Analysis subtask {self.id!r} must contain at least one required field.")
         self._validate_problematic_strategy()
@@ -68,16 +81,6 @@ class AnalysisSubtask(BaseModel):
             raise ValueError(
                 f"Analysis subtask {self.id!r} targets problematic/quality items but has no controlled ranking_strategy. "
                 f"Allowed ranking strategies: {allowed_ranking_strategies()}"
-            )
-        if requires_severity_fields(self.ranking_strategy) and not self.metric_semantics:
-            raise ValueError(
-                f"Analysis subtask {self.id!r} uses severity ranking but metric_semantics is empty. "
-                f"Allowed metric semantics: {allowed_metric_semantics()}"
-            )
-        if requires_severity_fields(self.ranking_strategy) and not supports_severity_scale(self.scale_strategy):
-            raise ValueError(
-                f"Analysis subtask {self.id!r} uses severity ranking but scale_strategy={self.scale_strategy!r}. "
-                f"Allowed severity scale strategies: {sorted({'normalized_severity', 'independent_panels', 'single_metric'})}"
             )
 
 
@@ -176,6 +179,50 @@ def analysis_plan_contract_metadata() -> dict[str, list[str]]:
         "scale_strategies": allowed_scale_strategies(),
         "visual_constraints": allowed_visual_constraints(),
     }
+
+
+def _normalize_metric_semantics(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    allowed = set(allowed_metric_semantics())
+    result: dict[str, str] = {}
+    for key, raw in value.items():
+        field = str(key).strip()
+        semantic = _normalize_metric_semantic_value(raw, allowed=allowed)
+        if field and semantic:
+            result[field] = semantic
+    return result
+
+
+def _normalize_metric_semantic_value(value: Any, *, allowed: set[str]) -> str | None:
+    raw: Any = value
+    if isinstance(value, dict):
+        raw = (
+            value.get("metric_semantic")
+            or value.get("semantic")
+            or value.get("direction")
+            or value.get("quality_direction")
+            or value.get("value")
+        )
+    text = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return text if text in allowed else None
+
+
+def _normalize_controlled_value(value: Any, *, allowed: set[str]) -> str | None:
+    if isinstance(value, dict):
+        value = (
+            value.get("ranking_strategy")
+            or value.get("scale_strategy")
+            or value.get("strategy")
+            or value.get("value")
+            or value.get("name")
+        )
+    text = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return text if text in allowed else None
+
+
+def _dedupe_allowed(values: list[Any], *, allowed: set[str]) -> list[str]:
+    return [value for value in _dedupe([str(item) for item in values]) if value in allowed]
 
 
 def _validate_fields(*, fields: list[str], available_fields: set[str], context: str) -> None:

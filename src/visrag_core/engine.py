@@ -289,7 +289,29 @@ class VisRAGEngine:
             chunks: list[VisRAGRetrievedChunk],
             task_context: dict[str, Any] | None = None,
     ) -> VisRAGGenerationGuidance:
-        source_refs = [
+        source_refs = self._source_refs(chunks)
+        categorized = self._categorized_rule_documents(chunks)
+        if self.reasoning_llm is None:
+            return self._rule_only_guidance(
+                query_analysis=query_analysis,
+                data_profile=data_profile,
+                chunks=chunks,
+                categorized=categorized,
+                source_refs=source_refs,
+                task_context=task_context,
+            )
+        return self._llm_guidance(
+            query_analysis=query_analysis,
+            data_profile=data_profile,
+            chunks=chunks,
+            categorized=categorized,
+            source_refs=source_refs,
+            task_context=task_context,
+        )
+
+    @staticmethod
+    def _source_refs(chunks: list[VisRAGRetrievedChunk]) -> list[dict[str, Any]]:
+        return [
             {
                 "chunk_id": chunk.chunk_id,
                 "source_id": chunk.source_id,
@@ -301,22 +323,85 @@ class VisRAGEngine:
             }
             for chunk in chunks
         ]
-        categorized = self._categorized_rule_documents(chunks)
-        if self.reasoning_llm is None:
-            guidance = VisRAGGenerationGuidance(
-                chart_patterns=categorized["chart_pattern"],
-                readability_rules=categorized["readability_rule"],
-                scale_plot_area_rules=categorized["scale_plot_area_rule"],
-                vlm_readability_rules=categorized["vlm_readability_rule"],
-                domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
-                applicable_rules=[chunk.text for chunk in chunks if str(chunk.source_kind) not in {"domain_semantics_rule"}],
-                quality_checks=[chunk.text for chunk in chunks if str(chunk.source_kind) in {"readability_rule", "vlm_readability_rule"}],
-                source_refs=source_refs,
-            )
-            guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
-            return guidance
 
-        payload = {
+    def _rule_only_guidance(
+            self,
+            *,
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+            chunks: list[VisRAGRetrievedChunk],
+            categorized: dict[str, list[VisRAGRuleDocument]],
+            source_refs: list[dict[str, Any]],
+            task_context: dict[str, Any] | None,
+    ) -> VisRAGGenerationGuidance:
+        guidance = VisRAGGenerationGuidance(
+            chart_patterns=categorized["chart_pattern"],
+            readability_rules=categorized["readability_rule"],
+            scale_plot_area_rules=categorized["scale_plot_area_rule"],
+            vlm_readability_rules=categorized["vlm_readability_rule"],
+            domain_semantics_rules=self._gate_domain_semantics(
+                categorized["domain_semantics_rule"],
+                query_analysis,
+                data_profile,
+            ),
+            applicable_rules=[chunk.text for chunk in chunks if str(chunk.source_kind) not in {"domain_semantics_rule"}],
+            quality_checks=[chunk.text for chunk in chunks if str(chunk.source_kind) in {"readability_rule", "vlm_readability_rule"}],
+            source_refs=source_refs,
+        )
+        guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
+        return guidance
+
+    def _llm_guidance(
+            self,
+            *,
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+            chunks: list[VisRAGRetrievedChunk],
+            categorized: dict[str, list[VisRAGRuleDocument]],
+            source_refs: list[dict[str, Any]],
+            task_context: dict[str, Any] | None,
+    ) -> VisRAGGenerationGuidance:
+        parsed = invoke_structured(
+            self.reasoning_llm,
+            self._llm_guidance_prompt(query_analysis, data_profile, chunks, task_context),
+            _VisRAGResponseSchema,
+            stage="visrag_guidance_generation",
+            role="reasoning",
+            max_attempts=2,
+        )
+        guidance = VisRAGGenerationGuidance(
+            chart_patterns=categorized["chart_pattern"],
+            readability_rules=categorized["readability_rule"],
+            scale_plot_area_rules=categorized["scale_plot_area_rule"],
+            vlm_readability_rules=categorized["vlm_readability_rule"],
+            domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
+            applicable_rules=parsed.applicable_rules,
+            avoid=parsed.avoid,
+            quality_checks=parsed.quality_checks,
+            feedback_warnings=parsed.feedback_warnings,
+            source_refs=source_refs,
+        )
+        guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
+        return guidance
+
+    def _llm_guidance_prompt(
+            self,
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+            chunks: list[VisRAGRetrievedChunk],
+            task_context: dict[str, Any] | None,
+    ) -> str:
+        payload = self._llm_guidance_payload(query_analysis, data_profile, chunks, task_context)
+        return f"{self._llm_guidance_instruction(task_context)}\n\nContext JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
+
+    @staticmethod
+    def _llm_guidance_payload(
+            query_analysis: QueryRequestAnalysisResult,
+            data_profile: DataProfile,
+            chunks: list[VisRAGRetrievedChunk],
+            task_context: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        return {
             "query_analysis": {
                 "normalized_query": query_analysis.normalized_query,
                 "analysis_task": query_analysis.analysis_task,
@@ -338,44 +423,23 @@ class VisRAGEngine:
                 for chunk in chunks
             ],
         }
+
+    @staticmethod
+    def _llm_guidance_instruction(task_context: dict[str, Any] | None) -> str:
         stage = str((task_context or {}).get("stage") or "spec_generation").strip().lower()
         if stage == "planning":
-            instruction = (
+            return (
                 "Generate VisRAG guidance for analysis planning. "
                 "Use only the retrieved chunks and the given data/query context. "
-                "Return practical constraints for selecting subtasks, fields, metric semantics, ranking strategy, scale strategy and visual constraints. "
-                "Do not output Vega-Lite code or examples."
+                "Return practical constraints for selecting subtasks, fields, metric semantics, ranking strategy, "
+                "scale strategy and visual constraints. Do not output Vega-Lite code or examples."
             )
-        else:
-            instruction = (
-                "Generate final VisRAG guidance for Vega-Lite spec generation. "
-                "Use only the retrieved chunks and the given data/query context. "
-                "If selected_analytical_subtask is provided, treat it as fixed: do not replace it with another task. "
-                "Do not output Vega-Lite code or examples. Return concrete practical guidance."
-            )
-        prompt = f"{instruction}\n\nContext JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
-        parsed = invoke_structured(
-            self.reasoning_llm,
-            prompt,
-            _VisRAGResponseSchema,
-            stage="visrag_guidance_generation",
-            role="reasoning",
-            max_attempts=2,
+        return (
+            "Generate final VisRAG guidance for Vega-Lite spec generation. "
+            "Use only the retrieved chunks and the given data/query context. "
+            "If selected_analytical_subtask is provided, treat it as fixed: do not replace it with another task. "
+            "Do not output Vega-Lite code or examples. Return concrete practical guidance."
         )
-        guidance = VisRAGGenerationGuidance(
-            chart_patterns=categorized["chart_pattern"],
-            readability_rules=categorized["readability_rule"],
-            scale_plot_area_rules=categorized["scale_plot_area_rule"],
-            vlm_readability_rules=categorized["vlm_readability_rule"],
-            domain_semantics_rules=self._gate_domain_semantics(categorized["domain_semantics_rule"], query_analysis, data_profile),
-            applicable_rules=parsed.applicable_rules,
-            avoid=parsed.avoid,
-            quality_checks=parsed.quality_checks,
-            feedback_warnings=parsed.feedback_warnings,
-            source_refs=source_refs,
-        )
-        guidance.prompt_text = self._to_prompt_text(guidance, task_context=task_context)
-        return guidance
 
     @staticmethod
     def _to_prompt_text(guidance: VisRAGGenerationGuidance, task_context: dict[str, Any] | None = None) -> str:

@@ -16,7 +16,7 @@ DEFAULT_INPUT_DIR = 'rag_corpus/raw/virage_feedback'
 DEFAULT_OUTPUT = 'rag_corpus/extracted/virage_feedback.jsonl'
 TEXT_KEYS = ('feedback', 'judge_feedback', 'user_feedback', 'reason', 'summary', 'error', 'failure_reason', 'visual_observation', 'repair_suggestion', 'query')
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def read_tolerant_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     with path.open('r', encoding='utf-8') as handle:
         for line in handle:
@@ -42,7 +42,7 @@ def _collect_text(record: dict[str, Any]) -> str:
 def extract_virage_feedback(input_dir: Path) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     for path in sorted(input_dir.rglob('*.jsonl')):
-        for idx, item in enumerate(_read_jsonl(path)):
+        for idx, item in enumerate(read_tolerant_jsonl(path)):
             text = _collect_text(item)
             record_id = str(item.get('record_id') or item.get('id') or f'virage_feedback__{stable_hash([str(path), idx, item])}')
             records.append(SourceRecord(record_id=record_id, source_dataset='virage_feedback', source_path=str(path), source_type='visual_or_user_feedback', title=compact_text(item.get('title') or item.get('query') or 'ViRAGE feedback'), text=text, task=item.get('analysis_task') or item.get('task'), chart_family=item.get('chart_family') or item.get('chart_type'), metadata={'feedback_kind': item.get('feedback_kind') or item.get('source')}, raw=item))

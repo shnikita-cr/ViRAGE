@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd
@@ -9,18 +8,14 @@ import pytest
 pytest.importorskip("pyarrow")
 
 from scripts.autorag_eval.export_autorag_dataset import export_autorag_dataset
-
-
-def _write_jsonl(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n", encoding="utf-8")
+from scripts.common.json_io import write_jsonl
 
 
 def test_export_autorag_dataset_writes_autorag_parquet_contract_for_rule_records(tmp_path: Path) -> None:
     corpus_path = tmp_path / "corpus.jsonl"
     queries_path = tmp_path / "queries.jsonl"
     output_dir = tmp_path / "out"
-    _write_jsonl(
+    write_jsonl(
         corpus_path,
         [
             {
@@ -44,7 +39,7 @@ def test_export_autorag_dataset_writes_autorag_parquet_contract_for_rule_records
             },
         ],
     )
-    _write_jsonl(
+    write_jsonl(
         queries_path,
         [
             {
@@ -75,7 +70,7 @@ def test_export_autorag_dataset_accepts_runtime_guidance_chunks_with_chunk_id(tm
     corpus_path = tmp_path / "guidance_chunks.jsonl"
     queries_path = tmp_path / "queries.jsonl"
     output_dir = tmp_path / "out"
-    _write_jsonl(
+    write_jsonl(
         corpus_path,
         [
             {
@@ -98,7 +93,7 @@ def test_export_autorag_dataset_accepts_runtime_guidance_chunks_with_chunk_id(tm
             },
         ],
     )
-    _write_jsonl(
+    write_jsonl(
         queries_path,
         [
             {

@@ -4,10 +4,6 @@ logger = logging.getLogger(__name__)
 import argparse
 from pathlib import Path
 ROOT = Path('.').resolve()
-from src.application.config.project_config import load_project_config
-from src.application.pipeline import ViRAGEPipeline
-from src.benchmark.vlm.vlm_judge_runner import VLMJudgeBenchmarkRunner
-
 def main() -> None:
     parser = argparse.ArgumentParser(description='Render ground-truth Vega-Lite specs and evaluate them with the PNG-only VLM judge.')
     parser.add_argument('--cases', required=True, help='Path to NLV/ChartLLM-compatible benchmark cases or corpus root.')
@@ -17,6 +13,10 @@ def main() -> None:
     parser.add_argument('--resume', action='store_true', help='Continue from existing cases/<case_id>/result.json files in the output directory.')
     parser.add_argument('--retry-failed', action='store_true', help='Reuse successful existing cases and rerun only failed/missing cases.')
     args = parser.parse_args()
+    from src.application.config.project_config import load_project_config
+    from src.application.pipeline import ViRAGEPipeline
+    from src.benchmark.vlm.vlm_judge_runner import VLMJudgeBenchmarkRunner
+
     config = load_project_config(args.config)
     config.mode = 'benchmark'
     pipeline = ViRAGEPipeline.from_project_config(config)

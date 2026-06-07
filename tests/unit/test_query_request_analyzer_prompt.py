@@ -62,3 +62,43 @@ def test_query_request_schema_rejects_empty_object() -> None:
 
     with pytest.raises(ValidationError):
         _QueryRequestAnalysisSchema.model_validate({"confidence": 0.65})
+
+
+def test_query_request_schema_filters_unknown_metric_semantics() -> None:
+    from src.services.planning.query_request_analyzer import _QueryRequestAnalysisSchema
+
+    parsed = _QueryRequestAnalysisSchema.model_validate(
+        {
+            "normalized_query": "compare fields",
+            "selected_fields": ["count", "group"],
+            "metric_semantics": {
+                "count": "count",
+                "group": {"semantic": "categorical"},
+                "score": {"direction": "higher_is_better"},
+            },
+            "ranking_strategy": {"ranking_strategy": "full_distribution"},
+            "scale_strategy": {"scale_strategy": "shared_scale"},
+        }
+    )
+
+    assert parsed.metric_semantics == {"score": "higher_is_better"}
+    assert parsed.ranking_strategy == "full_distribution"
+    assert parsed.scale_strategy == "shared_scale"
+
+
+def test_query_request_schema_ignores_invalid_controlled_strategy_values() -> None:
+    from src.services.planning.query_request_analyzer import _QueryRequestAnalysisSchema
+
+    parsed = _QueryRequestAnalysisSchema.model_validate(
+        {
+            "normalized_query": "show count by group",
+            "selected_fields": ["count", "group"],
+            "metric_semantics": {"count": "not_a_metric_direction"},
+            "ranking_strategy": {"ranking_strategy": "not_a_strategy"},
+            "scale_strategy": {"scale_strategy": "not_a_scale"},
+        }
+    )
+
+    assert parsed.metric_semantics == {}
+    assert parsed.ranking_strategy is None
+    assert parsed.scale_strategy is None

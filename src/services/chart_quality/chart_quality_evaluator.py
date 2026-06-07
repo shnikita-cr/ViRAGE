@@ -202,7 +202,7 @@ class ChartQualityEvaluator:
         repeated = ChartQualityEvaluator._repeat_fields(spec)
         if not repeated:
             return True
-        visible_text = " ".join([ChartQualityEvaluator.title_text(spec.get("title")), ChartQualityEvaluator._axis_titles(spec)]).lower()
+        visible_text = " ".join([title_text(spec.get("title")), ChartQualityEvaluator._axis_titles(spec)]).lower()
         return any(field.replace("_", " ").lower() in visible_text for field in repeated)
 
     @staticmethod
@@ -232,14 +232,3 @@ class ChartQualityEvaluator:
                         titles.append(title.strip())
         return " ".join(titles)
 
-    @staticmethod
-    def title_text(value: Any) -> str:
-        if isinstance(value, str):
-            return value.strip()
-        if isinstance(value, dict):
-            text = value.get("text")
-            if isinstance(text, str):
-                return text.strip()
-            if isinstance(text, list):
-                return " ".join(str(item).strip() for item in text if str(item).strip())
-        return ""

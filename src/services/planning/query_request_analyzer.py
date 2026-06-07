@@ -13,7 +13,14 @@ from src.domain.models import (
     RequestFieldMapping,
 )
 from src.infrastructure.runtime import RuntimeContext
-from src.orchestrator.contracts.planning_contract import MetricSemantic, RankingStrategy, ScaleStrategy, VisualConstraint
+from src.orchestrator.contracts.planning_contract import (
+    RankingStrategy,
+    ScaleStrategy,
+    VisualConstraint,
+    allowed_metric_semantics,
+    allowed_ranking_strategies,
+    allowed_scale_strategies,
+)
 from src.llm.helpers import invoke_structured
 from src.llm.model_runtime import runtime_profile_from_model
 from src.llm.prompt_budget import PromptSection, build_budgeted_prompt
@@ -91,7 +98,7 @@ class _QueryRequestAnalysisSchema(BaseModel):
     field_mappings: list[_FieldMappingSchema] = Field(default_factory=list,
                                                       validation_alias=AliasChoices("field_mappings", "mappings"))
     aggregation_plan: dict[str, Any] = Field(default_factory=dict)
-    metric_semantics: dict[str, MetricSemantic] = Field(default_factory=dict)
+    metric_semantics: dict[str, str] = Field(default_factory=dict)
     ranking_strategy: RankingStrategy | None = None
     scale_strategy: ScaleStrategy | None = None
     visual_constraints: list[VisualConstraint] = Field(default_factory=list)
@@ -120,6 +127,17 @@ class _QueryRequestAnalysisSchema(BaseModel):
                     break
         if "field_mappings" not in data and "mappings" in data:
             data["field_mappings"] = data["mappings"]
+        data["metric_semantics"] = _normalize_metric_semantics_payload(data.get("metric_semantics"))
+        data["ranking_strategy"] = _coerce_controlled_value(
+            data.get("ranking_strategy"),
+            key="ranking_strategy",
+            allowed=set(allowed_ranking_strategies()),
+        )
+        data["scale_strategy"] = _coerce_controlled_value(
+            data.get("scale_strategy"),
+            key="scale_strategy",
+            allowed=set(allowed_scale_strategies()),
+        )
         if "selected_fields" not in data and "grounded_fields" in data:
             data["selected_fields"] = data.get("grounded_fields") or []
         if "selected_fields" not in data and isinstance(data.get("field_bindings"), dict):
@@ -154,6 +172,41 @@ class _QueryRequestAnalysisSchema(BaseModel):
             raise ValueError("Query analysis response must contain query intent or schema-grounded fields.")
         return self
 
+
+
+def _normalize_metric_semantics_payload(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    allowed = set(allowed_metric_semantics())
+    result: dict[str, str] = {}
+    for key, raw in value.items():
+        field = str(key).strip()
+        semantic = _coerce_metric_semantic_value(raw, allowed=allowed)
+        if field and semantic:
+            result[field] = semantic
+    return result
+
+
+def _coerce_metric_semantic_value(value: Any, *, allowed: set[str]) -> str | None:
+    raw: Any = value
+    if isinstance(value, dict):
+        raw = (
+            value.get("metric_semantic")
+            or value.get("semantic")
+            or value.get("direction")
+            or value.get("quality_direction")
+            or value.get("value")
+        )
+    text = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return text if text in allowed else None
+
+
+def _coerce_controlled_value(value: Any, *, key: str, allowed: set[str]) -> str | None:
+    raw: Any = value
+    if isinstance(value, dict):
+        raw = value.get(key) or value.get("strategy") or value.get("value") or value.get("name")
+    text = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return text if text in allowed else None
 
 
 def _field_binding_payloads(data: dict[str, Any]) -> dict[str, Any]:
@@ -294,9 +347,17 @@ class QueryRequestAnalyzerService(BaseService):
             },
             field_mappings=[RequestFieldMapping(**item.model_dump()) for item in parsed.field_mappings],
             aggregation_plan={**dict(parsed.aggregation_plan or {}), **_subtask_constraints(subtask)},
-            metric_semantics=self._subtask_first_dict(parsed.metric_semantics, subtask.get("metric_semantics")),
-            ranking_strategy=self._subtask_first_value(parsed.ranking_strategy, subtask.get("ranking_strategy")),
-            scale_strategy=self._subtask_first_value(parsed.scale_strategy, subtask.get("scale_strategy")),
+            metric_semantics=self._subtask_first_metric_semantics(parsed.metric_semantics, subtask.get("metric_semantics")),
+            ranking_strategy=self._subtask_first_controlled_value(
+                parsed.ranking_strategy,
+                subtask.get("ranking_strategy"),
+                allowed=set(allowed_ranking_strategies()),
+            ),
+            scale_strategy=self._subtask_first_controlled_value(
+                parsed.scale_strategy,
+                subtask.get("scale_strategy"),
+                allowed=set(allowed_scale_strategies()),
+            ),
             visual_constraints=self._dedupe([*(subtask.get("visual_constraints") or []), *(parsed.visual_constraints or [])]),
             comparison_group_id=str(subtask.get("comparison_group_id") or parsed.comparison_group_id or "").strip() or None,
             visual_judge_requirements=self._normalize_visual_judge_requirements(parsed.visual_judge_requirements),
@@ -309,15 +370,19 @@ class QueryRequestAnalyzerService(BaseService):
 
 
     @staticmethod
-    def _subtask_first_value(parsed_value: str | None, subtask_value: Any) -> str | None:
-        text = str(subtask_value or parsed_value or "").strip()
-        return text or None
+    def _subtask_first_controlled_value(parsed_value: str | None, subtask_value: Any, *, allowed: set[str]) -> str | None:
+        return _coerce_controlled_value(subtask_value, key="strategy", allowed=allowed) or _coerce_controlled_value(
+            parsed_value,
+            key="strategy",
+            allowed=allowed,
+        )
 
     @staticmethod
-    def _subtask_first_dict(parsed_value: dict[str, Any], subtask_value: Any) -> dict[str, Any]:
-        if isinstance(subtask_value, dict) and subtask_value:
-            return {str(key).strip(): value for key, value in subtask_value.items() if str(key).strip()}
-        return _merge_dicts(parsed_value)
+    def _subtask_first_metric_semantics(parsed_value: dict[str, Any], subtask_value: Any) -> dict[str, str]:
+        subtask_semantics = _normalize_metric_semantics_payload(subtask_value)
+        if subtask_semantics:
+            return subtask_semantics
+        return _normalize_metric_semantics_payload(parsed_value)
 
     @staticmethod
     def _normalize_visual_judge_requirements(raw: dict[str, Any]) -> dict[str, Any]:

@@ -208,96 +208,164 @@ class VisualFeedbackPipelineNodesMixin:
         min_confidence = float(self.runtime.settings.semantic_feedback_min_accept_confidence)
         actionable_feedback = _actionable_semantic_feedback(judge)
         retry_reasons = _semantic_retry_reasons(judge)
-        accepted = bool(
+        artifact_paths = dict(state.get("artifact_paths", {}))
+
+        if self._semantic_judge_accepted(judge, actionable_feedback, min_confidence=min_confidence):
+            return self._semantic_accept_state(
+                state=state,
+                judge=judge,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+                artifact_paths=artifact_paths,
+            )
+
+        feedback_text = self._semantic_feedback_text(judge, retry_reasons)
+        feedback_items = self._semantic_feedback_items(state, feedback_text)
+        if retry_reasons and attempt_number < max_attempts:
+            return self._semantic_retry_state(
+                state=state,
+                judge=judge,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+                actionable_feedback=actionable_feedback,
+                retry_reasons=retry_reasons,
+                feedback_text=feedback_text,
+                feedback_items=feedback_items,
+                artifact_paths=artifact_paths,
+            )
+
+        return self._semantic_failed_state(
+            state=state,
+            judge=judge,
+            attempt_number=attempt_number,
+            max_attempts=max_attempts,
+            artifact_paths=artifact_paths,
+        )
+
+    @staticmethod
+    def _semantic_judge_accepted(judge, actionable_feedback: list[str], *, min_confidence: float) -> bool:
+        return bool(
             judge.answers_user_query
             and judge.confidence >= min_confidence
             and (judge.retry_recommendation == "accept" or not actionable_feedback)
         )
-        artifact_paths = dict(state.get("artifact_paths", {}))
 
-        if accepted:
-            summary = SemanticFeedbackLoopSummary(
-                enabled=True,
-                max_attempts=max_attempts,
-                attempt_count=attempt_number,
-                retry_count=max(0, attempt_number - 1),
-                accepted=True,
-                accepted_attempt=attempt_number,
-                final_status="accepted",
-                final_confidence=judge.confidence,
-                saved_feedback_count=len(state.get("visual_feedback_examples", [])),
-                missing_requirements=judge.missing_requirements,
-                improvement_comments=judge.improvement_comments,
-                feedback_corpus_path=str(self.runtime.settings.semantic_feedback_corpus_path),
-            )
-            artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary",
-                                             summary.model_dump())
-            summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
-            return {
-                "semantic_status": "accepted",
-                "semantic_feedback_loop_summary": summary,
-                "stage": PipelineStage.VERIFICATION,
-                "trace": self._trace(state, "semantic_decision_accept"),
-                "artifact_paths": artifact_paths,
-                "step_logs": self._append_log(
-                    state,
-                    stage="semantic_decision",
-                    title="Semantic retry decision",
-                    summary="accepted",
-                    outputs=["accept"],
-                    details=summary.model_dump(),
-                ),
-            }
-
+    @staticmethod
+    def _semantic_feedback_text(judge, retry_reasons: list[str]) -> str:
         feedback_text = _semantic_feedback_text(judge)
         if not feedback_text and retry_reasons:
             feedback_text = "\n".join(retry_reasons)
+        return feedback_text
+
+    @staticmethod
+    def _semantic_feedback_items(state: PipelineState, feedback_text: str) -> list[str]:
         feedback_items = [*state.get("semantic_feedback_items", [])]
         if feedback_text:
             feedback_items.append(feedback_text)
+        return feedback_items
 
-        if retry_reasons and attempt_number < max_attempts:
-            summary = {
-                "status": "retry",
-                "attempt_number": attempt_number,
-                "next_semantic_attempt": attempt_number + 1,
-                "max_attempts": max_attempts,
-                "confidence": judge.confidence,
-                "answers_user_query": judge.answers_user_query,
-                "retry_recommendation": judge.retry_recommendation,
-                "actionable_feedback_exists": bool(actionable_feedback),
-                "retry_reasons": retry_reasons,
-                "decision_reason": "retry_with_concrete_reasons",
-                "missing_requirements": judge.missing_requirements,
-                "wrong_or_suspicious_parts": judge.wrong_or_suspicious_parts,
-                "improvement_comments": judge.improvement_comments,
-                "feedback_for_next_generation": feedback_text,
-            }
-            artifact_paths = self._save_into(artifact_paths, state["run_id"],
-                                             "semantic_decision", summary)
-            return {
-                "semantic_status": "retry",
-                "semantic_attempt_number": attempt_number + 1,
-                "technical_attempt_number": 1,
-                "technical_retry_feedback": {},
-                "semantic_feedback_items": feedback_items,
-                "semantic_retry_feedback": feedback_text,
-                "semantic_retry_reasons": retry_reasons,
-                "stage": PipelineStage.VERIFICATION,
-                "trace": self._trace(state, "semantic_decision_retry"),
-                "artifact_paths": artifact_paths,
-                "step_logs": self._append_log(
-                    state,
-                    stage="semantic_decision",
-                    title="Semantic retry decision",
-                    summary=f"retry spec generation for semantic attempt {attempt_number + 1}/{max_attempts}",
-                    outputs=["retry"],
-                    details=summary,
-                ),
-            }
+    def _semantic_accept_state(
+            self,
+            *,
+            state: PipelineState,
+            judge,
+            attempt_number: int,
+            max_attempts: int,
+            artifact_paths: dict[str, str],
+    ) -> dict:
+        summary = SemanticFeedbackLoopSummary(
+            enabled=True,
+            max_attempts=max_attempts,
+            attempt_count=attempt_number,
+            retry_count=max(0, attempt_number - 1),
+            accepted=True,
+            accepted_attempt=attempt_number,
+            final_status="accepted",
+            final_confidence=judge.confidence,
+            saved_feedback_count=len(state.get("visual_feedback_examples", [])),
+            missing_requirements=judge.missing_requirements,
+            improvement_comments=judge.improvement_comments,
+            feedback_corpus_path=str(self.runtime.settings.semantic_feedback_corpus_path),
+        )
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary", summary.model_dump())
+        summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
+        return {
+            "semantic_status": "accepted",
+            "semantic_feedback_loop_summary": summary,
+            "stage": PipelineStage.VERIFICATION,
+            "trace": self._trace(state, "semantic_decision_accept"),
+            "artifact_paths": artifact_paths,
+            "step_logs": self._append_log(
+                state,
+                stage="semantic_decision",
+                title="Semantic retry decision",
+                summary="accepted",
+                outputs=["accept"],
+                details=summary.model_dump(),
+            ),
+        }
 
+    def _semantic_retry_state(
+            self,
+            *,
+            state: PipelineState,
+            judge,
+            attempt_number: int,
+            max_attempts: int,
+            actionable_feedback: list[str],
+            retry_reasons: list[str],
+            feedback_text: str,
+            feedback_items: list[str],
+            artifact_paths: dict[str, str],
+    ) -> dict:
+        summary = {
+            "status": "retry",
+            "attempt_number": attempt_number,
+            "next_semantic_attempt": attempt_number + 1,
+            "max_attempts": max_attempts,
+            "confidence": judge.confidence,
+            "answers_user_query": judge.answers_user_query,
+            "retry_recommendation": judge.retry_recommendation,
+            "actionable_feedback_exists": bool(actionable_feedback),
+            "retry_reasons": retry_reasons,
+            "decision_reason": "retry_with_concrete_reasons",
+            "missing_requirements": judge.missing_requirements,
+            "wrong_or_suspicious_parts": judge.wrong_or_suspicious_parts,
+            "improvement_comments": judge.improvement_comments,
+            "feedback_for_next_generation": feedback_text,
+        }
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_decision", summary)
+        return {
+            "semantic_status": "retry",
+            "semantic_attempt_number": attempt_number + 1,
+            "technical_attempt_number": 1,
+            "technical_retry_feedback": {},
+            "semantic_feedback_items": feedback_items,
+            "semantic_retry_feedback": feedback_text,
+            "semantic_retry_reasons": retry_reasons,
+            "stage": PipelineStage.VERIFICATION,
+            "trace": self._trace(state, "semantic_decision_retry"),
+            "artifact_paths": artifact_paths,
+            "step_logs": self._append_log(
+                state,
+                stage="semantic_decision",
+                title="Semantic retry decision",
+                summary=f"retry spec generation for semantic attempt {attempt_number + 1}/{max_attempts}",
+                outputs=["retry"],
+                details=summary,
+            ),
+        }
+
+    def _semantic_failed_state(
+            self,
+            *,
+            state: PipelineState,
+            judge,
+            attempt_number: int,
+            max_attempts: int,
+            artifact_paths: dict[str, str],
+    ) -> dict:
         final_examples = list(state.get("visual_feedback_examples", []))
-        final_feedback_example_path = ""
         final_corpus_path = ""
         try:
             final_example = self.feedback_corpus_writer.build_example(
@@ -318,8 +386,6 @@ class VisualFeedbackPipelineNodesMixin:
                 f"semantic_attempt_{attempt_number:03d}_feedback_example",
                 final_example.model_dump(),
             )
-            final_feedback_example_path = artifact_paths.get(f"semantic_attempt_{attempt_number:03d}_feedback_example",
-                                                             "")
             final_examples.append(final_example)
             if self.runtime.settings.semantic_feedback_save_rejected_specs:
                 final_corpus_path = self.feedback_corpus_writer.append_to_corpus(final_example, self.runtime)
@@ -344,8 +410,7 @@ class VisualFeedbackPipelineNodesMixin:
             improvement_comments=judge.improvement_comments,
             feedback_corpus_path=final_corpus_path or str(self.runtime.settings.semantic_feedback_corpus_path),
         )
-        artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary",
-                                         summary.model_dump())
+        artifact_paths = self._save_into(artifact_paths, state["run_id"], "semantic_feedback_loop_summary", summary.model_dump())
         summary.summary_artifact_path = artifact_paths["semantic_feedback_loop_summary"]
         return {
             "semantic_status": "failed",

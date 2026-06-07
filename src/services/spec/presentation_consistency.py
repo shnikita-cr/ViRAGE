@@ -259,7 +259,7 @@ class SpecPresentationConsistencyService:
         if not title:
             return
         target_view = root if cls._is_repeat_root(root) and view is not root else view
-        current_title = cls.title_text(target_view.get("title"))
+        current_title = title_text(target_view.get("title"))
         if current_title and not cls._should_replace_chart_title(current_title, encoding, root=root, view=view):
             return
         cls._set_view_title(target_view, title, changes=changes)
@@ -745,7 +745,7 @@ class SpecPresentationConsistencyService:
 
     @classmethod
     def _set_view_title(cls, view: dict[str, Any], title: str, *, changes: list[str]) -> None:
-        current = cls.title_text(view.get("title"))
+        current = title_text(view.get("title"))
         if current == title:
             return
         if isinstance(view.get("title"), dict):
@@ -754,15 +754,6 @@ class SpecPresentationConsistencyService:
             view["title"] = title
         changes.append(f"Set chart title to {title!r}.")
 
-    @staticmethod
-    def title_text(title: Any) -> str:
-        if isinstance(title, str):
-            return title.strip()
-        if isinstance(title, dict):
-            text = title.get("text")
-            if isinstance(text, str):
-                return text.strip()
-        return ""
 
     @staticmethod
     def _normalize_text(text: str) -> str:

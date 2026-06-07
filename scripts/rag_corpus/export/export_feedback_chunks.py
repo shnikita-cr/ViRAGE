@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
+from scripts.rag_corpus.common.io import read_jsonl, write_jsonl
 ROOT = next((parent for parent in Path(__file__).resolve().parents if (parent / 'src').exists()), Path.cwd())
 from src.application.config.project_config import load_project_config
 from src.infrastructure.runtime import RuntimeContext
@@ -16,29 +17,6 @@ DEFAULT_RAW = Path('rag_corpus/feedback/visual_feedback.jsonl')
 DEFAULT_NORMALIZED = Path('rag_corpus/feedback/normalized_feedback.jsonl')
 DEFAULT_CHUNKS = Path('rag_corpus/feedback/manual_feedback_chunks.jsonl')
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    records: list[dict[str, Any]] = []
-    with path.open('r', encoding='utf-8') as handle:
-        for line_no, line in enumerate(handle, start=1):
-            text = line.strip()
-            if not text:
-                continue
-            try:
-                value = json.loads(text)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f'Invalid JSONL at {path}:{line_no}: {exc}') from exc
-            if not isinstance(value, dict):
-                raise ValueError(f'Expected JSON object at {path}:{line_no}')
-            records.append(value)
-    return records
-
-def _write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('w', encoding='utf-8') as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False, default=str, separators=(',', ':')) + '\n')
 
 def _runtime_from_config(config_path: str | None) -> RuntimeContext | None:
     if not config_path:
@@ -58,27 +36,27 @@ def _to_chunk(record: NormalizedFeedbackRecord) -> dict[str, Any]:
 def _merge_corpus(base_path: Path, feedback_chunks: list[dict[str, Any]], output_path: Path) -> int:
     if not base_path.exists():
         raise FileNotFoundError(base_path)
-    base_records = _read_jsonl(base_path)
+    base_records = read_jsonl(base_path)
     merged = [*base_records, *feedback_chunks]
-    _write_jsonl(output_path, merged)
+    write_jsonl(output_path, merged)
     return len(merged)
 
 def export_feedback_chunks(*, raw_path: Path=DEFAULT_RAW, normalized_path: Path=DEFAULT_NORMALIZED, output_chunks_path: Path=DEFAULT_CHUNKS, mode: str='rules', runtime: RuntimeContext | None=None, approve_all: bool=False, normalized_only: bool=False, base_corpus: Path | None=None, merged_output: Path | None=None) -> dict[str, Any]:
     normalizer = FeedbackNormalizerService()
-    raw_records = _read_jsonl(raw_path)
+    raw_records = read_jsonl(raw_path)
     normalized: list[NormalizedFeedbackRecord] = []
     if not normalized_only:
         for raw in raw_records:
             normalized.append(normalizer.normalize(raw, mode=mode, runtime=runtime, approved_for_rag=approve_all))
-        _write_jsonl(normalized_path, [record.model_dump() for record in normalized])
+        write_jsonl(normalized_path, [record.model_dump() for record in normalized])
     else:
-        normalized = [NormalizedFeedbackRecord(**record) for record in _read_jsonl(normalized_path)]
+        normalized = [NormalizedFeedbackRecord(**record) for record in read_jsonl(normalized_path)]
         if approve_all:
             normalized = [record.model_copy(update={'approved_for_rag': True, 'approval_notes': 'approved_by_export_flag'}) for record in normalized]
-            _write_jsonl(normalized_path, [record.model_dump() for record in normalized])
+            write_jsonl(normalized_path, [record.model_dump() for record in normalized])
     approved = [record for record in normalized if record.approved_for_rag]
     chunks = [_to_chunk(record) for record in approved]
-    _write_jsonl(output_chunks_path, chunks)
+    write_jsonl(output_chunks_path, chunks)
     merged_count = None
     if base_corpus is not None or merged_output is not None:
         if base_corpus is None or merged_output is None:

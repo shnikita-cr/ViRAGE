@@ -9,11 +9,11 @@ from pathlib import Path
 from typing import Any
 _CURRENT_FILE = Path(__file__).resolve()
 PROJECT_ROOT = next((parent for parent in _CURRENT_FILE.parents if (parent / 'src').exists() and (parent / 'scripts').exists()), Path.cwd())
-from scripts.rag_corpus.common.io import project_root, write_json, write_text
+from scripts.rag_corpus.common.io import project_root, read_jsonl, write_json, write_text
 NOISE_TERMS = ('load required libraries', 'provider tos', 'organize scripts', 'name functions', 'describe tests', 'install', 'setup', 'package')
 
 def build_report(path: Path) -> dict[str, Any]:
-    records = _read_jsonl(path)
+    records = read_existing_jsonl(path)
     texts = [_record_text(record) for record in records]
     source_counts = Counter((_source(record) for record in records))
     kind_counts = Counter((str(record.get('source_kind') or 'unknown') for record in records))
@@ -32,10 +32,11 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.extend(['', '## Text length', '', f"Text chars: `{report['text_chars']}`"])
     return '\n'.join(lines) + '\n'
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+
+def read_existing_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(path)
-    return [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+    return read_jsonl(path)
 
 def _source(record: dict[str, Any]) -> str:
     return str(record.get('source_id') or record.get('source_name') or 'unknown')

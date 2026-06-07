@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.common.json_io import write_json
+from scripts.common.json_io import read_jsonl, write_json, write_jsonl
 from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 from scripts.run_orchestrator import main as run_orchestrator_main
@@ -58,20 +58,6 @@ class BenchmarkCase:
         return {'case_id': self.case_id, 'suite': self.suite, 'input_modality': self.input_modality, 'query_specificity': self.query_specificity, 'analysis_task': self.analysis_task, 'chart_family': self.chart_family, 'output_target': self.output_target, 'expected_charts': self.expected_charts, 'evaluation_mode': self.evaluation_mode, 'known_risks': self.known_risks, 'data_path': self.data_path, 'query': self.query, 'expected_checks': self.expected_checks, 'user_context': self.user_context, 'focus': self.focus, 'comparison_group_id': self.comparison_group_id}
 VirageE2ETestCase = BenchmarkCase
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for line_no, line in enumerate(path.read_text(encoding='utf-8').splitlines(), start=1):
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            continue
-        try:
-            payload = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f'Invalid JSONL in {path}:{line_no}: {exc}') from exc
-        if not isinstance(payload, dict):
-            raise ValueError(f'JSONL row must be object in {path}:{line_no}')
-        rows.append(payload)
-    return rows
 
 def load_suites(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -192,11 +178,6 @@ def _aggregate_subrun_metrics(reports: list[dict[str, Any]]) -> dict[str, Any]:
         metrics['partial_success_rate'] = None
     return metrics
 
-def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('w', encoding='utf-8') as handle:
-        for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False, default=str) + '\n')
 
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -359,7 +340,7 @@ def main(argv: list[str] | None=None) -> int:
     progress.close(label='completed')
     summary = _benchmark_summary(rows)
     write_json(report_dir / 'benchmark_summary.json', summary)
-    _write_jsonl(report_dir / 'per_case_results.jsonl', rows)
+    write_jsonl(report_dir / 'per_case_results.jsonl', rows)
     _write_csv(report_dir / 'per_case_results.csv', rows)
     _write_report(report_dir / 'benchmark_report.md', rows=rows, summary=summary, execute=bool(args.execute))
     logger.info(json.dumps({'run_id': args.run_id, 'status': 'completed', 'cases': len(rows), 'errors': errors, 'report_dir': report_dir.as_posix(), 'benchmark_report': (report_dir / 'benchmark_report.md').as_posix(), 'per_case_results': (report_dir / 'per_case_results.csv').as_posix()}, ensure_ascii=False, indent=2))

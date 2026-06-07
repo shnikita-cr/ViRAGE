@@ -17,74 +17,41 @@ _MISSING_LIKE_VALUES = {"", "-", "--", "---", "na", "n/a", "nan", "none", "null"
 
 class DataProfilerService(BaseService):
     def invoke(self, data_path: str, runtime: RuntimeContext) -> DataProfile:
-        df = runtime.read_dataframe(data_path)
-        df = self._ensure_unique_columns(df)
+        df = self._ensure_unique_columns(runtime.read_dataframe(data_path))
+        row_count = int(len(df))
+        col_count = int(len(df.columns))
+        sample_seed, sample_size = self._profile_settings(runtime)
+        column_name_map = self._build_unique_column_name_map([str(column) for column in df.columns])
 
-        columns: list[DataColumnProfile] = []
         quality_notes: list[str] = []
         complexity_hints: list[str] = []
         errors: list[dict[str, Any]] = []
+        self._append_dataset_notes(
+            df=df,
+            row_count=row_count,
+            col_count=col_count,
+            quality_notes=quality_notes,
+        )
 
-        row_count = int(len(df))
-        col_count = int(len(df.columns))
-        sample_seed = int(getattr(runtime.settings, "data_profile_sample_seed", 42))
-        sample_size = max(1, int(getattr(runtime.settings, "data_profile_sample_size", 5)))
-        column_name_map = self._build_unique_column_name_map([str(column) for column in df.columns])
+        columns = self._profile_columns(
+            df=df,
+            column_name_map=column_name_map,
+            row_count=row_count,
+            sample_seed=sample_seed,
+            sample_size=sample_size,
+            quality_notes=quality_notes,
+            errors=errors,
+        )
+        self._append_profile_summary(
+            columns=columns,
+            row_count=row_count,
+            col_count=col_count,
+            errors=errors,
+            quality_notes=quality_notes,
+            complexity_hints=complexity_hints,
+        )
 
-        duplicate_rows = int(df.duplicated().sum())
-        if duplicate_rows:
-            quality_notes.append(
-                f"Dataset contains {duplicate_rows} duplicated rows. They are preserved by default because rows may be valid records."
-            )
-        if row_count == 0:
-            quality_notes.append("Dataset is empty.")
-        if col_count == 0:
-            quality_notes.append("Dataset has no columns.")
-
-        for column in df.columns:
-            column_name = str(column)
-            safe_name = column_name_map[column_name]
-            try:
-                column_profile, column_quality_notes = self._profile_column(
-                    column_name=column_name,
-                    safe_name=safe_name,
-                    series=df[column],
-                    row_count=row_count,
-                    sample_seed=sample_seed,
-                    sample_size=sample_size,
-                )
-                quality_notes.extend(column_quality_notes)
-            except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:  # noqa: BLE001 - column-level degradation is intentional.
-                error_payload = self._column_error_payload(column_name=column_name, series=df[column], exc=exc)
-                errors.append(error_payload)
-                quality_notes.append(
-                    f"Column '{column_name}' could not be fully profiled and was treated as categorical: {type(exc).__name__}: {exc}"
-                )
-                column_profile = self._degraded_column_profile(
-                    column_name=column_name,
-                    safe_name=safe_name,
-                    series=df[column],
-                    row_count=row_count,
-                    sample_seed=sample_seed,
-                    sample_size=sample_size,
-                )
-
-            columns.append(column_profile)
-
-        if not any(column.role == "measure" for column in columns):
-            quality_notes.append("No numeric measure columns detected; numeric chart options may be limited.")
-        temporal_columns = [column.name for column in columns if column.role == "temporal"]
-        if temporal_columns:
-            quality_notes.append(f"Detected time-like columns: {', '.join(temporal_columns)}.")
-        if row_count > 100_000:
-            quality_notes.append("Large dataset detected; sampling or aggregation may be required downstream.")
-            complexity_hints.append("large_dataset")
-        if col_count > 30:
-            complexity_hints.append("wide_dataset")
-        if errors:
-            complexity_hints.append("degraded_profile")
-
-        profile = DataProfile(
+        return DataProfile(
             row_count=row_count,
             col_count=col_count,
             columns=columns,
@@ -100,7 +67,116 @@ class DataProfilerService(BaseService):
             source_encoding=df.attrs.get("source_encoding"),
         )
 
-        return profile
+    @staticmethod
+    def _profile_settings(runtime: RuntimeContext) -> tuple[int, int]:
+        sample_seed = int(getattr(runtime.settings, "data_profile_sample_seed", 42))
+        sample_size = max(1, int(getattr(runtime.settings, "data_profile_sample_size", 5)))
+        return sample_seed, sample_size
+
+    @staticmethod
+    def _append_dataset_notes(
+            *,
+            df: pd.DataFrame,
+            row_count: int,
+            col_count: int,
+            quality_notes: list[str],
+    ) -> None:
+        duplicate_rows = int(df.duplicated().sum())
+        if duplicate_rows:
+            quality_notes.append(
+                f"Dataset contains {duplicate_rows} duplicated rows. They are preserved by default because rows may be valid records."
+            )
+        if row_count == 0:
+            quality_notes.append("Dataset is empty.")
+        if col_count == 0:
+            quality_notes.append("Dataset has no columns.")
+
+    def _profile_columns(
+            self,
+            *,
+            df: pd.DataFrame,
+            column_name_map: dict[str, str],
+            row_count: int,
+            sample_seed: int,
+            sample_size: int,
+            quality_notes: list[str],
+            errors: list[dict[str, Any]],
+    ) -> list[DataColumnProfile]:
+        columns: list[DataColumnProfile] = []
+        for column in df.columns:
+            column_name = str(column)
+            column_profile = self._profile_column_with_degradation(
+                column_name=column_name,
+                safe_name=column_name_map[column_name],
+                series=df[column],
+                row_count=row_count,
+                sample_seed=sample_seed,
+                sample_size=sample_size,
+                quality_notes=quality_notes,
+                errors=errors,
+            )
+            columns.append(column_profile)
+        return columns
+
+    def _profile_column_with_degradation(
+            self,
+            *,
+            column_name: str,
+            safe_name: str,
+            series: pd.Series,
+            row_count: int,
+            sample_seed: int,
+            sample_size: int,
+            quality_notes: list[str],
+            errors: list[dict[str, Any]],
+    ) -> DataColumnProfile:
+        try:
+            column_profile, column_quality_notes = self._profile_column(
+                column_name=column_name,
+                safe_name=safe_name,
+                series=series,
+                row_count=row_count,
+                sample_seed=sample_seed,
+                sample_size=sample_size,
+            )
+            quality_notes.extend(column_quality_notes)
+            return column_profile
+        except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:  # noqa: BLE001 - column-level degradation is intentional.
+            errors.append(self._column_error_payload(column_name=column_name, series=series, exc=exc))
+            quality_notes.append(
+                f"Column '{column_name}' could not be fully profiled and was treated as categorical: {type(exc).__name__}: {exc}"
+            )
+            return self._degraded_column_profile(
+                column_name=column_name,
+                safe_name=safe_name,
+                series=series,
+                row_count=row_count,
+                sample_seed=sample_seed,
+                sample_size=sample_size,
+            )
+
+    @staticmethod
+    def _append_profile_summary(
+            *,
+            columns: list[DataColumnProfile],
+            row_count: int,
+            col_count: int,
+            errors: list[dict[str, Any]],
+            quality_notes: list[str],
+            complexity_hints: list[str],
+    ) -> None:
+        if not any(column.role == "measure" for column in columns):
+            quality_notes.append("No numeric measure columns detected; numeric chart options may be limited.")
+        temporal_columns = [column.name for column in columns if column.role == "temporal"]
+        if temporal_columns:
+            quality_notes.append(f"Detected time-like columns: {', '.join(temporal_columns)}.")
+        if row_count > 100_000:
+            quality_notes.append("Large dataset detected; sampling or aggregation may be required downstream.")
+            complexity_hints.append("large_dataset")
+        if col_count > 30:
+            complexity_hints.append("wide_dataset")
+        if errors:
+            complexity_hints.append("degraded_profile")
 
     def _profile_column(
             self,

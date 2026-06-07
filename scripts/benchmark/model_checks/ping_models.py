@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 logger = logging.getLogger(__name__)
 import argparse
@@ -6,10 +7,20 @@ import time
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 import httpx
-import ollama
-import torch
-from ollama import ResponseError
 from PIL import Image, ImageDraw
+
+
+def _import_ollama() -> tuple[Any, type[BaseException]]:
+    import ollama
+    from ollama import ResponseError
+
+    return ollama, ResponseError
+
+
+def _import_torch() -> Any:
+    import torch
+
+    return torch
 
 @dataclass(frozen=True)
 class PingResult:
@@ -42,6 +53,10 @@ def model_accepts_image(model: str) -> bool:
     return any((marker in normalized_model for marker in IMAGE_CAPABLE_OLLAMA_MARKERS))
 
 def run_ollama_chat(model: str, image_bytes: bytes, num_ctx: int, num_predict: int) -> PingResult:
+    try:
+        ollama, response_error = _import_ollama()
+    except ImportError as error:
+        return failed_result('Ollama LLM', model, error)
     message = {'role': 'user', 'content': 'Return one short JSON object with key status and value ok.'}
     if model_accepts_image(model):
         message['images'] = [image_bytes]
@@ -51,7 +66,7 @@ def run_ollama_chat(model: str, image_bytes: bytes, num_ctx: int, num_predict: i
         ollama.chat(model=model, messages=[message], options=warmup_options)
         started_at = time.perf_counter()
         response = ollama.chat(model=model, messages=[message], options=options)
-    except (ResponseError, httpx.HTTPError, ConnectionError, TimeoutError, OSError) as error:
+    except (response_error, httpx.HTTPError, ConnectionError, TimeoutError, OSError) as error:
         return failed_result('Ollama LLM', model, error)
     latency = time.perf_counter() - started_at
     throughput = compute_ollama_throughput(response, latency)
@@ -59,10 +74,14 @@ def run_ollama_chat(model: str, image_bytes: bytes, num_ctx: int, num_predict: i
 
 def run_ollama_embedding(model: str) -> PingResult:
     try:
+        ollama, response_error = _import_ollama()
+    except ImportError as error:
+        return failed_result('Ollama Emb', model, error)
+    try:
         ollama.embed(model=model, input='Warmup text for embedding ping.')
         started_at = time.perf_counter()
         response = ollama.embed(model=model, input='Benchmark text for embedding ping.')
-    except (ResponseError, httpx.HTTPError, ConnectionError, TimeoutError, OSError) as error:
+    except (response_error, httpx.HTTPError, ConnectionError, TimeoutError, OSError) as error:
         return failed_result('Ollama Emb', model, error)
     latency = time.perf_counter() - started_at
     embedding_dimension = extract_embedding_dimension(response)
@@ -78,6 +97,7 @@ def run_hf_image_text(model_name: str, image_bytes: bytes, device: str, dtype_na
     return PingResult('HF cosine', model_name, latency, None, 'ok', f'cosine={score:.4f}')
 
 def compute_hf_image_text_cosine(model_name: str, image_bytes: bytes, device: str, dtype_name: str) -> float:
+    torch = _import_torch()
     from transformers import AutoModel, AutoProcessor
     if device == 'cuda' and (not torch.cuda.is_available()):
         raise RuntimeError('PyTorch CUDA is not available in this environment')
@@ -94,7 +114,8 @@ def compute_hf_image_text_cosine(model_name: str, image_bytes: bytes, device: st
         text_features = normalize_features(text_features)
         return float((image_features * text_features).sum(dim=-1).item())
 
-def compute_image_features(model: Any, processor: Any, image: Image.Image, device: str) -> torch.Tensor:
+def compute_image_features(model: Any, processor: Any, image: Image.Image, device: str) -> Any:
+    torch = _import_torch()
     inputs = processor(images=image, return_tensors='pt')
     inputs = move_tensor_mapping_to_device(inputs, device)
     if hasattr(model, 'get_image_features'):
@@ -105,7 +126,8 @@ def compute_image_features(model: Any, processor: Any, image: Image.Image, devic
         return extract_feature_tensor(model.encode_image(inputs['pixel_values']), feature_name='image')
     return extract_feature_tensor(model(**inputs), feature_name='image')
 
-def compute_text_features(model: Any, processor: Any, text: str, device: str) -> torch.Tensor:
+def compute_text_features(model: Any, processor: Any, text: str, device: str) -> Any:
+    torch = _import_torch()
     inputs = processor(text=[text], return_tensors='pt', padding=True, truncation=True)
     inputs = move_tensor_mapping_to_device(inputs, device)
     inputs.pop('token_type_ids', None)
@@ -117,7 +139,8 @@ def compute_text_features(model: Any, processor: Any, text: str, device: str) ->
         return extract_feature_tensor(model.encode_text(inputs['input_ids']), feature_name='text')
     return extract_feature_tensor(model(**inputs), feature_name='text')
 
-def extract_feature_tensor(output: Any, feature_name: str) -> torch.Tensor:
+def extract_feature_tensor(output: Any, feature_name: str) -> Any:
+    torch = _import_torch()
     if isinstance(output, torch.Tensor):
         return ensure_two_dimensional(output)
     candidate_attribute_names = get_candidate_attribute_names(feature_name)
@@ -145,7 +168,7 @@ def get_candidate_attribute_names(feature_name: str) -> tuple[str, ...]:
         return ('text_embeds', 'text_features', 'pooler_output', 'embeds')
     raise ValueError(f'Unsupported feature name: {feature_name}')
 
-def ensure_two_dimensional(features: torch.Tensor) -> torch.Tensor:
+def ensure_two_dimensional(features: Any) -> Any:
     if features.ndim == 1:
         return features.unsqueeze(0)
     if features.ndim == 2:
@@ -154,15 +177,17 @@ def ensure_two_dimensional(features: torch.Tensor) -> torch.Tensor:
         return features.mean(dim=1)
     raise ValueError(f'Unsupported feature tensor dimensions: {features.ndim}')
 
-def mean_pool_last_hidden_state(last_hidden_state: torch.Tensor) -> torch.Tensor:
+def mean_pool_last_hidden_state(last_hidden_state: Any) -> Any:
     if last_hidden_state.ndim != 3:
         raise ValueError(f'Unsupported last_hidden_state dimensions: {last_hidden_state.ndim}')
     return last_hidden_state.mean(dim=1)
 
 def move_tensor_mapping_to_device(inputs: Mapping[str, Any], device: str) -> dict[str, Any]:
+    torch = _import_torch()
     return {key: value.to(device) if isinstance(value, torch.Tensor) else value for key, value in inputs.items()}
 
-def normalize_features(features: torch.Tensor) -> torch.Tensor:
+def normalize_features(features: Any) -> Any:
+    torch = _import_torch()
     features = features.float()
     norm = features.norm(dim=-1, keepdim=True)
     if torch.any(norm == 0):
@@ -170,6 +195,7 @@ def normalize_features(features: torch.Tensor) -> torch.Tensor:
     return features / norm
 
 def resolve_torch_dtype(dtype_name: str) -> Any:
+    torch = _import_torch()
     if dtype_name == 'float16':
         return torch.float16
     if dtype_name == 'bfloat16':
@@ -199,6 +225,13 @@ def failed_result(category: str, model: str, error: BaseException) -> PingResult
     return PingResult(category=category, model=model, latency_seconds=None, throughput_tokens_per_second=None, status='failed', details=f'{error.__class__.__name__}: {str(error)[:260]}')
 
 def print_torch_status(device: str) -> None:
+    try:
+        torch = _import_torch()
+    except ImportError as error:
+        logger.info(f'PyTorch: unavailable ({error.__class__.__name__}: {error})')
+        logger.info(f'Requested HF device: {device}')
+        logger.info('')
+        return
     logger.info(f'PyTorch: {torch.__version__}')
     logger.info(f'Requested HF device: {device}')
     logger.info(f'CUDA available: {torch.cuda.is_available()}')

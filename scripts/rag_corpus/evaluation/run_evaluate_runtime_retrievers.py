@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 import pandas as pd
 from scripts.rag_corpus.common.io import ensure_dir, project_root, write_json, write_text
+from src.benchmark.core.statistics import mean
 from src.domain.models import QueryRequestAnalysisResult, VisRAGRuleDocument
 from src.visrag_core.retrieval.rules.rule_retrieval import RuleRetrieverOptions, build_rule_retriever
 DEFAULT_CORPUS = 'rag_corpus/autorag/virage_rules/corpus.parquet'
@@ -132,12 +133,11 @@ def _evaluate_backend(*, backend: str, documents: list[VisRAGRuleDocument], ques
         if not subset:
             continue
         for k in top_k_values:
-            metric_rows.append({'backend': backend, 'record_type': record_type, 'top_k': k, 'cases': len(subset), 'hit': _mean((row[f'hit@{k}'] for row in subset)), 'recall': _mean((row[f'recall@{k}'] for row in subset)), 'precision': _mean((row[f'precision@{k}'] for row in subset)), 'mrr': _mean((row[f'mrr@{k}'] for row in subset)), 'ndcg': _mean((row[f'ndcg@{k}'] for row in subset))})
+            metric_rows.append({'backend': backend, 'record_type': record_type, 'top_k': k, 'cases': len(subset), 'hit': mean_or_zero((row[f'hit@{k}'] for row in subset)), 'recall': mean_or_zero((row[f'recall@{k}'] for row in subset)), 'precision': mean_or_zero((row[f'precision@{k}'] for row in subset)), 'mrr': mean_or_zero((row[f'mrr@{k}'] for row in subset)), 'ndcg': mean_or_zero((row[f'ndcg@{k}'] for row in subset))})
     return (case_rows, metric_rows)
 
-def _mean(values) -> float:
-    items = list(values)
-    return round(sum((float(value) for value in items)) / len(items), 6) if items else 0.0
+def mean_or_zero(values) -> float:
+    return mean(list(values)) or 0.0
 
 def _best_rows(metric_rows: list[dict[str, Any]], select_by: str) -> dict[str, dict[str, Any]]:
     best: dict[str, dict[str, Any]] = {}

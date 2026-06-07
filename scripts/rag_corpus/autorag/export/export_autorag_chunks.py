@@ -10,16 +10,16 @@ import pandas as pd
 _CURRENT = Path(__file__).resolve()
 ROOT = next((parent for parent in _CURRENT.parents if (parent / 'src').exists() and (parent / 'scripts').exists()), Path.cwd())
 from scripts.rag_corpus.autorag.config.export_all_config import export_all_config
-from scripts.rag_corpus.common.io import ensure_dir, write_json, write_text
+from scripts.rag_corpus.common.io import ensure_dir, read_jsonl, write_json, write_text
 from scripts.rag_corpus.autorag.export.split_autorag_train_test import split_autorag_data
 DEFAULT_INPUT = 'rag_corpus/runtime/guidance_chunks.jsonl'
 DEFAULT_OUTPUT_ROOT = 'rag_corpus/autorag/visrag_chunks'
 _KEYWORD_PATTERNS: list[tuple[str, str]] = [('\\b(overplot|overlap|scatter|density|jitter|transparent|alpha)\\b', 'dense scatter plots and overlapping points'), ('\\b(color|colour|palette|hue|sequential|diverging|qualitative|rainbow)\\b', 'chart color, palette, and color-scale choice'), ('\\b(label|legend|title|caption|axis|axes|unit)\\b', 'chart labels, titles, axes, legends, and units'), ('\\b(histogram|density|distribution|bin|outlier|boxplot|violin)\\b', 'distribution charts, bins, density, and outliers'), ('\\b(bar|category|categories|categorical|sort|order|rank|ranking)\\b', 'categorical comparison, ranking, sorting, and many categories'), ('\\b(line|time|trend|series|spaghetti)\\b', 'time-series charts, trends, and too many lines'), ('\\b(accessib|contrast|screen reader|alt text|colour blind|color blind)\\b', 'visualization accessibility and non-color encodings'), ('\\b(area|baseline|zero|proportional|scale|log)\\b', 'axes, baseline, scales, and proportional visual size')]
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def load_guidance_chunks(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(f'Guidance chunks file not found: {path}. Run scripts/rag_corpus/export/export_guidance_chunks.py first.')
-    rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+    rows = read_jsonl(path)
     if not rows:
         raise RuntimeError(f'Guidance chunks file is empty: {path}')
     return rows
@@ -69,7 +69,7 @@ def _qa_rows(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 def export_autorag_chunks(*, input_path: Path, output_root: Path, train_ratio: float, split_seed: int, no_split: bool=False) -> dict[str, Any]:
-    chunks = _read_jsonl(input_path)
+    chunks = load_guidance_chunks(input_path)
     ensure_dir(output_root)
     corpus_path = output_root / 'corpus.parquet'
     qa_path = output_root / 'qa.parquet'

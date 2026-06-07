@@ -15,22 +15,6 @@ class VegaChatResponseParseError(ValueError):
     pass
 
 
-_VEGA_LITE_TOP_LEVEL_KEYS = {
-    "$schema",
-    "mark",
-    "encoding",
-    "transform",
-    "data",
-    "datasets",
-    "layer",
-    "facet",
-    "repeat",
-    "concat",
-    "hconcat",
-    "vconcat",
-}
-
-
 def parse_vegachat_response(raw_response: str, *, mode: ParserMode = "strict") -> tuple[str | None, dict[str, Any]]:
     if mode == "strict":
         try:
@@ -57,7 +41,7 @@ def parse_vegachat_response_tolerant(raw_response: str) -> tuple[str | None, dic
     json_text = _extract_json_text_tolerant(raw_response)
     payload = _loads_json_object(json_text)
     payload = _unwrap_spec_payload(payload)
-    if not _is_vega_lite_spec_payload(payload):
+    if not is_vega_lite_spec_payload(payload):
         raise VegaChatResponseParseError("Parsed JSON is not a Vega-Lite specification object.")
     return explanation, payload
 
@@ -79,7 +63,7 @@ def _parse_tagged_response(text: str) -> tuple[str | None, dict[str, Any]]:
         raise VegaChatResponseParseError("Tagged VegaChat response is incomplete.")
     explanation = explain_match.group(1).strip() or None
     payload = _loads_json_object(json_match.group(1).strip())
-    if not _is_vega_lite_spec_payload(payload):
+    if not is_vega_lite_spec_payload(payload):
         raise VegaChatResponseParseError("Strict VegaChat <json> block must contain a Vega-Lite object, not a wrapper.")
     return explanation, payload
 
@@ -89,7 +73,7 @@ def _parse_structured_model_response(text: str) -> tuple[str | None, dict[str, A
     json_text = _extract_json_text_tolerant(text)
     payload = _loads_json_object(json_text)
     payload = _unwrap_spec_payload(payload)
-    if not _is_vega_lite_spec_payload(payload):
+    if not is_vega_lite_spec_payload(payload):
         raise VegaChatResponseParseError("Parsed JSON is not a Vega-Lite specification object.")
     return explanation, payload
 
@@ -104,12 +88,9 @@ def _loads_json_object(text: str) -> dict[str, Any]:
     return payload
 
 
-def _is_vega_lite_spec_payload(payload: Any) -> bool:
-    return is_vega_lite_spec_payload(payload)
-
 
 def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    if _is_vega_lite_spec_payload(payload):
+    if is_vega_lite_spec_payload(payload):
         return payload
     direct_keys = (
         "json",
@@ -130,7 +111,7 @@ def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
         value = payload.get(key)
         if isinstance(value, dict):
             candidate = _unwrap_spec_payload(value)
-            if _is_vega_lite_spec_payload(candidate):
+            if is_vega_lite_spec_payload(candidate):
                 return candidate
     nested = _find_nested_vega_lite_spec(payload)
     return nested if nested is not None else payload
@@ -138,7 +119,7 @@ def _unwrap_spec_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _find_nested_vega_lite_spec(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
-        if _is_vega_lite_spec_payload(value):
+        if is_vega_lite_spec_payload(value):
             return value
         for item in value.values():
             found = _find_nested_vega_lite_spec(item)

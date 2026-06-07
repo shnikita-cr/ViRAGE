@@ -115,7 +115,7 @@ class ChartGeneratorService(BaseService):
         if not isinstance(spec, dict):
             return {}
         return {
-            "title": ChartGeneratorService.title_text(spec.get("title")),
+            "title": title_text(spec.get("title")),
             "encoding_titles": ChartGeneratorService._collect_encoding_titles(spec),
         }
 
@@ -132,17 +132,17 @@ class ChartGeneratorService(BaseService):
                             if not isinstance(item, dict):
                                 continue
                             entry: dict[str, str] = {"path": f"{path}.encoding.{channel}", "channel": str(channel)}
-                            title = ChartGeneratorService.title_text(item.get("title"))
+                            title = title_text(item.get("title"))
                             if title:
                                 entry["title"] = title
                             axis = item.get("axis")
                             if isinstance(axis, dict):
-                                axis_title = ChartGeneratorService.title_text(axis.get("title"))
+                                axis_title = title_text(axis.get("title"))
                                 if axis_title:
                                     entry["axis_title"] = axis_title
                             legend = item.get("legend")
                             if isinstance(legend, dict):
-                                legend_title = ChartGeneratorService.title_text(legend.get("title"))
+                                legend_title = title_text(legend.get("title"))
                                 if legend_title:
                                     entry["legend_title"] = legend_title
                             if len(entry) > 2:
@@ -158,15 +158,6 @@ class ChartGeneratorService(BaseService):
         visit(spec, "spec")
         return titles
 
-    @staticmethod
-    def title_text(title: Any) -> str:
-        if isinstance(title, str):
-            return title.strip()
-        if isinstance(title, dict):
-            text = title.get("text")
-            if isinstance(text, str):
-                return text.strip()
-        return ""
 
     async def ainvoke(
             self,

@@ -11,32 +11,7 @@ class AnalysisPipelineNodesMixin:
     def vlm_analysis_node(self, state: PipelineState) -> dict:
         before = len(self.runtime.model_call_logs)
         if state.get("semantic_status") == "failed":
-            result = VLMAnalysisResult(
-                summary="Chart-grounded analysis was skipped because semantic chart validation failed.",
-                key_findings=[],
-                caveats=["The chart was not accepted by the semantic judge."],
-                suggested_followup_questions=[],
-                visual_observations=[],
-                extracted_visual_facts=[],
-                confidence=0.0,
-            )
-            insights = InsightsResult(final_insights=[])
-            artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
-            return {
-                "vlm_analysis": result,
-                "insights": insights,
-                "stage": PipelineStage.VLM_ANALYSIS,
-                "trace": self._trace(state, "vlm_chart_analysis_skipped_semantic_failed"),
-                "artifact_paths": artifact_paths,
-                "step_logs": self._append_log(
-                    state,
-                    stage="vlm_chart_analysis",
-                    title="Chart-grounded VLM analysis",
-                    summary="skipped because semantic judge did not accept the chart",
-                    outputs=["skipped"],
-                    details={"artifact": artifact_paths["vlm_analysis"], **result.model_dump()},
-                ),
-            }
+            return self._vlm_analysis_skipped_state(state)
 
         plot_image = PlotImageArtifact(**state["plot_image"])
         try:
@@ -44,37 +19,78 @@ class AnalysisPipelineNodesMixin:
         except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
             if not bool(getattr(self.runtime.settings, "vlm_fail_soft", False)):
                 raise
-            result = VLMAnalysisResult(
-                summary=f"Chart-grounded analysis skipped after {type(exc).__name__}: {exc}",
-                key_findings=[],
-                caveats=["The VLM analysis model was unavailable."],
-                suggested_followup_questions=[],
-                visual_observations=[f"VLM analysis skipped after {type(exc).__name__}: {exc}"],
-                extracted_visual_facts=[],
-                confidence=0.0,
-            )
-            insights = InsightsResult(final_insights=[])
-            artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
-            return {
-                "vlm_analysis": result,
-                "insights": insights,
-                "stage": PipelineStage.VLM_ANALYSIS,
-                "trace": self._trace(state, "vlm_chart_analysis_skipped"),
-                "artifact_paths": artifact_paths,
-                "step_logs": self._append_log(
-                    state,
-                    stage="vlm_chart_analysis",
-                    title="Chart-grounded VLM analysis",
-                    summary="VLM unavailable; continued without user insights",
-                    inputs=[state["plot_image"]["image_path"]],
-                    outputs=result.caveats[:1],
-                    details=self._stage_details(before) | {
-                        "artifact": artifact_paths["vlm_analysis"],
-                        "error_type": "vlm_unavailable",
-                        "error": f"{type(exc).__name__}: {exc}",
-                    },
-                ),
-            }
+            return self._vlm_analysis_soft_failure_state(state, before=before, exc=exc)
+
+        return self._vlm_analysis_success_state(state, before=before, result=result)
+
+    def _vlm_analysis_skipped_state(self, state: PipelineState) -> dict:
+        result = VLMAnalysisResult(
+            summary="Chart-grounded analysis was skipped because semantic chart validation failed.",
+            key_findings=[],
+            caveats=["The chart was not accepted by the semantic judge."],
+            suggested_followup_questions=[],
+            visual_observations=[],
+            extracted_visual_facts=[],
+            confidence=0.0,
+        )
+        insights = InsightsResult(final_insights=[])
+        artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
+        return {
+            "vlm_analysis": result,
+            "insights": insights,
+            "stage": PipelineStage.VLM_ANALYSIS,
+            "trace": self._trace(state, "vlm_chart_analysis_skipped_semantic_failed"),
+            "artifact_paths": artifact_paths,
+            "step_logs": self._append_log(
+                state,
+                stage="vlm_chart_analysis",
+                title="Chart-grounded VLM analysis",
+                summary="skipped because semantic judge did not accept the chart",
+                outputs=["skipped"],
+                details={"artifact": artifact_paths["vlm_analysis"], **result.model_dump()},
+            ),
+        }
+
+    def _vlm_analysis_soft_failure_state(self, state: PipelineState, *, before: int, exc: Exception) -> dict:
+        result = VLMAnalysisResult(
+            summary=f"Chart-grounded analysis skipped after {type(exc).__name__}: {exc}",
+            key_findings=[],
+            caveats=["The VLM analysis model was unavailable."],
+            suggested_followup_questions=[],
+            visual_observations=[f"VLM analysis skipped after {type(exc).__name__}: {exc}"],
+            extracted_visual_facts=[],
+            confidence=0.0,
+        )
+        insights = InsightsResult(final_insights=[])
+        artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
+        return {
+            "vlm_analysis": result,
+            "insights": insights,
+            "stage": PipelineStage.VLM_ANALYSIS,
+            "trace": self._trace(state, "vlm_chart_analysis_skipped"),
+            "artifact_paths": artifact_paths,
+            "step_logs": self._append_log(
+                state,
+                stage="vlm_chart_analysis",
+                title="Chart-grounded VLM analysis",
+                summary="VLM unavailable; continued without user insights",
+                inputs=[state["plot_image"]["image_path"]],
+                outputs=result.caveats[:1],
+                details=self._stage_details(before) | {
+                    "artifact": artifact_paths["vlm_analysis"],
+                    "error_type": "vlm_unavailable",
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+            ),
+        }
+
+    def _vlm_analysis_success_state(
+            self,
+            state: PipelineState,
+            *,
+            before: int,
+            result: VLMAnalysisResult,
+    ) -> dict:
         insights = InsightsResult(final_insights=[*result.key_findings] or ([result.summary] if result.summary else []))
         artifact_paths = self._save(state, "vlm_analysis", result.model_dump())
         return {
@@ -90,8 +106,7 @@ class AnalysisPipelineNodesMixin:
                 summary=result.summary or f"{len(result.key_findings)} findings",
                 inputs=[state["plot_image"]["image_path"]],
                 outputs=result.key_findings[:3] or result.visual_observations[:3],
-                details=self._stage_details(before) | {"artifact": artifact_paths["vlm_analysis"],
-                                                       **result.model_dump()},
+                details=self._stage_details(before) | {"artifact": artifact_paths["vlm_analysis"], **result.model_dump()},
             ),
         }
 

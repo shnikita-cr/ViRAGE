@@ -25,29 +25,56 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         if runtime.spec_llm is None:
             raise RuntimeError("VegaChat codegen backend requires RuntimeContext.spec_llm.")
 
-        max_attempts = max(1, int(runtime.settings.spec_generation_max_attempts))
         prompt_version = runtime.settings.spec_generation_prompt_version
-        max_context_chars = int(runtime.settings.spec_generation_max_context_chars)
+        attempts, warning_messages, explanation, spec_without_data = self._run_generation_attempts(
+            request=request,
+            runtime=runtime,
+            prompt_version=prompt_version,
+            max_attempts=max(1, int(runtime.settings.spec_generation_max_attempts)),
+            max_context_chars=int(runtime.settings.spec_generation_max_context_chars),
+        )
+        final_spec = self._attach_runtime_data(spec_without_data, request.prepared.output_path)
+        result = SpecGenerationResult(
+            backend_name=self.backend_name,
+            prompt_version=prompt_version,
+            spec_json=final_spec,
+            spec_without_runtime_data=spec_without_data,
+            explanation=explanation,
+            attempts=attempts,
+            warning_messages=list(dict.fromkeys(warning_messages)),
+            used_visrag_context=self._uses_visrag_context(request, runtime),
+            generation_attempt_number=request.generation_attempt_number,
+            max_generation_attempts=request.max_generation_attempts,
+            previous_validation_errors=list(request.previous_validation_errors),
+            previous_repair_hints=list(request.previous_repair_hints),
+            previous_semantic_feedback=list(request.previous_semantic_feedback),
+        )
+        return result.model_copy(update={"artifact_paths": {}})
+
+    def _run_generation_attempts(
+            self,
+            *,
+            request: SpecGenerationRequest,
+            runtime: RuntimeContext,
+            prompt_version: str,
+            max_attempts: int,
+            max_context_chars: int,
+    ) -> tuple[list[SpecGenerationAttempt], list[str], str | None, dict[str, Any]]:
         attempts: list[SpecGenerationAttempt] = []
         warning_messages: list[str] = []
         previous_error: str | None = None
         previous_response: str | None = None
-        final_prompt = ""
         final_raw_response = ""
-        final_explanation: str | None = None
-        final_spec_without_data: dict[str, Any] | None = None
 
         for attempt_number in range(1, max_attempts + 1):
-            prompt = build_vegachat_codegen_prompt(
-                request,
+            prompt = self._build_prompt(
+                request=request,
+                runtime=runtime,
                 prompt_version=prompt_version,
                 max_context_chars=max_context_chars,
-                include_visrag_context=bool(runtime.settings.spec_generation_include_visrag_context),
                 previous_error=previous_error,
                 previous_response=previous_response,
-                rag_prompt_top_k=int(getattr(runtime.settings, "visrag_prompt_top_k_examples", 2)),
             )
-            final_prompt = prompt
             try:
                 raw_response = invoke_text(
                     runtime.spec_llm,
@@ -60,8 +87,6 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                 explanation, parsed_spec = parse_vegachat_response(raw_response)
                 spec_without_data, policy_warnings = self._normalize_model_spec(parsed_spec)
                 warning_messages.extend(policy_warnings)
-                final_explanation = explanation
-                final_spec_without_data = spec_without_data
                 attempts.append(
                     SpecGenerationAttempt(
                         attempt_number=attempt_number,
@@ -71,7 +96,7 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                         spec_json=spec_without_data,
                     )
                 )
-                break
+                return attempts, warning_messages, explanation, spec_without_data
             except (VegaChatResponseParseError, ValueError, TypeError) as exc:
                 previous_error = f"{type(exc).__name__}: {exc}"
                 previous_response = final_raw_response
@@ -88,30 +113,35 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
                         f"VegaChat codegen failed after {max_attempts} attempts. Last error: {previous_error}"
                     ) from exc
 
-        if final_spec_without_data is None:
-            raise RuntimeError("VegaChat codegen did not produce a Vega-Lite spec.")
+        raise RuntimeError("VegaChat codegen did not produce a Vega-Lite spec.")
 
-        final_spec = self._attach_runtime_data(final_spec_without_data, request.prepared.output_path)
-        result = SpecGenerationResult(
-            backend_name=self.backend_name,
+    @staticmethod
+    def _build_prompt(
+            *,
+            request: SpecGenerationRequest,
+            runtime: RuntimeContext,
+            prompt_version: str,
+            max_context_chars: int,
+            previous_error: str | None,
+            previous_response: str | None,
+    ) -> str:
+        return build_vegachat_codegen_prompt(
+            request,
             prompt_version=prompt_version,
-            spec_json=final_spec,
-            spec_without_runtime_data=final_spec_without_data,
-            explanation=final_explanation,
-            attempts=attempts,
-            warning_messages=list(dict.fromkeys(warning_messages)),
-            used_visrag_context=bool(
-                runtime.settings.spec_generation_include_visrag_context
-                and request.visrag is not None
-                and request.visrag.generation_guidance.has_guidance
-            ),
-            generation_attempt_number=request.generation_attempt_number,
-            max_generation_attempts=request.max_generation_attempts,
-            previous_validation_errors=list(request.previous_validation_errors),
-            previous_repair_hints=list(request.previous_repair_hints),
-            previous_semantic_feedback=list(request.previous_semantic_feedback),
+            max_context_chars=max_context_chars,
+            include_visrag_context=bool(runtime.settings.spec_generation_include_visrag_context),
+            previous_error=previous_error,
+            previous_response=previous_response,
+            rag_prompt_top_k=int(getattr(runtime.settings, "visrag_prompt_top_k_examples", 2)),
         )
-        return result.model_copy(update={"artifact_paths": {}})
+
+    @staticmethod
+    def _uses_visrag_context(request: SpecGenerationRequest, runtime: RuntimeContext) -> bool:
+        return bool(
+            runtime.settings.spec_generation_include_visrag_context
+            and request.visrag is not None
+            and request.visrag.generation_guidance.has_guidance
+        )
 
     @staticmethod
     def _normalize_model_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:

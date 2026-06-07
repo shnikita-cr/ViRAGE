@@ -121,12 +121,6 @@ class VegaLitePlotDrawingService(BaseService):
         return data_url
 
     @staticmethod
-    def _spec_add_data(spec: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
-        clone = deepcopy(spec)
-        clone['data'] = {'values': df.where(pd.notna(df), None).to_dict(orient='records')}
-        return clone
-
-    @staticmethod
     def _apply_render_policy(
             spec: dict[str, Any],
             *,

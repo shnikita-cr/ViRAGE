@@ -122,13 +122,13 @@ def _strip_language_prefix(candidate: str) -> str:
 
 
 def _unwrap_spec_payload(payload: Any) -> Any:
-    if not isinstance(payload, dict) or _is_vega_lite_spec_payload(payload):
+    if not isinstance(payload, dict) or is_vega_lite_spec_payload(payload):
         return payload
     for key in _SPEC_WRAPPER_KEYS:
         value = payload.get(key)
         if isinstance(value, dict):
             candidate = _unwrap_spec_payload(value)
-            if _is_vega_lite_spec_payload(candidate):
+            if is_vega_lite_spec_payload(candidate):
                 return candidate
     nested = _find_nested_vega_lite_spec(payload)
     return nested if nested is not None else payload
@@ -136,7 +136,7 @@ def _unwrap_spec_payload(payload: Any) -> Any:
 
 def _find_nested_vega_lite_spec(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
-        if _is_vega_lite_spec_payload(value):
+        if is_vega_lite_spec_payload(value):
             return value
         for item in value.values():
             found = _find_nested_vega_lite_spec(item)
@@ -153,9 +153,6 @@ def _find_nested_vega_lite_spec(value: Any) -> dict[str, Any] | None:
 def is_vega_lite_spec_payload(payload: Any) -> bool:
     return isinstance(payload, dict) and any(key in payload for key in _VEGA_LITE_TOP_LEVEL_KEYS)
 
-
-def _is_vega_lite_spec_payload(payload: Any) -> bool:
-    return is_vega_lite_spec_payload(payload)
 
 
 def _dedupe_candidates(candidates: list[tuple[str, str]]) -> list[tuple[str, str]]:

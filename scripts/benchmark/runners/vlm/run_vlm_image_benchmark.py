@@ -8,7 +8,7 @@ import statistics
 from datetime import datetime
 from pathlib import Path
 
-from scripts.common.json_io import write_json
+from scripts.common.json_io import write_json, write_jsonl
 from typing import Any
 from uuid import uuid4
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -75,9 +75,6 @@ def summarize_results(*, run_id: str, input_dir: str, results: list[VLMImageBenc
     total_ok = len(ok_results)
     return VLMImageBenchmarkSummary(run_id=run_id, input_dir=str(input_dir), total_images=len(results), evaluated_images=total_ok, failed_images=len(failed), publication_threshold=publication_threshold, pass_rate_publication_threshold=round(passed / total_ok, 6) if total_ok else 0.0, mean_overall_visual_score=_mean(values_by_field['overall_visual_score']), median_overall_visual_score=_median(values_by_field['overall_visual_score']), std_overall_visual_score=_std(values_by_field['overall_visual_score']), mean_non_empty_score=_mean(values_by_field['non_empty_score']), mean_readability_score=_mean(values_by_field['readability_score']), mean_plot_area_usage_score=_mean(values_by_field['plot_area_usage_score']), mean_axis_domain_score=_mean(values_by_field['axis_domain_score']), mean_layout_compactness_score=_mean(values_by_field['layout_compactness_score']), mean_repeat_axis_label_score=_mean(values_by_field['repeat_axis_label_score']), mean_publication_layout_score=_mean(values_by_field['publication_layout_score']), issue_counts_by_type=dict(sorted(issue_counts.items(), key=lambda pair: (-pair[1], pair[0]))), output_files=output_files or {})
 
-def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('\n'.join((json.dumps(row, ensure_ascii=False, default=str) for row in rows)) + ('\n' if rows else ''), encoding='utf-8')
 
 def _write_csv(path: Path, results: list[VLMImageBenchmarkImageResult]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,7 +141,7 @@ def main(argv: list[str] | None=None) -> int:
     output_files = {'per_image_scores_csv': csv_path.as_posix(), 'per_image_scores_jsonl': jsonl_path.as_posix(), 'benchmark_summary_json': summary_path.as_posix(), 'benchmark_report_md': report_path.as_posix()}
     summary = summarize_results(run_id=run_id, input_dir=str(args.images), results=results, publication_threshold=args.publication_threshold, output_files=output_files)
     _write_csv(csv_path, results)
-    _write_jsonl(jsonl_path, [item.model_dump() for item in results])
+    write_jsonl(jsonl_path, [item.model_dump() for item in results])
     write_json(summary_path, summary.model_dump())
     _write_report(report_path, summary)
     runtime.save_model_log_artifacts(run_id=run_id)

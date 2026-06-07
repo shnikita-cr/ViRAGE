@@ -8,7 +8,6 @@ import pandas as pd
 from src.orchestrator.contracts.planning_contract import (
     allowed_metric_semantics,
     is_problem_ranking_strategy,
-    requires_severity_fields,
 )
 
 
@@ -37,7 +36,6 @@ class MetricSeverityTransformer:
     ) -> MetricSeverityTransformResult:
         semantics = self._normalize_semantics(metric_semantics or {})
         if not semantics:
-            self._raise_if_required(ranking_strategy, "metric_semantics is empty")
             return MetricSeverityTransformResult(frame=frame)
 
         selected = {str(field) for field in selected_fields or [] if str(field).strip()}
@@ -49,8 +47,6 @@ class MetricSeverityTransformer:
             clone["overall_severity"] = clone[added].mean(axis=1, skipna=True)
             added.append("overall_severity")
             operations.append("derive_metric_severity")
-        else:
-            self._raise_if_required(ranking_strategy, "no severity columns were derived")
 
         if "overall_severity" in clone.columns and is_problem_ranking_strategy(ranking_strategy):
             clone, limit_operation = self._rank_problematic_rows(clone, max_ranked_rows=max_ranked_rows)
@@ -115,11 +111,6 @@ class MetricSeverityTransformer:
         return ranked.copy(), operations
 
     @staticmethod
-    def _raise_if_required(ranking_strategy: str | None, reason: str) -> None:
-        if requires_severity_fields(ranking_strategy):
-            raise ValueError(f"Severity ranking requires derived severity fields: {reason}.")
-
-    @staticmethod
     def _normalize_semantics(value: dict[str, Any]) -> dict[str, str]:
         result: dict[str, str] = {}
         for key, raw in value.items():
@@ -128,7 +119,7 @@ class MetricSeverityTransformer:
             if not field or direction == "neutral_measurement":
                 continue
             if direction not in set(allowed_metric_semantics()):
-                raise ValueError(f"Unsupported metric semantic for {field!r}: {direction!r}. Allowed: {allowed_metric_semantics()}")
+                continue
             result[field] = direction
         return result
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from src.application.runtime.state import PipelineState
@@ -7,6 +8,9 @@ from src.domain.common.enums import PipelineStage
 from src.graph.nodes import PipelineNodes
 from src.graph.stage_executor import wrap_stage_node
 from src.infrastructure.runtime import RuntimeContext
+
+
+PipelineStep = tuple[str, Callable[[PipelineState], dict[str, Any]]]
 
 
 def _mark_completed(state: PipelineState) -> dict[str, Any]:
@@ -40,12 +44,11 @@ def _route_semantic_decision(state: PipelineState, *, runtime: RuntimeContext) -
     return "accepted_tail" if tail_enabled else "accepted_done"
 
 
-
-
 def _route_analytics_tail(state: PipelineState, *, runtime: RuntimeContext) -> str:
     if bool(getattr(runtime.settings, "analytics_tail_enabled", True)):
         return "enabled"
     return "disabled"
+
 
 def _route_after_spec_score(state: PipelineState, *, runtime: RuntimeContext) -> str:
     if bool(getattr(runtime.settings, "semantic_feedback_loop_enabled", True)):
@@ -55,19 +58,8 @@ def _route_after_spec_score(state: PipelineState, *, runtime: RuntimeContext) ->
     return "completed"
 
 
-def build_pipeline_graph(runtime: RuntimeContext):
-    """Build the ViRAGE pipeline with LangGraph instead of a custom sequential runner."""
-    try:
-        from langgraph.graph import END, START, StateGraph
-    except ImportError as exc:
-        raise RuntimeError(
-            "LangGraph is required to build the ViRAGE pipeline graph. Install project requirements first."
-        ) from exc
-
-    nodes = PipelineNodes(runtime)
-    graph = StateGraph(PipelineState)
-
-    base_steps = [
+def _pipeline_steps(nodes: PipelineNodes) -> list[PipelineStep]:
+    return [
         ("data_profiler", nodes.data_profiler_node),
         ("query_request_analysis", nodes.query_request_analysis_node),
         ("data_preparation", nodes.data_preparation_node),
@@ -91,10 +83,14 @@ def build_pipeline_graph(runtime: RuntimeContext):
         ("completed", _mark_completed),
     ]
 
-    for name, callable_node in base_steps:
+
+def _add_pipeline_nodes(graph: Any, *, runtime: RuntimeContext, steps: list[PipelineStep]) -> None:
+    for name, callable_node in steps:
         graph.add_node(name, wrap_stage_node(name=name, callable_node=callable_node, runtime=runtime))
 
-    graph.add_edge(START, "data_profiler")
+
+def _add_pipeline_edges(graph: Any, *, runtime: RuntimeContext, start: str, end: str) -> None:
+    graph.add_edge(start, "data_profiler")
     graph.add_edge("data_profiler", "query_request_analysis")
     graph.add_edge("query_request_analysis", "data_preparation")
     graph.add_edge("data_preparation", "visrag")
@@ -106,7 +102,6 @@ def build_pipeline_graph(runtime: RuntimeContext):
         _route_technical_decision,
         {"retry": "chart_generator", "ok": "vegalite_plot_drawing"},
     )
-
     graph.add_edge("vegalite_plot_drawing", "scenegraph_check")
     graph.add_edge("scenegraph_check", "empty_chart_check")
     graph.add_edge("empty_chart_check", "spec_score")
@@ -136,8 +131,22 @@ def build_pipeline_graph(runtime: RuntimeContext):
         },
     )
     graph.add_edge("feedback_corpus_writer", "chart_generator")
-
     graph.add_edge("vlm_analysis", "evaluation_summary")
     graph.add_edge("evaluation_summary", "completed")
-    graph.add_edge("completed", END)
+    graph.add_edge("completed", end)
+
+
+def build_pipeline_graph(runtime: RuntimeContext):
+    """Build the ViRAGE pipeline with LangGraph instead of a custom sequential runner."""
+    try:
+        from langgraph.graph import END, START, StateGraph
+    except ImportError as exc:
+        raise RuntimeError(
+            "LangGraph is required to build the ViRAGE pipeline graph. Install project requirements first."
+        ) from exc
+
+    nodes = PipelineNodes(runtime)
+    graph = StateGraph(PipelineState)
+    _add_pipeline_nodes(graph, runtime=runtime, steps=_pipeline_steps(nodes))
+    _add_pipeline_edges(graph, runtime=runtime, start=START, end=END)
     return graph.compile()
