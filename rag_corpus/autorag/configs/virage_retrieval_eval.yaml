@@ -83,5 +83,5 @@ node_lines:
             weight_range: (4, 80)
           - module_type: hybrid_cc
             normalize_method: [mm, tmm, z, dbsf]
-            weight_range: [0.0, 1.0]
+            weight_range: (0.0, 1.0)
             test_weight_size: 11
