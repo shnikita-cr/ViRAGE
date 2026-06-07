@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import random
 import time
 from pathlib import Path
 from typing import Iterable
@@ -15,6 +14,7 @@ from src.benchmark.core.models import BenchmarkAggregateReport, BenchmarkCase, B
 from src.benchmark.core.progress import ConsoleProgressBar
 from src.benchmark.core.resume import load_case_results, should_reuse_case
 from src.benchmark.core.run_manifest import write_benchmark_manifest
+from src.benchmark.core.sampling import SAMPLING_RANDOM, chart_type_from_case, select_benchmark_cases
 
 
 def _classify_benchmark_error(exc: BaseException) -> str:
@@ -48,23 +48,38 @@ class VegaChatBenchmarkRunner:
             run_options: dict[str, object] | None = None,
             shuffle: bool = False,
             seed: int = 42,
+            sampling_strategy: str = SAMPLING_RANDOM,
+            max_per_chart_type: int | None = None,
     ) -> BenchmarkAggregateReport:
         source = Path(cases_path)
         case_root = source.parent if source.is_file() else source
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
-        cases = load_benchmark_cases(source, nlv_mode=nlv_mode)
-        if shuffle:
-            random.Random(seed).shuffle(cases)
+        loaded_cases = load_benchmark_cases(source, nlv_mode=nlv_mode)
+        cases, sampling_summary = select_benchmark_cases(
+            loaded_cases,
+            limit=limit,
+            shuffle=shuffle,
+            seed=seed,
+            sampling_strategy=sampling_strategy,
+            max_per_chart_type=max_per_chart_type,
+        )
         write_benchmark_manifest(
             output_dir=output,
             cases_path=source,
             config_path=config_path,
             corpus_root=getattr(getattr(self.pipeline, "settings", None), "visrag_corpus_root", None),
-            run_options={"nlv_mode": nlv_mode, "shuffle": shuffle, "seed": seed, **(run_options or {})},
+            run_options={
+                "nlv_mode": nlv_mode,
+                "shuffle": shuffle,
+                "seed": seed,
+                "loaded_case_count": len(loaded_cases),
+                "selected_case_count": len(cases),
+                "max_per_chart_type": max_per_chart_type,
+                **sampling_summary.as_report_payload(),
+                **(run_options or {}),
+            },
         )
-        if limit is not None:
-            cases = cases[: max(0, limit)]
 
         existing_by_id = load_case_results(output, BenchmarkCaseResult) if (resume or retry_failed) else {}
         results_by_id: dict[str, BenchmarkCaseResult] = {}
@@ -118,7 +133,7 @@ class VegaChatBenchmarkRunner:
         progress.close(label="completed")
         results = self._ordered_results(cases, results_by_id)
         self._write_incremental_results(results, output)
-        report = BenchmarkAggregateReport.from_results(results)
+        report = BenchmarkAggregateReport.from_results(results, sampling_metadata=sampling_summary.as_report_payload())
         self._write_report(report, output)
         return report
 
@@ -129,21 +144,21 @@ class VegaChatBenchmarkRunner:
 
     def run_case(self, *, case: BenchmarkCase, case_root: Path, output_dir: Path) -> BenchmarkCaseResult:
         started = time.perf_counter()
+        request = PipelineRequest(
+            query=case.query,
+            data_path=case.resolved_data_path(case_root),
+            user_context={
+                "benchmark_case_id": case.case_id,
+                "benchmark_dataset": case.dataset_name,
+                "ground_truth_spec": case.reference_spec,
+                "reference_image_path": case.resolved_reference_image_path(case_root),
+                "difficulty": case.difficulty,
+                "utterance_type": case.utterance_type,
+                **case.metadata,
+                "chart_type": chart_type_from_case(case),
+            },
+        )
         try:
-            reference_image_path = case.resolved_reference_image_path(case_root)
-            request = PipelineRequest(
-                query=case.query,
-                data_path=case.resolved_data_path(case_root),
-                user_context={
-                    "benchmark_case_id": case.case_id,
-                    "benchmark_dataset": case.dataset_name,
-                    "ground_truth_spec": case.reference_spec,
-                    "reference_image_path": reference_image_path,
-                    "difficulty": case.difficulty,
-                    "utterance_type": case.utterance_type,
-                    **case.metadata,
-                },
-            )
             result = self.pipeline.invoke(request)
             duration = time.perf_counter() - started
             case_result = self.evaluator.evaluate_pipeline_result(
@@ -159,17 +174,22 @@ class VegaChatBenchmarkRunner:
         except (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError) as exc:
             duration = time.perf_counter() - started
             error_type = _classify_benchmark_error(exc)
+            usage = self.pipeline.runtime.token_usage_summary()
             failed = BenchmarkCaseResult(
                 case_id=case.case_id,
                 dataset_name=case.dataset_name,
                 query=case.query,
                 data_path=case.resolved_data_path(case_root),
+                run_id=request.run_id,
                 reference_image_path=case.resolved_reference_image_path(case_root),
                 is_valid_spec=False,
                 is_empty_chart=True,
                 visualization_error_rate_item=True,
                 empty_chart_rate_item=True,
                 duration_seconds=round(duration, 6),
+                prompt_tokens=int(usage.prompt_tokens),
+                completion_tokens=int(usage.completion_tokens),
+                total_tokens=int(usage.total_tokens),
                 metrics={"visualization_error_rate": 1.0, "empty_plot_rate": 1.0},
                 error=f"{type(exc).__name__}: {exc}",
                 metadata={
@@ -177,6 +197,7 @@ class VegaChatBenchmarkRunner:
                     "utterance_type": case.utterance_type,
                     "error_type": error_type,
                     **case.metadata,
+                    "chart_type": chart_type_from_case(case),
                 },
             )
             self._write_case_artifacts(failed, output_dir)
@@ -230,6 +251,9 @@ class VegaChatBenchmarkRunner:
             f"Median Vision Score: {report.median_vision_score}",
             f"Mean duration seconds: {report.mean_duration_seconds}",
             f"Total tokens: {report.total_tokens}",
+            f"Sampling strategy: {report.sampling_strategy}",
+            f"Seed: {report.seed}",
+            f"Selected chart types: {', '.join(report.selected_chart_types)}",
             "",
             "## VegaChat metric means",
             "",

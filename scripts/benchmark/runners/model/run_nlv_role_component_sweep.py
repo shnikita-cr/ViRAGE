@@ -68,6 +68,8 @@ def main() -> None:
             resume=args.resume,
             retry_failed=args.retry_failed,
             disable_analytics_tail=args.disable_analytics_tail,
+            sampling=args.sampling,
+            max_per_chart_type=args.max_per_chart_type,
         )
         record = write_run_status(run=run, result=result)
         completed.append(record)
@@ -88,6 +90,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--python-executable", default=sys.executable)
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--sampling", choices=["random", "stratified_chart_type"], default="random")
+    parser.add_argument("--max-per-chart-type", type=int, default=None)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
@@ -192,6 +196,8 @@ def invoke_runner(
     resume: bool,
     retry_failed: bool,
     disable_analytics_tail: bool,
+    sampling: str,
+    max_per_chart_type: int | None,
 ) -> ProcessResult:
     logs_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -213,7 +219,11 @@ def invoke_runner(
         "--shuffle",
         "--seed",
         str(seed),
+        "--sampling",
+        sampling,
     ]
+    if max_per_chart_type is not None:
+        command.extend(["--max-per-chart-type", str(max_per_chart_type)])
     if resume:
         command.append("--resume")
     if retry_failed:

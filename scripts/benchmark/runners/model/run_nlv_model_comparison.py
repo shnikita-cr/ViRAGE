@@ -56,6 +56,8 @@ def main() -> None:
             retry_failed=args.retry_failed,
             disable_vlm_loop=args.disable_vlm_loop,
             disable_analytics_tail=args.disable_analytics_tail,
+            sampling=args.sampling,
+            max_per_chart_type=args.max_per_chart_type,
         )
         record = write_run_status(run=run, result=result)
         completed.append(record)
@@ -74,6 +76,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--python-executable", default=sys.executable)
     parser.add_argument("--limit", type=int, default=None, help="Optional random case limit. Without --limit all NLV cases are used.")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--sampling", choices=["random", "stratified_chart_type"], default="random")
+    parser.add_argument("--max-per-chart-type", type=int, default=None)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
@@ -128,6 +132,8 @@ def invoke_nlv_runner(
     retry_failed: bool,
     disable_vlm_loop: bool,
     disable_analytics_tail: bool,
+    sampling: str,
+    max_per_chart_type: int | None,
 ) -> ProcessResult:
     logs_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -144,6 +150,8 @@ def invoke_nlv_runner(
         retry_failed=retry_failed,
         disable_vlm_loop=disable_vlm_loop,
         disable_analytics_tail=disable_analytics_tail,
+        sampling=sampling,
+        max_per_chart_type=max_per_chart_type,
     )
     logger.info("Command: %s", " ".join(command))
     completed = subprocess.run(
@@ -172,6 +180,8 @@ def build_runner_command(
     retry_failed: bool,
     disable_vlm_loop: bool,
     disable_analytics_tail: bool,
+    sampling: str,
+    max_per_chart_type: int | None,
 ) -> list[str]:
     command = [
         python_executable,
@@ -187,6 +197,9 @@ def build_runner_command(
     ]
     if limit is not None:
         command.extend(["--limit", str(limit), "--shuffle", "--seed", str(seed)])
+    command.extend(["--sampling", sampling])
+    if max_per_chart_type is not None:
+        command.extend(["--max-per-chart-type", str(max_per_chart_type)])
     if resume:
         command.append("--resume")
     if retry_failed:

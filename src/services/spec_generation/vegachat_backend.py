@@ -8,7 +8,7 @@ from src.infrastructure.runtime import RuntimeContext
 from src.llm.helpers import invoke_text
 from src.services.spec_generation.base import SpecGenerationBackend
 from src.services.spec_generation.vegachat_parser import VegaChatResponseParseError, parse_vegachat_response
-from src.services.spec_generation.vegachat_prompts import VEGA_LITE_SCHEMA_URL, build_vegachat_codegen_prompt
+from src.services.spec_generation.vegachat_prompts import build_vegachat_codegen_prompt
 
 
 class VegaChatCodegenBackend(SpecGenerationBackend):
@@ -153,9 +153,6 @@ class VegaChatCodegenBackend(SpecGenerationBackend):
         if "datasets" in clone:
             clone.pop("datasets", None)
             warnings.append("model_output_datasets_removed_before_runtime_attachment")
-        if "$schema" not in clone:
-            clone["$schema"] = VEGA_LITE_SCHEMA_URL
-            warnings.append("model_output_missing_schema_added")
         return clone, warnings
 
     @staticmethod

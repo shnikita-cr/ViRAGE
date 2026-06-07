@@ -14,7 +14,7 @@ from pydantic import BaseModel, ValidationError
 from src.domain.models import ModelCallLog, TokenUsage
 from src.llm.structured_response import extract_json_text, structured_json_payload
 from src.llm.model_runtime import runtime_profile_from_model
-from src.llm.prompt_budget import compact_text_to_tokens, prompt_budget_report
+from src.llm.prompt_budget import compact_text_to_tokens, estimate_tokens, prompt_budget_report
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -217,18 +217,53 @@ def extract_json_block(raw_text: str) -> str:
     return extract_json_text(raw_text, unwrap_spec_payload=True)
 
 
-def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
+def _json_instruction_block(schema: type[T], examples: list[dict[str, Any]] | None) -> str:
     example_block = ""
     if examples:
         rendered = "\n\n".join(json.dumps(item, ensure_ascii=False, indent=2) for item in examples)
         example_block = f"\nExamples of valid JSON:\n{rendered}\n"
     return (
-        f"{prompt_text}\n\n"
         "Return only valid JSON. Do not include markdown fences.\n"
         f"Target schema name: {schema.__name__}.\n"
         f"JSON fields must satisfy this JSON Schema fragment:\n{json.dumps(schema.model_json_schema(), ensure_ascii=False, indent=2)}\n"
         f"{example_block}"
     )
+
+
+def _json_prompt(prompt_text: str, schema: type[T], examples: list[dict[str, Any]] | None) -> str:
+    return f"{prompt_text}\n\n{_json_instruction_block(schema, examples)}"
+
+
+def _fit_structured_prompt_to_budget(
+        llm: Any,
+        prompt_text: str,
+        schema: type[T],
+        examples: list[dict[str, Any]] | None,
+        *,
+        retry_block: str = "",
+) -> str:
+    profile = runtime_profile_from_model(llm)
+    budget = int(profile.prompt_budget_tokens if profile is not None else 4096)
+    instruction_block = _json_instruction_block(schema, examples)
+    fixed_tail = f"\n\n{instruction_block}{retry_block}"
+    available_for_base = budget - estimate_tokens(fixed_tail)
+    available_for_base = max(128, available_for_base)
+    base_prompt = compact_text_to_tokens(prompt_text, available_for_base)
+    prompt = f"{base_prompt}{fixed_tail}"
+    report = prompt_budget_report(prompt, profile)
+    if report.estimated_prompt_tokens <= report.prompt_budget_tokens:
+        return prompt
+    overflow = report.estimated_prompt_tokens - report.prompt_budget_tokens
+    base_budget = max(64, available_for_base - overflow - 16)
+    base_prompt = compact_text_to_tokens(prompt_text, base_budget)
+    final_prompt = f"{base_prompt}{fixed_tail}"
+    final_report = prompt_budget_report(final_prompt, profile)
+    if final_report.estimated_prompt_tokens > final_report.prompt_budget_tokens:
+        raise ValueError(
+            "Structured prompt cannot fit model budget without removing required JSON instructions: "
+            f"estimated={final_report.estimated_prompt_tokens}, budget={final_report.prompt_budget_tokens}."
+        )
+    return final_prompt
 
 
 def _invoke_structured_with_message_builder(
@@ -246,10 +281,10 @@ def _invoke_structured_with_message_builder(
 ) -> T:
     parser_errors: list[str] = []
     attempts = 0
-    current_prompt = _json_prompt(prompt_text, schema, examples)
+    current_prompt = _fit_structured_prompt_to_budget(llm, prompt_text, schema, examples)
     while attempts < max_attempts:
         attempts += 1
-        prompt_for_log = log_prompt_text or current_prompt
+        prompt_for_log = f"{current_prompt}\n\n{log_prompt_text}" if log_prompt_text else current_prompt
         if hasattr(llm, "invoke"):
             started_at = _utc_now_iso()
             started_monotonic = time.perf_counter()
@@ -271,11 +306,17 @@ def _invoke_structured_with_message_builder(
                         current_errors, usage, attempt_number=attempts, duration_ms=duration_ms,
                         started_at=started_at, finished_at=finished_at)
                 parser_errors.append(str(exc))
-                current_prompt = (
-                        _json_prompt(prompt_text, schema, examples)
-                        + "\nThe previous response was invalid. Fix it.\n"
+                retry_block = (
+                        "\nThe previous response was invalid. Fix it.\n"
                         + f"Validation / parsing error:\n{exc}\n"
                         + f"Previous response:\n{raw_text}\n"
+                )
+                current_prompt = _fit_structured_prompt_to_budget(
+                    llm,
+                    prompt_text,
+                    schema,
+                    examples,
+                    retry_block=retry_block,
                 )
                 continue
         if hasattr(llm, "with_structured_output"):
@@ -388,7 +429,7 @@ def invoke_structured_multimodal_many(
         if not path.exists():
             raise FileNotFoundError(f"Image path does not exist: {path}")
     attachments = ", ".join(f"{path.name}={path.stat().st_size} bytes" for path in paths)
-    log_prompt = f"{prompt_text}\n\n[Images attached: {attachments}]"
+    log_prompt = f"[Images attached: {attachments}]"
     return _invoke_structured_with_message_builder(
         llm,
         prompt_text,

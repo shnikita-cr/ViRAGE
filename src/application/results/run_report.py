@@ -202,10 +202,8 @@ def _empty_chart(result: PipelineResult | None) -> bool | None:
     return bool(check.empty_chart_signal or check.empty_chart_status == "empty")
 
 
-def _token_usage(result: PipelineResult | None) -> dict[str, int]:
-    if result is None:
-        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    usage = result.token_usage_summary
+def _token_usage(result: PipelineResult | None, runtime: RuntimeContext) -> dict[str, int]:
+    usage = result.token_usage_summary if result is not None else runtime.token_usage_summary()
     return {
         "prompt_tokens": int(usage.prompt_tokens),
         "completion_tokens": int(usage.completion_tokens),
@@ -268,7 +266,7 @@ def build_run_report(
 ) -> dict[str, Any]:
     generated_image_path = _path_from_plot_image(result.plot_image if result is not None else None)
     generated_spec_path = _generated_spec_path(result)
-    tokens = _token_usage(result)
+    tokens = _token_usage(result, runtime)
     duration_seconds = _stage_duration_seconds(result)
 
     publication_scores = _visual_publication_scores(result)

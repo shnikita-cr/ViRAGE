@@ -14,7 +14,6 @@ from src.infrastructure.runtime import RuntimeContext
 from src.services.base import BaseService
 from src.services.data import read_dataframe
 from src.services.spec.data_injection import spec_with_inline_data
-from src.services.spec.repair import SpecRepairService
 
 VEGA_LITE_SCHEMA_URL = 'https://vega.github.io/schema/vega-lite/v5.json'
 _COMPOSITION_KEYS = {'layer', 'facet', 'repeat', 'concat', 'hconcat', 'vconcat'}
@@ -93,7 +92,7 @@ class SpecValidatorService(BaseService):
 
     @staticmethod
     def _normalize_spec(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-        return SpecRepairService().repair(spec)
+        return deepcopy(spec), []
 
     @staticmethod
     def _validate_vega_lite_shape(spec: dict[str, Any], errors: list[str]) -> None:

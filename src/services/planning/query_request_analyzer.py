@@ -127,6 +127,9 @@ class _QueryRequestAnalysisSchema(BaseModel):
                     break
         if "field_mappings" not in data and "mappings" in data:
             data["field_mappings"] = data["mappings"]
+        data["aggregation_plan"] = _normalize_optional_dict(data.get("aggregation_plan"))
+        data["visual_judge_requirements"] = _normalize_optional_dict(data.get("visual_judge_requirements"))
+        data["chart_answerability"] = _normalize_optional_dict(data.get("chart_answerability"))
         data["metric_semantics"] = _normalize_metric_semantics_payload(data.get("metric_semantics"))
         data["ranking_strategy"] = _coerce_controlled_value(
             data.get("ranking_strategy"),
@@ -172,6 +175,12 @@ class _QueryRequestAnalysisSchema(BaseModel):
             raise ValueError("Query analysis response must contain query intent or schema-grounded fields.")
         return self
 
+
+
+def _normalize_optional_dict(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def _normalize_metric_semantics_payload(value: Any) -> dict[str, str]:

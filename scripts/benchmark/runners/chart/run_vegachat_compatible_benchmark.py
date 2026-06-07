@@ -11,6 +11,7 @@ site.addsitedir(PROJECT_ROOT.as_posix())
 from src.application.config.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
 from src.benchmark.core.runner import VegaChatBenchmarkRunner
+from src.benchmark.core.sampling import SAMPLING_RANDOM, SAMPLING_STRATIFIED_CHART_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +37,14 @@ def main() -> None:
         config_path=Path(args.config),
         shuffle=args.shuffle,
         seed=args.seed,
+        sampling_strategy=args.sampling,
+        max_per_chart_type=args.max_per_chart_type,
         run_options={
             "disable_vlm_loop": args.disable_vlm_loop,
             "disable_analytics_tail": args.disable_analytics_tail,
             "analytics_tail_enabled": not args.disable_analytics_tail,
             "semantic_feedback_loop_enabled": config.settings.semantic_feedback_loop_enabled,
+            "continue_on_error": args.continue_on_error,
         },
     )
     logger.info("Cases: %s", report.total_cases)
@@ -61,7 +65,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="artifacts/benchmarks/vegachat_compatible", help="Report output directory.")
     parser.add_argument("--limit", type=int, default=None, help="Optional case limit for smoke runs.")
     parser.add_argument("--shuffle", action="store_true", help="Shuffle cases before applying --limit.")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed used with --shuffle.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed used with --shuffle or stratified sampling.")
+    parser.add_argument("--sampling", choices=[SAMPLING_RANDOM, SAMPLING_STRATIFIED_CHART_TYPE], default=SAMPLING_RANDOM, help="Case sampling strategy before benchmark execution.")
+    parser.add_argument("--max-per-chart-type", type=int, default=None, help="Maximum cases per chart type for stratified sampling.")
+    parser.add_argument("--continue-on-error", action="store_true", help="Accepted for CLI consistency; this runner already continues after per-case errors.")
     parser.add_argument("--resume", action="store_true", help="Continue from existing cases/<case_id>/result.json files in the output directory.")
     parser.add_argument("--retry-failed", action="store_true", help="Reuse successful existing cases and rerun only failed/missing cases.")
     parser.add_argument("--nlv-mode", choices=["single_turn"], default="single_turn", help="NLV loader mode. The main benchmark intentionally supports only single_turn cases.")

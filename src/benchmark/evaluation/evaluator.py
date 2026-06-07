@@ -10,6 +10,7 @@ import pandas as pd
 from src.application.contracts import PipelineResult
 from src.benchmark.evaluation.chart_text_metrics import chart_text_consistency_score
 from src.benchmark.core.models import BenchmarkCase, BenchmarkCaseResult
+from src.benchmark.core.sampling import chart_type_from_case
 from src.domain.models import EmptyChartCheckResult, PlotImageArtifact, VegaLiteSpecArtifact
 from src.infrastructure.runtime import RuntimeContext
 from src.services.data import read_dataframe
@@ -112,6 +113,7 @@ class VegaChatBenchmarkEvaluator:
                 "utterance_type": case.utterance_type,
                 "retrieval_report": retrieval_report,
                 **case.metadata,
+                "chart_type": chart_type_from_case(case),
             },
         )
 
@@ -212,7 +214,7 @@ class VegaChatBenchmarkEvaluator:
             spec_metric=spec_metric,
             vision_metric=vision_metric,
             metrics=metrics,
-            metadata={"difficulty": case.difficulty, "utterance_type": case.utterance_type, **case.metadata},
+            metadata={"difficulty": case.difficulty, "utterance_type": case.utterance_type, **case.metadata, "chart_type": chart_type_from_case(case)},
         )
 
     @staticmethod

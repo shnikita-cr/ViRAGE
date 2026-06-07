@@ -117,10 +117,21 @@ class BenchmarkAggregateReport(BaseModel):
     chart_text_consistency_rate: float | None = None
     stratified_metrics: dict[str, dict[str, float | int | None]] = Field(default_factory=dict)
     vegachat_metrics: dict[str, float] = Field(default_factory=dict)
+    sampling_strategy: str | None = None
+    seed: int | None = None
+    limit: int | None = None
+    selected_case_ids: list[str] = Field(default_factory=list)
+    selected_chart_types: list[str] = Field(default_factory=list)
+    chart_type_distribution: dict[str, int] = Field(default_factory=dict)
     results: list[BenchmarkCaseResult] = Field(default_factory=list)
 
     @classmethod
-    def from_results(cls, results: list[BenchmarkCaseResult]) -> "BenchmarkAggregateReport":
+    def from_results(
+            cls,
+            results: list[BenchmarkCaseResult],
+            *,
+            sampling_metadata: dict[str, Any] | None = None,
+    ) -> "BenchmarkAggregateReport":
         total = len(results)
         successful = sum(1 for item in results if item.error is None)
         failed = total - successful
@@ -138,6 +149,7 @@ class BenchmarkAggregateReport(BaseModel):
             for item in results
             if "chart_text_consistency" in item.metrics
         ]
+        sampling = sampling_metadata or {}
         return cls(
             total_cases=total,
             successful_cases=successful,
@@ -159,12 +171,52 @@ class BenchmarkAggregateReport(BaseModel):
             chart_text_consistency_rate=_mean(text_consistency_values),
             stratified_metrics=_stratified_metrics(results),
             vegachat_metrics=vegachat_metrics,
+            sampling_strategy=_maybe_str(sampling.get("sampling_strategy")),
+            seed=_maybe_int(sampling.get("seed")),
+            limit=_maybe_int(sampling.get("limit")),
+            selected_case_ids=_maybe_str_list(sampling.get("selected_case_ids")),
+            selected_chart_types=_maybe_str_list(sampling.get("selected_chart_types")),
+            chart_type_distribution=_maybe_int_dict(sampling.get("chart_type_distribution")),
             results=results,
         )
 
 
 
 
+
+
+def _maybe_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _maybe_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _maybe_str_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [text for item in value if (text := str(item).strip())]
+
+
+def _maybe_int_dict(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, item in value.items():
+        try:
+            result[str(key)] = int(item)
+        except (TypeError, ValueError):
+            continue
+    return result
 
 
 def _mean_metrics(metrics: list[dict[str, float]]) -> dict[str, float]:

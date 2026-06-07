@@ -102,3 +102,21 @@ def test_query_request_schema_ignores_invalid_controlled_strategy_values() -> No
     assert parsed.metric_semantics == {}
     assert parsed.ranking_strategy is None
     assert parsed.scale_strategy is None
+
+
+def test_query_request_schema_accepts_null_aggregation_plan() -> None:
+    from src.services.planning.query_request_analyzer import _QueryRequestAnalysisSchema
+
+    parsed = _QueryRequestAnalysisSchema.model_validate(
+        {
+            "normalized_query": "show distribution by group",
+            "selected_fields": ["group", "value"],
+            "aggregation_plan": None,
+            "visual_judge_requirements": None,
+            "chart_answerability": None,
+        }
+    )
+
+    assert parsed.aggregation_plan == {}
+    assert parsed.visual_judge_requirements == {}
+    assert parsed.chart_answerability == {}
