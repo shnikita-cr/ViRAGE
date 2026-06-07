@@ -44,7 +44,7 @@ def main() -> None:
         image_path = rendered[case.case_id]
         rows.extend(_score_pairs(case=case, cases=cases, image_path=image_path, scorer=scorer))
     _write_csv(output / "image_text_embedding_results.csv", rows)
-    report = _report(rows, sampling.as_report_payload())
+    report = _report(rows, sampling.as_report_payload(), threshold=args.threshold)
     (output / "image_text_embedding_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     (output / "image_text_embedding_results.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"cases": len(cases), "pairs": len(rows), "report": (output / "image_text_embedding_report.json").as_posix()}, ensure_ascii=False, indent=2))
@@ -65,6 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="+", default=["openai/clip-vit-base-patch32", "google/siglip-so400m-patch14-384"])
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--dtype", choices=["float16", "bfloat16", "float32"], default="float16")
+    parser.add_argument("--threshold", type=float, default=None, help="Optional fixed threshold for binary pair classification. Defaults to midpoint between positive and negative means.")
     return parser.parse_args()
 
 
@@ -93,6 +94,7 @@ def _score_pairs(*, case, cases, image_path: str, scorer: ImageTextCosineEvaluat
     for pair_type, text_case_id, text in pairs:
         batch = scorer.score(image_path=image_path, task_text=text)
         model_scores = {item.model_name: normalize_cosine_to_unit(item.cosine) for item in batch.results}
+        errors = [error.__dict__ for error in batch.errors]
         row = {
             "case_id": case.case_id,
             "chart_type": chart_type_from_case(case),
@@ -101,6 +103,8 @@ def _score_pairs(*, case, cases, image_path: str, scorer: ImageTextCosineEvaluat
             "text_case_id": text_case_id,
             "query": text,
             "embedding_score": mean(model_scores.values()) if model_scores else None,
+            "embedding_error_count": len(errors),
+            "embedding_errors": json.dumps(errors, ensure_ascii=False) if errors else "",
         }
         row.update({f"model_score.{name}": score for name, score in model_scores.items()})
         rows.append(row)
@@ -118,9 +122,10 @@ def _negative_case(cases, case, *, same_chart_type: bool):
     return None
 
 
-def _report(rows: list[dict[str, Any]], sampling: dict[str, Any]) -> dict[str, Any]:
+def _report(rows: list[dict[str, Any]], sampling: dict[str, Any], *, threshold: float | None) -> dict[str, Any]:
     positives = [float(row["embedding_score"]) for row in rows if row["pair_type"] == "positive" and row["embedding_score"] is not None]
     negatives = [float(row["embedding_score"]) for row in rows if row["pair_type"].startswith("negative") and row["embedding_score"] is not None]
+    actual_threshold = threshold if threshold is not None else _midpoint_threshold(positives, negatives)
     return {
         "total_pairs": len(rows),
         "positive_pairs": len(positives),
@@ -128,9 +133,62 @@ def _report(rows: list[dict[str, Any]], sampling: dict[str, Any]) -> dict[str, A
         "mean_positive_score": mean(positives) if positives else None,
         "mean_negative_score": mean(negatives) if negatives else None,
         "margin": (mean(positives) - mean(negatives)) if positives and negatives else None,
+        "roc_auc": _roc_auc(positives, negatives),
+        "accuracy_at_threshold": _accuracy_at_threshold(positives, negatives, actual_threshold),
+        "threshold": actual_threshold,
         "accuracy_positive_above_negative_mean": _accuracy_positive_above_negative_mean(positives, negatives),
+        "by_chart_type": _by_chart_type(rows, threshold=actual_threshold),
         "sampling": sampling,
     }
+
+
+def _midpoint_threshold(positives: list[float], negatives: list[float]) -> float | None:
+    if not positives or not negatives:
+        return None
+    return (mean(positives) + mean(negatives)) / 2.0
+
+
+def _roc_auc(positives: list[float], negatives: list[float]) -> float | None:
+    if not positives or not negatives:
+        return None
+    wins = 0.0
+    total = len(positives) * len(negatives)
+    for positive in positives:
+        for negative in negatives:
+            if positive > negative:
+                wins += 1.0
+            elif positive == negative:
+                wins += 0.5
+    return wins / total
+
+
+def _accuracy_at_threshold(positives: list[float], negatives: list[float], threshold: float | None) -> float | None:
+    if threshold is None or not positives or not negatives:
+        return None
+    correct_positive = sum(1 for value in positives if value >= threshold)
+    correct_negative = sum(1 for value in negatives if value < threshold)
+    return (correct_positive + correct_negative) / (len(positives) + len(negatives))
+
+
+def _by_chart_type(rows: list[dict[str, Any]], *, threshold: float | None) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[str(row.get("chart_type") or "unknown")].append(row)
+    out: dict[str, dict[str, Any]] = {}
+    for chart_type, items in sorted(grouped.items()):
+        positives = [float(row["embedding_score"]) for row in items if row["pair_type"] == "positive" and row["embedding_score"] is not None]
+        negatives = [float(row["embedding_score"]) for row in items if row["pair_type"].startswith("negative") and row["embedding_score"] is not None]
+        out[chart_type] = {
+            "total_pairs": len(items),
+            "positive_pairs": len(positives),
+            "negative_pairs": len(negatives),
+            "mean_positive_score": mean(positives) if positives else None,
+            "mean_negative_score": mean(negatives) if negatives else None,
+            "margin": (mean(positives) - mean(negatives)) if positives and negatives else None,
+            "roc_auc": _roc_auc(positives, negatives),
+            "accuracy_at_threshold": _accuracy_at_threshold(positives, negatives, threshold),
+        }
+    return out
 
 
 def _accuracy_positive_above_negative_mean(positives: list[float], negatives: list[float]) -> float | None:

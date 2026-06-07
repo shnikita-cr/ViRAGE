@@ -5,7 +5,7 @@
 | `qwen3.5:latest`       | Ollama   |      ~6.6 GB | Text/Image |
 | `qwen3.5:4b`           | Ollama   |      ~3.4 GB | Text/Image |
 | `gemma3:4b`            | Ollama   |      ~3.3 GB | Text/Image |
-| `qwen2.5vl:latest`     | Ollama   |      ~6.0 GB | Text/Image |
+| `qwen2.5vl:3b`     | Ollama   |      ~6.0 GB | Text/Image |
 | `gemma3:12b-it-q4_K_M` | Ollama   |      ~8.1 GB | Text/Image |
 
 ### Планирование / reasoning
@@ -32,7 +32,7 @@
 
 | Модель                        | Источник                   | Размер / вес | Вход       |
 | ----------------------------- | -------------------------- | -----------: | ---------- |
-| `qwen2.5vl:latest`            | Ollama                     |      ~6.0 GB | Text/Image |
+| `qwen2.5vl:3b`            | Ollama                     |      ~6.0 GB | Text/Image |
 | `minicpm-v:latest`            | Ollama                     |      ~5.5 GB | Text/Image |
 | `openbmb/minicpm-v4.5:latest` | Ollama / registry-зависимо |      ~6.1 GB | Text/Image |
 | `gemma3:12b-it-q4_K_M`        | Ollama                     |      ~8.1 GB | Text/Image |

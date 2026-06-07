@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
@@ -15,8 +15,16 @@ class ImageTextCosineResult:
 
 
 @dataclass(frozen=True)
+class ImageTextCosineError:
+    model_name: str
+    error_type: str
+    error: str
+
+
+@dataclass(frozen=True)
 class ImageTextCosineBatchResult:
     results: list[ImageTextCosineResult]
+    errors: list[ImageTextCosineError] = field(default_factory=list)
 
     @property
     def mean_cosine(self) -> float:
@@ -32,13 +40,16 @@ class HuggingFaceImageTextCosineModel:
         self.model_name = model_name
         self.device = torch.device(device if torch.cuda.is_available() or device == "cpu" else "cpu")
         self.processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
-        self.model = AutoModel.from_pretrained(model_name, torch_dtype=dtype, trust_remote_code=trust_remote_code).to(self.device)
+        self.model = AutoModel.from_pretrained(model_name, dtype=dtype, trust_remote_code=trust_remote_code).to(self.device)
         self.model.eval()
 
     def score(self, *, image_path: str | Path, text: str) -> ImageTextCosineResult:
         if not text.strip():
             raise ValueError("Image-text cosine requires non-empty text.")
-        with Image.open(image_path) as image:
+        image_file = Path(image_path)
+        if not image_file.exists():
+            raise FileNotFoundError(f"Image file not found: {image_file}")
+        with Image.open(image_file) as image:
             rgb_image = image.convert("RGB")
             inputs = self.processor(text=[text], images=[rgb_image], return_tensors="pt", padding=True).to(self.device)
         with torch.no_grad():
@@ -60,18 +71,42 @@ class ImageTextCosineEvaluator:
         if not model_names:
             raise ValueError("At least one image-text model must be configured.")
         torch_dtype = self._dtype(dtype)
-        self.models = [
-            HuggingFaceImageTextCosineModel(
-                model_name=model_name,
-                device=device,
-                dtype=torch_dtype,
-                trust_remote_code=self._requires_remote_code(model_name),
-            )
-            for model_name in model_names
-        ]
+        self.model_errors: list[ImageTextCosineError] = []
+        self.models: list[HuggingFaceImageTextCosineModel] = []
+        for model_name in model_names:
+            try:
+                self.models.append(
+                    HuggingFaceImageTextCosineModel(
+                        model_name=model_name,
+                        device=device,
+                        dtype=torch_dtype,
+                        trust_remote_code=self._requires_remote_code(model_name),
+                    )
+                )
+            except (RuntimeError, ValueError, OSError, ImportError, FileNotFoundError) as exc:
+                self.model_errors.append(
+                    ImageTextCosineError(
+                        model_name=model_name,
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                    )
+                )
 
     def score(self, *, image_path: str | Path, task_text: str) -> ImageTextCosineBatchResult:
-        return ImageTextCosineBatchResult(results=[model.score(image_path=image_path, text=task_text) for model in self.models])
+        results: list[ImageTextCosineResult] = []
+        errors = list(self.model_errors)
+        for model in self.models:
+            try:
+                results.append(model.score(image_path=image_path, text=task_text))
+            except (RuntimeError, ValueError, OSError, FileNotFoundError) as exc:
+                errors.append(
+                    ImageTextCosineError(
+                        model_name=model.model_name,
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                    )
+                )
+        return ImageTextCosineBatchResult(results=results, errors=errors)
 
     @staticmethod
     def _dtype(value: str) -> torch.dtype:

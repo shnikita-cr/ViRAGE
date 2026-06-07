@@ -17,6 +17,13 @@ BENCHMARK_RUNNER = PROJECT_ROOT / "scripts" / "benchmark" / "runners" / "chart" 
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "ui" / "config" / "benchmark"
 DEFAULT_CASES_PATH = PROJECT_ROOT / "external_datasets" / "nlv_corpus"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "artifacts" / "model_nlv"
+DEFAULT_ALL_IN_ONE_CONFIG_NAMES = (
+    "local_test_gemma3_4b_safe.toml",
+    "local_test_qwen2_5vl_3b_allinone.toml",
+    "local_test_qwen3_vl_4b_allinone.toml",
+    "local_test_llava_phi3_3_8b_allinone.toml",
+    "local_test_minicpm_v_allinone.toml",
+)
 
 
 @dataclass(frozen=True)
@@ -99,9 +106,10 @@ def parse_args() -> argparse.Namespace:
 def resolve_configs(configs: Sequence[Path] | None, config_dir: Path) -> list[Path]:
     if configs:
         return [path.resolve() for path in configs]
-    found = sorted(config_dir.resolve().glob("local_test_*.toml"))
+    root = config_dir.resolve()
+    found = [root / name for name in DEFAULT_ALL_IN_ONE_CONFIG_NAMES if (root / name).exists()]
     if not found:
-        raise FileNotFoundError(f"No local_test_*.toml configs found in {config_dir.resolve()}.")
+        raise FileNotFoundError(f"No curated all-in-one TOML configs found in {root}.")
     return found
 
 

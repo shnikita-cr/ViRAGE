@@ -100,7 +100,7 @@ docker exec -it ollama ollama pull gemma4:e2b-it-qat
 docker exec -it ollama ollama pull gemma4:e4b-it-qat
 docker exec -it ollama ollama pull qwen2.5-coder:7b
 docker exec -it ollama ollama pull qwen3-vl:4b
-docker exec -it ollama ollama pull qwen2.5vl:latest
+docker exec -it ollama ollama pull qwen2.5vl:3b
 docker exec -it ollama ollama pull nomic-embed-text:latest
 docker exec -it ollama ollama pull bge-m3:latest
 docker exec -it ollama ollama pull mxbai-embed-large:latest
@@ -221,7 +221,7 @@ gemma3:4b
 gemma4:e2b-it-qat
 gemma4:e4b-it-qat
 qwen3-vl:4b
-qwen2.5vl:latest
+qwen2.5vl:3b
 ```
 
 Опционально:
@@ -252,7 +252,7 @@ vlm_candidates:
   gemma4:e2b-it-qat
   gemma4:e4b-it-qat
   qwen3-vl:4b
-  qwen2.5vl:latest
+  qwen2.5vl:3b
 
 embedding_candidates:
   nomic-embed-text:latest
@@ -711,8 +711,8 @@ python scripts\benchmark\runners\model\run_nlv_role_component_sweep.py --help
 - Убрать жёсткое требование severity-семантики там, где поля таблицы не являются метриками со специальным смыслом.
 - Добавить тесты на устойчивость `QueryRequestAnalyzer` к локальным моделям.
 - Проверить, что `analytics_tail_enabled = false` не отключает semantic retry.
-- Добавить all-in-one local_test-конфиги для `qwen3-vl:4b` и `qwen2.5vl:latest`, если они должны участвовать в all-in-one сравнении.
-- Расширить role sweep кандидатами `qwen3-vl:4b` и `qwen2.5vl:latest` для VLM-роли.
+- Добавить all-in-one local_test-конфиги для `qwen3-vl:4b` и `qwen2.5vl:3b`, если они должны участвовать в all-in-one сравнении.
+- Расширить role sweep кандидатами `qwen3-vl:4b` и `qwen2.5vl:3b` для VLM-роли.
 - Проверить прямой запуск всех benchmark-скриптов без `PYTHONPATH` и без `sys.path.insert`.
 - Разбить крупные функции `semantic_decision_node`, `vegachat_backend.generate`, `visrag_core.engine._generate_response`, `build_pipeline_graph`, `data_profiler.invoke`, `vlm_analysis_node`.
 - Убрать дублирование `_is_vega_lite_spec_payload`, `_spec_add_data`, `title_text`, `canonicalize_chart_type`, `normalize_aggregate`, `_mean`, `_mean_bool`, `_percentile`, `_write_json`, `_write_jsonl`, `_read_jsonl`.

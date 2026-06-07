@@ -30,7 +30,7 @@ class PingResult:
     throughput_tokens_per_second: float | None
     status: str
     details: str
-OLLAMA_CHAT_MODELS: Mapping[str, Sequence[str]] = {'All-in-one / Reasoning / Code / VLM': ('qwen3.5:latest', 'qwen3.5:4b', 'gemma3:4b', 'qwen2.5vl:latest', 'gemma3:12b-it-q4_K_M', 'deepseek-r1:8b', 'llama3.1:8b', 'hermes3:8b', 'qwen2.5-coder:7b', 'qwen2.5-coder:3b', 'deepseek-coder:6.7b', 'granite-code:8b', 'codegemma:7b', 'minicpm-v:latest', 'openbmb/minicpm-v4.5:latest', 'moondream:latest')}
+OLLAMA_CHAT_MODELS: Mapping[str, Sequence[str]] = {'All-in-one / Reasoning / Code / VLM': ('qwen3.5:latest', 'qwen3.5:4b', 'gemma3:4b', 'qwen2.5vl:3b', 'gemma3:12b-it-q4_K_M', 'deepseek-r1:8b', 'llama3.1:8b', 'hermes3:8b', 'qwen2.5-coder:7b', 'qwen2.5-coder:3b', 'deepseek-coder:6.7b', 'granite-code:8b', 'codegemma:7b', 'minicpm-v:latest', 'openbmb/minicpm-v4.5:latest', 'moondream:latest')}
 OLLAMA_EMBEDDING_MODELS: Sequence[str] = ('nomic-embed-text:latest', 'mxbai-embed-large:latest', 'bge-m3:latest')
 HF_IMAGE_TEXT_MODELS: Sequence[str] = ('openai/clip-vit-base-patch32', 'openai/clip-vit-large-patch14', 'google/siglip-so400m-patch14-384', 'jinaai/jina-clip-v2')
 IMAGE_CAPABLE_OLLAMA_MARKERS: Sequence[str] = ('vl', 'minicpm', 'moondream', 'gemma3')

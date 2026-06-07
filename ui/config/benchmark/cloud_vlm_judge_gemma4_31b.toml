@@ -25,27 +25,27 @@ semantic_feedback_corpus_path = "./rag_corpus/feedback/visual_feedback_local_tes
 
 [reasoning_model]
 provider = "ollama"
-model = "qwen2.5vl:3b"
+model = "gemma3:4b"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 120.0
-num_ctx = 8192
+num_ctx = 4096
 max_output_tokens = 1000
 
 [spec_model]
 provider = "ollama"
-model = "qwen2.5vl:3b"
+model = "gemma3:4b"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 120.0
-num_ctx = 8192
+num_ctx = 4096
 max_output_tokens = 1000
 
 [vlm_model]
 provider = "ollama"
-model = "qwen2.5vl:3b"
+model = "gemma4:31b-cloud"
 temperature = 0.0
 base_url = "http://localhost:11434"
 timeout_seconds = 120.0
-num_ctx = 8192
+num_ctx = 4096
 max_output_tokens = 1000

@@ -23,7 +23,7 @@
 
 ```powershell
 python scripts\benchmark\runners\manual\export_semantic_review_set.py --benchmark-report artifacts\benchmarks\nlv_main_200\benchmark_report.json --output artifacts\benchmarks\manual_semantic_review\review_set.csv --limit 50
-python scripts\benchmark\runners\manual\evaluate_semantic_review.py --input artifacts\benchmarks\manual_semantic_review\review_set.csv --output-dir artifacts\benchmarks\manual_semantic_review
+python scripts\benchmark\runners\manual\evaluate_semantic_review.py --input artifacts\benchmarks\manual_semantic_review\review_set.csv --output-dir artifacts\benchmarks\manual_semantic_review --threshold 0.7
 ```
 
 ---
@@ -76,7 +76,7 @@ python scripts\benchmark\runners\external\evaluate_query_image_artifacts.py --in
 ### Команда
 
 ```powershell
-python scripts\benchmark\runners\manual\run_applied_case_benchmark.py --config ui\config\benchmark\local_test_gemma3_4b_safe.toml --run-id applied_model_metrics_001 --metrics-table artifacts\model_nlv\summary.csv --case-group applied_model_metrics --execute
+python scripts\benchmark\runners\manual\run_applied_case_benchmark.py --config ui\config\benchmark\local_test_gemma3_4b_safe.toml --run-id applied_model_metrics_001 --metrics-table artifacts\model_nlv\summary.csv --case-group applied_model_metrics --execute --enable-semantic-scoring --image-text-embedding-models openai/clip-vit-base-patch32 google/siglip-so400m-patch14-384 --image-text-device cuda --image-text-dtype float16
 ```
 
 ---
@@ -101,7 +101,7 @@ python scripts\benchmark\runners\manual\run_applied_case_benchmark.py --config u
 ### Команда
 
 ```powershell
-python scripts\benchmark\runners\manual\run_applied_case_benchmark.py --config ui\config\benchmark\local_test_gemma3_4b_safe.toml --run-id applied_image_folder_001 --image-folder demo_data\denoise --case-group applied_image_folder --execute
+python scripts\benchmark\runners\manual\run_applied_case_benchmark.py --config ui\config\benchmark\local_test_gemma3_4b_safe.toml --run-id applied_image_folder_001 --image-folder demo_data\denoise --case-group applied_image_folder --execute --enable-semantic-scoring --image-text-embedding-models openai/clip-vit-base-patch32 google/siglip-so400m-patch14-384 --image-text-device cuda --image-text-dtype float16
 ```
 
 ---

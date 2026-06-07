@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
-DEFAULT_LOCAL_ALL_IN_ONE_MODELS: tuple[str, ...] = ('qwen3.5:latest', 'qwen3.5:4b', 'gemma3:4b', 'qwen2.5vl:latest', 'gemma3:12b-it-q4_K_M')
+DEFAULT_LOCAL_ALL_IN_ONE_MODELS: tuple[str, ...] = ('qwen3.5:latest', 'qwen3.5:4b', 'gemma3:4b', 'qwen2.5vl:3b', 'gemma3:12b-it-q4_K_M')
 MODEL_SECTIONS: tuple[str, ...] = ('reasoning_model', 'spec_model', 'vlm_model')
 
 @dataclass(frozen=True)

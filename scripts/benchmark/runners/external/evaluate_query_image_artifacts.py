@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import site
 import csv
 import json
+import site
 import time
 from pathlib import Path
+from statistics import mean
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 site.addsitedir(PROJECT_ROOT.as_posix())
-from statistics import mean
-from typing import Any
 
 from src.application.config.project_config import load_project_config
 from src.application.pipeline import ViRAGEPipeline
@@ -28,7 +28,7 @@ def main() -> None:
     scorer = ImageTextCosineEvaluator(model_names=args.models, device=args.device, dtype=args.dtype)
     pipeline = _pipeline(args.config) if args.config else None
     judge = VisualChartJudgeService() if pipeline is not None else None
-    results = [_evaluate_row(row, scorer=scorer, pipeline=pipeline, judge=judge) for row in rows]
+    results = [_safe_evaluate_row(row, scorer=scorer, pipeline=pipeline, judge=judge) for row in rows]
     _write_csv(output / "external_query_image_results.csv", results)
     report = _report(results)
     (output / "external_query_image_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -60,6 +60,24 @@ def _pipeline(config_path: str) -> ViRAGEPipeline:
     return ViRAGEPipeline.from_project_config(config)
 
 
+def _safe_evaluate_row(row: dict[str, Any], *, scorer: ImageTextCosineEvaluator, pipeline: ViRAGEPipeline | None, judge: VisualChartJudgeService | None) -> dict[str, Any]:
+    started = time.perf_counter()
+    try:
+        result = _evaluate_row(row, scorer=scorer, pipeline=pipeline, judge=judge)
+        return {**result, "status": "success", "error_type": "", "error": ""}
+    except (RuntimeError, ValueError, OSError, FileNotFoundError, KeyError, TypeError) as exc:
+        return {
+            **row,
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "embedding_score": None,
+            "vlm_judge_score": None,
+            "semantic_match_score": None,
+            "duration_seconds": round(time.perf_counter() - started, 6),
+        }
+
+
 def _evaluate_row(row: dict[str, Any], *, scorer: ImageTextCosineEvaluator, pipeline: ViRAGEPipeline | None, judge: VisualChartJudgeService | None) -> dict[str, Any]:
     started = time.perf_counter()
     query = str(row.get("query") or "").strip()
@@ -68,36 +86,69 @@ def _evaluate_row(row: dict[str, Any], *, scorer: ImageTextCosineEvaluator, pipe
         raise ValueError(f"Missing query in row: {row}")
     if not image_path:
         raise ValueError(f"Missing image_path in row: {row}")
-    batch = scorer.score(image_path=image_path, task_text=query)
-    model_scores = {item.model_name: normalize_cosine_to_unit(item.cosine) for item in batch.results}
-    embedding_score = mean(model_scores.values()) if model_scores else None
-    vlm_score = None
-    judge_payload: dict[str, Any] = {}
-    if pipeline is not None and judge is not None:
-        pipeline.runtime.reset_model_logs()
-        result = judge.invoke(query=query, plot_image=PlotImageArtifact(image_path=image_path), runtime=pipeline.runtime, request_analysis=None, visual_judge_requirements=None)
-        vlm_score = vlm_judge_score_from_result(result)
-        judge_payload = {
-            "vlm_answers_user_query": result.answers_user_query,
-            "vlm_retry_recommendation": result.retry_recommendation,
-            "vlm_confidence": result.confidence,
-            "vlm_judge_score": vlm_score,
-        }
+    if not Path(image_path).exists():
+        raise FileNotFoundError(f"External artifact image does not exist: {image_path}")
+    embedding_payload = _embedding_payload(scorer=scorer, image_path=image_path, query=query)
+    judge_payload = _judge_payload(pipeline=pipeline, judge=judge, image_path=image_path, query=query)
     return {
         **row,
         "query": query,
         "image_path": image_path,
-        "embedding_score": embedding_score,
-        **{f"model_score.{name}": score for name, score in model_scores.items()},
+        **embedding_payload,
         **judge_payload,
-        "semantic_match_score": semantic_match_score(vlm_judge_score=vlm_score, embedding_score=embedding_score),
+        "semantic_match_score": semantic_match_score(
+            vlm_judge_score=judge_payload.get("vlm_judge_score"),
+            embedding_score=embedding_payload.get("embedding_score"),
+        ),
         "duration_seconds": round(time.perf_counter() - started, 6),
+    }
+
+
+def _embedding_payload(*, scorer: ImageTextCosineEvaluator, image_path: str, query: str) -> dict[str, Any]:
+    batch = scorer.score(image_path=image_path, task_text=query)
+    model_scores = {item.model_name: normalize_cosine_to_unit(item.cosine) for item in batch.results}
+    errors = [error.__dict__ for error in batch.errors]
+    return {
+        "embedding_score": mean(model_scores.values()) if model_scores else None,
+        "embedding_error_count": len(errors),
+        "embedding_errors": json.dumps(errors, ensure_ascii=False) if errors else "",
+        **{f"model_score.{name}": score for name, score in model_scores.items()},
+    }
+
+
+def _judge_payload(*, pipeline: ViRAGEPipeline | None, judge: VisualChartJudgeService | None, image_path: str, query: str) -> dict[str, Any]:
+    if pipeline is None or judge is None:
+        return {}
+    try:
+        pipeline.runtime.reset_model_logs()
+        result = judge.invoke(
+            query=query,
+            plot_image=PlotImageArtifact(image_path=image_path),
+            runtime=pipeline.runtime,
+            request_analysis=None,
+            visual_judge_requirements=None,
+        )
+    except (RuntimeError, ValueError, OSError, KeyError, TypeError) as exc:
+        return {
+            "vlm_judge_score": None,
+            "vlm_error_type": type(exc).__name__,
+            "vlm_error": str(exc),
+        }
+    return {
+        "vlm_answers_user_query": result.answers_user_query,
+        "vlm_retry_recommendation": result.retry_recommendation,
+        "vlm_confidence": result.confidence,
+        "vlm_judge_score": vlm_judge_score_from_result(result),
+        "vlm_error_type": "",
+        "vlm_error": "",
     }
 
 
 def _report(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "total_items": len(rows),
+        "successful_items": sum(1 for row in rows if row.get("status") == "success"),
+        "failed_items": sum(1 for row in rows if row.get("status") != "success"),
         "projects": sorted({str(row.get("project") or "unknown") for row in rows}),
         "mean_embedding_score": _mean_field(rows, "embedding_score"),
         "mean_vlm_judge_score": _mean_field(rows, "vlm_judge_score"),
@@ -112,6 +163,8 @@ def _by_project(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         items = [row for row in rows if str(row.get("project") or "unknown") == project]
         out[project] = {
             "items": len(items),
+            "successful_items": sum(1 for row in items if row.get("status") == "success"),
+            "failed_items": sum(1 for row in items if row.get("status") != "success"),
             "mean_embedding_score": _mean_field(items, "embedding_score"),
             "mean_vlm_judge_score": _mean_field(items, "vlm_judge_score"),
             "mean_semantic_match_score": _mean_field(items, "semantic_match_score"),

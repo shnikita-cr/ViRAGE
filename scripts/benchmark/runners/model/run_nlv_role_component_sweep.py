@@ -18,9 +18,9 @@ BENCHMARK_RUNNER = PROJECT_ROOT / "scripts" / "benchmark" / "runners" / "chart" 
 DEFAULT_TEMPLATE_CONFIG = PROJECT_ROOT / "ui" / "config" / "benchmark" / "local_test_gemma3_4b_safe.toml"
 DEFAULT_CASES_PATH = PROJECT_ROOT / "external_datasets" / "nlv_corpus"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "artifacts" / "model_nlv_role_sweep"
-DEFAULT_REASONING_MODELS = ("gemma3:4b", "gemma4:e2b-it-qat", "gemma4:e4b-it-qat", "qwen2.5-coder:7b")
-DEFAULT_SPEC_MODELS = ("gemma3:4b", "gemma4:e2b-it-qat", "gemma4:e4b-it-qat", "qwen2.5-coder:7b")
-DEFAULT_VLM_MODELS = ("gemma3:4b", "gemma4:e2b-it-qat", "gemma4:e4b-it-qat", "qwen3-vl:4b", "qwen2.5vl:latest")
+DEFAULT_REASONING_MODELS = ("gemma3:4b", "qwen2.5:7b", "qwen2.5-coder:7b")
+DEFAULT_SPEC_MODELS = ("gemma3:4b", "qwen2.5:7b", "qwen2.5-coder:7b")
+DEFAULT_VLM_MODELS = ("gemma3:4b", "qwen2.5vl:3b", "qwen3-vl:4b")
 
 
 @dataclass(frozen=True)
