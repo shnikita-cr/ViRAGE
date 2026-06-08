@@ -98,6 +98,12 @@ class VisualChartJudgeService(BaseService):
         readability = _clean_list(parsed.readability_issues)
         comments = _clean_list(parsed.improvement_comments)
         feedback = str(parsed.feedback_for_next_generation or "").strip()
+        requested_chart_type = _requested_chart_type_from_query(query)
+        detected_chart_type = _normalize_chart_type(parsed.detected_chart_type)
+        chart_type_match = _chart_type_matches(requested_chart_type, detected_chart_type)
+        answers_user_query = bool(parsed.answers_user_query)
+        confidence = max(0.0, min(1.0, float(parsed.confidence or 0.0)))
+
         recommendation = _normalize_retry_recommendation(
             parsed.retry_recommendation,
             answers_user_query=answers_user_query,
@@ -111,11 +117,6 @@ class VisualChartJudgeService(BaseService):
             if "The rendered chart appears blank or unreadable." not in missing:
                 missing.append("The rendered chart appears blank or unreadable.")
 
-        requested_chart_type = _requested_chart_type_from_query(query)
-        detected_chart_type = _normalize_chart_type(parsed.detected_chart_type)
-        chart_type_match = _chart_type_matches(requested_chart_type, detected_chart_type)
-        answers_user_query = bool(parsed.answers_user_query)
-        confidence = max(0.0, min(1.0, float(parsed.confidence or 0.0)))
         if chart_type_match is False:
             answers_user_query = False
             recommendation = "retry"
