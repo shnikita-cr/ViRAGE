@@ -53,6 +53,8 @@ class VisualChartJudgeResult(BaseModel):
     input_scope: Literal["png_query_visual_requirements"] = "png_query_visual_requirements"
     chart_description: str = ""
     detected_chart_type: str | None = None
+    requested_chart_type: str | None = None
+    chart_type_match: bool | None = None
     visible_axes: dict[str, str] = Field(default_factory=dict)
     visible_legend: dict[str, Any] = Field(default_factory=dict)
     visible_labels: list[str] = Field(default_factory=list)

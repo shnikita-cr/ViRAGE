@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -99,7 +100,7 @@ class VisualChartJudgeService(BaseService):
         feedback = str(parsed.feedback_for_next_generation or "").strip()
         recommendation = _normalize_retry_recommendation(
             parsed.retry_recommendation,
-            answers_user_query=bool(parsed.answers_user_query),
+            answers_user_query=answers_user_query,
             feedback_for_next_generation=feedback,
             missing_requirements=missing,
             wrong_or_suspicious_parts=[*wrong, *readability],
@@ -109,17 +110,40 @@ class VisualChartJudgeService(BaseService):
             recommendation = "retry"
             if "The rendered chart appears blank or unreadable." not in missing:
                 missing.append("The rendered chart appears blank or unreadable.")
+
+        requested_chart_type = _requested_chart_type_from_query(query)
+        detected_chart_type = _normalize_chart_type(parsed.detected_chart_type)
+        chart_type_match = _chart_type_matches(requested_chart_type, detected_chart_type)
+        answers_user_query = bool(parsed.answers_user_query)
+        confidence = max(0.0, min(1.0, float(parsed.confidence or 0.0)))
+        if chart_type_match is False:
+            answers_user_query = False
+            recommendation = "retry"
+            confidence = min(confidence, 0.49)
+            issue = f"The user explicitly requested a {requested_chart_type} chart, but the image appears to be {detected_chart_type}."
+            if issue not in wrong:
+                wrong.append(issue)
+            if issue not in missing:
+                missing.append(issue)
+            if issue not in comments:
+                comments.append(issue)
+            feedback = (
+                f"Regenerate the visualization as a {requested_chart_type} chart. "
+                f"Do not use a {detected_chart_type} chart when the user explicitly requests {requested_chart_type}."
+            )
         return VisualChartJudgeResult(
             chart_description=str(parsed.chart_description or "").strip(),
-            detected_chart_type=parsed.detected_chart_type,
+            detected_chart_type=detected_chart_type,
+            requested_chart_type=requested_chart_type,
+            chart_type_match=chart_type_match,
             visible_axes=dict(parsed.visible_axes or {}),
             visible_legend=dict(parsed.visible_legend or {}),
             visible_labels=_clean_list(parsed.visible_labels),
             visible_fields=_clean_list(parsed.visible_fields),
             observed_facts=_clean_list(parsed.observed_facts),
-            answers_user_query=bool(parsed.answers_user_query),
+            answers_user_query=answers_user_query,
             supports_visible_claims=bool(parsed.supports_visible_claims),
-            confidence=max(0.0, min(1.0, float(parsed.confidence or 0.0))),
+            confidence=confidence,
             retry_recommendation=recommendation,
             missing_requirements=missing,
             wrong_or_suspicious_parts=wrong,
@@ -189,7 +213,9 @@ class VisualChartJudgeService(BaseService):
             "Do not infer from source tables, Vega-Lite specs, hidden data, or tooltips.\n"
             f"{chartsquared_rules}\n"
             "Decision: accept only if the image visibly answers the request and no critical visual requirement fails; "
-            "retry if repairable; reject only if unusable. Required axes, fields, legends, grouping/facet, trends, "
+            "retry if repairable; reject only if unusable. If the user explicitly asks for a chart type "
+            "(line, bar, scatter, histogram, pie, heatmap, boxplot), a visibly different chart type is a critical failure. "
+            "Required axes, fields, legends, grouping/facet, trends, "
             "comparisons, distributions, and relationships must be visible and readable. Tooltip-only evidence is not acceptable.\n"
             "Score plot_area_usage_score, axis_domain_score, layout_compactness_score, repeat_axis_label_score, publication_layout_score from 0..1. "
             "List concrete *_issues and feedback_for_next_generation when retry is needed.\n\n"
@@ -228,6 +254,59 @@ class VisualChartJudgeService(BaseService):
             "publication_layout_issues": [],
             "rationales": {"prompt_compliance": "The visible chart contains the requested fields."},
         }
+
+
+_CHART_TYPE_ALIASES: dict[str, set[str]] = {
+    "bar": {"bar", "bar_chart", "bar_graph", "barchart", "grouped_bar", "stacked_bar"},
+    "line": {"line", "line_chart", "line_graph", "line_plot", "linechart"},
+    "scatter": {"scatter", "scatter_plot", "scatter_chart", "scatterplot", "point", "point_chart"},
+    "histogram": {"histogram", "hist"},
+    "pie": {"pie", "pie_chart", "arc"},
+    "heatmap": {"heatmap", "heat_map", "rect"},
+    "boxplot": {"boxplot", "box_plot", "box_and_whisker", "box"},
+}
+
+_REQUESTED_CHART_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (chart_type, re.compile(pattern, re.IGNORECASE))
+    for chart_type, patterns in {
+        "bar": [r"\bbar\s+(?:chart|graph|plot)\b", r"\bbarchart\b"],
+        "line": [r"\bline\s+(?:chart|graph|plot)\b", r"\blinechart\b"],
+        "scatter": [r"\bscatter\s+(?:plot|chart|graph)\b", r"\bscatterplot\b"],
+        "histogram": [r"\bhistogram\b"],
+        "pie": [r"\bpie\s+chart\b"],
+        "heatmap": [r"\bheat\s*map\b", r"\bheatmap\b"],
+        "boxplot": [r"\bbox\s*plot\b", r"\bboxplot\b", r"\bbox\s+and\s+whisker\b"],
+    }.items()
+    for pattern in patterns
+)
+
+
+def _normalize_chart_type(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+    if not normalized:
+        return None
+    for canonical, aliases in _CHART_TYPE_ALIASES.items():
+        if normalized in aliases:
+            return canonical
+    return normalized
+
+
+def _requested_chart_type_from_query(query: str) -> str | None:
+    text = str(query or "")
+    for chart_type, pattern in _REQUESTED_CHART_TYPE_PATTERNS:
+        if pattern.search(text):
+            return chart_type
+    return None
+
+
+def _chart_type_matches(requested: str | None, detected: str | None) -> bool | None:
+    requested_normalized = _normalize_chart_type(requested)
+    detected_normalized = _normalize_chart_type(detected)
+    if requested_normalized is None or detected_normalized is None:
+        return None
+    return requested_normalized == detected_normalized
 
 
 def _publication_issues(result: VisualChartJudgeResult) -> list[str]:

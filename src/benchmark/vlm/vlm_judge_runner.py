@@ -37,6 +37,8 @@ class VLMJudgeBenchmarkResult(BaseModel):
     judge_confidence: float = 0.0
     vlm_judge_score: float = 0.0
     detected_chart_type: str | None = None
+    requested_chart_type: str | None = None
+    chart_type_match: bool | None = None
     missing_requirements: list[str] = Field(default_factory=list)
     wrong_or_suspicious_parts: list[str] = Field(default_factory=list)
     readability_issues: list[str] = Field(default_factory=list)
@@ -60,6 +62,8 @@ class VLMJudgeBenchmarkResult(BaseModel):
             "judge_confidence": self.judge_confidence,
             "vlm_judge_score": self.vlm_judge_score,
             "detected_chart_type": self.detected_chart_type,
+            "requested_chart_type": self.requested_chart_type,
+            "chart_type_match": self.chart_type_match,
             "missing_requirements": " | ".join(self.missing_requirements),
             "wrong_or_suspicious_parts": " | ".join(self.wrong_or_suspicious_parts),
             "readability_issues": " | ".join(self.readability_issues),
@@ -284,6 +288,8 @@ class VLMJudgeBenchmarkRunner:
                 judge_confidence=judge_result.confidence,
                 vlm_judge_score=vlm_judge_score_from_result(judge_result) or 0.0,
                 detected_chart_type=judge_result.detected_chart_type,
+                requested_chart_type=judge_result.requested_chart_type,
+                chart_type_match=judge_result.chart_type_match,
                 missing_requirements=judge_result.missing_requirements,
                 wrong_or_suspicious_parts=judge_result.wrong_or_suspicious_parts,
                 readability_issues=judge_result.readability_issues,
