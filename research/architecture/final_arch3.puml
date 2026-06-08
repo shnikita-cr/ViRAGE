@@ -1,0 +1,57 @@
+@startuml
+'title Архитектура ViRAGE
+
+left to right direction
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 15
+skinparam defaultFontSize 20
+skinparam ArrowThickness 2
+skinparam nodesep 45
+skinparam ranksep 70
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam rectangle {
+  BorderColor black
+  BackgroundColor white
+}
+
+' ---------- ряд 1 ----------
+rectangle "        Вход\nзапрос + данные" as Input
+rectangle "         Подготовка\nтаблица / изображения" as Prep
+rectangle "  Профиль\nполя, типы,\n  метрики" as Profile
+
+' ---------- ряд 2 ----------
+rectangle "       VisRAG        " as RAG
+rectangle "Планировщик LLM\n      до 3 задач" as Planner
+rectangle "План анализа\nаналитические\n      задачи" as Plan
+
+' ---------- ряд 3 ----------
+rectangle "    Генерация\nVega-Lite + PNG" as Chart
+rectangle "     Проверка\nвалидатор + VLM" as Check
+rectangle "      Результат\nграфики, выводы,\n      артефакты" as Result
+
+' ---------- фиксация сетки ----------
+Input -[hidden]down- RAG
+
+Prep -[hidden]down- Planner
+Planner -[hidden]down- Check
+
+' ---------- основной поток ----------
+Input -right-> Prep
+Prep -right-> Profile
+
+Profile -down-> Planner
+RAG -right-> Planner
+
+Planner -right-> Plan
+Plan -down-> Chart
+
+RAG -down-> Chart
+
+Chart -right-> Check
+Check -right-> Result : " принято"
+Check -left-> Chart : " исправить"
+@enduml

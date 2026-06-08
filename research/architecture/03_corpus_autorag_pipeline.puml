@@ -1,5 +1,6 @@
 @startuml
 title RAG corpus and AutoRAG pipeline
+skinparam dpi 600
 
 hide empty description
 skinparam componentStyle rectangle
