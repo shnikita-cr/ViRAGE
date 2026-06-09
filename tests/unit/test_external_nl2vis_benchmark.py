@@ -172,3 +172,92 @@ output_path.write_text(json.dumps({
 
     assert result.generated_spec["mark"] == "bar"
     assert result.raw_output["case_id"] == "case-a"
+
+
+def test_external_runner_passes_runtime_to_evaluator(tmp_path: Path) -> None:
+    from src.application.config.settings import ViRAGESettings
+    from src.benchmark.core.models import BenchmarkCase, BenchmarkCaseResult
+    from src.benchmark.external.adapters import ExternalAdapterResult
+    from src.benchmark.external.runner import ExternalNL2VISBenchmarkRunner
+    from src.infrastructure.runtime import RuntimeContext
+
+    data_path = tmp_path / "data.csv"
+    data_path.write_text("category,value\nA,1\n", encoding="utf-8")
+    runtime = RuntimeContext(settings=ViRAGESettings(), vlm=object())
+    observed: dict[str, object] = {}
+
+    class FakeAdapter:
+        system_name = "fake_external"
+
+        def generate(self, *, query: str, data_path: Path, case_id: str) -> ExternalAdapterResult:
+            return ExternalAdapterResult(
+                generated_spec={"mark": "bar", "encoding": {"x": {"field": "category"}}},
+                raw_output={"ok": True},
+            )
+
+    class FakeEvaluator:
+        def render_reference_image(self, *, reference_spec: dict[str, Any], data_path: str, output_path: Path) -> str:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"not-a-real-png")
+            return output_path.as_posix()
+
+        def evaluate_spec_and_image(self, **kwargs: Any) -> BenchmarkCaseResult:
+            observed["runtime"] = kwargs["runtime"]
+            case = kwargs["case"]
+            return BenchmarkCaseResult(
+                case_id=case.case_id,
+                dataset_name=case.dataset_name,
+                query=case.query,
+                data_path=case.resolved_data_path(kwargs["case_root"]),
+                generated_spec=kwargs["generated_spec"],
+                generated_image_path=kwargs["generated_image_path"],
+                is_valid_spec=True,
+                spec_score=1.0,
+                vision_score=0.5,
+            )
+
+    runner = ExternalNL2VISBenchmarkRunner(adapter=FakeAdapter(), evaluator=FakeEvaluator(), runtime=runtime)
+    case = BenchmarkCase(case_id="case-a", query="show value", data_path="data.csv", dataset_name="test")
+
+    result = runner.run_case(case=case, case_root=tmp_path, output_dir=tmp_path / "out")
+
+    assert result.error is None
+    assert observed["runtime"] is runtime
+    assert result.vision_score == 0.5
+
+
+def test_vision_runtime_loads_vlm_from_toml_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    from src.application.config.settings import ViRAGESettings
+    from scripts.benchmark.runners.external import run_nvbench20_external_nl2vis_benchmark as runner_script
+
+    settings = ViRAGESettings()
+    vlm_config = SimpleNamespace(model="gemma3:4b")
+    built_model = object()
+
+    def fake_load_project_config(path: Path) -> SimpleNamespace:
+        return SimpleNamespace(mode="pipeline", settings=settings, vlm_model=vlm_config)
+
+    def fake_build_chat_model(config: object, model_settings: object, *, role: str | None = None) -> object:
+        assert config is vlm_config
+        assert model_settings is not settings
+        assert role == "vlm"
+        return built_model
+
+    monkeypatch.setattr(runner_script, "load_project_config", fake_load_project_config)
+    monkeypatch.setattr(runner_script, "build_chat_model", fake_build_chat_model)
+
+    runtime = runner_script._vision_runtime(SimpleNamespace(vision_config="config.toml"))
+
+    assert runtime is not None
+    assert runtime.vlm is built_model
+    assert runtime.settings is not settings
+
+
+def test_vision_runtime_is_optional() -> None:
+    from types import SimpleNamespace
+
+    from scripts.benchmark.runners.external import run_nvbench20_external_nl2vis_benchmark as runner_script
+
+    assert runner_script._vision_runtime(SimpleNamespace(vision_config=None)) is None

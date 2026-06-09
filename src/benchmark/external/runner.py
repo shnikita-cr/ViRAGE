@@ -13,6 +13,7 @@ from src.benchmark.datasets.datasets import load_benchmark_cases
 from src.benchmark.evaluation.evaluator import VegaChatBenchmarkEvaluator
 from src.benchmark.evaluation.image_text_cosine import ImageTextCosineEvaluator
 from src.benchmark.external.adapters import ExternalAdapterError, ExternalNL2VISAdapter
+from src.infrastructure.runtime import RuntimeContext
 
 
 class ExternalNL2VISBenchmarkRunner:
@@ -24,9 +25,11 @@ class ExternalNL2VISBenchmarkRunner:
         adapter: ExternalNL2VISAdapter,
         evaluator: VegaChatBenchmarkEvaluator | None = None,
         image_text_evaluator: ImageTextCosineEvaluator | None = None,
+        runtime: RuntimeContext | None = None,
     ) -> None:
         self.adapter = adapter
         self.evaluator = evaluator or VegaChatBenchmarkEvaluator(image_text_evaluator=image_text_evaluator)
+        self.runtime = runtime
 
     def run_dataset(
         self,
@@ -91,7 +94,7 @@ class ExternalNL2VISBenchmarkRunner:
                 case_root=case_root,
                 generated_spec=generated_spec,
                 generated_image_path=generated_image_path,
-                runtime=None,
+                runtime=self.runtime,
                 output_dir=output_dir,
             )
             result.duration_seconds = round(time.perf_counter() - started, 6)

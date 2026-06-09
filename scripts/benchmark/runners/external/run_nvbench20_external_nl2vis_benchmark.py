@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if PROJECT_ROOT.as_posix() not in sys.path:
     sys.path.insert(0, PROJECT_ROOT.as_posix())
 
+from src.application.config.project_config import load_project_config
 from src.benchmark.evaluation.image_text_cosine import ImageTextCosineEvaluator
 from src.benchmark.external.adapters import (
     DataFormulatorCommandAdapter,
@@ -24,6 +25,8 @@ from src.benchmark.external.ollama import (
     assert_ollama_model_available,
 )
 from src.benchmark.external.runner import ExternalNL2VISBenchmarkRunner
+from src.infrastructure.runtime import RuntimeContext
+from src.llm.factory import build_chat_model
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ def main() -> None:
     report = ExternalNL2VISBenchmarkRunner(
         adapter=adapter,
         image_text_evaluator=_image_text_evaluator(args),
+        runtime=_vision_runtime(args),
     ).run_dataset(
         cases_path=Path(args.cases),
         output_dir=Path(args.output_dir),
@@ -49,6 +53,7 @@ def main() -> None:
     logger.info("VER: %s", report.visualization_error_rate)
     logger.info("ECR: %s", report.empty_chart_rate)
     logger.info("Mean Spec Score: %s", report.mean_spec_score)
+    logger.info("Mean Vision Score: %s", report.mean_vision_score)
     logger.info("Mean embedding score: %s", report.mean_embedding_score)
     logger.info("Report directory: %s", Path(args.output_dir).resolve())
 
@@ -100,6 +105,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--ollama-check-timeout", type=float, default=10.0)
 
+    parser.add_argument(
+        "--vision-config",
+        default=None,
+        help="Project TOML config used to build the VLM runtime for VegaChat-compatible VisionScore.",
+    )
     parser.add_argument("--image-text-embedding-models", nargs="*", default=None)
     parser.add_argument("--image-text-device", default="cuda", choices=["cuda", "cpu"])
     parser.add_argument("--image-text-dtype", default="float16", choices=["float16", "bfloat16", "float32"])
@@ -187,6 +197,18 @@ def _check_ollama_if_required(args: argparse.Namespace, settings: OllamaSettings
     if args.system not in OLLAMA_SYSTEMS or args.skip_ollama_check:
         return
     assert_ollama_model_available(settings, timeout_seconds=args.ollama_check_timeout)
+
+
+
+
+def _vision_runtime(args: argparse.Namespace) -> RuntimeContext | None:
+    if args.vision_config is None:
+        return None
+    config = load_project_config(Path(args.vision_config))
+    config.mode = "benchmark"
+    settings = config.settings.model_copy(deep=True)
+    vlm = build_chat_model(config.vlm_model, settings, role="vlm")
+    return RuntimeContext(settings=settings, vlm=vlm)
 
 
 def _image_text_evaluator(args: argparse.Namespace) -> ImageTextCosineEvaluator | None:
