@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,7 @@ def test_ollama_settings_defaults_to_local_gemma3_4b() -> None:
     assert settings.model == DEFAULT_OLLAMA_MODEL == "gemma3:4b"
     assert settings.as_litellm_config() == {
         "model": "ollama/gemma3:4b",
+        "environ_var_name": "OLLAMA_API_KEY",
         "api_key": "ollama",
         "api_base": "http://localhost:11434",
     }
@@ -61,9 +64,38 @@ def test_nl4dv_ollama_adapter_uses_language_model_mode() -> None:
     assert adapter.processing_mode == "language-model"
     assert adapter.lm_config == {
         "model": "ollama/gemma3:4b",
+        "environ_var_name": "OLLAMA_API_KEY",
         "api_key": "ollama",
         "api_base": "http://localhost:11434",
     }
+
+
+def test_nl4dv_ollama_adapter_binds_configured_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    data_path = tmp_path / "data.csv"
+    data_path.write_text("category,value\nA,1\n", encoding="utf-8")
+
+    class FakeNL4DV:
+        used_models: list[str] = []
+
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def analyze_query(self, query: str, verbose: bool = False) -> dict[str, Any]:
+            return self.query_language_model([{"type": "text", "text": query}])
+
+        def query_language_model(self, prompts: Any, model: str = "gpt-4o-mini") -> dict[str, Any]:
+            FakeNL4DV.used_models.append(model)
+            return {"vlSpec": {"mark": "bar", "encoding": {"x": {"field": "category"}}}}
+
+    fake_module = types.ModuleType("nl4dv")
+    fake_module.NL4DV = FakeNL4DV
+    monkeypatch.setitem(sys.modules, "nl4dv", fake_module)
+
+    adapter = NL4DVAdapter.with_ollama(settings=OllamaSettings())
+    result = adapter.generate(query="show value by category", data_path=data_path, case_id="case-a")
+
+    assert FakeNL4DV.used_models == ["ollama/gemma3:4b"]
+    assert result.generated_spec["mark"] == "bar"
 
 
 def test_data_formulator_http_ollama_payload_contains_llm_contract(tmp_path: Path) -> None:

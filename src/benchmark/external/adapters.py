@@ -78,6 +78,8 @@ class NL4DVAdapter:
         if self.gpt_api_key:
             kwargs["gpt_api_key"] = self.gpt_api_key
         instance = NL4DV(**kwargs)
+        if self.lm_config is not None:
+            _force_nl4dv_litellm_model(instance=instance, lm_config=self.lm_config)
         if self.dependency_parser_config is not None:
             instance.set_dependency_parser(config=self.dependency_parser_config)
         raw_output = instance.analyze_query(query, verbose=self.verbose)
@@ -87,6 +89,20 @@ class NL4DVAdapter:
         if not spec:
             raise ExternalAdapterError("NL4DV output does not contain a Vega-Lite specification.")
         return ExternalAdapterResult(generated_spec=spec, raw_output=raw_output)
+
+
+def _force_nl4dv_litellm_model(*, instance: Any, lm_config: dict[str, Any]) -> None:
+    configured_model = lm_config.get("model")
+    if not isinstance(configured_model, str) or not configured_model.strip():
+        raise ExternalAdapterError("NL4DV lm_config must contain a non-empty 'model' string.")
+    query_language_model = getattr(instance, "query_language_model", None)
+    if not callable(query_language_model):
+        raise ExternalAdapterError("NL4DV instance does not expose query_language_model for model binding.")
+
+    def query_language_model_with_configured_model(prompts: Any, model: str = configured_model) -> Any:
+        return query_language_model(prompts, model=configured_model)
+
+    setattr(instance, "query_language_model", query_language_model_with_configured_model)
 
 
 @dataclass(slots=True)

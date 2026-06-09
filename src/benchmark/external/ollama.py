@@ -25,6 +25,7 @@ class OllamaSettings:
     def as_litellm_config(self) -> dict[str, Any]:
         return {
             "model": self.litellm_model,
+            "environ_var_name": "OLLAMA_API_KEY",
             "api_key": "ollama",
             "api_base": self.host,
         }
