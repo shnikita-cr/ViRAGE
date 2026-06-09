@@ -10,11 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-import pandas as pd
-
-
-class ExternalAdapterError(RuntimeError):
-    pass
+from src.benchmark.external.data_formulator_payload import (
+    add_records_to_payload,
+    base_data_formulator_payload,
+)
+from src.benchmark.external.errors import ExternalAdapterError
+from src.benchmark.external.ollama import OllamaSettings
 
 
 @dataclass(slots=True)
@@ -39,10 +40,28 @@ class NL4DVAdapter:
     lm_config: dict[str, Any] | None = None
     gpt_api_key: str | None = None
     verbose: bool = False
+    system_name_value: str = "nl4dv"
 
     @property
     def system_name(self) -> str:
-        return "nl4dv"
+        return self.system_name_value
+
+    @classmethod
+    def with_ollama(
+        cls,
+        *,
+        settings: OllamaSettings,
+        dependency_parser_config: dict[str, Any] | None = None,
+        verbose: bool = False,
+        system_name_value: str = "nl4dv_ollama",
+    ) -> "NL4DVAdapter":
+        return cls(
+            processing_mode="language-model",
+            dependency_parser_config=dependency_parser_config,
+            lm_config=settings.as_litellm_config(),
+            verbose=verbose,
+            system_name_value=system_name_value,
+        )
 
     def generate(self, *, query: str, data_path: Path, case_id: str) -> ExternalAdapterResult:
         try:
@@ -76,10 +95,32 @@ class DataFormulatorHttpAdapter:
     timeout_seconds: float = 180.0
     include_data_records: bool = False
     max_records: int = 200
+    llm: dict[str, Any] | None = None
+    system_name_value: str = "data_formulator"
 
     @property
     def system_name(self) -> str:
-        return "data_formulator"
+        return self.system_name_value
+
+    @classmethod
+    def with_ollama(
+        cls,
+        *,
+        endpoint: str,
+        settings: OllamaSettings,
+        timeout_seconds: float = 180.0,
+        include_data_records: bool = False,
+        max_records: int = 200,
+        system_name_value: str = "data_formulator_http_ollama",
+    ) -> "DataFormulatorHttpAdapter":
+        return cls(
+            endpoint=endpoint,
+            timeout_seconds=timeout_seconds,
+            include_data_records=include_data_records,
+            max_records=max_records,
+            llm=settings.as_payload(),
+            system_name_value=system_name_value,
+        )
 
     def generate(self, *, query: str, data_path: Path, case_id: str) -> ExternalAdapterResult:
         payload = self._payload(query=query, data_path=data_path, case_id=case_id)
@@ -106,16 +147,13 @@ class DataFormulatorHttpAdapter:
         return ExternalAdapterResult(generated_spec=spec, raw_output=raw_output)
 
     def _payload(self, *, query: str, data_path: Path, case_id: str) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "case_id": case_id,
-            "query": query,
-            "data_path": data_path.as_posix(),
-            "system": "data_formulator",
-        }
-        if self.include_data_records:
-            frame = pd.read_csv(data_path, nrows=self.max_records)
-            payload["columns"] = [str(column) for column in frame.columns]
-            payload["records"] = frame.where(frame.notna(), None).to_dict(orient="records")
+        payload = base_data_formulator_payload(query=query, data_path=data_path, case_id=case_id, llm=self.llm)
+        add_records_to_payload(
+            payload,
+            data_path=data_path,
+            include_data_records=self.include_data_records,
+            max_records=self.max_records,
+        )
         return payload
 
 
@@ -125,10 +163,32 @@ class DataFormulatorCommandAdapter:
     timeout_seconds: float = 300.0
     include_data_records: bool = False
     max_records: int = 200
+    llm: dict[str, Any] | None = None
+    system_name_value: str = "data_formulator"
 
     @property
     def system_name(self) -> str:
-        return "data_formulator"
+        return self.system_name_value
+
+    @classmethod
+    def with_ollama(
+        cls,
+        *,
+        command_template: str,
+        settings: OllamaSettings,
+        timeout_seconds: float = 300.0,
+        include_data_records: bool = False,
+        max_records: int = 200,
+        system_name_value: str = "data_formulator_command_ollama",
+    ) -> "DataFormulatorCommandAdapter":
+        return cls(
+            command_template=command_template,
+            timeout_seconds=timeout_seconds,
+            include_data_records=include_data_records,
+            max_records=max_records,
+            llm=settings.as_payload(),
+            system_name_value=system_name_value,
+        )
 
     def generate(self, *, query: str, data_path: Path, case_id: str) -> ExternalAdapterResult:
         with tempfile.TemporaryDirectory(prefix="virage_df_case_") as temp_dir_raw:
@@ -163,16 +223,13 @@ class DataFormulatorCommandAdapter:
             )
 
     def _payload(self, *, query: str, data_path: Path, case_id: str) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "case_id": case_id,
-            "query": query,
-            "data_path": data_path.as_posix(),
-            "system": "data_formulator",
-        }
-        if self.include_data_records:
-            frame = pd.read_csv(data_path, nrows=self.max_records)
-            payload["columns"] = [str(column) for column in frame.columns]
-            payload["records"] = frame.where(frame.notna(), None).to_dict(orient="records")
+        payload = base_data_formulator_payload(query=query, data_path=data_path, case_id=case_id, llm=self.llm)
+        add_records_to_payload(
+            payload,
+            data_path=data_path,
+            include_data_records=self.include_data_records,
+            max_records=self.max_records,
+        )
         return payload
 
     def _command(self, *, input_path: Path, output_path: Path, query: str, data_path: Path) -> list[str]:
@@ -225,3 +282,4 @@ def _read_command_output(*, output_path: Path, stdout: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ExternalAdapterError("External command output must be a JSON object.")
     return parsed
+

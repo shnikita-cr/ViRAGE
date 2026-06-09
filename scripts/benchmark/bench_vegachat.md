@@ -332,11 +332,21 @@ Benchmark runner сохраняет:
 
 Для сравнения с внешними системами добавлен отдельный runner, который не запускает агентный анализ ViRAGE. Он берёт уже сконвертированные `cases.jsonl` nvBench 2.0, передаёт системе только `query` и CSV-таблицу, затем оценивает полученную Vega-Lite-спецификацию тем же evaluator, который используется для ViRAGE.
 
+Для локальных запусков через Ollama используются значения по умолчанию:
+
+- `--ollama-host http://localhost:11434`;
+- `--ollama-model gemma3:4b`.
+
 Поддержанные режимы:
 
-- `nl4dv` — прямой Python-вызов `NL4DV(...).analyze_query(...)`;
+- `nl4dv` — прямой Python-вызов `NL4DV(...).analyze_query(...)` в обычном режиме;
+- `nl4dv_ollama` — NL4DV в режиме `language-model` через LiteLLM и локальный Ollama;
 - `data_formulator_http` — HTTP-адаптер для локального сервера/обёртки Data Formulator;
-- `data_formulator_command` — командный адаптер для отдельного wrapper-скрипта Data Formulator.
+- `data_formulator_http_ollama` — HTTP-адаптер Data Formulator с явным контрактом локальной модели Ollama;
+- `data_formulator_command` — командный адаптер для отдельного wrapper-скрипта Data Formulator;
+- `data_formulator_command_ollama` — command-wrapper Data Formulator с явным контрактом локальной модели Ollama.
+
+Для Ollama-режимов runner перед началом бенчмарка проверяет `/api/tags` и завершает запуск с ошибкой, если модель не установлена. Проверку можно отключить только явно через `--skip-ollama-check`.
 
 Data Formulator не привязан к внутренним модулям пакета: текущий официальный пакет ориентирован на локальный сервер и интерфейс, поэтому для бенчмарка используется явный HTTP- или command-контракт. Wrapper должен вернуть JSON-объект с одним из полей: `vlSpec`, `vl_spec`, `vega_lite_spec`, `spec`, `generated_spec`, либо список `visList`/`charts` с таким полем.
 
@@ -344,21 +354,49 @@ Data Formulator не привязан к внутренним модулям п�
 
     python scripts/benchmark/datasets/convert_nvbench20.py --input external_datasets/nvbench20/train-00000-of-00001.parquet --database-csv-dir external_datasets/nvbench20/database_csv --output-dir external_datasets/nvbench20 --limit 200 --seed 42 --single-table-only
 
-Запуск NL4DV на 200 примерах:
+Проверка локальной модели:
 
-    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv --limit 200 --seed 42
+    ollama list
+
+Если модели нет, её нужно загрузить:
+
+    ollama pull gemma3:4b
+
+Запуск NL4DV через локальный Ollama на 200 примерах:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv_ollama --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv_ollama --limit 200 --seed 42
+
+Запуск Data Formulator через HTTP-обёртку и локальный Ollama:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system data_formulator_http_ollama --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_data_formulator_ollama --limit 200 --seed 42 --data-formulator-endpoint http://localhost:5567/benchmark/generate --include-data-records --max-data-records 200
+
+Если нужна другая локальная модель, она задаётся явно:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv_ollama --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv_ollama_qwen --limit 200 --seed 42 --ollama-model qwen3.5:4b
 
 Запуск NL4DV с image-text embedding-метриками:
 
-    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv_embeddings --limit 200 --seed 42 --image-text-embedding-models openai/clip-vit-base-patch32 google/siglip-so400m-patch14-384 --image-text-device cuda --image-text-dtype float16
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv_ollama --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv_ollama_embeddings --limit 200 --seed 42 --image-text-embedding-models openai/clip-vit-base-patch32 google/siglip-so400m-patch14-384 --image-text-device cuda --image-text-dtype float16
 
-Запуск Data Formulator через HTTP-обёртку:
+Запуск Data Formulator через command-wrapper и локальный Ollama:
 
-    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system data_formulator_http --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_data_formulator --limit 200 --seed 42 --data-formulator-endpoint http://localhost:5567/benchmark/generate --include-data-records --max-data-records 200
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system data_formulator_command_ollama --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_data_formulator_ollama --limit 200 --seed 42 --data-formulator-command "python scripts/benchmark/runners/external/data_formulator_wrapper.py --input {input_json} --output {output_json}" --include-data-records --max-data-records 200
 
-Запуск Data Formulator через command-wrapper:
+Контракт payload для Data Formulator в Ollama-режимах:
 
-    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system data_formulator_command --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_data_formulator --limit 200 --seed 42 --data-formulator-command "python scripts/benchmark/runners/external/data_formulator_wrapper.py --input {input_json} --output {output_json}" --include-data-records --max-data-records 200
+    {
+      "case_id": "...",
+      "query": "...",
+      "data_path": "...",
+      "system": "data_formulator",
+      "llm": {
+        "provider": "ollama",
+        "model": "gemma3:4b",
+        "api_base": "http://localhost:11434"
+      },
+      "columns": ["..."],
+      "records": []
+    }
 
 Выходные файлы совпадают по именам с основным бенчмарком ViRAGE:
 

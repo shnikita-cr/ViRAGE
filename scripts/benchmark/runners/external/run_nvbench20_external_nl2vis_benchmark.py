@@ -17,9 +17,17 @@ from src.benchmark.external.adapters import (
     DataFormulatorHttpAdapter,
     NL4DVAdapter,
 )
+from src.benchmark.external.ollama import (
+    DEFAULT_OLLAMA_HOST,
+    DEFAULT_OLLAMA_MODEL,
+    OllamaSettings,
+    assert_ollama_model_available,
+)
 from src.benchmark.external.runner import ExternalNL2VISBenchmarkRunner
 
 logger = logging.getLogger(__name__)
+
+OLLAMA_SYSTEMS = {"nl4dv_ollama", "data_formulator_http_ollama", "data_formulator_command_ollama"}
 
 
 def main() -> None:
@@ -49,12 +57,27 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run NL4DV or Data Formulator adapters on converted nvBench 2.0 cases."
     )
-    parser.add_argument("--system", choices=["nl4dv", "data_formulator_http", "data_formulator_command"], required=True)
+    parser.add_argument(
+        "--system",
+        choices=[
+            "nl4dv",
+            "nl4dv_ollama",
+            "data_formulator_http",
+            "data_formulator_http_ollama",
+            "data_formulator_command",
+            "data_formulator_command_ollama",
+        ],
+        required=True,
+    )
     parser.add_argument("--cases", default="external_datasets/nvbench20/cases.jsonl")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/external_nvbench20")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--shuffle", action="store_true", help="Shuffle cases before applying --limit. Leave disabled to reuse the converted ViRAGE case order.")
+    parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Shuffle cases before applying --limit. Leave disabled to reuse the converted ViRAGE case order.",
+    )
 
     parser.add_argument("--nl4dv-processing-mode", default="semantic-parsing")
     parser.add_argument("--nl4dv-dependency-parser-config", default=None)
@@ -67,6 +90,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-formulator-timeout", type=float, default=300.0)
     parser.add_argument("--include-data-records", action="store_true")
     parser.add_argument("--max-data-records", type=int, default=200)
+
+    parser.add_argument("--ollama-host", default=DEFAULT_OLLAMA_HOST)
+    parser.add_argument("--ollama-model", default=DEFAULT_OLLAMA_MODEL)
+    parser.add_argument(
+        "--skip-ollama-check",
+        action="store_true",
+        help="Do not call Ollama /api/tags before starting an *_ollama benchmark mode.",
+    )
+    parser.add_argument("--ollama-check-timeout", type=float, default=10.0)
 
     parser.add_argument("--image-text-embedding-models", nargs="*", default=None)
     parser.add_argument("--image-text-device", default="cuda", choices=["cuda", "cpu"])
@@ -83,6 +115,14 @@ def build_adapter(args: argparse.Namespace):
             gpt_api_key=args.nl4dv_gpt_api_key,
             verbose=args.nl4dv_verbose,
         )
+    if args.system == "nl4dv_ollama":
+        settings = _ollama_settings(args)
+        _check_ollama_if_required(args, settings)
+        return NL4DVAdapter.with_ollama(
+            settings=settings,
+            dependency_parser_config=_json_file_or_inline(args.nl4dv_dependency_parser_config),
+            verbose=args.nl4dv_verbose,
+        )
     if args.system == "data_formulator_http":
         if not args.data_formulator_endpoint:
             raise ValueError("--data-formulator-endpoint is required for data_formulator_http.")
@@ -92,11 +132,35 @@ def build_adapter(args: argparse.Namespace):
             include_data_records=args.include_data_records,
             max_records=args.max_data_records,
         )
+    if args.system == "data_formulator_http_ollama":
+        if not args.data_formulator_endpoint:
+            raise ValueError("--data-formulator-endpoint is required for data_formulator_http_ollama.")
+        settings = _ollama_settings(args)
+        _check_ollama_if_required(args, settings)
+        return DataFormulatorHttpAdapter.with_ollama(
+            endpoint=args.data_formulator_endpoint,
+            settings=settings,
+            timeout_seconds=args.data_formulator_timeout,
+            include_data_records=args.include_data_records,
+            max_records=args.max_data_records,
+        )
     if args.system == "data_formulator_command":
         if not args.data_formulator_command:
             raise ValueError("--data-formulator-command is required for data_formulator_command.")
         return DataFormulatorCommandAdapter(
             command_template=args.data_formulator_command,
+            timeout_seconds=args.data_formulator_timeout,
+            include_data_records=args.include_data_records,
+            max_records=args.max_data_records,
+        )
+    if args.system == "data_formulator_command_ollama":
+        if not args.data_formulator_command:
+            raise ValueError("--data-formulator-command is required for data_formulator_command_ollama.")
+        settings = _ollama_settings(args)
+        _check_ollama_if_required(args, settings)
+        return DataFormulatorCommandAdapter.with_ollama(
+            command_template=args.data_formulator_command,
+            settings=settings,
             timeout_seconds=args.data_formulator_timeout,
             include_data_records=args.include_data_records,
             max_records=args.max_data_records,
@@ -113,6 +177,16 @@ def _json_file_or_inline(value: str | None) -> dict[str, Any] | None:
     if not isinstance(parsed, dict):
         raise ValueError("JSON configuration must be an object.")
     return parsed
+
+
+def _ollama_settings(args: argparse.Namespace) -> OllamaSettings:
+    return OllamaSettings(host=args.ollama_host, model=args.ollama_model)
+
+
+def _check_ollama_if_required(args: argparse.Namespace, settings: OllamaSettings) -> None:
+    if args.system not in OLLAMA_SYSTEMS or args.skip_ollama_check:
+        return
+    assert_ollama_model_available(settings, timeout_seconds=args.ollama_check_timeout)
 
 
 def _image_text_evaluator(args: argparse.Namespace) -> ImageTextCosineEvaluator | None:
