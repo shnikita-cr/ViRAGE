@@ -3,12 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import sys
 from pathlib import Path
+
+ROOT = next((parent for parent in Path(__file__).resolve().parents if (parent / "src").exists()), Path.cwd())
+if ROOT.as_posix() not in sys.path:
+    sys.path.insert(0, ROOT.as_posix())
 
 from src.benchmark.datasets.nvbench20 import convert_nvbench20
 
 logger = logging.getLogger(__name__)
-ROOT = next((parent for parent in Path(__file__).resolve().parents if (parent / "src").exists()), Path.cwd())
 
 
 def main() -> None:

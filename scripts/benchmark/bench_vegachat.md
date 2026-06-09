@@ -327,3 +327,60 @@ Benchmark runner сохраняет:
 - ViRAGE.
 
 Ключевое условие сравнения: для всех систем используются одинаковые входные запросы, таблицы, эталонные спецификации, эталонные изображения и одинаковый evaluator.
+
+## Внешние NL2VIS-системы на nvBench 2.0
+
+Для сравнения с внешними системами добавлен отдельный runner, который не запускает агентный анализ ViRAGE. Он берёт уже сконвертированные `cases.jsonl` nvBench 2.0, передаёт системе только `query` и CSV-таблицу, затем оценивает полученную Vega-Lite-спецификацию тем же evaluator, который используется для ViRAGE.
+
+Поддержанные режимы:
+
+- `nl4dv` — прямой Python-вызов `NL4DV(...).analyze_query(...)`;
+- `data_formulator_http` — HTTP-адаптер для локального сервера/обёртки Data Formulator;
+- `data_formulator_command` — командный адаптер для отдельного wrapper-скрипта Data Formulator.
+
+Data Formulator не привязан к внутренним модулям пакета: текущий официальный пакет ориентирован на локальный сервер и интерфейс, поэтому для бенчмарка используется явный HTTP- или command-контракт. Wrapper должен вернуть JSON-объект с одним из полей: `vlSpec`, `vl_spec`, `vega_lite_spec`, `spec`, `generated_spec`, либо список `visList`/`charts` с таким полем.
+
+Перед запуском нужно один раз сконвертировать nvBench 2.0:
+
+    python scripts/benchmark/datasets/convert_nvbench20.py --input external_datasets/nvbench20/train-00000-of-00001.parquet --database-csv-dir external_datasets/nvbench20/database_csv --output-dir external_datasets/nvbench20 --limit 200 --seed 42 --single-table-only
+
+Запуск NL4DV на 200 примерах:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv --limit 200 --seed 42
+
+Запуск NL4DV с image-text embedding-метриками:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system nl4dv --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_nl4dv_embeddings --limit 200 --seed 42 --image-text-embedding-models openai/clip-vit-base-patch32 google/siglip-so400m-patch14-384 --image-text-device cuda --image-text-dtype float16
+
+Запуск Data Formulator через HTTP-обёртку:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system data_formulator_http --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_data_formulator --limit 200 --seed 42 --data-formulator-endpoint http://localhost:5567/benchmark/generate --include-data-records --max-data-records 200
+
+Запуск Data Formulator через command-wrapper:
+
+    python scripts/benchmark/runners/external/run_nvbench20_external_nl2vis_benchmark.py --system data_formulator_command --cases external_datasets/nvbench20/cases.jsonl --output-dir artifacts/benchmarks/nvbench20_data_formulator --limit 200 --seed 42 --data-formulator-command "python scripts/benchmark/runners/external/data_formulator_wrapper.py --input {input_json} --output {output_json}" --include-data-records --max-data-records 200
+
+Выходные файлы совпадают по именам с основным бенчмарком ViRAGE:
+
+- `benchmark_results.csv`;
+- `benchmark_report.json`;
+- `benchmark_report.md`;
+- `cases/<case_id>/result.json`;
+- `cases/<case_id>/generated_spec.json`;
+- `generated_images/<case_id>.png`;
+- `reference_images/<case_id>__ref_<best_reference_index>.png`.
+
+Ограничения текущего runner:
+
+- агентный анализ данных ViRAGE не запускается;
+- поле `steps` из nvBench 2.0 не используется;
+- `VisionScore` через VLM не считается, потому что внешний runner не создаёт `RuntimeContext` с VLM; для семантической визуальной оценки используется `embedding_score`, если переданы `--image-text-embedding-models`;
+- Data Formulator требует внешнюю HTTP- или command-обёртку, чтобы не зависеть от нестабильных внутренних модулей пакета.
+
+
+## nvBench 2.0: единый набор 200 примеров
+
+Для сравнения ViRAGE, NL4DV и Data Formulator используется один и тот же файл `external_datasets/nvbench20/cases.jsonl`.
+Сначала он создаётся командой конвертации с `--limit 200 --seed 42 --single-table-only`.
+После этого раннеры ViRAGE и внешних систем читают этот готовый файл без дополнительного перемешивания.
+Так сохраняется одинаковый состав и порядок кейсов.
