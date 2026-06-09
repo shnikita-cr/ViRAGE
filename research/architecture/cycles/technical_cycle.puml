@@ -1,0 +1,68 @@
+@startuml
+title Технический цикл повтора в ViRAGE
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 17
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+}
+
+skinparam diamond {
+  BorderColor black
+  BackgroundColor white
+}
+
+start
+
+repeat
+
+  :          Генерация\nVega-Lite спецификации;
+  :   Проверка\nспецификации;
+
+  if ( ) then (спецификация\n     валидна)
+
+    :   Отрисовка графика\nи получение scenegraph;
+    :Проверка построения\n      и непустоты;
+
+    if ( ) then (график построен\n      и не пуст)
+
+      :Техническая проверка\n           пройдена;
+
+    else (график не построен\n          или пуст)
+
+      if ( ) then ( лимит технических\nповторов исчерпан)
+        :Техническая ошибка\n       построения;
+        stop
+      else (  лимит технических\nповторов не исчерпан)
+        :   Технический повтор:\nисправить спецификацию;
+      endif
+
+    endif
+
+  else (спецификация\n  невалидна)
+
+    if ( ) then ( лимит технических\nповторов исчерпан)
+      : Ошибка\nгенерации;
+      stop
+    else (  лимит технических\nповторов не исчерпан)
+      :   Технический повтор:\nисправить спецификацию;
+    endif
+
+  endif
+
+repeat while ( ) is (нужен технический\n          повтор) not (техническая проверка\n         пройдена)
+
+:    Передать построенный\nвариант в семантический цикл;
+
+stop
+
+@enduml

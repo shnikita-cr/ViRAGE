@@ -1,0 +1,38 @@
+@startuml
+title Алгоритм извлечения рекомендаций в VisRAG
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontSize 18
+skinparam ArrowThickness 2
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+}
+
+start
+
+:Получить аналитическую задачу;
+:Получить профиль данных;
+:Сформировать поисковый запрос;
+
+:Выполнить поиск\nпо корпусу рекомендаций;
+:Получить релевантные\nфрагменты корпуса;
+
+:Отфильтровать правила,\nнеподходящие к задаче и данным;
+:Отсортировать правила\nпо релевантности;
+
+if (Найдены применимые рекомендации?) then (да)
+  :Сформировать краткий набор\nпрактических рекомендаций;
+else (нет)
+  :Вернуть пустой набор рекомендаций;
+endif
+
+:Передать рекомендации\nгенератору спецификации;
+
+stop
+@enduml

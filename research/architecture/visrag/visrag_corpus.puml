@@ -1,0 +1,29 @@
+@startuml
+title Подготовка корпуса рекомендаций для VisRAG
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontSize 18
+skinparam ArrowThickness 2
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+}
+
+start
+
+:Собрать источники знаний\nо визуализации данных;
+:Извлечь текстовые правила\nи рекомендации;
+:Нормализовать формулировки;
+:Разделить материал\nна фрагменты;
+:Назначить типы правил\nи служебные признаки;
+:Сохранить корпус\nrecommendation chunks;
+:Построить эмбеддинги\nдля фрагментов;
+:Сохранить индекс\nдля runtime-поиска;
+
+stop
+@enduml

@@ -1,0 +1,52 @@
+@startuml
+title "Семантический цикл повтора в ViRAGE         "
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 17
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+}
+
+skinparam diamond {
+  BorderColor black
+  BackgroundColor white
+}
+
+start
+
+repeat
+
+  :Получить технически\n  корректный вариант;
+  :VLM оценка;
+
+  if ( ) then (график прошел\n      проверку)
+
+    :Принять текущий\n        вариант;
+
+  else (график не прошел\n        проверку)
+
+    if ( ) then (лимит семантических\nповторов исчерпан)
+      :Выбрать лучший\nполученный вариант;
+    else (лимит семантических\nповторов не исчерпан)
+      :Семантический повтор:\nучесть замечания VLM;
+      :  Повторная генерация\nи техническая проверка;
+    endif
+
+  endif
+
+repeat while ( ) is (нужен семантический\n           повтор) not (вариант выбран)
+
+:  Итоговый\nVLM-анализ;
+
+stop
+
+@enduml
