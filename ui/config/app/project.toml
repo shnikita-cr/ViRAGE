@@ -2,19 +2,24 @@ mode = "streamlit"
 
 [settings]
 gpu_ram_gb = 8.0
-analytics_tail_enabled = false
+analytics_tail_enabled = true
+semantic_feedback_max_attempts = 1
+semantic_feedback_loop_enabled = true
+spec_generation_max_attempts = 5
+streamlit_compute_metrics = true
+enable_evaluation_summary = true
 
 [reasoning_model]
 provider = "ollama"
-model = "gemma3:4b"
+model = "gemma4:31b-cloud"
 base_url = "http://localhost:11434"
 
 [spec_model]
 provider = "ollama"
-model = "gemma3:4b"
+model = "gemma4:31b-cloud"
 base_url = "http://localhost:11434"
 
 [vlm_model]
 provider = "ollama"
-model = "gemma3:4b"
+model = "gemma4:31b-cloud"
 base_url = "http://localhost:11434"

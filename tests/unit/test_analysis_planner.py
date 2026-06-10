@@ -196,3 +196,92 @@ def test_llm_planner_fills_runtime_fields_when_model_omits_them() -> None:
     assert plan.user_query == "Проанализируй данные"
     assert plan.data_path == "data.csv"
     assert plan.rationale == ["The selected fields exist."]
+
+
+def _image_profile() -> DataProfile:
+    return DataProfile(
+        row_count=4,
+        col_count=4,
+        columns=[
+            DataColumnProfile(name="file_name", dtype="categorical", role="identifier", unique_count=4, is_identifier=True),
+            DataColumnProfile(name="group", dtype="categorical", role="dimension", unique_count=2),
+            DataColumnProfile(name="brisque_score", dtype="numeric", role="measure", unique_count=4),
+            DataColumnProfile(name="laplacian_variance", dtype="numeric", role="measure", unique_count=4),
+        ],
+    )
+
+
+def test_llm_planner_accepts_image_quality_comparison_without_problem_ranking() -> None:
+    payload = {
+        "user_query": "Сравни качество изображений между группами",
+        "data_path": "image_quality_metrics.csv",
+        "input_type": "image_folder",
+        "max_charts": 3,
+        "subtasks": [
+            {
+                "id": "method_iqa_comparison",
+                "task_type": "image_quality_analysis",
+                "query": "Compare image quality metrics between groups.",
+                "purpose": "Compare image quality metrics between groups.",
+                "required_fields": ["group", "brisque_score", "laplacian_variance"],
+                "optional_fields": [],
+                "priority": 1,
+                "constraints": {"output_target": "scientific_figure"},
+                "metric_semantics": {"brisque_score": "lower_is_better", "laplacian_variance": "higher_is_better"},
+                "ranking_strategy": None,
+                "scale_strategy": "independent_panels",
+                "visual_constraints": ["use_independent_panels_for_multimetric"],
+                "rationale": "The fields are present and support group-level IQA comparison.",
+            }
+        ],
+        "skipped_candidates": [
+            {"task_type": "outlier_detection", "reason": "The request does not ask for problematic files.", "required_fields": []}
+        ],
+        "rationale": ["The plan compares available image metrics by group."],
+    }
+
+    plan = AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(payload), max_attempts=1).plan(
+        user_query="Сравни качество изображений между группами",
+        data_path="image_quality_metrics.csv",
+        data_profile=_image_profile(),
+        input_type="image_folder",
+    )
+
+    assert plan.subtasks[0].id == "method_iqa_comparison"
+    assert plan.subtasks[0].ranking_strategy is None
+
+
+def test_llm_planner_still_rejects_problematic_items_without_problem_ranking() -> None:
+    payload = {
+        "user_query": "Найди проблемные изображения",
+        "data_path": "image_quality_metrics.csv",
+        "input_type": "image_folder",
+        "max_charts": 3,
+        "subtasks": [
+            {
+                "id": "problem_images",
+                "task_type": "image_quality_analysis",
+                "query": "Find problematic image files.",
+                "purpose": "Find problematic items in the image collection.",
+                "required_fields": ["file_name", "brisque_score"],
+                "optional_fields": [],
+                "priority": 1,
+                "constraints": {"output_target": "scientific_figure"},
+                "metric_semantics": {"brisque_score": "lower_is_better"},
+                "ranking_strategy": None,
+                "scale_strategy": "normalized_severity",
+                "visual_constraints": ["use_overall_severity_for_problematic_items"],
+                "rationale": "The fields are present and support problematic item ranking.",
+            }
+        ],
+        "skipped_candidates": [],
+        "rationale": ["The plan targets problematic images."],
+    }
+
+    with pytest.raises(RuntimeError, match="problematic items"):
+        AnalysisPlanner(max_charts=3, reasoning_llm=FakePlannerLLM(payload), max_attempts=1).plan(
+            user_query="Найди проблемные изображения",
+            data_path="image_quality_metrics.csv",
+            data_profile=_image_profile(),
+            input_type="image_folder",
+        )

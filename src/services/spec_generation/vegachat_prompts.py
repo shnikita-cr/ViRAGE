@@ -60,12 +60,15 @@ Core generation rules:
 1. Use only safe field names from the schema block; never invent fields.
 2. Preserve requested fields on visible channels; tooltip-only evidence is not enough.
 3. Use channel aggregate/bin/timeUnit/sort/stack instead of unnecessary transforms.
-4. Show requested grouping through color, row, column, facet, shape, xOffset, or an axis.
-5. Avoid shared raw axes for incompatible metrics; use normalized severity, independent panels, or separate views.
-6. If overall_severity is available for top-problem requests, rank by it and keep raw metrics in tooltip/details.
-7. For repeat/facet, keep Vega-Lite dynamic: repeat.field is substituted by Vega-Lite at render time. Do not replace repeat references with fixed fields inside the nested spec. Titles and headers must be informative, not "Repeated metrics", "Metric", or "Value" alone.
-8. Do not force x-axis labelAngle; leave it unset unless labels demonstrably cannot fit.
-9. Mark consistency is mandatory: do not mix bar, boxplot, line, point, area, errorbar properties in one mark object.
+4. Show requested grouping through color, row/column encoding, shape, xOffset, or an axis.
+5. Before sharing a quantitative axis across measures, compare min/max ranges, units, and metric semantics. Use a shared raw scale only for comparable measures; otherwise normalize values, use independent row/column panel scales, or separate views.
+6. If separate panels are explicitly required for incompatible quantitative ranges, keep axes independent rather than forcing a shared y-scale.
+7. When comparing or ranking metrics, respect metric direction: higher-is-better, lower-is-better, or neutral. If direction is unknown, describe values as higher/lower, not better/worse.
+8. If overall_severity is available for top-problem requests, rank by it and keep raw metrics in tooltip/details.
+9. Prefer one readable chart. Do not use top-level repeat, facet, concat, hconcat, or vconcat. If separate panels are explicitly required, use row or column encoding.
+10. Visible labels must be concrete and self-contained. Avoid placeholders: "and 1 more", "and N more", "metric named in panel header", "selected field", "repeated field/metric", or bare "Value" for multiple measures.
+11. Do not force x-axis labelAngle; leave it unset unless labels demonstrably cannot fit.
+12. Mark consistency is mandatory: do not mix bar, boxplot, line, point, area, errorbar properties in one mark object.
 
 Allowed Vega-Lite constants:
 - mark.type: bar, line, point, circle, square, area, rect, rule, tick, text, boxplot, errorbar

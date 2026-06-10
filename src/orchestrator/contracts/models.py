@@ -75,12 +75,13 @@ class AnalysisSubtask(BaseModel):
         return self
 
     def _validate_problematic_strategy(self) -> None:
-        if not requires_problem_ranking(self.query, self.purpose, self.task_type):
+        if not requires_problem_ranking(self.query, self.purpose):
             return
         if not is_problem_ranking_strategy(self.ranking_strategy):
             raise ValueError(
-                f"Analysis subtask {self.id!r} targets problematic/quality items but has no controlled ranking_strategy. "
-                f"Allowed ranking strategies: {allowed_ranking_strategies()}"
+                f"Analysis subtask {self.id!r} targets problematic items but has no controlled ranking_strategy. "
+                f"Allowed problematic-item ranking strategies: "
+                f"['extremity_from_typical', 'top_n_highest_metric', 'top_n_highest_severity', 'top_n_lowest_metric']"
             )
 
 

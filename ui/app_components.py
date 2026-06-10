@@ -315,6 +315,7 @@ def apply_streamlit_run_overrides(
             "visrag_enabled": visrag_enabled,
             "spec_generation_include_visrag_context": visrag_enabled,
             "analytics_tail_enabled": analytics_tail_enabled,
+            "enable_evaluation_summary": analytics_tail_enabled,
             "spec_generation_max_attempts": spec_generation_max_attempts,
             "semantic_feedback_loop_enabled": semantic_feedback_loop_enabled,
             "semantic_feedback_max_attempts": semantic_feedback_max_attempts,
@@ -965,6 +966,61 @@ def render_spec_generation_validation_details(result: Any) -> None:
                 st.markdown(f"#### {title}")
                 st.json(payload.model_dump())
 
+
+def _non_empty_strings(values: Any) -> list[str]:
+    if not values:
+        return []
+    if isinstance(values, str):
+        return [values.strip()] if values.strip() else []
+    if isinstance(values, list):
+        return [str(item).strip() for item in values if str(item).strip()]
+    return []
+
+
+def render_insight_summary(result: Any, *, analytics_tail_enabled: bool) -> None:
+    if not analytics_tail_enabled:
+        return
+
+    vlm_analysis = getattr(result, "vlm_analysis", None)
+    insights = getattr(result, "insights", None)
+    evaluation_summary = getattr(result, "evaluation_summary", None)
+
+    summary = str(getattr(vlm_analysis, "summary", "") or "").strip() if vlm_analysis else ""
+    key_findings = _non_empty_strings(getattr(vlm_analysis, "key_findings", None)) if vlm_analysis else []
+    visual_observations = _non_empty_strings(getattr(vlm_analysis, "visual_observations", None)) if vlm_analysis else []
+    caveats = _non_empty_strings(getattr(vlm_analysis, "caveats", None)) if vlm_analysis else []
+    final_insights = _non_empty_strings(getattr(insights, "final_insights", None)) if insights else []
+    evaluation_payload = payload_from_model(evaluation_summary)
+    fallback_summary = str(evaluation_payload.get("insight_summary") or "").strip()
+
+    if not any([summary, key_findings, visual_observations, caveats, final_insights, fallback_summary]):
+        st.info("Analytics tail is enabled, but no insight summary was produced for this run.")
+        return
+
+    st.subheader("Insight summary")
+    with st.container(border=True):
+        if summary:
+            st.markdown(summary)
+        elif fallback_summary:
+            st.markdown(fallback_summary)
+
+        displayed_findings = key_findings or final_insights
+        if displayed_findings:
+            st.markdown("#### Key findings")
+            for item in displayed_findings[:5]:
+                st.markdown(f"- {item}")
+
+        if visual_observations:
+            with st.expander("Visual observations", expanded=False):
+                for item in visual_observations[:6]:
+                    st.markdown(f"- {item}")
+
+        if caveats:
+            with st.expander("Caveats", expanded=False):
+                for item in caveats[:5]:
+                    st.markdown(f"- {item}")
+
+
 def render_metrics(result: Any, compute_metrics: bool) -> None:
     st.subheader("Metrics")
 
@@ -1035,7 +1091,7 @@ def build_pending_run_payload(
     semantic_feedback_min_accept_confidence: float,
     semantic_feedback_save_rejected_specs: bool,
     max_charts: int,
-    uploaded_file: Any,
+    input_payload: dict[str, Any],
     query: str,
 ) -> dict[str, Any]:
     return {
@@ -1051,8 +1107,7 @@ def build_pending_run_payload(
         "semantic_feedback_min_accept_confidence": semantic_feedback_min_accept_confidence,
         "semantic_feedback_save_rejected_specs": semantic_feedback_save_rejected_specs,
         "max_charts": max(1, min(3, int(max_charts))),
-        "uploaded_file_name": uploaded_file.name,
-        "uploaded_file_bytes": uploaded_file.getvalue(),
+        **input_payload,
         "query": query,
         "manual_feedback": "",
     }

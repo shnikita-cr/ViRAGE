@@ -53,10 +53,11 @@ _PROBLEM_TOKENS = {
     "bad",
     "issue",
     "outlier",
-    "quality",
+    "low quality",
+    "poor quality",
     "проблем",
     "худш",
-    "качест",
+    "низкокач",
     "аномал",
     "выброс",
 }

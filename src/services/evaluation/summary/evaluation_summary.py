@@ -21,6 +21,7 @@ class EvaluationSummaryService(BaseService):
             benchmark_scores: dict[str, Any] | None = None,
     ) -> EvaluationSummaryResult:
         final_insights = insights.final_insights if insights else []
+        insight_summary = self._insight_summary(final_insights)
         semantic_retry_count = int(getattr(semantic_summary, "retry_count", 0) or 0) if semantic_summary else 0
         semantic_issues = []
         if semantic_summary is not None:
@@ -51,7 +52,14 @@ class EvaluationSummaryService(BaseService):
             semantic_retry_count=semantic_retry_count,
             technical_retry_count=technical_retry_count,
             semantic_issues=semantic_issues,
-            insight_summary="Insights are produced by the chart-grounded VLM analysis node.",
+            insight_summary=insight_summary,
             benchmark_scores=benchmark_scores or {"spec_score": report["spec_score"], "vision_score": None},
             benchmark_report=report,
         )
+    @staticmethod
+    def _insight_summary(final_insights: list[str]) -> str:
+        cleaned = [item.strip() for item in final_insights if str(item).strip()]
+        if not cleaned:
+            return ""
+        return "\n".join(f"- {item}" for item in cleaned[:5])
+
