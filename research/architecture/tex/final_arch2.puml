@@ -1,5 +1,4 @@
 @startuml
-title Шаги работы ViRAGE
 skinparam shadowing false
 skinparam monochrome true
 skinparam roundcorner 12
@@ -8,7 +7,7 @@ skinparam defaultFontSize 17
 skinparam ArrowFontSize 13
 skinparam ArrowThickness 2
 skinparam linetype ortho
-skinparam dpi 600'
+skinparam dpi 600
 
 skinparam activity {
   BorderColor black
@@ -20,39 +19,42 @@ skinparam diamond {
   BackgroundColor white
 }
 
+<style>
+activityDiagram {
+  activity {
+    HorizontalAlignment center
+  }
+
+  diamond {
+    HorizontalAlignment center
+  }
+}
+</style>
+
 start
 
 :Получить запрос и входные данные;
 
-if () then (Тип входа таблица)
+if () then (Получена таблица)
   :Загрузить таблицу;
-else (Тип входа изображения)
-  :Рассчитать метрики;
-  :Сформировать таблицу метрик;
+else (Получены изображения)
+  :Сформировать таблицу
+численных характеристик;
 endif
 
-:Построить профиль данных;
-:Найти знания в VisRAG для планирования;
 :Составить план анализа;
 
 repeat
-  :Выбрать аналитическую задачу;
-  :Найти правила визуализации в VisRAG;
-  :Сгенерировать Vega-Lite спецификацию;
-  :Проверить спецификацию;
-  :Построить PNG-график;
-  :VLM оценка;
+  :Выбрать аналитическую подзадачу;
+  :Сгенерировать спецификацию\nи провести валидацию;
+  :Сохранить спецификацию,
+изображение диаграммы и вывод;
+repeat while () is (Остались подзадачи\n из плана) not (Все подзаачи\nвыполнены)
 
-  if () then (График принят)
-    :Сохранить график,\nспецификацию и вывод;
-  else (График не принят)
-    :Передать замечания\nв повторную генерацию;
-  endif
 
-repeat while () is (Остались другие задачи из плана)
-
-:Сохранить артефакты запуска;
-:Вернуть графики и выводы пользователю;
+:Сохранить артефакты выполнения;
+:Вернуть диаграммы и выводы
+пользователю;
 
 stop
 @enduml
