@@ -1,6 +1,4 @@
 @startuml
-title Технический цикл повтора в ViRAGE
-
 skinparam shadowing false
 skinparam monochrome true
 skinparam roundcorner 12
@@ -12,56 +10,69 @@ skinparam linetype ortho
 skinparam dpi 600
 
 skinparam activity {
-  BorderColor black
-  BackgroundColor white
+BorderColor black
+BackgroundColor white
 }
 
+<style>
+activityDiagram {
+activity {
+HorizontalAlignment center
+}
+
+diamond {
+HorizontalAlignment center
+}
+}
+</style>
+
+
 skinparam diamond {
-  BorderColor black
-  BackgroundColor white
+BorderColor black
+BackgroundColor white
 }
 
 start
 
 repeat
 
-  :          Генерация\nVega-Lite спецификации;
-  :   Проверка\nспецификации;
+:Генерация\nVega-Lite спецификации;
+: Проверка\nспецификации;
 
-  if ( ) then (спецификация\n     валидна)
+if ( ) then (спецификация\n валидна)
 
-    :   Отрисовка графика\nи получение scenegraph;
-    :Проверка построения\n      и непустоты;
+: Отрисовка графика\nи получение scenegraph;
+:Проверка построения\nи непустоты;
 
-    if ( ) then (график построен\n      и не пуст)
+if ( ) then (график построен\nи не пуст)
 
-      :Техническая проверка\n           пройдена;
+:Техническая проверка\n пройдена;
 
-    else (график не построен\n          или пуст)
+else (график не построен\nили пуст)
 
-      if ( ) then ( лимит технических\nповторов исчерпан)
-        :Техническая ошибка\n       построения;
-        stop
-      else (  лимит технических\nповторов не исчерпан)
-        :   Технический повтор:\nисправить спецификацию;
-      endif
+if ( ) then ( лимит технических\nповторов исчерпан)
+:Техническая ошибка\n построения;
+stop
+else (лимит технических\nповторов не исчерпан)
+: Технический повтор:\nисправить спецификацию;
+endif
 
-    endif
+endif
 
-  else (спецификация\n  невалидна)
+else (спецификация\nневалидна)
 
-    if ( ) then ( лимит технических\nповторов исчерпан)
-      : Ошибка\nгенерации;
-      stop
-    else (  лимит технических\nповторов не исчерпан)
-      :   Технический повтор:\nисправить спецификацию;
-    endif
+if ( ) then ( лимит технических\nповторов исчерпан)
+: Ошибка\nгенерации;
+stop
+else (лимит технических\nповторов не исчерпан)
+: Технический повтор:\nисправить спецификацию;
+endif
 
-  endif
+endif
 
-repeat while ( ) is (нужен технический\n          повтор) not (техническая проверка\n         пройдена)
+repeat while ( ) is (нужен технический\nповтор) not (техническая проверка\n пройдена)
 
-:    Передать построенный\nвариант в семантический цикл;
+:Передать построенный\nвариант в семантический цикл;
 
 stop
 

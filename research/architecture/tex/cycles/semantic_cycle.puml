@@ -1,6 +1,4 @@
 @startuml
-title "Семантический цикл повтора в ViRAGE         "
-
 skinparam shadowing false
 skinparam monochrome true
 skinparam roundcorner 12
@@ -12,40 +10,52 @@ skinparam linetype ortho
 skinparam dpi 600
 
 skinparam activity {
-  BorderColor black
-  BackgroundColor white
+BorderColor black
+BackgroundColor white
 }
 
+<style>
+activityDiagram {
+activity {
+HorizontalAlignment center
+}
+
+diamond {
+HorizontalAlignment center
+}
+}
+</style>
+
 skinparam diamond {
-  BorderColor black
-  BackgroundColor white
+BorderColor black
+BackgroundColor white
 }
 
 start
 
 repeat
 
-  :Получить технически\n  корректный вариант;
-  :VLM оценка;
+:Получить технически\nкорректный вариант;
+:VLM оценка;
 
-  if ( ) then (график прошел\n      проверку)
+if ( ) then (график прошел\nпроверку)
 
-    :Принять текущий\n        вариант;
+:Принять текущий\nвариант;
 
-  else (график не прошел\n        проверку)
+else (график не прошел\nпроверку)
 
-    if ( ) then (лимит семантических\nповторов исчерпан)
-      :Выбрать лучший\nполученный вариант;
-    else (лимит семантических\nповторов не исчерпан)
-      :Семантический повтор:\nучесть замечания VLM;
-      :  Повторная генерация\nи техническая проверка;
-    endif
+if ( ) then (лимит семантических\nповторов исчерпан)
+:Выбрать лучший\nполученный вариант;
+else (лимит семантических\nповторов не исчерпан)
+:Семантический повтор:\nучесть замечания VLM;
+:Повторная генерация\nи техническая проверка;
+endif
 
-  endif
+endif
 
-repeat while ( ) is (нужен семантический\n           повтор) not (вариант выбран)
+repeat while ( ) is (нужен семантический\n повтор) not (вариант выбран)
 
-:  Итоговый\nVLM-анализ;
+:Итоговый\nVLM-анализ;
 
 stop
 
