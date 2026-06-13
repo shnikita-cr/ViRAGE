@@ -51,9 +51,9 @@ from ui.app_components import (
 RecoverableUiError = (RuntimeError, ValueError, TypeError, OSError, KeyError, IndexError, AttributeError, ImportError)
 
 SHOW_MODEL_CALLS_IN_UI = False
-INPUT_MODE_TABLE = "Таблица CSV/XLSX"
-INPUT_MODE_IMAGE_FILES = "Изображения"
-INPUT_MODE_IMAGE_DIRECTORY = "Папка изображений"
+INPUT_MODE_TABLE = "Table CSV/XLSX"
+INPUT_MODE_IMAGE_FILES = "Images"
+INPUT_MODE_IMAGE_DIRECTORY = "Image folder"
 INPUT_MODE_OPTIONS = [INPUT_MODE_TABLE, INPUT_MODE_IMAGE_FILES, INPUT_MODE_IMAGE_DIRECTORY]
 IMAGE_UPLOAD_TYPES = sorted(extension.lstrip(".") for extension in IMAGE_EXTENSIONS)
 
@@ -82,9 +82,9 @@ def run_app() -> None:
 
 
 def _configure_page() -> None:
-    st.set_page_config(page_title="ViRAGE Orchestrator", layout="wide")
-    st.title("ViRAGE Orchestrator")
-    st.caption("Один запрос проекта → до трёх аналитических подзадач → графики, спецификации и проверяемые результаты по мере готовности.")
+    st.set_page_config(page_title="ViRAGE", layout="wide")
+    st.title("ViRAGE")
+    # st.caption("Один запрос проекта → до трёх аналитических подзадач → графики, спецификации и проверяемые результаты по мере готовности.")
 
 
 def _load_config_files() -> list[Path]:
@@ -213,7 +213,7 @@ def _render_input_controls(controls_disabled: bool) -> tuple[dict[str, Any] | No
     query = st.text_area(
         "Project task",
         height=140,
-        placeholder="Например: Проанализируй качество изображений, покажи основные проблемные случаи и сравни методы.",
+        # placeholder="Например: Проанализируй качество изображений, покажи основные проблемные сл/учаи и сравни методы.",
         disabled=controls_disabled,
     )
     run_clicked = st.button("Run", type="primary", disabled=controls_disabled)

@@ -1,8 +1,4 @@
 @startuml
-title Архитектура подсистемы VisRAG
-
-left to right direction
-
 skinparam shadowing false
 skinparam monochrome true
 skinparam roundcorner 12
@@ -20,7 +16,6 @@ skinparam rectangle {
 
 rectangle "Источники знаний\nо визуализации" as Sources
 rectangle "Извлечение и\nнормализация правил" as Normalize
-rectangle "Фрагменты корпуса\nrecommendation chunks" as Chunks
 rectangle "Построение\nэмбеддингов" as Embeddings
 database "Векторное\nхранилище" as VectorStore
 
@@ -29,12 +24,11 @@ rectangle "Профиль\nданных" as Profile
 rectangle "Поисковый\nзапрос" as SearchQuery
 rectangle "Поиск близких\nфрагментов" as Retrieval
 rectangle "Ранжирование\nи отбор правил" as Ranking
-rectangle "Рекомендации\nдля визуализации" as Guidance
+rectangle "Рекомендации" as Guidance
 rectangle "Генератор\nVega-Lite" as SpecGenerator
 
 Sources --> Normalize
-Normalize --> Chunks
-Chunks --> Embeddings
+Normalize --> Embeddings
 Embeddings --> VectorStore
 
 Task --> SearchQuery

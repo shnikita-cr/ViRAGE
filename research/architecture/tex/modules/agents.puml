@@ -1,0 +1,58 @@
+```plantuml
+@startuml
+
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 17
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam nodesep 42
+skinparam ranksep 48
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  FontColor black
+}
+
+skinparam diamond {
+  BorderColor black
+  BackgroundColor white
+  FontColor black
+}
+
+<style>
+activityDiagram {
+  activity {
+    HorizontalAlignment center
+  }
+  diamond {
+    HorizontalAlignment center
+  }
+}
+</style>
+
+start
+:**AnalysisPlanner**
+Reasoning LLM;
+
+:**QueryRequestAnalyzer**
+Reasoning LLM;
+:**VisRAG**
+Reasoning LLM;
+
+:**ChartGeneratorService**
+Coding LLM;
+
+:**VLMAnalysisService**
+VLM;
+
+stop
+
+@enduml
+```

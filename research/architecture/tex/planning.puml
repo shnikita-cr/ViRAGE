@@ -1,6 +1,4 @@
 @startuml
-title Планирование подзадач в ViRAGE
-
 skinparam shadowing false
 skinparam monochrome true
 skinparam roundcorner 12
@@ -12,48 +10,45 @@ skinparam linetype ortho
 skinparam dpi 600
 
 skinparam activity {
-BorderColor black
-BackgroundColor white
+  BorderColor black
+  BackgroundColor white
+}
+
+skinparam diamond {
+  BorderColor black
+  BackgroundColor white
 }
 
 <style>
 activityDiagram {
-activity {
-HorizontalAlignment center
-}
+  activity {
+    HorizontalAlignment center
+  }
 
-diamond {
-HorizontalAlignment center
-}
+  diamond {
+    HorizontalAlignment center
+  }
 }
 </style>
 
 start
 
-:Получить пользовательский запрос\nи таблицу данных;
+:Получить пользовательский запрос
+и входные данные;
 :Построить профиль данных;
-:Определить доступные поля,\nтипы данных и ограничения таблицы;
+:Определить доступные поля,
+типы данных и ограничения;
+:Выделить аналитические задачи;
 
-if () then (Запрос содержит\nнесколько целей)
-:Разделить запрос\nна подзадачи;
-else (Запрос содержит\nодну цель)
-:Создать одну \nподзадачу;
+if () then (В запросе несколько подзадач)
+  :Разделить запрос не более чем
+на три аналитические задачи;
+else (В запросе одна подзадача)
+  :Сформировать одну
+аналитическую задачу;
 endif
 
-:Ограничить число подзадач\nдо установленного предела;
-:Назначить каждой подзадаче\nцель анализа;
-:Выбрать поля таблицы;
-:Получить рекомендации VisRAG;
-:Сформировать план выполнения;
-
-repeat
-:Выполнить очередную подзадачу;
-:Сохранить спецификацию,\nграфик и текстовый анализ;
-repeat while () is (Остались\nневыполненные\nподзадачи) not ( Все задачи\n выполнены)
-
-:Агрегировать результаты;
-:Сформировать итоговый вывод;
-
+:Назначить каждой задаче цель,
+поля и требуемые преобразования;
 stop
-
 @enduml

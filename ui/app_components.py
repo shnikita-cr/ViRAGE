@@ -251,7 +251,7 @@ def render_manual_feedback_form(result: Any, run_settings: dict[str, Any], confi
         comment = st.text_area(
             "Comment or correction",
             height=120,
-            placeholder="Например: Сделай горизонтальные столбцы и раздели метрики по независимым шкалам.",
+            # placeholder="Например: Сделай горизонтальные столбцы и раздели метрики по независимым шкалам.",
         )
         needs_regeneration = st.checkbox("Regenerate chart using this comment", value=False)
         submitted = st.form_submit_button("Save feedback")

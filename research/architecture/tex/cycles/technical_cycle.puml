@@ -35,7 +35,7 @@ BackgroundColor white
 start
 
 repeat
-
+:Получение знаний из VisRAG;
 :Генерация\nVega-Lite спецификации;
 : Проверка\nспецификации;
 

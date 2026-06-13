@@ -1,0 +1,87 @@
+@startuml
+left to right direction
+
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontSize 18
+skinparam ArrowThickness 2
+skinparam nodesep 55
+skinparam ranksep 65
+skinparam linetype ortho
+skinparam dpi 600
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+skinparam package {
+  BackgroundColor transparent
+  BorderColor black
+}
+
+skinparam component {
+  BackgroundColor transparent
+  BorderColor black
+}
+
+skinparam database {
+  BackgroundColor transparent
+  BorderColor black
+}
+
+skinparam artifact {
+  BackgroundColor transparent
+  BorderColor black
+}
+
+<style>
+componentDiagram {
+  component {
+    HorizontalAlignment center
+  }
+  database {
+    HorizontalAlignment center
+  }
+  artifact {
+    HorizontalAlignment center
+  }
+  package {
+    HorizontalAlignment center
+  }
+}
+</style>
+
+artifact "JSONL" as Jsonl
+
+package "VisRAG" as RAG {
+
+  package "Индексирование" as Indexing {
+    component "Лексический индекс\nBM25" as Bm25
+    component "Векторное представление\nnomic-embed-text\nn = 768" as Embedder
+
+    package "Векторное хранилище" as Stores {
+      database "Chroma\nдокументы, метаданные,\nвекторные представления" as Chroma
+    }
+  }
+
+  package "Гибридный поиск" as Retrieval {
+    component "Семантический\nпоиск" as SemanticSearch
+    component "Лексический\nпоиск" as LexicalSearch
+  }
+
+  component "Гибридная оценка" as HybridScore
+  component "Модель рассуждений" as ReasoningLLM
+}
+
+Jsonl --> Embedder
+Embedder --> Chroma
+Jsonl --> Bm25
+
+Chroma --> SemanticSearch
+Bm25 --> LexicalSearch
+
+LexicalSearch --> HybridScore
+SemanticSearch --> HybridScore
+HybridScore --> ReasoningLLM
+
+@enduml

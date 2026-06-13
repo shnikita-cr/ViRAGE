@@ -1,0 +1,74 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontSize 18
+skinparam defaultFontColor black
+skinparam ArrowColor black
+skinparam ArrowThickness 2
+skinparam activityDiamondFontSize 16
+skinparam nodesep 55
+skinparam ranksep 65
+skinparam dpi 600
+
+skinparam ActivityBackgroundColor transparent
+skinparam ActivityBorderColor black
+skinparam ActivityFontColor black
+
+skinparam ActivityDiamondBackgroundColor transparent
+skinparam ActivityDiamondBorderColor black
+skinparam ActivityDiamondFontColor black
+
+skinparam ActivityStartColor black
+skinparam ActivityEndColor black
+skinparam ActivityBarColor black
+
+<style>
+activityDiagram {
+  activity {
+    HorizontalAlignment center
+  }
+  diamond {
+    HorizontalAlignment center
+  }
+}
+</style>
+
+start
+
+:Получить пользовательский запрос,
+аналитическую задачу
+и профиль данных;
+
+:Сформировать обогащённый
+поисковый запрос;
+
+fork
+  :Вычислить векторное представление
+  nomic-embed-text, n = 768;
+  :Выполнить семантический поиск
+в Chroma;
+fork again
+  :Токенизировать поисковый запрос;
+  :Выполнить лексический поиск
+BM25;
+end fork
+
+:Объединить результаты поиска;
+
+:Нормализовать семантические
+и лексические оценки;
+
+:Вычислить гибридную оценку;
+
+:Применить веса метаданных;
+
+:Выбрать k=8 наиболее\nрелевантных фрагментов;
+
+:Сформировать рекомендации;
+
+:Передать рекомендации;
+
+stop
+@enduml

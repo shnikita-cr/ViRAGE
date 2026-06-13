@@ -1,0 +1,64 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam defaultFontSize 18
+skinparam defaultFontColor black
+skinparam ArrowColor black
+skinparam ArrowThickness 2
+skinparam activityDiamondFontSize 16
+skinparam nodesep 55
+skinparam ranksep 65
+skinparam dpi 600
+
+skinparam ActivityBackgroundColor transparent
+skinparam ActivityBorderColor black
+skinparam ActivityFontColor black
+
+skinparam ActivityDiamondBackgroundColor transparent
+skinparam ActivityDiamondBorderColor black
+skinparam ActivityDiamondFontColor black
+
+skinparam ActivityStartColor black
+skinparam ActivityEndColor black
+skinparam ActivityBarColor black
+<style>
+activityDiagram {
+  activity {
+    HorizontalAlignment center
+  }
+  diamond {
+    HorizontalAlignment center
+  }
+}
+</style>
+
+start
+
+:Получить источники знаний
+о визуализации, анализе данных
+и предметной области;
+
+:Извлечь правила,
+ограничения и рекомендации;
+
+:Нормализовать записи
+по единой структуре;
+
+:Классифицировать записи
+по назначению и источнику;
+
+fork
+  :Вычислить векторные представления
+  nomic-embed-text, n = 768;
+  :Сохранить документы,
+метаданные и векторные представления
+в Chroma;
+fork again
+  :Токенизировать тексты и метаданные;
+  :Подготовить лексический индекс
+для поиска BM25;
+end fork
+stop
+@enduml
