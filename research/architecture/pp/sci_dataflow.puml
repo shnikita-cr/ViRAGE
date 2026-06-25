@@ -1,0 +1,25 @@
+@startuml
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 15
+skinparam defaultFontSize 20
+skinparam ArrowThickness 2
+skinparam nodesep 45
+skinparam ranksep 70
+skinparam linetype ortho
+skinparam dpi 600
+
+skinparam rectangle {
+  BorderColor black
+  BackgroundColor white
+}
+
+:Проведение эксперимента;
+:Сохранение таблиц и/или изображений;
+:Анализ и визуализация;
+:Сохранение результатов анализа;
+:Проведение эксперимента;
+
+
+@enduml
