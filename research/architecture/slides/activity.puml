@@ -1,0 +1,96 @@
+@startuml
+title Архитектура решения ViRAGE
+
+left to right direction
+scale 1600*900
+
+skinparam shadowing false
+skinparam roundcorner 18
+skinparam linetype ortho
+skinparam dpi 220
+skinparam backgroundColor black
+
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 26
+skinparam ArrowFontName "Times New Roman"
+skinparam ArrowFontSize 20
+skinparam ArrowThickness 3
+skinparam ArrowColor white
+
+skinparam rectangle {
+  BorderColor black
+  FontColor black
+  BackgroundColor white
+}
+
+' ===== Цвета =====
+!define AGENT #FFF1C7
+!define ALG #FFFFFF
+!define NOTE #FFFFFF
+
+' ===== Верхний ряд =====
+rectangle "На вход подана таблица" as TableInput NOTE
+rectangle "Вход\nзапрос + данные" as Input ALG
+rectangle "Профиль данных" as Profile ALG
+rectangle "VisRAG Агент работы\nс базой знаний\n<b>Reasoning LLM</b>" as VisRAG AGENT
+rectangle "Сохранение лучших практик\nанализа и визуализаций" as BestPractices NOTE
+
+' ===== Средний ряд =====
+rectangle "На вход подана\nпапка изображений" as ImageFolder NOTE
+rectangle "Предобработка\nизображений" as ImagePreprocess ALG
+rectangle "Агент\nпланирования\n<b>Reasoning LLM</b>" as Planning AGENT
+rectangle "Сохранение\nтипичных ошибок" as TypicalErrors NOTE
+rectangle "Агент семантической\nпроверки\n<b>VLM</b>" as SemanticCheck AGENT
+rectangle "Проверки\nуспешны" as ChecksOk NOTE
+
+' ===== Нижний ряд =====
+rectangle "Агент генерации\nVega-Lite\n<b>Codegen LLM</b>" as Generation AGENT
+rectangle "Техническая\nпроверка\n(валидация altair)" as TechnicalCheck ALG
+rectangle "Агент анализа\n<b>VLM</b>" as Analysis AGENT
+
+' ===== Скрытые связи для раскладки 16:9 =====
+TableInput -[hidden]down-> Input
+Input -[hidden]right-> Profile
+Profile -[hidden]right-> VisRAG
+VisRAG -[hidden]right-> BestPractices
+
+Input -[hidden]down-> ImageFolder
+ImageFolder -[hidden]down-> ImagePreprocess
+Profile -[hidden]down-> Planning
+VisRAG -[hidden]down-> TypicalErrors
+TypicalErrors -[hidden]down-> SemanticCheck
+SemanticCheck -[hidden]right-> ChecksOk
+
+Planning -[hidden]down-> Generation
+Generation -[hidden]right-> TechnicalCheck
+TechnicalCheck -[hidden]right-> Analysis
+
+' ===== Основной поток =====
+TableInput --> Input
+Input --> Profile
+Input --> ImageFolder
+ImageFolder --> ImagePreprocess
+
+Profile --> Planning
+ImagePreprocess --> Planning
+
+Planning --> Generation
+Generation --> TechnicalCheck
+TechnicalCheck --> SemanticCheck
+SemanticCheck --> ChecksOk
+ChecksOk --> Analysis
+
+' ===== Циклы исправления =====
+TechnicalCheck -[#white,dashed]-> Generation
+SemanticCheck -[#white,dashed]-> Generation
+
+' ===== VisRAG =====
+Profile --> VisRAG
+VisRAG --> Generation
+
+SemanticCheck --> TypicalErrors
+TypicalErrors --> VisRAG
+
+BestPractices --> VisRAG
+
+@enduml

@@ -1,0 +1,332 @@
+@startuml
+title Диаграмма классов ViRAGE
+
+left to right direction
+scale 1600*900
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam roundcorner 12
+skinparam linetype ortho
+skinparam dpi 220
+
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 15
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 1.6
+
+skinparam class {
+  BackgroundColor white
+  BorderColor black
+  FontColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontColor black
+}
+
+' ===== Application =====
+
+package "application" {
+  class ViRAGEPipeline {
+    +run(request: PipelineRequest): PipelineResult
+  }
+
+  class RuntimeContext {
+    +config
+    +settings
+    +services
+  }
+
+  class PipelineRequest {
+    +user_query
+    +dataset_path
+    +image_folder_path
+  }
+
+  class PipelineResult {
+    +artifacts
+    +summary
+    +logs
+  }
+
+  class PipelineState {
+    +request
+    +data_profile
+    +spec_artifact
+    +plot_artifact
+    +logs
+  }
+
+  class PipelineResultFactory {
+    +build(...)
+  }
+}
+
+' ===== Orchestrator =====
+
+package "orchestrator" {
+  class AnalysisPlanner {
+    +build_plan(...)
+  }
+
+  class ImageFolderPreprocessor {
+    +preprocess(...)
+  }
+
+  class OrchestratorSubtaskRunner {
+    +run_subtask(...)
+  }
+
+  class FinalSummaryBuilder {
+    +build(...)
+  }
+
+  class AnalysisPlan {
+    +subtasks
+    +rationale
+  }
+
+  class AnalysisSubtask {
+    +query
+    +chart_goal
+    +required_fields
+  }
+
+  class OrchestratorReport {
+    +subruns
+    +final_summary
+  }
+}
+
+' ===== Services =====
+
+package "services" {
+  abstract class BaseService {
+    +invoke(input)
+  }
+
+  class DataPreparationService
+  class DataProfilerService
+  class QueryRequestAnalyzerService
+  class PlanningGuidanceService
+
+  class VisRAGService
+  class ChartGeneratorService
+  class SpecValidatorService
+  class SpecRepairService
+  class VegaLitePlotDrawingService
+
+  class ScenegraphCheckService
+  class EmptyChartCheckService
+  class ChartQualityPipeline
+  class VLMAnalysisService
+
+  class FeedbackNormalizerService
+  class FeedbackCorpusWriterService
+
+  BaseService <|-- DataPreparationService
+  BaseService <|-- DataProfilerService
+  BaseService <|-- QueryRequestAnalyzerService
+  BaseService <|-- PlanningGuidanceService
+  BaseService <|-- VisRAGService
+  BaseService <|-- ChartGeneratorService
+  BaseService <|-- SpecValidatorService
+  BaseService <|-- SpecRepairService
+  BaseService <|-- VegaLitePlotDrawingService
+  BaseService <|-- ScenegraphCheckService
+  BaseService <|-- EmptyChartCheckService
+  BaseService <|-- VLMAnalysisService
+  BaseService <|-- FeedbackNormalizerService
+  BaseService <|-- FeedbackCorpusWriterService
+}
+
+' ===== Spec generation =====
+
+package "spec_generation" {
+  abstract class SpecGenerationBackend {
+    +generate(request)
+  }
+
+  class VegaChatCodegenBackend {
+    +generate(request)
+  }
+
+  SpecGenerationBackend <|-- VegaChatCodegenBackend
+}
+
+' ===== VisRAG core =====
+
+package "visrag_core" {
+  class VisRAGEngine {
+    +retrieve_guidance(...)
+  }
+
+  class VisRAGCoreOptions {
+    +top_k
+    +semantic_weight
+    +lexical_weight
+  }
+
+  class ChromaChunkRetriever {
+    +query(...)
+  }
+
+  class RankBM25ChunkRetriever {
+    +query(...)
+  }
+
+  class HybridRetrievalScorer {
+    +score(...)
+  }
+
+  class MetadataWeightingPolicy {
+    +weight(...)
+  }
+
+  abstract class VisRAGStore {
+    +load_chunks()
+  }
+
+  class JsonlVisRAGStore {
+    +load_chunks()
+  }
+
+  VisRAGStore <|-- JsonlVisRAGStore
+}
+
+' ===== Domain models =====
+
+package "domain.data" {
+  class DataPreparationResult
+  class DataProfile {
+    +columns
+    +row_count
+    +column_count
+  }
+
+  class DataColumnProfile {
+    +name
+    +semantic_type
+    +null_count
+  }
+
+  class QueryRequestAnalysisResult
+}
+
+package "domain.chart" {
+  class SpecGenerationRequest
+  class SpecGenerationResult
+  class VegaLiteSpecArtifact {
+    +spec_json
+    +version
+  }
+
+  class SpecValidationResult {
+    +is_valid
+    +validation_errors
+  }
+
+  class PlotRenderingResult
+  class PlotImageArtifact
+}
+
+package "domain.rag" {
+  class VisRAGGuidanceChunk
+  class VisRAGRetrievedChunk
+  class VisRAGGenerationGuidance
+  class VisRAGResult
+}
+
+package "domain.analysis" {
+  class VLMAnalysisResult
+  class VisualFactExtractionResult
+  class InsightsResult
+}
+
+package "domain.feedback" {
+  class NormalizedFeedbackRecord
+  class SemanticFeedbackLoopSummary
+}
+
+' ===== Main dependencies =====
+
+ViRAGEPipeline o-- RuntimeContext
+ViRAGEPipeline --> PipelineRequest
+ViRAGEPipeline --> PipelineResult
+ViRAGEPipeline --> PipelineState
+ViRAGEPipeline --> PipelineResultFactory
+ViRAGEPipeline --> AnalysisPlanner
+ViRAGEPipeline --> ImageFolderPreprocessor
+ViRAGEPipeline --> OrchestratorSubtaskRunner
+ViRAGEPipeline --> FinalSummaryBuilder
+
+RuntimeContext o-- DataPreparationService
+RuntimeContext o-- DataProfilerService
+RuntimeContext o-- QueryRequestAnalyzerService
+RuntimeContext o-- PlanningGuidanceService
+RuntimeContext o-- VisRAGService
+RuntimeContext o-- ChartGeneratorService
+RuntimeContext o-- SpecValidatorService
+RuntimeContext o-- VegaLitePlotDrawingService
+RuntimeContext o-- VLMAnalysisService
+
+AnalysisPlanner --> AnalysisPlan
+AnalysisPlan o-- AnalysisSubtask
+ImageFolderPreprocessor --> DataPreparationResult
+OrchestratorSubtaskRunner --> OrchestratorReport
+
+' ===== Data and planning flow =====
+
+DataPreparationService --> DataPreparationResult
+DataProfilerService --> DataProfile
+DataProfile o-- DataColumnProfile
+QueryRequestAnalyzerService --> QueryRequestAnalysisResult
+PlanningGuidanceService --> AnalysisPlan
+
+' ===== RAG flow =====
+
+VisRAGService --> VisRAGEngine
+VisRAGService --> VisRAGResult
+VisRAGEngine o-- VisRAGCoreOptions
+VisRAGEngine --> ChromaChunkRetriever
+VisRAGEngine --> RankBM25ChunkRetriever
+VisRAGEngine --> HybridRetrievalScorer
+VisRAGEngine --> MetadataWeightingPolicy
+VisRAGEngine --> VisRAGStore
+VisRAGResult o-- VisRAGGenerationGuidance
+VisRAGGenerationGuidance o-- VisRAGRetrievedChunk
+VisRAGRetrievedChunk --> VisRAGGuidanceChunk
+
+' ===== Generation and validation flow =====
+
+ChartGeneratorService --> SpecGenerationRequest
+ChartGeneratorService --> SpecGenerationResult
+ChartGeneratorService --> SpecGenerationBackend
+SpecGenerationResult --> VegaLiteSpecArtifact
+
+SpecValidatorService --> VegaLiteSpecArtifact
+SpecValidatorService --> SpecValidationResult
+SpecRepairService --> VegaLiteSpecArtifact
+
+VegaLitePlotDrawingService --> VegaLiteSpecArtifact
+VegaLitePlotDrawingService --> PlotRenderingResult
+PlotRenderingResult --> PlotImageArtifact
+
+ScenegraphCheckService --> PlotRenderingResult
+EmptyChartCheckService --> PlotRenderingResult
+ChartQualityPipeline --> SpecValidationResult
+ChartQualityPipeline --> PlotRenderingResult
+
+' ===== Analysis and feedback flow =====
+
+VLMAnalysisService --> PlotImageArtifact
+VLMAnalysisService --> VLMAnalysisResult
+
+FeedbackNormalizerService --> NormalizedFeedbackRecord
+FeedbackCorpusWriterService --> NormalizedFeedbackRecord
+FeedbackCorpusWriterService --> VisRAGGuidanceChunk
+
+@enduml
